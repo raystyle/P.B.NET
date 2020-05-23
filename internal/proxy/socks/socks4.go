@@ -116,7 +116,7 @@ func (c *conn) serveSocks4() {
 	// 10 = version(1) + cmd(1) + port(2) + address(4) + 2xNULL(2) maybe
 	// 16 = domain name
 	buffer := make([]byte, 10+16) // prepare
-	_, err := io.ReadAtLeast(c.local, buffer[:8], 8)
+	_, err := io.ReadFull(c.local, buffer[:8])
 	if err != nil {
 		c.log(logger.Error, "failed to read socks4 request:", err)
 		return

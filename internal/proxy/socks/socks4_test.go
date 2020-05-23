@@ -1,6 +1,7 @@
 package socks
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"net"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/logger"
 	"project/internal/testsuite"
 )
 
@@ -71,6 +73,12 @@ func TestClient_connectSocks4(t *testing.T) {
 	t.Run("invalid reply", func(t *testing.T) {
 		client := Client{}
 		srv, cli := net.Pipe()
+		defer func() {
+			err := srv.Close()
+			require.NoError(t, err)
+			err = cli.Close()
+			require.NoError(t, err)
+		}()
 
 		go func() {
 			_, err := io.CopyN(ioutil.Discard, srv, 9)
@@ -90,6 +98,12 @@ func TestClient_connectSocks4(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		client := Client{}
 		srv, cli := net.Pipe()
+		defer func() {
+			err := srv.Close()
+			require.NoError(t, err)
+			err = cli.Close()
+			require.NoError(t, err)
+		}()
 
 		go func() {
 			_, err := io.CopyN(ioutil.Discard, srv, 9)
@@ -100,6 +114,136 @@ func TestClient_connectSocks4(t *testing.T) {
 		}()
 
 		err := client.connectSocks4(cli, "1.1.1.1", 1)
+		require.NoError(t, err)
+	})
+}
+
+func testSocks4ClientWrite(t *testing.T, server *Server, write func(cli net.Conn)) {
+	srv, cli := net.Pipe()
+	defer func() {
+		err := srv.Close()
+		require.NoError(t, err)
+		err = cli.Close()
+		require.NoError(t, err)
+	}()
+
+	go write(cli)
+
+	conn := &conn{
+		server: server,
+		local:  srv,
+	}
+
+	conn.serveSocks4()
+}
+
+func TestConn_serveSocks4(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, err := NewSocks4aServer("test", logger.Test, nil)
+	require.NoError(t, err)
+
+	t.Run("failed to read request", func(t *testing.T) {
+		conn := &conn{
+			server: server,
+			local:  testsuite.NewMockConnWithReadError(),
+		}
+
+		conn.serveSocks4()
+	})
+
+	t.Run("invalid version", func(t *testing.T) {
+		testSocks4ClientWrite(t, server, func(cli net.Conn) {
+			reply := make([]byte, 8)
+			reply[0] = 0x00
+
+			_, err = cli.Write(reply)
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("invalid command", func(t *testing.T) {
+		testSocks4ClientWrite(t, server, func(cli net.Conn) {
+			reply := make([]byte, 8)
+			reply[0] = version4
+			reply[1] = 0x00
+
+			_, err = cli.Write(reply)
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("failed to read domain", func(t *testing.T) {
+		testSocks4ClientWrite(t, server, func(cli net.Conn) {
+			reply := make([]byte, 8+1) // user id
+			reply[0] = version4
+			reply[1] = connect
+			// port
+			reply[2] = 0x01
+			reply[3] = 0x01
+			// ip address
+			reply[7] = 0x01
+
+			_, err = cli.Write(reply)
+			require.NoError(t, err)
+
+			err = cli.Close()
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("failed to write reply", func(t *testing.T) {
+		opts := Options{DialContext: func(context.Context, string, string) (net.Conn, error) {
+			return testsuite.NewMockConn(), nil
+		}}
+
+		server, err := NewSocks4aServer("test", logger.Test, &opts)
+		require.NoError(t, err)
+
+		testSocks4ClientWrite(t, server, func(cli net.Conn) {
+			reply := make([]byte, 8+1) // user id
+			reply[0] = version4
+			reply[1] = connect
+			// port
+			reply[2] = 0x01
+			reply[3] = 0x01
+			// ip address
+			reply[4] = 0x01
+			reply[5] = 0x01
+			reply[6] = 0x01
+			reply[7] = 0x01
+
+			_, err = cli.Write(reply)
+			require.NoError(t, err)
+
+			err = cli.Close()
+			require.NoError(t, err)
+		})
+	})
+}
+
+func TestConn_checkUserID(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, err := NewSocks4aServer("test", logger.Test, nil)
+	require.NoError(t, err)
+
+	testSocks4ClientWrite(t, server, func(cli net.Conn) {
+		reply := make([]byte, 8)
+		reply[0] = version4
+		reply[1] = connect
+		// port
+		reply[2] = 0x01
+		reply[3] = 0x01
+		// ip address
+		reply[7] = 0x01
+
+		_, err = cli.Write(reply)
+		require.NoError(t, err)
+
+		err = cli.Close()
 		require.NoError(t, err)
 	})
 }
