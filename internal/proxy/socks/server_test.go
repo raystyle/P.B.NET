@@ -286,7 +286,7 @@ func TestServer_Close(t *testing.T) {
 		testsuite.IsDestroyed(t, server)
 	})
 
-	t.Run("error about listener", func(t *testing.T) {
+	t.Run("error about close listener", func(t *testing.T) {
 		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
@@ -299,7 +299,7 @@ func TestServer_Close(t *testing.T) {
 		testsuite.IsDestroyed(t, server)
 	})
 
-	t.Run("error about conn", func(t *testing.T) {
+	t.Run("error about close connection", func(t *testing.T) {
 		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
@@ -343,7 +343,7 @@ func TestConn_Serve(t *testing.T) {
 
 		conn := &conn{
 			server: server,
-			local:  testsuite.NewMockConnWithCloseError(),
+			local:  testsuite.NewMockConn(),
 		}
 		conn.Serve()
 		time.Sleep(250 * time.Millisecond)

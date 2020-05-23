@@ -19,7 +19,11 @@ import (
 // http://www.openssh.com/txt/socks4a.protocol
 
 const (
-	version4 uint8 = 0x04
+	version4    = 0x04
+	v4Succeeded = 0x5a
+	v4Refused   = 0x5b
+	v4Ident     = 0x5c
+	v4InvalidID = 0x5d
 )
 
 var v4IPPadding = []byte{0x00, 0x00, 0x00, 0x01} // domain
@@ -28,11 +32,11 @@ type v4Reply uint8
 
 func (r v4Reply) String() string {
 	switch r {
-	case 0x5b:
+	case v4Refused:
 		return "request rejected or failed"
-	case 0x5c:
+	case v4Ident:
 		return "request rejected because SOCKS server cannot connect to ident on the client"
-	case 0x5d:
+	case v4InvalidID:
 		return "request rejected because the client program and ident report different user-ids"
 	default:
 		return "unknown reply: " + strconv.Itoa(int(r))
@@ -50,10 +54,11 @@ func (c *Client) connectSocks4(conn net.Conn, host string, port uint16) error {
 		if ip4 != nil {
 			hostData = ip4
 		} else {
-			return errors.New("socks4 or socks4a don't support IPv6")
+			return errors.New("socks4 or socks4a server don't support IPv6")
 		}
 	} else if c.disableExt {
-		return errors.Errorf("%s is a socks4 server", c.address)
+		const format = "%s is a socks4 server and don't support hostname"
+		return errors.Errorf(format, c.address)
 	} else {
 		l := len(host)
 		if l > 255 {
@@ -96,15 +101,15 @@ func (c *Client) connectSocks4(conn net.Conn, host string, port uint16) error {
 	if reply[0] != 0x00 { // must 0x00 not 0x04
 		return errors.Errorf("invalid socks version %d", reply[0])
 	}
-	if reply[1] != 0x5a {
+	if reply[1] != v4Succeeded {
 		return errors.New(v4Reply(reply[1]).String())
 	}
 	return nil
 }
 
 var (
-	v4ReplySucceeded      = []byte{0x00, 0x5a, 0, 0, 0, 0, 0, 0}
-	v4ReplyConnectRefused = []byte{0x00, 0x5b, 0, 0, 0, 0, 0, 0}
+	v4ReplySucceeded = []byte{0x00, v4Succeeded, 0, 0, 0, 0, 0, 0}
+	v4ReplyRefused   = []byte{0x00, v4Refused, 0, 0, 0, 0, 0, 0}
 )
 
 func (c *conn) serveSocks4() {
@@ -113,7 +118,7 @@ func (c *conn) serveSocks4() {
 	buffer := make([]byte, 10+16) // prepare
 	_, err := io.ReadAtLeast(c.local, buffer[:8], 8)
 	if err != nil {
-		c.log(logger.Error, errors.Wrap(err, "failed to read socks4 request"))
+		c.log(logger.Error, "failed to read socks4 request:", err)
 		return
 	}
 	// check version
@@ -154,7 +159,7 @@ func (c *conn) serveSocks4() {
 		for {
 			_, err = c.local.Read(buffer[:1])
 			if err != nil {
-				c.log(logger.Error, errors.Wrap(err, "failed to read domain name"))
+				c.log(logger.Error, "failed to read domain name:", err)
 				return
 			}
 			// find 0x00(end)
@@ -173,7 +178,7 @@ func (c *conn) serveSocks4() {
 	remote, err := c.server.dialContext(ctx, "tcp", address)
 	if err != nil {
 		c.log(logger.Error, errors.WithStack(err))
-		_, _ = c.local.Write(v4ReplyConnectRefused)
+		_, _ = c.local.Write(v4ReplyRefused)
 		return
 	}
 	// write reply
@@ -195,7 +200,7 @@ func (c *conn) checkUserID() bool {
 	for {
 		_, err = c.local.Read(buffer)
 		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to read user id"))
+			c.log(logger.Error, "failed to read user id:", err)
 			return false
 		}
 		// find 0x00(end)

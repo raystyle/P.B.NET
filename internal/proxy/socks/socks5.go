@@ -18,29 +18,29 @@ import (
 // https://www.ietf.org/rfc/rfc1928.txt
 
 const (
-	version5 uint8 = 0x05
+	version5 = 0x05
 	// auth method
-	notRequired         uint8 = 0x00
-	usernamePassword    uint8 = 0x02
-	noAcceptableMethods uint8 = 0xFF
+	notRequired         = 0x00
+	usernamePassword    = 0x02
+	noAcceptableMethods = 0xFF
 	// auth
-	usernamePasswordVersion uint8 = 0x01
-	statusSucceeded         uint8 = 0x00
-	statusFailed            uint8 = 0x01
+	usernamePasswordVersion = 0x01
+	statusSucceeded         = 0x00
+	statusFailed            = 0x01
 
-	reserve   uint8 = 0x00
-	noReserve uint8 = 0x01
+	reserve   = 0x00
+	noReserve = 0x01
 	// cmd
-	connect uint8 = 0x01
+	connect = 0x01
 	// address
-	ipv4 uint8 = 0x01
-	fqdn uint8 = 0x03
-	ipv6 uint8 = 0x04
+	ipv4 = 0x01
+	fqdn = 0x03
+	ipv6 = 0x04
 	// reply
-	succeeded      uint8 = 0x00
-	connRefused    uint8 = 0x05
-	cmdNotSupport  uint8 = 0x07
-	addrNotSupport uint8 = 0x08
+	succeeded      = 0x00
+	connRefused    = 0x05
+	cmdNotSupport  = 0x07
+	addrNotSupport = 0x08
 )
 
 type v5Reply uint8
@@ -216,7 +216,7 @@ func (c *conn) serveSocks5() {
 	// read version
 	_, err := io.ReadAtLeast(c.local, buf[:1], 1)
 	if err != nil {
-		c.log(logger.Error, errors.Wrap(err, "failed to read socks5 version"))
+		c.log(logger.Error, "failed to read socks5 version:", err)
 		return
 	}
 	if buf[0] != version5 {
@@ -226,8 +226,8 @@ func (c *conn) serveSocks5() {
 	// read authentication methods
 	_, err = io.ReadAtLeast(c.local, buf[:1], 1)
 	if err != nil {
-		const msg = "failed to read the number of the authentication methods"
-		c.log(logger.Error, errors.Wrap(err, msg))
+		const msg = "failed to read the number of the authentication methods:"
+		c.log(logger.Error, msg, err)
 		return
 	}
 	l := int(buf[0])
@@ -240,7 +240,7 @@ func (c *conn) serveSocks5() {
 	}
 	_, err = io.ReadAtLeast(c.local, buf[:l], l)
 	if err != nil {
-		c.log(logger.Error, errors.Wrap(err, "failed to read authentication methods"))
+		c.log(logger.Error, "failed to read authentication methods:", err)
 		return
 	}
 	if !c.authenticate() {
@@ -275,14 +275,14 @@ func (c *conn) authenticate() bool {
 	if c.server.username != nil {
 		_, err = c.local.Write([]byte{version5, usernamePassword})
 		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to write authentication methods"))
+			c.log(logger.Error, "failed to write authentication methods:", err)
 			return false
 		}
 		buf := make([]byte, 16)
 		// read username and password version
 		_, err = io.ReadAtLeast(c.local, buf[:1], 1)
 		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to read username password version"))
+			c.log(logger.Error, "failed to read username password version:", err)
 			return false
 		}
 		if buf[0] != usernamePasswordVersion {
@@ -292,7 +292,7 @@ func (c *conn) authenticate() bool {
 		// read username length
 		_, err = io.ReadAtLeast(c.local, buf[:1], 1)
 		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to read username length"))
+			c.log(logger.Error, "failed to read username length:", err)
 			return false
 		}
 		l := int(buf[0])
@@ -302,7 +302,7 @@ func (c *conn) authenticate() bool {
 		// read username
 		_, err = io.ReadAtLeast(c.local, buf[:l], l)
 		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to read username"))
+			c.log(logger.Error, "failed to read username:", err)
 			return false
 		}
 		username := make([]byte, l)
@@ -310,7 +310,7 @@ func (c *conn) authenticate() bool {
 		// read password length
 		_, err = io.ReadAtLeast(c.local, buf[:1], 1)
 		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to read password length"))
+			c.log(logger.Error, "failed to read password length:", err)
 			return false
 		}
 		l = int(buf[0])
@@ -320,7 +320,7 @@ func (c *conn) authenticate() bool {
 		// read password
 		_, err = io.ReadAtLeast(c.local, buf[:l], l)
 		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to read password"))
+			c.log(logger.Error, "failed to read password:", err)
 			return false
 		}
 		password := make([]byte, l)
@@ -328,7 +328,7 @@ func (c *conn) authenticate() bool {
 		// write username password version
 		_, err = c.local.Write([]byte{usernamePasswordVersion})
 		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to write username password version"))
+			c.log(logger.Error, "failed to write username password version:", err)
 			return false
 		}
 		if subtle.ConstantTimeCompare(c.server.username, username) != 1 ||
@@ -343,7 +343,7 @@ func (c *conn) authenticate() bool {
 		_, err = c.local.Write([]byte{version5, notRequired})
 	}
 	if err != nil {
-		c.log(logger.Error, errors.Wrap(err, "failed to write authentication reply"))
+		c.log(logger.Error, "failed to write authentication reply:", err)
 		return false
 	}
 	return true
@@ -355,7 +355,7 @@ func (c *conn) receiveTarget() string {
 	buf := make([]byte, 4+net.IPv4len+2) // 4 + 4(ipv4) + 2(port)
 	_, err := io.ReadAtLeast(c.local, buf[:4], 4)
 	if err != nil {
-		c.log(logger.Error, errors.Wrap(err, "failed to read version cmd address type"))
+		c.log(logger.Error, "failed to read version cmd address type:", err)
 		return ""
 	}
 	if buf[0] != version5 {
@@ -378,7 +378,7 @@ func (c *conn) receiveTarget() string {
 	case ipv4:
 		_, err = io.ReadAtLeast(c.local, buf[:net.IPv4len], net.IPv4len)
 		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to read IPv4 address"))
+			c.log(logger.Error, "failed to read IPv4 address:", err)
 			return ""
 		}
 		host = net.IP(buf[:net.IPv4len]).String()
@@ -386,7 +386,7 @@ func (c *conn) receiveTarget() string {
 		buf = make([]byte, net.IPv6len)
 		_, err = io.ReadAtLeast(c.local, buf[:net.IPv6len], net.IPv6len)
 		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to read IPv6 address"))
+			c.log(logger.Error, "failed to read IPv6 address:", err)
 			return ""
 		}
 		host = net.IP(buf[:net.IPv6len]).String()
@@ -394,7 +394,7 @@ func (c *conn) receiveTarget() string {
 		// get FQDN length
 		_, err = io.ReadAtLeast(c.local, buf[:1], 1)
 		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to read FQDN length"))
+			c.log(logger.Error, "failed to read FQDN length:", err)
 			return ""
 		}
 		l := int(buf[0])
@@ -403,7 +403,7 @@ func (c *conn) receiveTarget() string {
 		}
 		_, err = io.ReadAtLeast(c.local, buf[:l], l)
 		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to read FQDN"))
+			c.log(logger.Error, "failed to read FQDN:", err)
 			return ""
 		}
 		host = string(buf[:l])
@@ -415,7 +415,7 @@ func (c *conn) receiveTarget() string {
 	// get port
 	_, err = io.ReadAtLeast(c.local, buf[:2], 2)
 	if err != nil {
-		c.log(logger.Error, errors.Wrap(err, "failed to read port"))
+		c.log(logger.Error, "failed to read port:", err)
 		return ""
 	}
 	port := convert.BytesToUint16(buf[:2])
