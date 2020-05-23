@@ -189,6 +189,7 @@ func TestServer_Authenticate(t *testing.T) {
 
 	err := server.Close()
 	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 }
 

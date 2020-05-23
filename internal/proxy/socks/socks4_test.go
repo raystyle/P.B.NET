@@ -45,6 +45,8 @@ func TestClient_connectSocks4(t *testing.T) {
 
 		err := client.connectSocks4(nil, "::1", 1)
 		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
 	})
 
 	t.Run("don't support hostname", func(t *testing.T) {
@@ -52,6 +54,8 @@ func TestClient_connectSocks4(t *testing.T) {
 
 		err := client.connectSocks4(nil, "host", 1)
 		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
 	})
 
 	t.Run("hostname too long", func(t *testing.T) {
@@ -60,6 +64,8 @@ func TestClient_connectSocks4(t *testing.T) {
 
 		err := client.connectSocks4(nil, hostname, 1)
 		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
 	})
 
 	t.Run("write to request", func(t *testing.T) {
@@ -68,6 +74,8 @@ func TestClient_connectSocks4(t *testing.T) {
 
 		err := client.connectSocks4(conn, "host", 1)
 		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
 	})
 
 	t.Run("invalid reply", func(t *testing.T) {
@@ -93,6 +101,8 @@ func TestClient_connectSocks4(t *testing.T) {
 
 		err := client.connectSocks4(cli, "1.1.1.1", 1)
 		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
 	})
 
 	t.Run("ok", func(t *testing.T) {
@@ -115,6 +125,8 @@ func TestClient_connectSocks4(t *testing.T) {
 
 		err := client.connectSocks4(cli, "1.1.1.1", 1)
 		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, &client)
 	})
 }
 
@@ -158,7 +170,7 @@ func TestConn_serveSocks4(t *testing.T) {
 			reply := make([]byte, 8)
 			reply[0] = 0x00
 
-			_, err = cli.Write(reply)
+			_, err := cli.Write(reply)
 			require.NoError(t, err)
 		})
 	})
@@ -169,7 +181,7 @@ func TestConn_serveSocks4(t *testing.T) {
 			reply[0] = version4
 			reply[1] = 0x00
 
-			_, err = cli.Write(reply)
+			_, err := cli.Write(reply)
 			require.NoError(t, err)
 		})
 	})
@@ -185,7 +197,7 @@ func TestConn_serveSocks4(t *testing.T) {
 			// ip address
 			reply[7] = 0x01
 
-			_, err = cli.Write(reply)
+			_, err := cli.Write(reply)
 			require.NoError(t, err)
 
 			err = cli.Close()
@@ -220,7 +232,11 @@ func TestConn_serveSocks4(t *testing.T) {
 			err = cli.Close()
 			require.NoError(t, err)
 		})
+
+		testsuite.IsDestroyed(t, server)
 	})
+
+	testsuite.IsDestroyed(t, server)
 }
 
 func TestConn_checkUserID(t *testing.T) {
@@ -246,4 +262,6 @@ func TestConn_checkUserID(t *testing.T) {
 		err = cli.Close()
 		require.NoError(t, err)
 	})
+
+	testsuite.IsDestroyed(t, server)
 }
