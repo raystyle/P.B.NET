@@ -92,7 +92,7 @@ func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
 	if reply[0] != version5 {
 		return errors.Errorf("unexpected socks5 version %d", reply[0])
 	}
-	err = c.authenticate(reply[1], conn)
+	err = c.authenticate(conn, reply[1])
 	if err != nil {
 		return err
 	}
@@ -127,14 +127,14 @@ func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
 	return c.receiveReply(conn)
 }
 
-func (c *Client) authenticate(am uint8, conn net.Conn) error {
+func (c *Client) authenticate(conn net.Conn, am uint8) error {
 	switch am {
 	case notRequired:
 	case usernamePassword:
 		username := c.username
 		password := c.password
-		if len(username) == 0 || len(username) > 255 {
-			return errors.New("invalid username length")
+		if len(username) == 0 {
+			return errors.New("empty username")
 		}
 		// https://www.ietf.org/rfc/rfc1929.txt
 		buf := bytes.Buffer{}
@@ -179,7 +179,7 @@ func (c *Client) receiveReply(conn net.Conn) error {
 	if reply[1] != succeeded {
 		return errors.New(v5Reply(reply[1]).String())
 	}
-	if reply[2] != 0 {
+	if reply[2] != reserve {
 		return errors.New("non-zero reserved field")
 	}
 	l := 2 // port
@@ -194,6 +194,8 @@ func (c *Client) receiveReply(conn net.Conn) error {
 			return errors.Wrap(err, "failed to read connect target reply FQDN size")
 		}
 		l += int(reply[0])
+	default:
+		return errors.Errorf("unknown address type: %d", reply[3])
 	}
 	// grow
 	if cap(reply) < l {

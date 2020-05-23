@@ -119,3 +119,298 @@ func TestClient_connectSocks(t *testing.T) {
 		testsuite.IsDestroyed(t, &client)
 	})
 }
+
+func TestClient_authenticate(t *testing.T) {
+	t.Run("empty username", func(t *testing.T) {
+		client := Client{}
+
+		err := client.authenticate(nil, usernamePassword)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("failed to write", func(t *testing.T) {
+		client := Client{
+			username: []byte("user"),
+			password: []byte("pass"),
+		}
+		conn := testsuite.NewMockConnWithWriteError()
+
+		err := client.authenticate(conn, usernamePassword)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("failed to read response", func(t *testing.T) {
+		client := Client{
+			username: []byte("user"),
+			password: []byte("pass"),
+		}
+		conn := testsuite.NewMockConnWithReadError()
+
+		err := client.authenticate(conn, usernamePassword)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("invalid response 0", func(t *testing.T) {
+		client := Client{
+			username: []byte("user"),
+			password: []byte("pass"),
+		}
+		srv, cli := net.Pipe()
+		defer func() {
+			err := srv.Close()
+			require.NoError(t, err)
+			err = cli.Close()
+			require.NoError(t, err)
+		}()
+
+		go func() {
+			size := int64(1 + 1 + len(client.username) + 1 + len(client.password))
+			_, err := io.CopyN(ioutil.Discard, srv, size)
+			require.NoError(t, err)
+
+			response := make([]byte, 2)
+
+			_, err = srv.Write(response)
+			require.NoError(t, err)
+		}()
+
+		err := client.authenticate(cli, usernamePassword)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("invalid response 1", func(t *testing.T) {
+		client := Client{
+			username: []byte("user"),
+			password: []byte("pass"),
+		}
+		srv, cli := net.Pipe()
+		defer func() {
+			err := srv.Close()
+			require.NoError(t, err)
+			err = cli.Close()
+			require.NoError(t, err)
+		}()
+
+		go func() {
+			size := int64(1 + 1 + len(client.username) + 1 + len(client.password))
+			_, err := io.CopyN(ioutil.Discard, srv, size)
+			require.NoError(t, err)
+
+			response := make([]byte, 2)
+			response[0] = usernamePasswordVersion
+			response[1] = 0x01
+
+			_, err = srv.Write(response)
+			require.NoError(t, err)
+		}()
+
+		err := client.authenticate(cli, usernamePassword)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("no acceptable methods", func(t *testing.T) {
+		client := Client{}
+
+		err := client.authenticate(nil, noAcceptableMethods)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("unsupported authentication method", func(t *testing.T) {
+		client := Client{}
+
+		err := client.authenticate(nil, 0x11)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+}
+
+func TestClient_receiveReply(t *testing.T) {
+	t.Run("failed to receive reply", func(t *testing.T) {
+		client := Client{}
+		conn := testsuite.NewMockConnWithReadError()
+
+		err := client.receiveReply(conn)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("invalid version", func(t *testing.T) {
+		client := Client{}
+
+		testsuite.PipeWithReaderWriter(t,
+			func(conn net.Conn) {
+				err := client.receiveReply(conn)
+				require.Error(t, err)
+			},
+			func(conn net.Conn) {
+				reply := make([]byte, 4)
+
+				_, err := conn.Write(reply)
+				require.NoError(t, err)
+			},
+		)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("not succeeded", func(t *testing.T) {
+		client := Client{}
+
+		testsuite.PipeWithReaderWriter(t,
+			func(conn net.Conn) {
+				err := client.receiveReply(conn)
+				require.Error(t, err)
+			},
+			func(conn net.Conn) {
+				reply := make([]byte, 4)
+				reply[0] = version5
+				reply[1] = connRefused
+
+				_, err := conn.Write(reply)
+				require.NoError(t, err)
+			},
+		)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("invalid reserved", func(t *testing.T) {
+		client := Client{}
+
+		testsuite.PipeWithReaderWriter(t,
+			func(conn net.Conn) {
+				err := client.receiveReply(conn)
+				require.Error(t, err)
+			},
+			func(conn net.Conn) {
+				reply := make([]byte, 4)
+				reply[0] = version5
+				reply[1] = succeeded
+				reply[2] = 0x01
+
+				_, err := conn.Write(reply)
+				require.NoError(t, err)
+			},
+		)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("invalid reply about padding", func(t *testing.T) {
+		client := Client{}
+
+		testsuite.PipeWithReaderWriter(t,
+			func(conn net.Conn) {
+				err := client.receiveReply(conn)
+				require.Error(t, err)
+			},
+			func(conn net.Conn) {
+				reply := make([]byte, 4)
+				reply[0] = version5
+				reply[1] = succeeded
+				reply[2] = reserve
+
+				_, err := conn.Write(reply)
+				require.NoError(t, err)
+			},
+		)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("IPv6", func(t *testing.T) {
+		client := Client{}
+
+		testsuite.PipeWithReaderWriter(t,
+			func(conn net.Conn) {
+				err := client.receiveReply(conn)
+				require.Error(t, err)
+			},
+			func(conn net.Conn) {
+				reply := make([]byte, 4)
+				reply[0] = version5
+				reply[1] = succeeded
+				reply[2] = reserve
+				reply[3] = ipv6
+
+				_, err := conn.Write(reply)
+				require.NoError(t, err)
+
+				err = conn.Close()
+				require.NoError(t, err)
+			},
+		)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("FQDN", func(t *testing.T) {
+		client := Client{}
+
+		testsuite.PipeWithReaderWriter(t,
+			func(conn net.Conn) {
+				err := client.receiveReply(conn)
+				require.Error(t, err)
+			},
+			func(conn net.Conn) {
+				reply := make([]byte, 8)
+				reply[0] = version5
+				reply[1] = succeeded
+				reply[2] = reserve
+				reply[3] = fqdn
+				reply[4] = 2
+				reply[5] = 'a'
+				reply[6] = '.'
+				reply[7] = 'c'
+
+				_, err := conn.Write(reply)
+				require.NoError(t, err)
+
+				err = conn.Close()
+				require.NoError(t, err)
+			},
+		)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("FQDN read failed", func(t *testing.T) {
+		client := Client{}
+
+		testsuite.PipeWithReaderWriter(t,
+			func(conn net.Conn) {
+				err := client.receiveReply(conn)
+				require.Error(t, err)
+			},
+			func(conn net.Conn) {
+				reply := make([]byte, 4)
+				reply[0] = version5
+				reply[1] = succeeded
+				reply[2] = reserve
+				reply[3] = fqdn
+
+				_, err := conn.Write(reply)
+				require.NoError(t, err)
+
+				err = conn.Close()
+				require.NoError(t, err)
+			},
+		)
+
+		testsuite.IsDestroyed(t, &client)
+	})
+}
