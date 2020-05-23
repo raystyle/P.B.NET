@@ -129,8 +129,8 @@ func TestConn(t *testing.T) {
 	})
 
 	t.Run("mock", func(t *testing.T) {
-		conn := testsuite.NewMockConnWithReadError()
+		conn := testsuite.NewMockConn()
+		defer func() { _ = conn.Close() }()
 		fmt.Println(Conn(conn))
-		_ = conn.Close()
 	})
 }
