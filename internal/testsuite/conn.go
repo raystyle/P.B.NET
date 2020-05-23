@@ -296,3 +296,17 @@ func conn(t *testing.T, conn1, conn2 net.Conn, close bool) {
 		IsDestroyed(t, conn2)
 	})
 }
+
+// PipeWithReaderWriter is used to call net.Pipe that one side write
+// and other side read. reader will block until return.
+func PipeWithReaderWriter(t *testing.T, reader, writer func(net.Conn)) {
+	server, client := net.Pipe()
+	defer func() {
+		err := server.Close()
+		require.NoError(t, err)
+		err = client.Close()
+		require.NoError(t, err)
+	}()
+	go writer(server)
+	reader(client)
+}

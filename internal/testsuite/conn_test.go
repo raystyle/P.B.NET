@@ -61,3 +61,18 @@ func TestConn(t *testing.T) {
 	server, client = net.Pipe()
 	ConnCS(t, client, server, true)
 }
+
+func TestPipeWithReaderWriter(t *testing.T) {
+	PipeWithReaderWriter(t,
+		func(conn net.Conn) {
+			n, err := conn.Read(make([]byte, 4))
+			require.NoError(t, err)
+			require.Equal(t, 4, n)
+		},
+		func(conn net.Conn) {
+			n, err := conn.Write(make([]byte, 4))
+			require.NoError(t, err)
+			require.Equal(t, 4, n)
+		},
+	)
+}
