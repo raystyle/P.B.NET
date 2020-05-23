@@ -143,7 +143,7 @@ func TestHTTPProxyServerWithSecondaryProxy(t *testing.T) {
 	require.True(t, secondary)
 }
 
-func TestAuthenticate(t *testing.T) {
+func TestServer_Authenticate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -192,7 +192,7 @@ func TestAuthenticate(t *testing.T) {
 	testsuite.IsDestroyed(t, server)
 }
 
-func TestFailedToNewServer(t *testing.T) {
+func TestNewServer(t *testing.T) {
 	t.Run("empty tag", func(t *testing.T) {
 		_, err := NewHTTPServer("", nil, nil)
 		require.EqualError(t, err, "empty tag")
@@ -289,17 +289,42 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	})
 
 	t.Run("failed to hijack", func(t *testing.T) {
-		w := testsuite.NewMockResponseWriterWithFailedToHijack()
+		w := testsuite.NewMockResponseWriterWithHijackError()
 		server.handler.ServeHTTP(w, req)
 	})
 
 	t.Run("failed to response", func(t *testing.T) {
-		w := testsuite.NewMockResponseWriterWithFailedToWrite()
+		w := testsuite.NewMockResponseWriterWithWriteError()
 		server.handler.ServeHTTP(w, req)
 	})
 
+	t.Run("close remote connection error", func(t *testing.T) {
+		opts := Options{DialContext: func(context.Context, string, string) (net.Conn, error) {
+			return testsuite.NewMockConnWithCloseError(), nil
+		}}
+		server, err := NewHTTPServer(testTag, logger.Test, &opts)
+		require.NoError(t, err)
+		go func() {
+			err := server.ListenAndServe(testNetwork, testAddress)
+			require.NoError(t, err)
+		}()
+		time.Sleep(250 * time.Millisecond)
+		go func() {
+			w := testsuite.NewMockResponseWriter()
+			server.handler.ServeHTTP(w, req)
+		}()
+		time.Sleep(500 * time.Millisecond)
+
+		err = server.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, server)
+	})
+
 	t.Run("copy with panic", func(t *testing.T) {
-		opts := Options{DialContext: testsuite.DialMockConnWithReadPanic}
+		opts := Options{DialContext: func(context.Context, string, string) (net.Conn, error) {
+			return testsuite.NewMockConnWithReadPanic(), nil
+		}}
 		server, err := NewHTTPServer(testTag, logger.Test, &opts)
 		require.NoError(t, err)
 		go func() {
