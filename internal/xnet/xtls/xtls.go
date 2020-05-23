@@ -88,8 +88,8 @@ func DialContext(
 			defer close(errCh)
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Log(r, "DialContext")
-					errCh <- errors.New(b.String())
+					buf := xpanic.Log(r, "DialContext")
+					errCh <- errors.New(buf.String())
 				}
 			}()
 			errCh <- tlsConn.Handshake()

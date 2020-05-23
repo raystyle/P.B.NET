@@ -528,7 +528,7 @@ func TestClientOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, client)
 
-	testdata := []*struct {
+	testdata := [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{

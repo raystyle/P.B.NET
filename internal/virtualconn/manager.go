@@ -118,9 +118,10 @@ type Manager struct {
 	rand *random.Rand
 
 	// conns include all connections that Listen() and Dial()
-	ports map[uint32]struct{}
-	conns map[ConnID]*conn
-	rwm   sync.RWMutex
+	closed bool
+	ports  map[uint32]struct{}
+	conns  map[ConnID]*conn
+	rwm    sync.RWMutex
 }
 
 // NewManager is used to create a virtual connection manager.

@@ -312,7 +312,7 @@ func TestTimeConversions(t *testing.T) {
 }
 
 func TestKissCode(t *testing.T) {
-	codes := []struct {
+	codes := [...]*struct {
 		id  uint32
 		str string
 	}{

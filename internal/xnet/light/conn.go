@@ -59,8 +59,8 @@ func (c *Conn) handshake() error {
 			defer close(errCh)
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Log(r, "Conn.Handshake")
-					errCh <- errors.New(b.String())
+					buf := xpanic.Log(r, "Conn.Handshake")
+					errCh <- errors.New(buf.String())
 				}
 			}()
 			if c.isClient {
