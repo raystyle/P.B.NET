@@ -1,16 +1,14 @@
 package testsuite
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"project/internal/patch/monkey"
 )
 
 func TestMockNetError(t *testing.T) {
@@ -47,11 +45,6 @@ func TestMockConn(t *testing.T) {
 		require.Zero(t, n)
 	})
 
-	t.Run("Close", func(t *testing.T) {
-		err := conn.Close()
-		require.NoError(t, err)
-	})
-
 	t.Run("LocalAddr", func(t *testing.T) {
 		l := mockConnLocalAddr{}
 		addr := conn.LocalAddr()
@@ -76,6 +69,11 @@ func TestMockConn(t *testing.T) {
 
 	t.Run("SetWriteDeadline", func(t *testing.T) {
 		err := conn.SetWriteDeadline(time.Time{})
+		require.NoError(t, err)
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		err := conn.Close()
 		require.NoError(t, err)
 	})
 }
@@ -111,12 +109,47 @@ func TestNewMockConnWithWritePanic(t *testing.T) {
 }
 
 func TestNewMockConnWithCloseError(t *testing.T) {
-	conn := NewMockConnWithCloseError()
-	err := conn.Close()
-	IsMockConnCloseError(t, err)
+	t.Run("after close", func(t *testing.T) {
+		conn := NewMockConnWithCloseError()
 
-	_, err = conn.Read(nil)
-	IsMockConnCloseError(t, err)
+		err := conn.Close()
+		IsMockConnCloseError(t, err)
+
+		_, err = conn.Read(nil)
+		IsMockConnClosedError(t, err)
+
+		_, err = conn.Write(nil)
+		IsMockConnClosedError(t, err)
+
+		err = conn.SetDeadline(time.Time{})
+		IsMockConnClosedError(t, err)
+
+		err = conn.SetReadDeadline(time.Time{})
+		IsMockConnClosedError(t, err)
+
+		err = conn.SetWriteDeadline(time.Time{})
+		IsMockConnClosedError(t, err)
+	})
+
+	t.Run("read", func(t *testing.T) {
+		conn := NewMockConnWithCloseError()
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := conn.Read(nil)
+			IsMockConnCloseError(t, err)
+		}()
+
+		// wait read
+		time.Sleep(250 * time.Millisecond)
+
+		err := conn.Close()
+		IsMockConnCloseError(t, err)
+
+		wg.Wait()
+	})
 }
 
 func TestNewMockConnWithSetDeadlinePanic(t *testing.T) {
@@ -317,59 +350,4 @@ func TestNewMockResponseWriterWithClosePanic(t *testing.T) {
 
 	defer DeferForPanic(t)
 	_ = conn.Close()
-}
-
-func TestDialMockConnWithReadPanic(t *testing.T) {
-	gm := MarkGoroutines(t)
-	defer gm.Compare()
-
-	conn, err := DialMockConnWithReadPanic(context.Background(), "", "")
-	require.NoError(t, err)
-
-	defer func() {
-		require.NotNil(t, recover())
-		err = conn.Close()
-		require.NoError(t, err)
-	}()
-	_, _ = conn.Read(nil)
-}
-
-func TestDialMockConnWithWriteError(t *testing.T) {
-	gm := MarkGoroutines(t)
-	defer gm.Compare()
-
-	conn, err := DialMockConnWithWriteError(context.Background(), "", "")
-	require.NoError(t, err)
-
-	_, err = conn.Read(make([]byte, 1))
-	require.NoError(t, err)
-
-	_, err = conn.Write(nil)
-	monkey.IsMonkeyError(t, err)
-
-	err = conn.Close()
-	require.NoError(t, err)
-}
-
-func TestNewMockReadCloserWithReadError(t *testing.T) {
-	rc := NewMockReadCloserWithReadError()
-
-	_, err := rc.Read(nil)
-	IsMockReadCloserError(t, err)
-}
-
-func TestNewMockReadCloserWithReadPanic(t *testing.T) {
-	rc := NewMockReadCloserWithReadPanic()
-
-	t.Run("panic", func(t *testing.T) {
-		defer DeferForPanic(t)
-		_, _ = rc.Read(nil)
-	})
-
-	t.Run("read after close", func(t *testing.T) {
-		err := rc.Close()
-		require.NoError(t, err)
-		_, err = rc.Read(nil)
-		IsMockReadCloserError(t, err)
-	})
 }

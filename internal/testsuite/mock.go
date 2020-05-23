@@ -9,12 +9,11 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"project/internal/patch/monkey"
 )
 
 const mockListenerAcceptTimes = 10
@@ -26,6 +25,7 @@ var (
 	errMockConnWrite              = errors.New("error in mockConn.Write()")
 	mockConnWritePanic            = "panic in mockConn.Write()"
 	errMockConnClose              = errors.New("error in mockConn.Close()")
+	errMockConnClosed             = errors.New("mock conn closed")
 	mockConnSetDeadlinePanic      = "panic in mockConn.SetDeadline()"
 	mockConnSetReadDeadlinePanic  = "panic in mockConn.SetReadDeadline()"
 	mockConnSetWriteDeadlinePanic = "panic in mockConn.SetWriteDeadline()"
@@ -37,8 +37,6 @@ var (
 	errMockListenerClosed      = errors.New("mock listener closed")
 
 	errMockContext = errors.New("error in mockContext.Err()")
-
-	errMockReadCloser = errors.New("error in mockReadCloser")
 )
 
 // mockNetError implement net.Error.
@@ -92,11 +90,20 @@ type mockConn struct {
 	readDeadlinePanic  bool // SetReadDeadline() panic
 	writeDeadlinePanic bool // SetWriteDeadline() panic
 
+	closed int32
+
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
+func (c *mockConn) isClosed() bool {
+	return atomic.LoadInt32(&c.closed) != 0
+}
+
 func (c *mockConn) Read([]byte) (int, error) {
+	if c.isClosed() {
+		return 0, errMockConnClosed
+	}
 	if c.readError {
 		return 0, errMockConnRead
 	}
@@ -111,6 +118,9 @@ func (c *mockConn) Read([]byte) (int, error) {
 }
 
 func (c *mockConn) Write([]byte) (int, error) {
+	if c.isClosed() {
+		return 0, errMockConnClosed
+	}
 	if c.writeError {
 		return 0, errMockConnWrite
 	}
@@ -121,6 +131,7 @@ func (c *mockConn) Write([]byte) (int, error) {
 }
 
 func (c *mockConn) Close() error {
+	atomic.StoreInt32(&c.closed, 1)
 	if c.cancel != nil {
 		c.cancel()
 	}
@@ -139,6 +150,9 @@ func (c *mockConn) RemoteAddr() net.Addr {
 }
 
 func (c *mockConn) SetDeadline(time.Time) error {
+	if c.isClosed() {
+		return errMockConnClosed
+	}
 	if c.deadlinePanic {
 		panic(mockConnSetDeadlinePanic)
 	}
@@ -146,6 +160,9 @@ func (c *mockConn) SetDeadline(time.Time) error {
 }
 
 func (c *mockConn) SetReadDeadline(time.Time) error {
+	if c.isClosed() {
+		return errMockConnClosed
+	}
 	if c.readDeadlinePanic {
 		panic(mockConnSetReadDeadlinePanic)
 	}
@@ -153,6 +170,9 @@ func (c *mockConn) SetReadDeadline(time.Time) error {
 }
 
 func (c *mockConn) SetWriteDeadline(time.Time) error {
+	if c.isClosed() {
+		return errMockConnClosed
+	}
 	if c.writeDeadlinePanic {
 		panic(mockConnSetWriteDeadlinePanic)
 	}
@@ -247,6 +267,11 @@ func NewMockConnWithSetWriteDeadlinePanic() net.Conn {
 // IsMockConnSetWriteDeadlinePanic is used to check err.Error() is mockConnSetWriteDeadlinePanic.
 func IsMockConnSetWriteDeadlinePanic(t testing.TB, err error) {
 	require.Contains(t, err.Error(), mockConnSetWriteDeadlinePanic)
+}
+
+// IsMockConnClosedError is used to check err is errMockConnClosed.
+func IsMockConnClosedError(t testing.TB, err error) {
+	require.Equal(t, errMockConnClosed, err)
 }
 
 type mockListenerAddr struct{}
@@ -459,100 +484,4 @@ func NewMockResponseWriterWithClosePanic() http.ResponseWriter {
 		server: server,
 	}
 	return &mockResponseWriter{conn: &mc}
-}
-
-// TODO renamed
-type mockConnReadPanic2 struct {
-	net.Conn
-	server net.Conn
-}
-
-func (c *mockConnReadPanic2) Read([]byte) (int, error) {
-	panic("mock panic in Read()")
-}
-
-func (c *mockConnReadPanic2) Close() error {
-	_ = c.Conn.Close()
-	_ = c.server.Close()
-	return nil
-}
-
-// DialMockConnWithReadPanic is used to create a mock connection
-// and when call Read() it will panic.
-func DialMockConnWithReadPanic(_ context.Context, _, _ string) (net.Conn, error) {
-	server, client := net.Pipe()
-	go func() { _, _ = io.Copy(ioutil.Discard, server) }()
-	return &mockConnReadPanic2{
-		Conn:   client,
-		server: server,
-	}, nil
-}
-
-type mockConnWriteError struct {
-	net.Conn
-	server net.Conn
-}
-
-func (c *mockConnWriteError) Read(b []byte) (int, error) {
-	b[0] = 1
-	return 1, nil
-}
-
-func (c *mockConnWriteError) Write([]byte) (int, error) {
-	return 0, monkey.Error
-}
-
-func (c *mockConnWriteError) Close() error {
-	_ = c.Conn.Close()
-	_ = c.server.Close()
-	return nil
-}
-
-// DialMockConnWithWriteError is used to create a mock connection
-// and when call Write() it will return a monkey error.
-func DialMockConnWithWriteError(_ context.Context, _, _ string) (net.Conn, error) {
-	server, client := net.Pipe()
-	go func() { _, _ = io.Copy(ioutil.Discard, server) }()
-	return &mockConnWriteError{
-		Conn:   client,
-		server: server,
-	}, nil
-}
-
-type mockReadCloser struct {
-	panic bool
-	rwm   sync.RWMutex
-}
-
-func (rc *mockReadCloser) Read([]byte) (int, error) {
-	rc.rwm.RLock()
-	defer rc.rwm.RUnlock()
-	if rc.panic {
-		panic("mock panic in Read()")
-	}
-	return 0, errMockReadCloser
-}
-
-func (rc *mockReadCloser) Close() error {
-	rc.rwm.Lock()
-	defer rc.rwm.Unlock()
-	rc.panic = false
-	return nil
-}
-
-// NewMockReadCloserWithReadError is used to return a ReadCloser that
-// return a errMockReadCloser when call Read().
-func NewMockReadCloserWithReadError() io.ReadCloser {
-	return new(mockReadCloser)
-}
-
-// NewMockReadCloserWithReadPanic is used to return a ReadCloser that
-// panic when call Read().
-func NewMockReadCloserWithReadPanic() io.ReadCloser {
-	return &mockReadCloser{panic: true}
-}
-
-// IsMockReadCloserError is used to confirm err is errMockReadCloser.
-func IsMockReadCloserError(t testing.TB, err error) {
-	require.Equal(t, errMockReadCloser, err)
 }
