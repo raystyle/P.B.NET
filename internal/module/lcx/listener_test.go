@@ -319,6 +319,17 @@ func TestLConn_Serve(t *testing.T) {
 	t.Run("failed to track conn", func(t *testing.T) {
 		listener := testGenerateListener(t)
 
+		remote := testsuite.NewMockConn()
+		local := testsuite.NewMockConn()
+		conn := listener.newConn(remote, local)
+		conn.Serve()
+
+		testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("close connection error", func(t *testing.T) {
+		listener := testGenerateListener(t)
+
 		remote := testsuite.NewMockConnWithCloseError()
 		local := testsuite.NewMockConnWithCloseError()
 		conn := listener.newConn(remote, local)
@@ -359,7 +370,7 @@ func TestLConn_Serve(t *testing.T) {
 func TestLConn_Close(t *testing.T) {
 	conn := lConn{
 		remote: testsuite.NewMockConnWithCloseError(),
-		local:  testsuite.NewMockConnWithReadError(),
+		local:  testsuite.NewMockConn(),
 	}
 	err := conn.Close()
 	require.Error(t, err)

@@ -272,6 +272,16 @@ func TestTConn_Serve(t *testing.T) {
 	t.Run("failed to track conn", func(t *testing.T) {
 		tranner := testGenerateTranner(t)
 
+		c := testsuite.NewMockConn()
+		conn := tranner.newConn(c)
+		conn.Serve()
+
+		testsuite.IsDestroyed(t, tranner)
+	})
+
+	t.Run("close local connection error", func(t *testing.T) {
+		tranner := testGenerateTranner(t)
+
 		c := testsuite.NewMockConnWithCloseError()
 		conn := tranner.newConn(c)
 		conn.Serve()
@@ -349,7 +359,7 @@ func TestTConn_Serve(t *testing.T) {
 		testsuite.IsDestroyed(t, tranner)
 	})
 
-	t.Run("close connection error", func(t *testing.T) {
+	t.Run("close remote connection error", func(t *testing.T) {
 		tranner := testGenerateTranner(t)
 
 		dialer := new(net.Dialer)
@@ -362,7 +372,7 @@ func TestTConn_Serve(t *testing.T) {
 		err := tranner.Start()
 		require.NoError(t, err)
 
-		conn := testsuite.NewMockConnWithCloseError()
+		conn := testsuite.NewMockConn()
 		tranner.newConn(conn).Serve()
 
 		// wait tran

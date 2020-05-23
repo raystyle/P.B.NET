@@ -302,6 +302,21 @@ func TestSConn_Serve(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
 		slaver.ctx = context.Background()
 
+		c := testsuite.NewMockConn()
+		conn := slaver.newConn(c)
+		conn.Serve()
+
+		slaver.Stop()
+		listener.Stop()
+
+		testsuite.IsDestroyed(t, slaver)
+		testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("close local connection error", func(t *testing.T) {
+		listener, slaver := testGenerateListenerAndSlaver(t)
+		slaver.ctx = context.Background()
+
 		c := testsuite.NewMockConnWithCloseError()
 		conn := slaver.newConn(c)
 		conn.Serve()
@@ -446,7 +461,7 @@ func TestSConn_Serve(t *testing.T) {
 
 		dialer := new(net.Dialer)
 		patch2 := func(interface{}, context.Context, string, string) (net.Conn, error) {
-			return testsuite.NewMockConnWithCloseError(), nil
+			return testsuite.NewMockConn(), nil
 		}
 		pg2 := monkey.PatchInstanceMethod(dialer, "DialContext", patch2)
 		defer pg2.Unpatch()
@@ -489,7 +504,7 @@ func TestSConn_Serve(t *testing.T) {
 		testsuite.IsDestroyed(t, listener)
 	})
 
-	t.Run("close connection error", func(t *testing.T) {
+	t.Run("close remote connection error", func(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
 
 		dialer := new(net.Dialer)
