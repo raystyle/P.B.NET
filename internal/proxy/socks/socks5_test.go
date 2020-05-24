@@ -28,20 +28,17 @@ func TestV5Reply_String(t *testing.T) {
 	})
 }
 
-func testSocks5ServerWrite(t *testing.T, client *Client, host string, write func(server net.Conn)) {
-	srv, cli := net.Pipe()
-	defer func() {
-		err := srv.Close()
-		require.NoError(t, err)
-		err = cli.Close()
-		require.NoError(t, err)
-	}()
-
-	go func() { _, _ = io.Copy(ioutil.Discard, srv) }()
-	go write(srv)
-
-	err := client.connectSocks5(cli, host, 1)
-	require.Error(t, err)
+func testClientConnectSocks5(t *testing.T, client *Client, host string, write func(net.Conn)) {
+	testsuite.PipeWithReaderWriter(t,
+		func(conn net.Conn) {
+			err := client.connectSocks5(conn, host, 1)
+			require.Error(t, err)
+		},
+		func(conn net.Conn) {
+			go func() { _, _ = io.Copy(ioutil.Discard, conn) }()
+			write(conn)
+		},
+	)
 }
 
 func TestClient_connectSocks5(t *testing.T) {
@@ -63,7 +60,7 @@ func TestClient_connectSocks5(t *testing.T) {
 	t.Run("invalid version", func(t *testing.T) {
 		client := new(Client)
 
-		testSocks5ServerWrite(t, client, host, func(server net.Conn) {
+		testClientConnectSocks5(t, client, host, func(server net.Conn) {
 			reply := make([]byte, 2)
 			reply[0] = 0x00
 
@@ -71,13 +68,13 @@ func TestClient_connectSocks5(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("IPv6", func(t *testing.T) {
 		client := new(Client)
 
-		testSocks5ServerWrite(t, client, "::1", func(server net.Conn) {
+		testClientConnectSocks5(t, client, "::1", func(server net.Conn) {
 			reply := make([]byte, 2)
 			reply[0] = version5
 			reply[1] = notRequired
@@ -89,14 +86,14 @@ func TestClient_connectSocks5(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("host too long", func(t *testing.T) {
 		client := new(Client)
 		host := strings.Repeat("a", 257)
 
-		testSocks5ServerWrite(t, client, host, func(server net.Conn) {
+		testClientConnectSocks5(t, client, host, func(server net.Conn) {
 			reply := make([]byte, 2)
 			reply[0] = version5
 			reply[1] = notRequired
@@ -105,39 +102,39 @@ func TestClient_connectSocks5(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("failed to send connect target", func(t *testing.T) {
-		client := Client{}
-		srv, cli := net.Pipe()
-		defer func() {
-			err := srv.Close()
-			require.NoError(t, err)
-			err = cli.Close()
-			require.NoError(t, err)
-		}()
+		client := new(Client)
 
-		go func() {
-			_, err := io.CopyN(ioutil.Discard, srv, 3)
-			require.NoError(t, err)
-
+		testClientConnectSocks5(t, client, host, func(server net.Conn) {
 			reply := make([]byte, 2)
 			reply[0] = version5
 			reply[1] = notRequired
 
-			_, err = srv.Write(reply)
+			_, err := server.Write(reply)
 			require.NoError(t, err)
 
-			err = srv.Close()
+			err = server.Close()
 			require.NoError(t, err)
-		}()
+		})
 
-		err := client.connectSocks5(cli, host, 1)
-		require.Error(t, err)
-
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
+}
+
+func testClientAuthenticate(t *testing.T, client *Client, write func(net.Conn)) {
+	testsuite.PipeWithReaderWriter(t,
+		func(conn net.Conn) {
+			err := client.authenticate(conn, usernamePassword)
+			require.Error(t, err)
+		},
+		func(conn net.Conn) {
+			go func() { _, _ = io.Copy(ioutil.Discard, conn) }()
+			write(conn)
+		},
+	)
 }
 
 func TestClient_authenticate(t *testing.T) {
@@ -177,65 +174,37 @@ func TestClient_authenticate(t *testing.T) {
 	})
 
 	t.Run("invalid response 0", func(t *testing.T) {
-		client := Client{
+		client := &Client{
 			username: []byte("user"),
 			password: []byte("pass"),
 		}
-		srv, cli := net.Pipe()
-		defer func() {
-			err := srv.Close()
+
+		testClientAuthenticate(t, client, func(server net.Conn) {
+			resp := make([]byte, 2)
+
+			_, err := server.Write(resp)
 			require.NoError(t, err)
-			err = cli.Close()
-			require.NoError(t, err)
-		}()
+		})
 
-		go func() {
-			size := int64(1 + 1 + len(client.username) + 1 + len(client.password))
-			_, err := io.CopyN(ioutil.Discard, srv, size)
-			require.NoError(t, err)
-
-			response := make([]byte, 2)
-
-			_, err = srv.Write(response)
-			require.NoError(t, err)
-		}()
-
-		err := client.authenticate(cli, usernamePassword)
-		require.Error(t, err)
-
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("invalid response 1", func(t *testing.T) {
-		client := Client{
+		client := &Client{
 			username: []byte("user"),
 			password: []byte("pass"),
 		}
-		srv, cli := net.Pipe()
-		defer func() {
-			err := srv.Close()
+
+		testClientAuthenticate(t, client, func(server net.Conn) {
+			resp := make([]byte, 2)
+			resp[0] = usernamePasswordVersion
+			resp[1] = 0x01
+
+			_, err := server.Write(resp)
 			require.NoError(t, err)
-			err = cli.Close()
-			require.NoError(t, err)
-		}()
+		})
 
-		go func() {
-			size := int64(1 + 1 + len(client.username) + 1 + len(client.password))
-			_, err := io.CopyN(ioutil.Discard, srv, size)
-			require.NoError(t, err)
-
-			response := make([]byte, 2)
-			response[0] = usernamePasswordVersion
-			response[1] = 0x01
-
-			_, err = srv.Write(response)
-			require.NoError(t, err)
-		}()
-
-		err := client.authenticate(cli, usernamePassword)
-		require.Error(t, err)
-
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("no acceptable methods", func(t *testing.T) {
@@ -257,6 +226,19 @@ func TestClient_authenticate(t *testing.T) {
 	})
 }
 
+func testClientReceiveReply(t *testing.T, client *Client, write func(net.Conn)) {
+	testsuite.PipeWithReaderWriter(t,
+		func(conn net.Conn) {
+			err := client.receiveReply(conn)
+			require.Error(t, err)
+		},
+		func(conn net.Conn) {
+			go func() { _, _ = io.Copy(ioutil.Discard, conn) }()
+			write(conn)
+		},
+	)
+}
+
 func TestClient_receiveReply(t *testing.T) {
 	t.Run("failed to receive reply", func(t *testing.T) {
 		client := Client{}
@@ -269,189 +251,145 @@ func TestClient_receiveReply(t *testing.T) {
 	})
 
 	t.Run("invalid version", func(t *testing.T) {
-		client := Client{}
+		client := new(Client)
 
-		testsuite.PipeWithReaderWriter(t,
-			func(conn net.Conn) {
-				err := client.receiveReply(conn)
-				require.Error(t, err)
-			},
-			func(conn net.Conn) {
-				reply := make([]byte, 4)
+		testClientReceiveReply(t, client, func(server net.Conn) {
+			reply := make([]byte, 4)
 
-				_, err := conn.Write(reply)
-				require.NoError(t, err)
-			},
-		)
+			_, err := server.Write(reply)
+			require.NoError(t, err)
+		})
 
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("not succeeded", func(t *testing.T) {
-		client := Client{}
+		client := new(Client)
 
-		testsuite.PipeWithReaderWriter(t,
-			func(conn net.Conn) {
-				err := client.receiveReply(conn)
-				require.Error(t, err)
-			},
-			func(conn net.Conn) {
-				reply := make([]byte, 4)
-				reply[0] = version5
-				reply[1] = connRefused
+		testClientReceiveReply(t, client, func(server net.Conn) {
+			reply := make([]byte, 4)
+			reply[0] = version5
+			reply[1] = connRefused
 
-				_, err := conn.Write(reply)
-				require.NoError(t, err)
-			},
-		)
+			_, err := server.Write(reply)
+			require.NoError(t, err)
+		})
 
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("invalid reserved", func(t *testing.T) {
-		client := Client{}
+		client := new(Client)
 
-		testsuite.PipeWithReaderWriter(t,
-			func(conn net.Conn) {
-				err := client.receiveReply(conn)
-				require.Error(t, err)
-			},
-			func(conn net.Conn) {
-				reply := make([]byte, 4)
-				reply[0] = version5
-				reply[1] = succeeded
-				reply[2] = 0x01
+		testClientReceiveReply(t, client, func(server net.Conn) {
+			reply := make([]byte, 4)
+			reply[0] = version5
+			reply[1] = succeeded
+			reply[2] = 0x01
 
-				_, err := conn.Write(reply)
-				require.NoError(t, err)
-			},
-		)
+			_, err := server.Write(reply)
+			require.NoError(t, err)
+		})
 
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("invalid reply about padding", func(t *testing.T) {
-		client := Client{}
+		client := new(Client)
 
-		testsuite.PipeWithReaderWriter(t,
-			func(conn net.Conn) {
-				err := client.receiveReply(conn)
-				require.Error(t, err)
-			},
-			func(conn net.Conn) {
-				reply := make([]byte, 4)
-				reply[0] = version5
-				reply[1] = succeeded
-				reply[2] = reserve
+		testClientReceiveReply(t, client, func(server net.Conn) {
+			reply := make([]byte, 4)
+			reply[0] = version5
+			reply[1] = succeeded
+			reply[2] = reserve
 
-				_, err := conn.Write(reply)
-				require.NoError(t, err)
-			},
-		)
+			_, err := server.Write(reply)
+			require.NoError(t, err)
+		})
 
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("IPv6", func(t *testing.T) {
-		client := Client{}
+		client := new(Client)
 
-		testsuite.PipeWithReaderWriter(t,
-			func(conn net.Conn) {
-				err := client.receiveReply(conn)
-				require.Error(t, err)
-			},
-			func(conn net.Conn) {
-				reply := make([]byte, 4)
-				reply[0] = version5
-				reply[1] = succeeded
-				reply[2] = reserve
-				reply[3] = ipv6
+		testClientReceiveReply(t, client, func(server net.Conn) {
+			reply := make([]byte, 4)
+			reply[0] = version5
+			reply[1] = succeeded
+			reply[2] = reserve
+			reply[3] = ipv6
 
-				_, err := conn.Write(reply)
-				require.NoError(t, err)
+			_, err := server.Write(reply)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = server.Close()
+			require.NoError(t, err)
+		})
 
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("FQDN", func(t *testing.T) {
-		client := Client{}
+		client := new(Client)
 
-		testsuite.PipeWithReaderWriter(t,
-			func(conn net.Conn) {
-				err := client.receiveReply(conn)
-				require.Error(t, err)
-			},
-			func(conn net.Conn) {
-				reply := make([]byte, 8)
-				reply[0] = version5
-				reply[1] = succeeded
-				reply[2] = reserve
-				reply[3] = fqdn
-				reply[4] = 2
-				reply[5] = 'a'
-				reply[6] = '.'
-				reply[7] = 'c'
+		testClientReceiveReply(t, client, func(server net.Conn) {
+			reply := make([]byte, 8)
+			reply[0] = version5
+			reply[1] = succeeded
+			reply[2] = reserve
+			reply[3] = fqdn
+			reply[4] = 2
+			reply[5] = 'a'
+			reply[6] = '.'
+			reply[7] = 'c'
 
-				_, err := conn.Write(reply)
-				require.NoError(t, err)
+			_, err := server.Write(reply)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = server.Close()
+			require.NoError(t, err)
+		})
 
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("FQDN read failed", func(t *testing.T) {
-		client := Client{}
+		client := new(Client)
 
-		testsuite.PipeWithReaderWriter(t,
-			func(conn net.Conn) {
-				err := client.receiveReply(conn)
-				require.Error(t, err)
-			},
-			func(conn net.Conn) {
-				reply := make([]byte, 4)
-				reply[0] = version5
-				reply[1] = succeeded
-				reply[2] = reserve
-				reply[3] = fqdn
+		testClientReceiveReply(t, client, func(server net.Conn) {
+			reply := make([]byte, 4)
+			reply[0] = version5
+			reply[1] = succeeded
+			reply[2] = reserve
+			reply[3] = fqdn
 
-				_, err := conn.Write(reply)
-				require.NoError(t, err)
+			_, err := server.Write(reply)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = server.Close()
+			require.NoError(t, err)
+		})
 
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 }
 
-func testSocks5ClientWrite(t *testing.T, server *Server, write func(cli net.Conn)) {
-	srv, cli := net.Pipe()
-	defer func() {
-		err := srv.Close()
-		require.NoError(t, err)
-		err = cli.Close()
-		require.NoError(t, err)
-	}()
-
-	go write(cli)
-
-	conn := &conn{
-		server: server,
-		local:  srv,
-	}
-
-	conn.serveSocks5()
+// TODO here start
+func testServerServeSocks5(t *testing.T, server *Server, write func(cli net.Conn)) {
+	testsuite.PipeWithReaderWriter(t,
+		func(c net.Conn) {
+			conn := &conn{
+				server: server,
+				local:  c,
+			}
+			conn.serveSocks5()
+		},
+		func(conn net.Conn) {
+			// go func() { _, _ = io.Copy(ioutil.Discard, conn) }()
+			write(conn)
+		},
+	)
 }
 
 func TestServer_serveSocks5(t *testing.T) {
@@ -471,7 +409,7 @@ func TestServer_serveSocks5(t *testing.T) {
 	})
 
 	t.Run("invalid version", func(t *testing.T) {
-		testSocks5ClientWrite(t, server, func(cli net.Conn) {
+		testServerServeSocks5(t, server, func(cli net.Conn) {
 			req := make([]byte, 1)
 			req[0] = 0x00
 
@@ -481,7 +419,7 @@ func TestServer_serveSocks5(t *testing.T) {
 	})
 
 	t.Run("failed to read auth methods number", func(t *testing.T) {
-		testSocks5ClientWrite(t, server, func(cli net.Conn) {
+		testServerServeSocks5(t, server, func(cli net.Conn) {
 			req := make([]byte, 1)
 			req[0] = version5
 
@@ -494,7 +432,7 @@ func TestServer_serveSocks5(t *testing.T) {
 	})
 
 	t.Run("no authentication method", func(t *testing.T) {
-		testSocks5ClientWrite(t, server, func(cli net.Conn) {
+		testServerServeSocks5(t, server, func(cli net.Conn) {
 			req := make([]byte, 2)
 			req[0] = version5
 
@@ -504,7 +442,7 @@ func TestServer_serveSocks5(t *testing.T) {
 	})
 
 	t.Run("failed to read auth methods", func(t *testing.T) {
-		testSocks5ClientWrite(t, server, func(cli net.Conn) {
+		testServerServeSocks5(t, server, func(cli net.Conn) {
 			req := make([]byte, 2)
 			req[0] = version5
 			req[1] = 0xff
@@ -518,7 +456,7 @@ func TestServer_serveSocks5(t *testing.T) {
 	})
 
 	t.Run("failed to receive target", func(t *testing.T) {
-		testSocks5ClientWrite(t, server, func(cli net.Conn) {
+		testServerServeSocks5(t, server, func(cli net.Conn) {
 			req := make([]byte, 3)
 			req[0] = version5
 			req[1] = 1
@@ -544,7 +482,7 @@ func TestServer_serveSocks5(t *testing.T) {
 		server, err := NewSocks5Server("test", logger.Test, &opts)
 		require.NoError(t, err)
 
-		testSocks5ClientWrite(t, server, func(cli net.Conn) {
+		testServerServeSocks5(t, server, func(cli net.Conn) {
 			req := make([]byte, 3)
 			req[0] = version5
 			req[1] = 1
