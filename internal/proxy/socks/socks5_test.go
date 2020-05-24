@@ -44,7 +44,7 @@ func testSocks5ServerWrite(t *testing.T, client *Client, host string, write func
 	require.Error(t, err)
 }
 
-func TestClient_connectSocks(t *testing.T) {
+func TestClient_connectSocks5(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -68,6 +68,24 @@ func TestClient_connectSocks(t *testing.T) {
 			reply[0] = 0x00
 
 			_, err := server.Write(reply)
+			require.NoError(t, err)
+		})
+
+		testsuite.IsDestroyed(t, &client)
+	})
+
+	t.Run("IPv6", func(t *testing.T) {
+		client := new(Client)
+
+		testSocks5ServerWrite(t, client, "::1", func(server net.Conn) {
+			reply := make([]byte, 2)
+			reply[0] = version5
+			reply[1] = notRequired
+
+			_, err := server.Write(reply)
+			require.NoError(t, err)
+
+			err = server.Close()
 			require.NoError(t, err)
 		})
 
@@ -560,6 +578,113 @@ func TestServer_serveSocks5(t *testing.T) {
 			err = cli.Close()
 			require.NoError(t, err)
 		})
+	})
+
+	testsuite.IsDestroyed(t, server)
+}
+
+func TestConn_authenticate(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	opts := Options{Username: "user"}
+	server, err := NewSocks5Server("test", logger.Test, &opts)
+	require.NoError(t, err)
+
+	t.Run("failed to write auth methods", func(t *testing.T) {
+		conn := &conn{
+			server: server,
+			local:  testsuite.NewMockConnWithWriteError(),
+		}
+
+		conn.authenticate()
+	})
+
+	t.Run("failed to read user pass", func(t *testing.T) {
+		conn := &conn{
+			server: server,
+			local:  testsuite.NewMockConnWithReadError(),
+		}
+
+		conn.authenticate()
+	})
+
+	t.Run("unexpected user pass version", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				ok := conn.authenticate()
+				require.False(t, ok)
+			},
+			func(conn net.Conn) {
+				// receive auth
+				_, err := io.CopyN(ioutil.Discard, conn, 2)
+				require.NoError(t, err)
+
+				req := make([]byte, 1)
+
+				_, err = conn.Write(req)
+				require.NoError(t, err)
+			},
+		)
+	})
+
+	t.Run("failed to read username length", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				ok := conn.authenticate()
+				require.False(t, ok)
+			},
+			func(conn net.Conn) {
+				// receive auth
+				_, err := io.CopyN(ioutil.Discard, conn, 2)
+				require.NoError(t, err)
+
+				req := make([]byte, 1)
+				req[0] = usernamePasswordVersion
+
+				_, err = conn.Write(req)
+				require.NoError(t, err)
+
+				err = conn.Close()
+				require.NoError(t, err)
+			},
+		)
+	})
+
+	t.Run("failed to read username", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				ok := conn.authenticate()
+				require.False(t, ok)
+			},
+			func(conn net.Conn) {
+				// receive auth
+				_, err := io.CopyN(ioutil.Discard, conn, 2)
+				require.NoError(t, err)
+
+				req := make([]byte, 2)
+				req[0] = usernamePasswordVersion
+				req[1] = 255
+
+				_, err = conn.Write(req)
+				require.NoError(t, err)
+
+				err = conn.Close()
+				require.NoError(t, err)
+			},
+		)
 	})
 
 	testsuite.IsDestroyed(t, server)
