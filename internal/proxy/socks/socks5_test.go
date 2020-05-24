@@ -1,6 +1,7 @@
 package socks
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"net"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/logger"
 	"project/internal/testsuite"
 )
 
@@ -413,4 +415,152 @@ func TestClient_receiveReply(t *testing.T) {
 
 		testsuite.IsDestroyed(t, &client)
 	})
+}
+
+func testSocks5ClientWrite(t *testing.T, server *Server, write func(cli net.Conn)) {
+	srv, cli := net.Pipe()
+	defer func() {
+		err := srv.Close()
+		require.NoError(t, err)
+		err = cli.Close()
+		require.NoError(t, err)
+	}()
+
+	go write(cli)
+
+	conn := &conn{
+		server: server,
+		local:  srv,
+	}
+
+	conn.serveSocks5()
+}
+
+func TestServer_serveSocks5(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, err := NewSocks5Server("test", logger.Test, nil)
+	require.NoError(t, err)
+
+	t.Run("failed to read request", func(t *testing.T) {
+		conn := &conn{
+			server: server,
+			local:  testsuite.NewMockConnWithReadError(),
+		}
+
+		conn.serveSocks5()
+	})
+
+	t.Run("invalid version", func(t *testing.T) {
+		testSocks5ClientWrite(t, server, func(cli net.Conn) {
+			req := make([]byte, 1)
+			req[0] = 0x00
+
+			_, err := cli.Write(req)
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("failed to read auth methods number", func(t *testing.T) {
+		testSocks5ClientWrite(t, server, func(cli net.Conn) {
+			req := make([]byte, 1)
+			req[0] = version5
+
+			_, err := cli.Write(req)
+			require.NoError(t, err)
+
+			err = cli.Close()
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("no authentication method", func(t *testing.T) {
+		testSocks5ClientWrite(t, server, func(cli net.Conn) {
+			req := make([]byte, 2)
+			req[0] = version5
+
+			_, err := cli.Write(req)
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("failed to read auth methods", func(t *testing.T) {
+		testSocks5ClientWrite(t, server, func(cli net.Conn) {
+			req := make([]byte, 2)
+			req[0] = version5
+			req[1] = 0xff
+
+			_, err := cli.Write(req)
+			require.NoError(t, err)
+
+			err = cli.Close()
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("failed to receive target", func(t *testing.T) {
+		testSocks5ClientWrite(t, server, func(cli net.Conn) {
+			req := make([]byte, 3)
+			req[0] = version5
+			req[1] = 1
+			req[2] = notRequired
+
+			_, err := cli.Write(req)
+			require.NoError(t, err)
+
+			// receive auth
+			_, err = io.CopyN(ioutil.Discard, cli, 2)
+			require.NoError(t, err)
+
+			err = cli.Close()
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("failed to write reply", func(t *testing.T) {
+		opts := Options{DialContext: func(context.Context, string, string) (net.Conn, error) {
+			return testsuite.NewMockConn(), nil
+		}}
+
+		server, err := NewSocks5Server("test", logger.Test, &opts)
+		require.NoError(t, err)
+
+		testSocks5ClientWrite(t, server, func(cli net.Conn) {
+			req := make([]byte, 3)
+			req[0] = version5
+			req[1] = 1
+			req[2] = notRequired
+
+			_, err := cli.Write(req)
+			require.NoError(t, err)
+
+			// receive auth
+			_, err = io.CopyN(ioutil.Discard, cli, 2)
+			require.NoError(t, err)
+
+			// write target
+			req = make([]byte, 4+net.IPv4len+2)
+			req[0] = version5
+			req[1] = connect
+			req[2] = reserve
+			req[3] = ipv4
+			// ip address
+			req[4] = 1
+			req[5] = 1
+			req[6] = 1
+			req[7] = 1
+			// port
+			req[8] = 0
+			req[9] = 1
+
+			_, err = cli.Write(req)
+			require.NoError(t, err)
+
+			err = cli.Close()
+			require.NoError(t, err)
+		})
+	})
+
+	testsuite.IsDestroyed(t, server)
 }

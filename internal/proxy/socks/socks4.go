@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/subtle"
-	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -115,19 +114,19 @@ var (
 func (c *conn) serveSocks4() {
 	// 10 = version(1) + cmd(1) + port(2) + address(4) + 2xNULL(2) maybe
 	// 16 = domain name
-	buffer := make([]byte, 10+16) // prepare
-	_, err := io.ReadFull(c.local, buffer[:8])
+	buf := make([]byte, 10+16) // prepare
+	_, err := io.ReadFull(c.local, buf[:8])
 	if err != nil {
 		c.log(logger.Error, "failed to read socks4 request:", err)
 		return
 	}
 	// check version
-	if buffer[0] != version4 {
+	if buf[0] != version4 {
 		c.log(logger.Error, "unexpected socks4 version")
 		return
 	}
 	// command
-	if buffer[1] != connect {
+	if buf[1] != connect {
 		c.log(logger.Error, "unknown command")
 		return
 	}
@@ -135,7 +134,7 @@ func (c *conn) serveSocks4() {
 		return
 	}
 	// address
-	port := convert.BytesToUint16(buffer[2:4])
+	port := convert.BytesToUint16(buf[2:4])
 	var (
 		domain bool
 		ip     bool
@@ -145,28 +144,28 @@ func (c *conn) serveSocks4() {
 		ip = true
 	} else {
 		// check is domain, 0.0.0.x is domain mode
-		if bytes.Equal(buffer[4:7], []byte{0x00, 0x00, 0x00}) && buffer[7] != 0x00 {
+		if bytes.Equal(buf[4:7], []byte{0x00, 0x00, 0x00}) && buf[7] != 0x00 {
 			domain = true
 		} else {
 			ip = true
 		}
 	}
 	if ip {
-		host = net.IPv4(buffer[4], buffer[5], buffer[6], buffer[7]).String()
+		host = net.IPv4(buf[4], buf[5], buf[6], buf[7]).String()
 	}
 	if domain { // read domain
 		var domainName []byte
 		for {
-			_, err = c.local.Read(buffer[:1])
+			_, err = c.local.Read(buf[:1])
 			if err != nil {
 				c.log(logger.Error, "failed to read domain name:", err)
 				return
 			}
 			// find 0x00(end)
-			if buffer[0] == 0x00 {
+			if buf[0] == 0x00 {
 				break
 			}
-			domainName = append(domainName, buffer[0])
+			domainName = append(domainName, buf[0])
 		}
 		host = string(domainName)
 	}
@@ -177,14 +176,14 @@ func (c *conn) serveSocks4() {
 	defer cancel()
 	remote, err := c.server.dialContext(ctx, "tcp", address)
 	if err != nil {
-		c.log(logger.Error, errors.WithStack(err))
+		c.log(logger.Error, "failed to connect target:", err)
 		_, _ = c.local.Write(v4ReplyRefused)
 		return
 	}
 	// write reply
 	_, err = c.local.Write(v4ReplySucceeded)
 	if err != nil {
-		c.log(logger.Error, errors.WithStack(err))
+		c.log(logger.Error, "failed to write reply", err)
 		_ = remote.Close()
 		return
 	}
@@ -211,7 +210,7 @@ func (c *conn) checkUserID() bool {
 	}
 	// compare user id
 	if subtle.ConstantTimeCompare(c.server.userID, userID) != 1 {
-		c.log(logger.Exploit, fmt.Sprintf("invalid user id: %s", userID))
+		c.logf(logger.Exploit, "invalid user id: %s", userID)
 		return false
 	}
 	return true

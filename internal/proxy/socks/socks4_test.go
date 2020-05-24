@@ -167,37 +167,37 @@ func TestConn_serveSocks4(t *testing.T) {
 
 	t.Run("invalid version", func(t *testing.T) {
 		testSocks4ClientWrite(t, server, func(cli net.Conn) {
-			reply := make([]byte, 8)
-			reply[0] = 0x00
+			req := make([]byte, 8)
+			req[0] = 0x00
 
-			_, err := cli.Write(reply)
+			_, err := cli.Write(req)
 			require.NoError(t, err)
 		})
 	})
 
 	t.Run("invalid command", func(t *testing.T) {
 		testSocks4ClientWrite(t, server, func(cli net.Conn) {
-			reply := make([]byte, 8)
-			reply[0] = version4
-			reply[1] = 0x00
+			req := make([]byte, 8)
+			req[0] = version4
+			req[1] = 0x00
 
-			_, err := cli.Write(reply)
+			_, err := cli.Write(req)
 			require.NoError(t, err)
 		})
 	})
 
 	t.Run("failed to read domain", func(t *testing.T) {
 		testSocks4ClientWrite(t, server, func(cli net.Conn) {
-			reply := make([]byte, 8+1) // user id
-			reply[0] = version4
-			reply[1] = connect
+			req := make([]byte, 8+1) // user id
+			req[0] = version4
+			req[1] = connect
 			// port
-			reply[2] = 0x01
-			reply[3] = 0x01
+			req[2] = 0x01
+			req[3] = 0x01
 			// ip address
-			reply[7] = 0x01
+			req[7] = 0x01
 
-			_, err := cli.Write(reply)
+			_, err := cli.Write(req)
 			require.NoError(t, err)
 
 			err = cli.Close()
@@ -214,19 +214,19 @@ func TestConn_serveSocks4(t *testing.T) {
 		require.NoError(t, err)
 
 		testSocks4ClientWrite(t, server, func(cli net.Conn) {
-			reply := make([]byte, 8+1) // user id
-			reply[0] = version4
-			reply[1] = connect
+			req := make([]byte, 8+1) // user id
+			req[0] = version4
+			req[1] = connect
 			// port
-			reply[2] = 0x01
-			reply[3] = 0x01
+			req[2] = 0x01
+			req[3] = 0x01
 			// ip address
-			reply[4] = 0x01
-			reply[5] = 0x01
-			reply[6] = 0x01
-			reply[7] = 0x01
+			req[4] = 0x01
+			req[5] = 0x01
+			req[6] = 0x01
+			req[7] = 0x01
 
-			_, err = cli.Write(reply)
+			_, err = cli.Write(req)
 			require.NoError(t, err)
 
 			err = cli.Close()
@@ -247,16 +247,16 @@ func TestConn_checkUserID(t *testing.T) {
 	require.NoError(t, err)
 
 	testSocks4ClientWrite(t, server, func(cli net.Conn) {
-		reply := make([]byte, 8)
-		reply[0] = version4
-		reply[1] = connect
+		req := make([]byte, 8)
+		req[0] = version4
+		req[1] = connect
 		// port
-		reply[2] = 0x01
-		reply[3] = 0x01
+		req[2] = 0x01
+		req[3] = 0x01
 		// ip address
-		reply[7] = 0x01
+		req[7] = 0x01
 
-		_, err = cli.Write(reply)
+		_, err = cli.Write(req)
 		require.NoError(t, err)
 
 		err = cli.Close()

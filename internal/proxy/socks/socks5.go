@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/subtle"
-	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -258,14 +257,14 @@ func (c *conn) serveSocks5() {
 	defer cancel()
 	remote, err := c.server.dialContext(ctx, "tcp", target)
 	if err != nil {
-		c.log(logger.Error, errors.WithStack(err))
+		c.log(logger.Error, "failed to connect target:", err)
 		_, _ = c.local.Write(v5ReplyConnectRefused)
 		return
 	}
 	// write reply
 	_, err = c.local.Write(v5ReplySucceeded)
 	if err != nil {
-		c.log(logger.Error, errors.WithStack(err))
+		c.log(logger.Error, "failed to write reply:", err)
 		_ = remote.Close()
 		return
 	}
@@ -335,8 +334,8 @@ func (c *conn) authenticate() bool {
 		}
 		if subtle.ConstantTimeCompare(c.server.username, username) != 1 ||
 			subtle.ConstantTimeCompare(c.server.password, password) != 1 {
-			l := fmt.Sprintf("invalid username password: %s %s", username, password)
-			c.log(logger.Exploit, l)
+			const format = "invalid username password: %s %s"
+			c.logf(logger.Exploit, format, username, password)
 			_, _ = c.local.Write([]byte{statusFailed})
 			return false
 		}

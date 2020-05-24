@@ -324,6 +324,14 @@ type conn struct {
 	remote net.Conn // dial
 }
 
+func (c *conn) logf(lv logger.Level, format string, log ...interface{}) {
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(buf, format, log...)
+	buf.WriteString("\n")
+	_, _ = logger.Conn(c.local).WriteTo(buf)
+	c.server.log(lv, buf)
+}
+
 func (c *conn) log(lv logger.Level, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log...)
