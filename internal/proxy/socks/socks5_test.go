@@ -35,7 +35,6 @@ func testClientConnectSocks5(t *testing.T, client *Client, host string, write fu
 			require.Error(t, err)
 		},
 		func(conn net.Conn) {
-			go func() { _, _ = io.Copy(ioutil.Discard, conn) }()
 			write(conn)
 		},
 	)
@@ -61,10 +60,13 @@ func TestClient_connectSocks5(t *testing.T) {
 		client := new(Client)
 
 		testClientConnectSocks5(t, client, host, func(server net.Conn) {
+			_, err := io.CopyN(ioutil.Discard, server, 3)
+			require.NoError(t, err)
+
 			reply := make([]byte, 2)
 			reply[0] = 0x00
 
-			_, err := server.Write(reply)
+			_, err = server.Write(reply)
 			require.NoError(t, err)
 		})
 
@@ -75,11 +77,14 @@ func TestClient_connectSocks5(t *testing.T) {
 		client := new(Client)
 
 		testClientConnectSocks5(t, client, "::1", func(server net.Conn) {
+			_, err := io.CopyN(ioutil.Discard, server, 3)
+			require.NoError(t, err)
+
 			reply := make([]byte, 2)
 			reply[0] = version5
 			reply[1] = notRequired
 
-			_, err := server.Write(reply)
+			_, err = server.Write(reply)
 			require.NoError(t, err)
 
 			err = server.Close()
@@ -94,11 +99,14 @@ func TestClient_connectSocks5(t *testing.T) {
 		host := strings.Repeat("a", 257)
 
 		testClientConnectSocks5(t, client, host, func(server net.Conn) {
+			_, err := io.CopyN(ioutil.Discard, server, 3)
+			require.NoError(t, err)
+
 			reply := make([]byte, 2)
 			reply[0] = version5
 			reply[1] = notRequired
 
-			_, err := server.Write(reply)
+			_, err = server.Write(reply)
 			require.NoError(t, err)
 		})
 
@@ -109,11 +117,14 @@ func TestClient_connectSocks5(t *testing.T) {
 		client := new(Client)
 
 		testClientConnectSocks5(t, client, host, func(server net.Conn) {
+			_, err := io.CopyN(ioutil.Discard, server, 3)
+			require.NoError(t, err)
+
 			reply := make([]byte, 2)
 			reply[0] = version5
 			reply[1] = notRequired
 
-			_, err := server.Write(reply)
+			_, err = server.Write(reply)
 			require.NoError(t, err)
 
 			err = server.Close()
@@ -131,7 +142,6 @@ func testClientAuthenticate(t *testing.T, client *Client, write func(net.Conn)) 
 			require.Error(t, err)
 		},
 		func(conn net.Conn) {
-			go func() { _, _ = io.Copy(ioutil.Discard, conn) }()
 			write(conn)
 		},
 	)
@@ -180,9 +190,13 @@ func TestClient_authenticate(t *testing.T) {
 		}
 
 		testClientAuthenticate(t, client, func(server net.Conn) {
+			size := int64(1 + 1 + len(client.username) + 1 + len(client.password))
+			_, err := io.CopyN(ioutil.Discard, server, size)
+			require.NoError(t, err)
+
 			resp := make([]byte, 2)
 
-			_, err := server.Write(resp)
+			_, err = server.Write(resp)
 			require.NoError(t, err)
 		})
 
@@ -196,11 +210,15 @@ func TestClient_authenticate(t *testing.T) {
 		}
 
 		testClientAuthenticate(t, client, func(server net.Conn) {
+			size := int64(1 + 1 + len(client.username) + 1 + len(client.password))
+			_, err := io.CopyN(ioutil.Discard, server, size)
+			require.NoError(t, err)
+
 			resp := make([]byte, 2)
 			resp[0] = usernamePasswordVersion
 			resp[1] = 0x01
 
-			_, err := server.Write(resp)
+			_, err = server.Write(resp)
 			require.NoError(t, err)
 		})
 
@@ -233,7 +251,6 @@ func testClientReceiveReply(t *testing.T, client *Client, write func(net.Conn)) 
 			require.Error(t, err)
 		},
 		func(conn net.Conn) {
-			go func() { _, _ = io.Copy(ioutil.Discard, conn) }()
 			write(conn)
 		},
 	)
@@ -375,8 +392,7 @@ func TestClient_receiveReply(t *testing.T) {
 	})
 }
 
-// TODO here start
-func testServerServeSocks5(t *testing.T, server *Server, write func(cli net.Conn)) {
+func testServerServeSocks5(t *testing.T, server *Server, write func(net.Conn)) {
 	testsuite.PipeWithReaderWriter(t,
 		func(c net.Conn) {
 			conn := &conn{
@@ -386,7 +402,6 @@ func testServerServeSocks5(t *testing.T, server *Server, write func(cli net.Conn
 			conn.serveSocks5()
 		},
 		func(conn net.Conn) {
-			// go func() { _, _ = io.Copy(ioutil.Discard, conn) }()
 			write(conn)
 		},
 	)
@@ -404,7 +419,6 @@ func TestServer_serveSocks5(t *testing.T) {
 			server: server,
 			local:  testsuite.NewMockConnWithReadError(),
 		}
-
 		conn.serveSocks5()
 	})
 
@@ -521,6 +535,22 @@ func TestServer_serveSocks5(t *testing.T) {
 	testsuite.IsDestroyed(t, server)
 }
 
+func testConnAuthenticate(t *testing.T, server *Server, write func(net.Conn)) {
+	testsuite.PipeWithReaderWriter(t,
+		func(c net.Conn) {
+			conn := &conn{
+				server: server,
+				local:  c,
+			}
+			ok := conn.authenticate()
+			require.False(t, ok)
+		},
+		func(conn net.Conn) {
+			write(conn)
+		},
+	)
+}
+
 func TestConn_authenticate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -534,7 +564,6 @@ func TestConn_authenticate(t *testing.T) {
 			server: server,
 			local:  testsuite.NewMockConnWithWriteError(),
 		}
-
 		ok := conn.authenticate()
 		require.False(t, ok)
 	})
@@ -544,212 +573,141 @@ func TestConn_authenticate(t *testing.T) {
 			server: server,
 			local:  testsuite.NewMockConnWithReadError(),
 		}
-
 		ok := conn.authenticate()
 		require.False(t, ok)
 	})
 
 	t.Run("unexpected user pass version", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				ok := conn.authenticate()
-				require.False(t, ok)
-			},
-			func(conn net.Conn) {
-				// receive auth
-				_, err := io.CopyN(ioutil.Discard, conn, 2)
-				require.NoError(t, err)
+		testConnAuthenticate(t, server, func(client net.Conn) {
+			// receive auth
+			_, err := io.CopyN(ioutil.Discard, client, 2)
+			require.NoError(t, err)
 
-				req := make([]byte, 1)
+			req := make([]byte, 1)
 
-				_, err = conn.Write(req)
-				require.NoError(t, err)
-			},
-		)
+			_, err = client.Write(req)
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("failed to read username length", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				ok := conn.authenticate()
-				require.False(t, ok)
-			},
-			func(conn net.Conn) {
-				// receive auth
-				_, err := io.CopyN(ioutil.Discard, conn, 2)
-				require.NoError(t, err)
+		testConnAuthenticate(t, server, func(client net.Conn) {
+			// receive auth
+			_, err := io.CopyN(ioutil.Discard, client, 2)
+			require.NoError(t, err)
 
-				req := make([]byte, 1)
-				req[0] = usernamePasswordVersion
+			req := make([]byte, 1)
+			req[0] = usernamePasswordVersion
 
-				_, err = conn.Write(req)
-				require.NoError(t, err)
+			_, err = client.Write(req)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("failed to read username", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				ok := conn.authenticate()
-				require.False(t, ok)
-			},
-			func(conn net.Conn) {
-				// receive auth
-				_, err := io.CopyN(ioutil.Discard, conn, 2)
-				require.NoError(t, err)
+		testConnAuthenticate(t, server, func(client net.Conn) {
+			// receive auth
+			_, err := io.CopyN(ioutil.Discard, client, 2)
+			require.NoError(t, err)
 
-				req := make([]byte, 2)
-				req[0] = usernamePasswordVersion
-				req[1] = 255
+			req := make([]byte, 2)
+			req[0] = usernamePasswordVersion
+			req[1] = 255
 
-				_, err = conn.Write(req)
-				require.NoError(t, err)
+			_, err = client.Write(req)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("failed to read password length", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				ok := conn.authenticate()
-				require.False(t, ok)
-			},
-			func(conn net.Conn) {
-				// receive auth
-				_, err := io.CopyN(ioutil.Discard, conn, 2)
-				require.NoError(t, err)
+		testConnAuthenticate(t, server, func(client net.Conn) {
+			// receive auth
+			_, err := io.CopyN(ioutil.Discard, client, 2)
+			require.NoError(t, err)
 
-				req := make([]byte, 3)
-				req[0] = usernamePasswordVersion
-				req[1] = 1
-				req[2] = 'u'
+			req := make([]byte, 3)
+			req[0] = usernamePasswordVersion
+			req[1] = 1
+			req[2] = 'u'
 
-				_, err = conn.Write(req)
-				require.NoError(t, err)
+			_, err = client.Write(req)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("failed to read password length", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				ok := conn.authenticate()
-				require.False(t, ok)
-			},
-			func(conn net.Conn) {
-				// receive auth
-				_, err := io.CopyN(ioutil.Discard, conn, 2)
-				require.NoError(t, err)
+		testConnAuthenticate(t, server, func(client net.Conn) {
+			// receive auth
+			_, err := io.CopyN(ioutil.Discard, client, 2)
+			require.NoError(t, err)
 
-				req := make([]byte, 4)
-				req[0] = usernamePasswordVersion
-				req[1] = 1
-				req[2] = 'u'
-				req[3] = 255
+			req := make([]byte, 4)
+			req[0] = usernamePasswordVersion
+			req[1] = 1
+			req[2] = 'u'
+			req[3] = 255
 
-				_, err = conn.Write(req)
-				require.NoError(t, err)
+			_, err = client.Write(req)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("failed to write user pass version", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				ok := conn.authenticate()
-				require.False(t, ok)
-			},
-			func(conn net.Conn) {
-				// receive auth
-				_, err := io.CopyN(ioutil.Discard, conn, 2)
-				require.NoError(t, err)
+		testConnAuthenticate(t, server, func(client net.Conn) {
+			// receive auth
+			_, err := io.CopyN(ioutil.Discard, client, 2)
+			require.NoError(t, err)
 
-				req := make([]byte, 5)
-				req[0] = usernamePasswordVersion
-				req[1] = 1
-				req[2] = 'u'
-				req[3] = 1
-				req[4] = 'p'
+			req := make([]byte, 5)
+			req[0] = usernamePasswordVersion
+			req[1] = 1
+			req[2] = 'u'
+			req[3] = 1
+			req[4] = 'p'
 
-				_, err = conn.Write(req)
-				require.NoError(t, err)
+			_, err = client.Write(req)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("failed to write auth reply", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				ok := conn.authenticate()
-				require.False(t, ok)
-			},
-			func(conn net.Conn) {
-				// receive auth
-				_, err := io.CopyN(ioutil.Discard, conn, 2)
-				require.NoError(t, err)
+		testConnAuthenticate(t, server, func(client net.Conn) {
+			// receive auth
+			_, err := io.CopyN(ioutil.Discard, client, 2)
+			require.NoError(t, err)
 
-				req := make([]byte, 5)
-				req[0] = usernamePasswordVersion
-				req[1] = 1
-				req[2] = 'u'
-				req[3] = 1
-				req[4] = 'p'
+			req := make([]byte, 5)
+			req[0] = usernamePasswordVersion
+			req[1] = 1
+			req[2] = 'u'
+			req[3] = 1
+			req[4] = 'p'
 
-				_, err = conn.Write(req)
-				require.NoError(t, err)
+			_, err = client.Write(req)
+			require.NoError(t, err)
 
-				// receive auth
-				_, err = io.CopyN(ioutil.Discard, conn, 1)
-				require.NoError(t, err)
+			// receive auth
+			_, err = io.CopyN(ioutil.Discard, client, 1)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	testsuite.IsDestroyed(t, server)
@@ -767,7 +725,6 @@ func TestConn_receiveTarget(t *testing.T) {
 			server: server,
 			local:  testsuite.NewMockConnWithReadError(),
 		}
-
 		target := conn.receiveTarget()
 		require.Empty(t, target)
 	})

@@ -43,7 +43,6 @@ func testSocks4ServerWrite(t *testing.T, client *Client, write func(net.Conn)) {
 			require.Error(t, err)
 		},
 		func(conn net.Conn) {
-			go func() { _, _ = io.Copy(ioutil.Discard, conn) }()
 			write(conn)
 		},
 	)
@@ -95,10 +94,13 @@ func TestClient_connectSocks4(t *testing.T) {
 		client := new(Client)
 
 		testSocks4ServerWrite(t, client, func(server net.Conn) {
+			_, err := io.CopyN(ioutil.Discard, server, 9)
+			require.NoError(t, err)
+
 			reply := make([]byte, 1+1+2+net.IPv4len)
 			reply[0] = 0x01
 
-			_, err := server.Write(reply)
+			_, err = server.Write(reply)
 			require.NoError(t, err)
 		})
 
