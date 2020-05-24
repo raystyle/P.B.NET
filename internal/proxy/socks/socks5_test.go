@@ -597,7 +597,8 @@ func TestConn_authenticate(t *testing.T) {
 			local:  testsuite.NewMockConnWithWriteError(),
 		}
 
-		conn.authenticate()
+		ok := conn.authenticate()
+		require.False(t, ok)
 	})
 
 	t.Run("failed to read user pass", func(t *testing.T) {
@@ -606,7 +607,8 @@ func TestConn_authenticate(t *testing.T) {
 			local:  testsuite.NewMockConnWithReadError(),
 		}
 
-		conn.authenticate()
+		ok := conn.authenticate()
+		require.False(t, ok)
 	})
 
 	t.Run("unexpected user pass version", func(t *testing.T) {
@@ -804,6 +806,148 @@ func TestConn_authenticate(t *testing.T) {
 
 				// receive auth
 				_, err = io.CopyN(ioutil.Discard, conn, 1)
+				require.NoError(t, err)
+
+				err = conn.Close()
+				require.NoError(t, err)
+			},
+		)
+	})
+
+	testsuite.IsDestroyed(t, server)
+}
+
+func TestConn_receiveTarget(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, err := NewSocks5Server("test", logger.Test, nil)
+	require.NoError(t, err)
+
+	t.Run("failed to read three", func(t *testing.T) {
+		conn := &conn{
+			server: server,
+			local:  testsuite.NewMockConnWithReadError(),
+		}
+
+		target := conn.receiveTarget()
+		require.Empty(t, target)
+	})
+
+	t.Run("invalid version", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				target := conn.receiveTarget()
+				require.Empty(t, target)
+			},
+			func(conn net.Conn) {
+				req := make([]byte, 4)
+
+				_, err := conn.Write(req)
+				require.NoError(t, err)
+			},
+		)
+	})
+
+	t.Run("unknown command", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				target := conn.receiveTarget()
+				require.Empty(t, target)
+			},
+			func(conn net.Conn) {
+				req := make([]byte, 4)
+				req[0] = version5
+				req[1] = 0xff
+
+				_, err := conn.Write(req)
+				require.NoError(t, err)
+
+				// receive response
+				_, err = io.CopyN(ioutil.Discard, conn, 3)
+				require.NoError(t, err)
+			},
+		)
+	})
+
+	t.Run("invalid reserved", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				target := conn.receiveTarget()
+				require.Empty(t, target)
+			},
+			func(conn net.Conn) {
+				req := make([]byte, 4)
+				req[0] = version5
+				req[1] = connect
+				req[2] = 0xff
+
+				_, err := conn.Write(req)
+				require.NoError(t, err)
+
+				// receive response
+				_, err = io.CopyN(ioutil.Discard, conn, 3)
+				require.NoError(t, err)
+			},
+		)
+	})
+
+	t.Run("IPv4", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				target := conn.receiveTarget()
+				require.Empty(t, target)
+			},
+			func(conn net.Conn) {
+				req := make([]byte, 4+net.IPv4len)
+				req[0] = version5
+				req[1] = connect
+				req[2] = reserve
+				req[3] = ipv4
+
+				_, err := conn.Write(req)
+				require.NoError(t, err)
+
+				err = conn.Close()
+				require.NoError(t, err)
+			},
+		)
+	})
+
+	t.Run("invalid IPv4", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				target := conn.receiveTarget()
+				require.Empty(t, target)
+			},
+			func(conn net.Conn) {
+				req := make([]byte, 4+net.IPv4len-1)
+				req[0] = version5
+				req[1] = connect
+				req[2] = reserve
+				req[3] = ipv4
+
+				_, err := conn.Write(req)
 				require.NoError(t, err)
 
 				err = conn.Close()
