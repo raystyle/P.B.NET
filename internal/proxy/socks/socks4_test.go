@@ -36,6 +36,19 @@ func TestV4Reply_String(t *testing.T) {
 	})
 }
 
+func testSocks4ServerWrite(t *testing.T, client *Client, write func(net.Conn)) {
+	testsuite.PipeWithReaderWriter(t,
+		func(conn net.Conn) {
+			err := client.connectSocks4(conn, "1.1.1.1", 1)
+			require.Error(t, err)
+		},
+		func(conn net.Conn) {
+			go func() { _, _ = io.Copy(ioutil.Discard, conn) }()
+			write(conn)
+		},
+	)
+}
+
 func TestClient_connectSocks4(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -79,74 +92,53 @@ func TestClient_connectSocks4(t *testing.T) {
 	})
 
 	t.Run("invalid reply", func(t *testing.T) {
-		client := Client{}
-		srv, cli := net.Pipe()
-		defer func() {
-			err := srv.Close()
-			require.NoError(t, err)
-			err = cli.Close()
-			require.NoError(t, err)
-		}()
+		client := new(Client)
 
-		go func() {
-			_, err := io.CopyN(ioutil.Discard, srv, 9)
-			require.NoError(t, err)
-
+		testSocks4ServerWrite(t, client, func(server net.Conn) {
 			reply := make([]byte, 1+1+2+net.IPv4len)
 			reply[0] = 0x01
 
-			_, err = srv.Write(reply)
+			_, err := server.Write(reply)
 			require.NoError(t, err)
-		}()
+		})
 
-		err := client.connectSocks4(cli, "1.1.1.1", 1)
-		require.Error(t, err)
-
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		client := Client{}
-		srv, cli := net.Pipe()
-		defer func() {
-			err := srv.Close()
-			require.NoError(t, err)
-			err = cli.Close()
-			require.NoError(t, err)
-		}()
+		client := new(Client)
 
-		go func() {
-			_, err := io.CopyN(ioutil.Discard, srv, 9)
-			require.NoError(t, err)
+		testsuite.PipeWithReaderWriter(t,
+			func(conn net.Conn) {
+				err := client.connectSocks4(conn, "1.1.1.1", 1)
+				require.NoError(t, err)
+			},
+			func(server net.Conn) {
+				_, err := io.CopyN(ioutil.Discard, server, 9)
+				require.NoError(t, err)
 
-			_, err = srv.Write(v4ReplySucceeded)
-			require.NoError(t, err)
-		}()
+				_, err = server.Write(v4ReplySucceeded)
+				require.NoError(t, err)
+			},
+		)
 
-		err := client.connectSocks4(cli, "1.1.1.1", 1)
-		require.NoError(t, err)
-
-		testsuite.IsDestroyed(t, &client)
+		testsuite.IsDestroyed(t, client)
 	})
 }
 
-func testSocks4ClientWrite(t *testing.T, server *Server, write func(cli net.Conn)) {
-	srv, cli := net.Pipe()
-	defer func() {
-		err := srv.Close()
-		require.NoError(t, err)
-		err = cli.Close()
-		require.NoError(t, err)
-	}()
-
-	go write(cli)
-
-	conn := &conn{
-		server: server,
-		local:  srv,
-	}
-
-	conn.serveSocks4()
+func testSocks4ClientWrite(t *testing.T, server *Server, write func(net.Conn)) {
+	testsuite.PipeWithReaderWriter(t,
+		func(c net.Conn) {
+			conn := &conn{
+				server: server,
+				local:  c,
+			}
+			conn.serveSocks4()
+		},
+		func(conn net.Conn) {
+			write(conn)
+		},
+	)
 }
 
 func TestConn_serveSocks4(t *testing.T) {
@@ -161,33 +153,32 @@ func TestConn_serveSocks4(t *testing.T) {
 			server: server,
 			local:  testsuite.NewMockConnWithReadError(),
 		}
-
 		conn.serveSocks4()
 	})
 
 	t.Run("invalid version", func(t *testing.T) {
-		testSocks4ClientWrite(t, server, func(cli net.Conn) {
+		testSocks4ClientWrite(t, server, func(client net.Conn) {
 			req := make([]byte, 8)
 			req[0] = 0x00
 
-			_, err := cli.Write(req)
+			_, err := client.Write(req)
 			require.NoError(t, err)
 		})
 	})
 
 	t.Run("invalid command", func(t *testing.T) {
-		testSocks4ClientWrite(t, server, func(cli net.Conn) {
+		testSocks4ClientWrite(t, server, func(client net.Conn) {
 			req := make([]byte, 8)
 			req[0] = version4
 			req[1] = 0x00
 
-			_, err := cli.Write(req)
+			_, err := client.Write(req)
 			require.NoError(t, err)
 		})
 	})
 
 	t.Run("failed to read domain", func(t *testing.T) {
-		testSocks4ClientWrite(t, server, func(cli net.Conn) {
+		testSocks4ClientWrite(t, server, func(client net.Conn) {
 			req := make([]byte, 8+1) // user id
 			req[0] = version4
 			req[1] = connect
@@ -197,10 +188,10 @@ func TestConn_serveSocks4(t *testing.T) {
 			// ip address
 			req[7] = 0x01
 
-			_, err := cli.Write(req)
+			_, err := client.Write(req)
 			require.NoError(t, err)
 
-			err = cli.Close()
+			err = client.Close()
 			require.NoError(t, err)
 		})
 	})
@@ -213,7 +204,7 @@ func TestConn_serveSocks4(t *testing.T) {
 		server, err := NewSocks4aServer("test", logger.Test, &opts)
 		require.NoError(t, err)
 
-		testSocks4ClientWrite(t, server, func(cli net.Conn) {
+		testSocks4ClientWrite(t, server, func(client net.Conn) {
 			req := make([]byte, 8+1) // user id
 			req[0] = version4
 			req[1] = connect
@@ -226,10 +217,10 @@ func TestConn_serveSocks4(t *testing.T) {
 			req[6] = 0x01
 			req[7] = 0x01
 
-			_, err = cli.Write(req)
+			_, err = client.Write(req)
 			require.NoError(t, err)
 
-			err = cli.Close()
+			err = client.Close()
 			require.NoError(t, err)
 		})
 
@@ -246,7 +237,7 @@ func TestConn_checkUserID(t *testing.T) {
 	server, err := NewSocks4aServer("test", logger.Test, nil)
 	require.NoError(t, err)
 
-	testSocks4ClientWrite(t, server, func(cli net.Conn) {
+	testSocks4ClientWrite(t, server, func(client net.Conn) {
 		req := make([]byte, 8)
 		req[0] = version4
 		req[1] = connect
@@ -256,10 +247,10 @@ func TestConn_checkUserID(t *testing.T) {
 		// ip address
 		req[7] = 0x01
 
-		_, err = cli.Write(req)
+		_, err = client.Write(req)
 		require.NoError(t, err)
 
-		err = cli.Close()
+		err = client.Close()
 		require.NoError(t, err)
 	})
 
