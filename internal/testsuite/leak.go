@@ -62,7 +62,7 @@ func (m *GoroutineMark) calculate() int {
 	fmt.Println(buf)
 	// print different
 	fmt.Println("--------different between then and now--------")
-	diff, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+	diff, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
 		A:        difflib.SplitLines(m.record.String()),
 		B:        difflib.SplitLines(buf.String()),
 		FromFile: "Expected",
@@ -71,6 +71,7 @@ func (m *GoroutineMark) calculate() int {
 		ToDate:   "",
 		Context:  1,
 	})
+	require.NoError(m.t, err)
 	fmt.Println(diff)
 	// save current goroutine number
 	m.now = num
