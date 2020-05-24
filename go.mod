@@ -16,6 +16,7 @@ require (
 	github.com/lucas-clemente/quic-go v0.18.0
 	github.com/pelletier/go-toml v1.8.0
 	github.com/pkg/errors v0.9.1
+	github.com/pmezard/go-difflib v1.0.0
 	github.com/stretchr/testify v1.6.1
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 
