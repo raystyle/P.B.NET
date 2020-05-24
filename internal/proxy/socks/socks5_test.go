@@ -956,5 +956,136 @@ func TestConn_receiveTarget(t *testing.T) {
 		)
 	})
 
+	t.Run("IPv6", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				target := conn.receiveTarget()
+				require.Empty(t, target)
+			},
+			func(conn net.Conn) {
+				req := make([]byte, 4+net.IPv6len)
+				req[0] = version5
+				req[1] = connect
+				req[2] = reserve
+				req[3] = ipv6
+
+				_, err := conn.Write(req)
+				require.NoError(t, err)
+
+				err = conn.Close()
+				require.NoError(t, err)
+			},
+		)
+	})
+
+	t.Run("invalid IPv6", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				target := conn.receiveTarget()
+				require.Empty(t, target)
+			},
+			func(conn net.Conn) {
+				req := make([]byte, 4+net.IPv6len-1)
+				req[0] = version5
+				req[1] = connect
+				req[2] = reserve
+				req[3] = ipv6
+
+				_, err := conn.Write(req)
+				require.NoError(t, err)
+
+				err = conn.Close()
+				require.NoError(t, err)
+			},
+		)
+	})
+
+	t.Run("failed to get FQDN length", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				target := conn.receiveTarget()
+				require.Empty(t, target)
+			},
+			func(conn net.Conn) {
+				req := make([]byte, 4)
+				req[0] = version5
+				req[1] = connect
+				req[2] = reserve
+				req[3] = fqdn
+
+				_, err := conn.Write(req)
+				require.NoError(t, err)
+
+				err = conn.Close()
+				require.NoError(t, err)
+			},
+		)
+	})
+
+	t.Run("failed to get FQDN", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				target := conn.receiveTarget()
+				require.Empty(t, target)
+			},
+			func(conn net.Conn) {
+				req := make([]byte, 4+3)
+				req[0] = version5
+				req[1] = connect
+				req[2] = reserve
+				req[3] = fqdn
+				req[4] = 255
+
+				_, err := conn.Write(req)
+				require.NoError(t, err)
+
+				err = conn.Close()
+				require.NoError(t, err)
+			},
+		)
+	})
+
+	t.Run("invalid address type", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(c net.Conn) {
+				conn := &conn{
+					server: server,
+					local:  c,
+				}
+				target := conn.receiveTarget()
+				require.Empty(t, target)
+			},
+			func(conn net.Conn) {
+				req := make([]byte, 4)
+				req[0] = version5
+				req[1] = connect
+				req[2] = reserve
+				req[3] = 0xff
+
+				_, err := conn.Write(req)
+				require.NoError(t, err)
+
+				err = conn.Close()
+				require.NoError(t, err)
+			},
+		)
+	})
+
 	testsuite.IsDestroyed(t, server)
 }
