@@ -713,6 +713,22 @@ func TestConn_authenticate(t *testing.T) {
 	testsuite.IsDestroyed(t, server)
 }
 
+func testConnReceiveTarget(t *testing.T, server *Server, write func(net.Conn)) {
+	testsuite.PipeWithReaderWriter(t,
+		func(c net.Conn) {
+			conn := &conn{
+				server: server,
+				local:  c,
+			}
+			target := conn.receiveTarget()
+			require.Empty(t, target)
+		},
+		func(conn net.Conn) {
+			write(conn)
+		},
+	)
+}
+
 func TestConn_receiveTarget(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -730,256 +746,156 @@ func TestConn_receiveTarget(t *testing.T) {
 	})
 
 	t.Run("invalid version", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				target := conn.receiveTarget()
-				require.Empty(t, target)
-			},
-			func(conn net.Conn) {
-				req := make([]byte, 4)
+		testConnReceiveTarget(t, server, func(client net.Conn) {
+			req := make([]byte, 4)
 
-				_, err := conn.Write(req)
-				require.NoError(t, err)
-			},
-		)
+			_, err := client.Write(req)
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("unknown command", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				target := conn.receiveTarget()
-				require.Empty(t, target)
-			},
-			func(conn net.Conn) {
-				req := make([]byte, 4)
-				req[0] = version5
-				req[1] = 0xff
+		testConnReceiveTarget(t, server, func(client net.Conn) {
+			req := make([]byte, 4)
+			req[0] = version5
+			req[1] = 0xff
 
-				_, err := conn.Write(req)
-				require.NoError(t, err)
+			_, err := client.Write(req)
+			require.NoError(t, err)
 
-				// receive response
-				_, err = io.CopyN(ioutil.Discard, conn, 3)
-				require.NoError(t, err)
-			},
-		)
+			// receive response
+			_, err = io.CopyN(ioutil.Discard, client, 3)
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("invalid reserved", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				target := conn.receiveTarget()
-				require.Empty(t, target)
-			},
-			func(conn net.Conn) {
-				req := make([]byte, 4)
-				req[0] = version5
-				req[1] = connect
-				req[2] = 0xff
+		testConnReceiveTarget(t, server, func(client net.Conn) {
+			req := make([]byte, 4)
+			req[0] = version5
+			req[1] = connect
+			req[2] = 0xff
 
-				_, err := conn.Write(req)
-				require.NoError(t, err)
+			_, err := client.Write(req)
+			require.NoError(t, err)
 
-				// receive response
-				_, err = io.CopyN(ioutil.Discard, conn, 3)
-				require.NoError(t, err)
-			},
-		)
+			// receive response
+			_, err = io.CopyN(ioutil.Discard, client, 3)
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("IPv4", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				target := conn.receiveTarget()
-				require.Empty(t, target)
-			},
-			func(conn net.Conn) {
-				req := make([]byte, 4+net.IPv4len)
-				req[0] = version5
-				req[1] = connect
-				req[2] = reserve
-				req[3] = ipv4
+		testConnReceiveTarget(t, server, func(client net.Conn) {
+			req := make([]byte, 4+net.IPv4len)
+			req[0] = version5
+			req[1] = connect
+			req[2] = reserve
+			req[3] = ipv4
 
-				_, err := conn.Write(req)
-				require.NoError(t, err)
+			_, err := client.Write(req)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("invalid IPv4", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				target := conn.receiveTarget()
-				require.Empty(t, target)
-			},
-			func(conn net.Conn) {
-				req := make([]byte, 4+net.IPv4len-1)
-				req[0] = version5
-				req[1] = connect
-				req[2] = reserve
-				req[3] = ipv4
+		testConnReceiveTarget(t, server, func(client net.Conn) {
+			req := make([]byte, 4+net.IPv4len-1)
+			req[0] = version5
+			req[1] = connect
+			req[2] = reserve
+			req[3] = ipv4
 
-				_, err := conn.Write(req)
-				require.NoError(t, err)
+			_, err := client.Write(req)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("IPv6", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				target := conn.receiveTarget()
-				require.Empty(t, target)
-			},
-			func(conn net.Conn) {
-				req := make([]byte, 4+net.IPv6len)
-				req[0] = version5
-				req[1] = connect
-				req[2] = reserve
-				req[3] = ipv6
+		testConnReceiveTarget(t, server, func(client net.Conn) {
+			req := make([]byte, 4+net.IPv6len)
+			req[0] = version5
+			req[1] = connect
+			req[2] = reserve
+			req[3] = ipv6
 
-				_, err := conn.Write(req)
-				require.NoError(t, err)
+			_, err := client.Write(req)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("invalid IPv6", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				target := conn.receiveTarget()
-				require.Empty(t, target)
-			},
-			func(conn net.Conn) {
-				req := make([]byte, 4+net.IPv6len-1)
-				req[0] = version5
-				req[1] = connect
-				req[2] = reserve
-				req[3] = ipv6
+		testConnReceiveTarget(t, server, func(client net.Conn) {
+			req := make([]byte, 4+net.IPv6len-1)
+			req[0] = version5
+			req[1] = connect
+			req[2] = reserve
+			req[3] = ipv6
 
-				_, err := conn.Write(req)
-				require.NoError(t, err)
+			_, err := client.Write(req)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("failed to get FQDN length", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				target := conn.receiveTarget()
-				require.Empty(t, target)
-			},
-			func(conn net.Conn) {
-				req := make([]byte, 4)
-				req[0] = version5
-				req[1] = connect
-				req[2] = reserve
-				req[3] = fqdn
+		testConnReceiveTarget(t, server, func(client net.Conn) {
+			req := make([]byte, 4)
+			req[0] = version5
+			req[1] = connect
+			req[2] = reserve
+			req[3] = fqdn
 
-				_, err := conn.Write(req)
-				require.NoError(t, err)
+			_, err := client.Write(req)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("failed to get FQDN", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				target := conn.receiveTarget()
-				require.Empty(t, target)
-			},
-			func(conn net.Conn) {
-				req := make([]byte, 4+3)
-				req[0] = version5
-				req[1] = connect
-				req[2] = reserve
-				req[3] = fqdn
-				req[4] = 255
+		testConnReceiveTarget(t, server, func(client net.Conn) {
+			req := make([]byte, 4+3)
+			req[0] = version5
+			req[1] = connect
+			req[2] = reserve
+			req[3] = fqdn
+			req[4] = 255
 
-				_, err := conn.Write(req)
-				require.NoError(t, err)
+			_, err := client.Write(req)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("invalid address type", func(t *testing.T) {
-		testsuite.PipeWithReaderWriter(t,
-			func(c net.Conn) {
-				conn := &conn{
-					server: server,
-					local:  c,
-				}
-				target := conn.receiveTarget()
-				require.Empty(t, target)
-			},
-			func(conn net.Conn) {
-				req := make([]byte, 4)
-				req[0] = version5
-				req[1] = connect
-				req[2] = reserve
-				req[3] = 0xff
+		testConnReceiveTarget(t, server, func(client net.Conn) {
+			req := make([]byte, 4)
+			req[0] = version5
+			req[1] = connect
+			req[2] = reserve
+			req[3] = 0xff
 
-				_, err := conn.Write(req)
-				require.NoError(t, err)
+			_, err := client.Write(req)
+			require.NoError(t, err)
 
-				err = conn.Close()
-				require.NoError(t, err)
-			},
-		)
+			err = client.Close()
+			require.NoError(t, err)
+		})
 	})
 
 	testsuite.IsDestroyed(t, server)
