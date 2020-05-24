@@ -7,7 +7,6 @@ import (
 	"net/http/pprof"
 	"os"
 	"reflect"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -107,33 +106,6 @@ func Bytes() []byte {
 		testdata[i] = byte(i)
 	}
 	return testdata
-}
-
-// Destroyed is used to check if the object has been recycled by the GC.
-// It not need testing.TB.
-func Destroyed(object interface{}) bool {
-	destroyed := make(chan struct{})
-	runtime.SetFinalizer(object, func(interface{}) {
-		close(destroyed)
-	})
-	// total 3 seconds
-	timer := time.NewTimer(10 * time.Millisecond)
-	defer timer.Stop()
-	for i := 0; i < 300; i++ {
-		timer.Reset(10 * time.Millisecond)
-		runtime.GC()
-		select {
-		case <-destroyed:
-			return true
-		case <-timer.C:
-		}
-	}
-	return false
-}
-
-// IsDestroyed is used to check if the object has been recycled by the GC.
-func IsDestroyed(t testing.TB, object interface{}) {
-	require.True(t, Destroyed(object), "object not destroyed")
 }
 
 // DeferForPanic is used to add recover and log panic in defer function,

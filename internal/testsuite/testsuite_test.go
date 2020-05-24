@@ -75,30 +75,6 @@ func TestBytes(t *testing.T) {
 	Bytes()
 }
 
-func TestIsDestroyed(t *testing.T) {
-	a := 1
-	n, err := fmt.Fprintln(ioutil.Discard, a)
-	require.Equal(t, n, 2)
-	require.NoError(t, err)
-	if !Destroyed(&a) {
-		t.Fatal("doesn't destroyed")
-	}
-
-	b := 2
-	if Destroyed(&b) {
-		t.Fatal("destroyed")
-	}
-	n, err = fmt.Fprintln(ioutil.Discard, b)
-	require.Equal(t, n, 2)
-	require.NoError(t, err)
-
-	c := 3
-	n, err = fmt.Fprintln(ioutil.Discard, c)
-	require.Equal(t, n, 2)
-	require.NoError(t, err)
-	IsDestroyed(t, &c)
-}
-
 func TestDeferForPanic(t *testing.T) {
 	defer DeferForPanic(t)
 
