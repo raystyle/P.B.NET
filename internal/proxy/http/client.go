@@ -267,8 +267,9 @@ func (c *Client) connect(conn net.Conn, address string) error {
 	}
 	// accept HTTP/1.0 200 Connection established
 	//        HTTP/1.1 200 Connection established
-	// skip   HTTP/1.0 and HTTP/1.1
-	if p[1] != "200" || p[2] != "Connection" || p[3] != "established" {
+	// skip prefix HTTP/1.0 and HTTP/1.1
+	if p[1] != "200" || strings.ToLower(p[2]) != "connection" ||
+		strings.ToLower(p[3]) != "established" {
 		return errors.Errorf(format, c.scheme, c.address, address)
 	}
 	return nil
