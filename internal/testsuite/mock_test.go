@@ -334,7 +334,19 @@ func TestNewMockResponseWriterWithWriteError(t *testing.T) {
 	require.NotNil(t, conn)
 
 	_, err = conn.Write(nil)
-	require.Error(t, err)
+	IsMockConnWriteError(t, err)
+}
+
+func TestNewMockResponseWriterWithCloseError(t *testing.T) {
+	rw := NewMockResponseWriterWithCloseError()
+
+	conn, brw, err := rw.(http.Hijacker).Hijack()
+	require.NoError(t, err)
+	require.Nil(t, brw)
+	require.NotNil(t, conn)
+
+	err = conn.Close()
+	IsMockConnCloseError(t, err)
 }
 
 func TestNewMockResponseWriterWithClosePanic(t *testing.T) {

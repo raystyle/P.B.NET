@@ -482,6 +482,13 @@ func NewMockResponseWriterWithWriteError() http.ResponseWriter {
 	return &mockResponseWriter{conn: NewMockConnWithWriteError()}
 }
 
+// NewMockResponseWriterWithCloseError is used to create a mock
+// http.ResponseWriter that implemented http.Hijacker, if use hijacked
+// connection and when call Close(), it will return an error.
+func NewMockResponseWriterWithCloseError() http.ResponseWriter {
+	return &mockResponseWriter{conn: NewMockConnWithCloseError()}
+}
+
 // NewMockResponseWriterWithClosePanic is used to create a mock
 // http.ResponseWriter that implemented http.Hijacker, if use hijacked
 // connection and when call Close() it will panic.

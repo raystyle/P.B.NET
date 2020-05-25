@@ -63,6 +63,9 @@ func TestConn(t *testing.T) {
 }
 
 func TestPipeWithReaderWriter(t *testing.T) {
+	gm := MarkGoroutines(t)
+	defer gm.Compare()
+
 	PipeWithReaderWriter(t,
 		func(conn net.Conn) {
 			n, err := conn.Read(make([]byte, 4))
