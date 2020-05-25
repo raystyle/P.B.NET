@@ -14,7 +14,7 @@ import (
 )
 
 func TestTrimPrefixSpace(t *testing.T) {
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		input  string
 		except string
 	}{
@@ -22,16 +22,15 @@ func TestTrimPrefixSpace(t *testing.T) {
 		{input: "  a", except: "a"},
 		{input: "   ", except: ""},
 		{input: "  a ", except: "a "},
-	}
-	for i := 0; i < len(testdata); i++ {
-		require.Equal(t, testdata[i].except, trimPrefixSpace(testdata[i].input))
+	} {
+		require.Equal(t, testdata.except, trimPrefixSpace(testdata.input))
 	}
 }
 
 func TestCommandLineToArgv(t *testing.T) {
 	exe1 := "test"
 	exe2 := `"test test"`
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		cmd  string
 		args []string
 	}{
@@ -45,14 +44,12 @@ func TestCommandLineToArgv(t *testing.T) {
 		{`net -a ""`, []string{"net", "-a", ""}},
 		{`""net""  -a  -b`, []string{"net", "-a", "-b"}},
 		{`"""net""" -a`, []string{`"net"`, "-a"}},
-	}
-	for i := 0; i < len(testdata); i++ {
-		args := CommandLineToArgv(exe1 + " " + testdata[i].cmd)
-		require.Equal(t, append([]string{"test"}, testdata[i].args...), args)
-	}
-	for i := 0; i < len(testdata); i++ {
-		args := CommandLineToArgv(exe2 + " " + testdata[i].cmd)
-		require.Equal(t, append([]string{"test test"}, testdata[i].args...), args)
+	} {
+		args := CommandLineToArgv(exe1 + " " + testdata.cmd)
+		require.Equal(t, append([]string{"test"}, testdata.args...), args)
+
+		args = CommandLineToArgv(exe2 + " " + testdata.cmd)
+		require.Equal(t, append([]string{"test test"}, testdata.args...), args)
 	}
 }
 

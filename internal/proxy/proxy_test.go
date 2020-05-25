@@ -219,7 +219,7 @@ func TestClientOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, opts)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -228,9 +228,8 @@ func TestClientOptions(t *testing.T) {
 		{expected: "tcp", actual: opts.Network},
 		{expected: "127.0.0.1:1080", actual: opts.Address},
 		{expected: "username = \"admin\"", actual: opts.Options},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -246,15 +245,14 @@ func TestServerOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, opts)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
 		{expected: "test", actual: opts.Tag},
 		{expected: "socks5", actual: opts.Mode},
 		{expected: "username = \"admin\"", actual: opts.Options},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }

@@ -23,7 +23,7 @@ const (
 )
 
 func TestParse(t *testing.T) {
-	for _, testdata := range []struct {
+	for _, testdata := range [...]*struct {
 		name  string
 		level Level
 	}{

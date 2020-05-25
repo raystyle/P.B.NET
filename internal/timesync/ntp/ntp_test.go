@@ -312,7 +312,7 @@ func TestTimeConversions(t *testing.T) {
 }
 
 func TestKissCode(t *testing.T) {
-	codes := [...]*struct {
+	for _, code := range [...]*struct {
 		id  uint32
 		str string
 	}{
@@ -334,9 +334,8 @@ func TestKissCode(t *testing.T) {
 		{0xfefefefe, ""},
 		{0x01544450, ""},
 		{0x41544401, ""},
-	}
-	for _, c := range codes {
-		assert.Equal(t, kissCode(c.id), c.str)
+	} {
+		assert.Equal(t, kissCode(code.id), code.str)
 	}
 }
 

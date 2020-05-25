@@ -23,7 +23,7 @@ func TestOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, opts)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -32,9 +32,8 @@ func TestOptions(t *testing.T) {
 		{expected: "test", actual: opts.UserID},
 		{expected: time.Minute, actual: opts.Timeout},
 		{expected: 1000, actual: opts.MaxConns},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -47,7 +46,7 @@ func TestSocks5ServerOptions(t *testing.T) {
 	err = toml.Unmarshal(data, &opts)
 	require.NoError(t, err)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -55,9 +54,8 @@ func TestSocks5ServerOptions(t *testing.T) {
 		{expected: "123456", actual: opts.Password},
 		{expected: time.Minute, actual: opts.Timeout},
 		{expected: 1000, actual: opts.MaxConns},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -70,16 +68,15 @@ func TestSocks5ClientOptions(t *testing.T) {
 	err = toml.Unmarshal(data, &opts)
 	require.NoError(t, err)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
 		{expected: "admin", actual: opts.Username},
 		{expected: "123456", actual: opts.Password},
 		{expected: time.Minute, actual: opts.Timeout},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -92,16 +89,15 @@ func TestSocks4aServerOptions(t *testing.T) {
 	err = toml.Unmarshal(data, &opts)
 	require.NoError(t, err)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
 		{expected: testTag, actual: opts.UserID},
 		{expected: time.Minute, actual: opts.Timeout},
 		{expected: 1000, actual: opts.MaxConns},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -114,15 +110,14 @@ func TestSocks4aClientOptions(t *testing.T) {
 	err = toml.Unmarshal(data, &opts)
 	require.NoError(t, err)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
 		{expected: testTag, actual: opts.UserID},
 		{expected: time.Minute, actual: opts.Timeout},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -135,16 +130,15 @@ func TestSocks4ServerOptions(t *testing.T) {
 	err = toml.Unmarshal(data, &opts)
 	require.NoError(t, err)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
 		{expected: testTag, actual: opts.UserID},
 		{expected: time.Minute, actual: opts.Timeout},
 		{expected: 1000, actual: opts.MaxConns},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -157,15 +151,14 @@ func TestSocks4ClientOptions(t *testing.T) {
 	err = toml.Unmarshal(data, &opts)
 	require.NoError(t, err)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
 		{expected: testTag, actual: opts.UserID},
 		{expected: time.Minute, actual: opts.Timeout},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 

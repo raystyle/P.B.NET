@@ -24,7 +24,7 @@ func TestOptions(t *testing.T) {
 	testsuite.CheckOptions(t, opts)
 
 	opts = opts.apply()
-	for _, testdata := range []struct {
+	for _, testdata := range [...]*struct {
 		except interface{}
 		actual interface{}
 	}{
@@ -42,7 +42,7 @@ func TestOptions_Apply(t *testing.T) {
 	opts := new(Options)
 	opts = opts.apply()
 
-	for _, testdata := range []struct {
+	for _, testdata := range [...]*struct {
 		except interface{}
 		actual interface{}
 	}{

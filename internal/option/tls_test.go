@@ -145,7 +145,7 @@ func TestTLSConfig(t *testing.T) {
 		config, err := tlsConfig.Apply()
 		require.NoError(t, err)
 
-		testdata := [...]*struct {
+		for _, testdata := range [...]*struct {
 			expected interface{}
 			actual   interface{}
 		}{
@@ -156,9 +156,8 @@ func TestTLSConfig(t *testing.T) {
 			{expected: uint16(tls.VersionTLS11), actual: config.MaxVersion},
 			{expected: []uint16{tls.TLS_RSA_WITH_AES_128_GCM_SHA256}, actual: config.CipherSuites},
 			{expected: false, actual: config.InsecureSkipVerify},
-		}
-		for _, td := range testdata {
-			require.Equal(t, td.expected, td.actual)
+		} {
+			require.Equal(t, testdata.expected, testdata.actual)
 		}
 	})
 }

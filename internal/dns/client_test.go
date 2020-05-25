@@ -653,16 +653,15 @@ func TestServerOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, server)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
 		{expected: "udp", actual: server.Method},
 		{expected: "1.1.1.1:53", actual: server.Address},
 		{expected: true, actual: server.SkipTest},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -678,7 +677,7 @@ func TestOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, opts)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -695,8 +694,7 @@ func TestOptions(t *testing.T) {
 		{expected: "test.com", actual: opts.TLSConfig.ServerName},
 		{expected: "keep-alive", actual: opts.Header.Get("Connection")},
 		{expected: 2, actual: opts.Transport.MaxIdleConns},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }

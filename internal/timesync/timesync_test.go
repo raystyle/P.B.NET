@@ -528,15 +528,14 @@ func TestClientOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, client)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
 		{expected: "ntp", actual: client.Mode},
 		{expected: true, actual: client.SkipTest},
 		{expected: "address = \"2.pool.ntp.org:123\"", actual: client.Config},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }

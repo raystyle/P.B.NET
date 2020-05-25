@@ -47,7 +47,7 @@ func TestHTTPRequest(t *testing.T) {
 	postData, err := ioutil.ReadAll(request.Body)
 	require.NoError(t, err)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -58,9 +58,8 @@ func TestHTTPRequest(t *testing.T) {
 		{expected: 7, actual: len(request.Header)},
 		{expected: "localhost", actual: request.Host},
 		{expected: true, actual: request.Close},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -129,7 +128,7 @@ func TestHTTPTransport(t *testing.T) {
 	require.NoError(t, err)
 	const timeout = 10 * time.Second
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -145,9 +144,8 @@ func TestHTTPTransport(t *testing.T) {
 		{expected: true, actual: transport.DisableCompression},
 		{expected: "test.com", actual: transport.TLSClientConfig.ServerName},
 		{expected: []string{"testdata"}, actual: transport.ProxyConnectHeader["Test"]},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 	require.NotNil(t, transport.Proxy)
 	require.NotNil(t, transport.DialContext)
@@ -193,7 +191,7 @@ func TestHTTPServer(t *testing.T) {
 	require.NoError(t, err)
 	const timeout = 10 * time.Second
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -203,9 +201,8 @@ func TestHTTPServer(t *testing.T) {
 		{expected: timeout, actual: server.IdleTimeout},
 		{expected: 16384, actual: server.MaxHeaderBytes},
 		{expected: "test.com", actual: server.TLSConfig.ServerName},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 

@@ -61,49 +61,51 @@ func TestBytesToNumber(t *testing.T) {
 	}
 }
 
-func TestBytesToNumberWithInvalidBytes(t *testing.T) {
-	def := func() {
-		r := recover()
-		require.NotNil(t, r)
-	}
+// copy from internal/testsuite/testsuite.go
+func testDeferForPanic(t testing.TB) {
+	r := recover()
+	require.NotNil(t, r)
+	t.Logf("\npanic in %s:\n%s\n", t.Name(), r)
+}
 
+func TestBytesToNumberWithInvalidBytes(t *testing.T) {
 	t.Run("BytesToInt16", func(t *testing.T) {
-		defer def()
+		defer testDeferForPanic(t)
 		BytesToInt16([]byte{1})
 	})
 
 	t.Run("BytesToInt32", func(t *testing.T) {
-		defer def()
+		defer testDeferForPanic(t)
 		BytesToInt32([]byte{1})
 	})
 
 	t.Run("BytesToInt64", func(t *testing.T) {
-		defer def()
+		defer testDeferForPanic(t)
 		BytesToInt64([]byte{1})
 	})
 
 	t.Run("BytesToUint16", func(t *testing.T) {
-		defer def()
+		defer testDeferForPanic(t)
 		BytesToUint16([]byte{1})
 	})
 
 	t.Run("BytesToUint32", func(t *testing.T) {
-		defer def()
+		defer testDeferForPanic(t)
 		BytesToUint32([]byte{1})
 	})
 
 	t.Run("BytesToUint64", func(t *testing.T) {
-		defer def()
+		defer testDeferForPanic(t)
 		BytesToUint64([]byte{1})
 	})
 
 	t.Run("BytesToFloat32", func(t *testing.T) {
-		defer def()
+		defer testDeferForPanic(t)
 		BytesToFloat32([]byte{1})
 	})
 
 	t.Run("BytesToFloat64", func(t *testing.T) {
-		defer def()
+		defer testDeferForPanic(t)
 		BytesToFloat64([]byte{1})
 	})
 
@@ -115,7 +117,7 @@ func TestBytesToNumberWithInvalidBytes(t *testing.T) {
 }
 
 func TestAbsInt64(t *testing.T) {
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		input  int64
 		output int64
 	}{
@@ -124,14 +126,13 @@ func TestAbsInt64(t *testing.T) {
 		{1, 1},
 		{-10, 10},
 		{10, 10},
-	}
-	for i := 0; i < len(testdata); i++ {
-		require.Equal(t, testdata[i].output, AbsInt64(testdata[i].input))
+	} {
+		require.Equal(t, testdata.output, AbsInt64(testdata.input))
 	}
 }
 
 func TestByteToString(t *testing.T) {
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		input  int
 		output string
 	}{
@@ -144,14 +145,13 @@ func TestByteToString(t *testing.T) {
 		{1536 << 20, "1.500 GB"},
 		{1024 << 30, "1.000 TB"},
 		{1536 << 30, "1.500 TB"},
-	}
-	for i := 0; i < len(testdata); i++ {
-		require.Equal(t, testdata[i].output, ByteToString(uint64(testdata[i].input)))
+	} {
+		require.Equal(t, testdata.output, ByteToString(uint64(testdata.input)))
 	}
 }
 
 func TestFormatNumber(t *testing.T) {
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		input  string
 		output string
 	}{
@@ -174,14 +174,13 @@ func TestFormatNumber(t *testing.T) {
 		{".12", ".12"},
 		{"0.123456", "0.123456"},
 		{"123456.789", "123,456.789"},
-	}
-	for i := 0; i < len(testdata); i++ {
-		require.Equal(t, testdata[i].output, FormatNumber(testdata[i].input))
+	} {
+		require.Equal(t, testdata.output, FormatNumber(testdata.input))
 	}
 }
 
 func TestByteSliceToString(t *testing.T) {
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		input  []byte
 		output string
 	}{
@@ -189,8 +188,7 @@ func TestByteSliceToString(t *testing.T) {
 		{[]byte{1}, "[]byte{1}"},
 		{[]byte{1, 2}, "[]byte{1, 2}"},
 		{[]byte{1, 2, 3}, "[]byte{1, 2, 3}"},
-	}
-	for i := 0; i < len(testdata); i++ {
-		require.Equal(t, testdata[i].output, ByteSliceToString(testdata[i].input))
+	} {
+		require.Equal(t, testdata.output, ByteSliceToString(testdata.input))
 	}
 }

@@ -273,7 +273,7 @@ func TestDNSOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, DNS)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -282,8 +282,7 @@ func TestDNSOptions(t *testing.T) {
 		{expected: "tcp", actual: DNS.Network},
 		{expected: "443", actual: DNS.Port},
 		{expected: dns.ModeSystem, actual: DNS.Options.Mode},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }

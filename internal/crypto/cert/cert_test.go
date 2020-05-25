@@ -501,7 +501,7 @@ func TestOptions(t *testing.T) {
 	notBefore := time.Date(2018, 11, 27, 0, 0, 0, 0, time.Local)
 	notAfter := time.Date(2028, 11, 27, 0, 0, 0, 0, time.Local)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -519,8 +519,7 @@ func TestOptions(t *testing.T) {
 		{expected: []string{"test5"}, actual: opts.Subject.Province},
 		{expected: []string{"test6"}, actual: opts.Subject.StreetAddress},
 		{expected: []string{"test7"}, actual: opts.Subject.PostalCode},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }

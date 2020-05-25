@@ -222,7 +222,7 @@ func TestHTTPOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, HTTP)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -231,9 +231,8 @@ func TestHTTPOptions(t *testing.T) {
 		{expected: "http://test.com/", actual: HTTP.Request.URL},
 		{expected: 2, actual: HTTP.Transport.MaxIdleConns},
 		{expected: dns.ModeSystem, actual: HTTP.DNSOpts.Mode},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 
 	// export

@@ -112,7 +112,7 @@ func TestFprintRequest(t *testing.T) {
 func TestFprintRequestWithError(t *testing.T) {
 	req := testGenerateRequest(t)
 
-	for _, test := range []struct {
+	for _, testdata := range [...]*struct {
 		name   string
 		format string
 	}{
@@ -121,9 +121,9 @@ func TestFprintRequestWithError(t *testing.T) {
 		{"host", "\nHost: %s"},
 		{"header", "\n%s: %s"},
 	} {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(testdata.name, func(t *testing.T) {
 			patch := func(w io.Writer, format string, a ...interface{}) (int, error) {
-				if format == test.format {
+				if format == testdata.format {
 					return 0, monkey.Error
 				}
 				return w.Write([]byte(fmt.Sprintf(format, a...)))

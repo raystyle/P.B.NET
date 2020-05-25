@@ -114,7 +114,7 @@ func TestNTPOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, NTP)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -123,9 +123,8 @@ func TestNTPOptions(t *testing.T) {
 		{expected: 15 * time.Second, actual: NTP.Timeout},
 		{expected: 4, actual: NTP.Version},
 		{expected: dns.ModeSystem, actual: NTP.DNSOpts.Mode},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 
 	// export

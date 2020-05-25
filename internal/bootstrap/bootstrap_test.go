@@ -25,19 +25,18 @@ func TestLoad(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("load all", func(t *testing.T) {
-		testdata := [...]*struct {
+		for _, testdata := range [...]*struct {
 			mode   string
 			config string
 		}{
 			{mode: ModeHTTP, config: "testdata/http.toml"},
 			{mode: ModeDNS, config: "testdata/dns.toml"},
 			{mode: ModeDirect, config: "testdata/direct.toml"},
-		}
-		for _, td := range testdata {
-			config, err := ioutil.ReadFile(td.config)
+		} {
+			config, err := ioutil.ReadFile(testdata.config)
 			require.NoError(t, err)
 
-			boot, err := Load(ctx, td.mode, config, certPool, proxyPool, dnsClient)
+			boot, err := Load(ctx, testdata.mode, config, certPool, proxyPool, dnsClient)
 			require.NoError(t, err)
 			require.NotNil(t, boot)
 

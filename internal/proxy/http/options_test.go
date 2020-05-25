@@ -23,7 +23,7 @@ func TestOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, opts)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -32,9 +32,8 @@ func TestOptions(t *testing.T) {
 		{expected: time.Minute, actual: opts.Timeout},
 		{expected: "keep-alive", actual: opts.Header.Get("Connection")},
 		{expected: 1000, actual: opts.MaxConns},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -47,7 +46,7 @@ func TestHTTPServerOptions(t *testing.T) {
 	err = toml.Unmarshal(data, &opts)
 	require.NoError(t, err)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -57,9 +56,8 @@ func TestHTTPServerOptions(t *testing.T) {
 		{expected: 1000, actual: opts.MaxConns},
 		{expected: 10 * time.Second, actual: opts.Server.ReadTimeout},
 		{expected: 2, actual: opts.Transport.MaxIdleConns},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -72,7 +70,7 @@ func TestHTTPClientOptions(t *testing.T) {
 	err = toml.Unmarshal(data, &opts)
 	require.NoError(t, err)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -80,9 +78,8 @@ func TestHTTPClientOptions(t *testing.T) {
 		{expected: "123456", actual: opts.Password},
 		{expected: time.Minute, actual: opts.Timeout},
 		{expected: "keep-alive", actual: opts.Header.Get("Connection")},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -95,7 +92,7 @@ func TestHTTPSServerOptions(t *testing.T) {
 	err = toml.Unmarshal(data, &opts)
 	require.NoError(t, err)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -105,9 +102,8 @@ func TestHTTPSServerOptions(t *testing.T) {
 		{expected: 1000, actual: opts.MaxConns},
 		{expected: 1, actual: len(opts.Server.TLSConfig.Certificates)},
 		{expected: 2, actual: opts.Transport.MaxIdleConns},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -120,7 +116,7 @@ func TestHTTPSClientOptions(t *testing.T) {
 	err = toml.Unmarshal(data, &opts)
 	require.NoError(t, err)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -129,9 +125,8 @@ func TestHTTPSClientOptions(t *testing.T) {
 		{expected: time.Minute, actual: opts.Timeout},
 		{expected: "keep-alive", actual: opts.Header.Get("Connection")},
 		{expected: 1, actual: len(opts.TLSConfig.RootCAs)},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
