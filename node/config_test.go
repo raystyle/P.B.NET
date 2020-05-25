@@ -83,7 +83,7 @@ func TestConfig(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, cfg)
 
-	tds := [...]*struct {
+	for _, td := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -127,8 +127,7 @@ func TestConfig(t *testing.T) {
 		{expected: "name", actual: cfg.Service.Name},
 		{expected: "display name", actual: cfg.Service.DisplayName},
 		{expected: "description", actual: cfg.Service.Description},
-	}
-	for _, td := range tds {
+	} {
 		require.Equal(t, td.expected, td.actual)
 	}
 }

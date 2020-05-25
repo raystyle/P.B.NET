@@ -653,7 +653,7 @@ func TestOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, opts)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -663,8 +663,7 @@ func TestOptions(t *testing.T) {
 		{expected: 30 * time.Second, actual: opts.Timeout},
 		{expected: "test_token", actual: opts.Token},
 		{expected: 2, actual: opts.Transport.MaxIdleConns},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }

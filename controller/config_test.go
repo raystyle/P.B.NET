@@ -89,7 +89,7 @@ func TestConfig(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, cfg)
 
-	testdata := [...]*struct {
+	for _, testdata := range [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -134,8 +134,7 @@ func TestConfig(t *testing.T) {
 		{expected: "localhost:1657", actual: cfg.WebServer.Address},
 		{expected: "pbnet", actual: cfg.WebServer.Username},
 		{expected: "bcrypt", actual: cfg.WebServer.Password},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }

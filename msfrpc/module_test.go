@@ -336,7 +336,7 @@ func TestMSFRPC_ModuleInfo(t *testing.T) {
 	t.Run("get all module information", func(t *testing.T) {
 		all := make(map[string][]string)
 
-		for _, td := range [...]*struct {
+		for _, testdata := range [...]*struct {
 			name string
 			fn   func(context.Context) ([]string, error)
 		}{
@@ -348,9 +348,9 @@ func TestMSFRPC_ModuleInfo(t *testing.T) {
 			{"nop", msfrpc.ModuleNops},
 			{"evasion", msfrpc.ModuleEvasion},
 		} {
-			modules, err := td.fn(ctx)
+			modules, err := testdata.fn(ctx)
 			require.NoError(t, err)
-			all[td.name] = modules
+			all[testdata.name] = modules
 		}
 
 		// TODO [external] msfrpcd invalid modules
