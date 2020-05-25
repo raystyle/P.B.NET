@@ -28,26 +28,49 @@ func TestCoverString(t *testing.T) {
 	require.NotEqual(t, s1, s2, "failed to cover string")
 }
 
-func TestBytes(t *testing.T) {
-	testdata := []byte{1, 2, 3, 4}
-	sb := NewBytes(testdata)
-	for i := 0; i < 10; i++ {
-		b := sb.Get()
-		require.Equal(t, testdata, b)
-		sb.Put(b)
+func TestCoverStringMap(t *testing.T) {
+	s1 := strings.Repeat("a", 10)
+	s2 := strings.Repeat("a", 10)
+
+	m := map[string]struct{}{
+		s1: {},
 	}
 
-	wg := sync.WaitGroup{}
-	wg.Add(100)
-	for i := 0; i < 100; i++ {
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 10; i++ {
-				b := sb.Get()
-				require.Equal(t, testdata, b)
-				sb.Put(b)
-			}
-		}()
+	CoverStringMap(m)
+
+	var str string
+	for str = range m {
 	}
-	wg.Wait()
+
+	require.NotEqual(t, str, s2, "failed to cover string map")
+}
+
+func TestBytes(t *testing.T) {
+	testdata := []byte{1, 2, 3, 4}
+
+	sb := NewBytes(testdata)
+
+	t.Run("common", func(t *testing.T) {
+		for i := 0; i < 10; i++ {
+			b := sb.Get()
+			require.Equal(t, testdata, b)
+			sb.Put(b)
+		}
+	})
+
+	t.Run("parallel", func(t *testing.T) {
+		wg := sync.WaitGroup{}
+		wg.Add(100)
+		for i := 0; i < 100; i++ {
+			go func() {
+				defer wg.Done()
+				for i := 0; i < 10; i++ {
+					b := sb.Get()
+					require.Equal(t, testdata, b)
+					sb.Put(b)
+				}
+			}()
+		}
+		wg.Wait()
+	})
 }

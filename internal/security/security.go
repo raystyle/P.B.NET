@@ -78,6 +78,13 @@ func CoverString(str string) {
 	runtime.KeepAlive(&str)
 }
 
+// CoverStringMap is used to cover string map.
+func CoverStringMap(m map[string]struct{}) {
+	for str := range m {
+		CoverString(str)
+	}
+}
+
 // Bytes make byte slice discontinuous, it safe for use by multiple goroutines.
 type Bytes struct {
 	data  map[int]byte
@@ -112,9 +119,9 @@ func (b *Bytes) Get() []byte {
 }
 
 // Put is used to put byte slice to cache, slice will be covered.
-func (b *Bytes) Put(s []byte) {
+func (b *Bytes) Put(bytes []byte) {
 	for i := 0; i < b.len; i++ {
-		s[i] = 0
+		bytes[i] = 0
 	}
-	b.cache.Put(&s)
+	b.cache.Put(&bytes)
 }
