@@ -299,6 +299,17 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		server.handler.ServeHTTP(w, req)
 	})
 
+	t.Run("close hijacked connection error", func(t *testing.T) {
+		w := testsuite.NewMockResponseWriterWithCloseError()
+
+		conn, _, err := w.(http.Hijacker).Hijack()
+		require.NoError(t, err)
+		err = conn.Close()
+		testsuite.IsMockConnCloseError(t, err)
+
+		server.handler.ServeHTTP(w, req)
+	})
+
 	t.Run("close remote connection error", func(t *testing.T) {
 		opts := Options{DialContext: func(context.Context, string, string) (net.Conn, error) {
 			return testsuite.NewMockConnWithCloseError(), nil
