@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/convert"
+	"project/internal/testsuite"
 )
 
 func TestNewSlots(t *testing.T) {
@@ -16,86 +17,102 @@ func TestNewSlots(t *testing.T) {
 }
 
 func TestHandleConn(t *testing.T) {
-	server, client := net.Pipe()
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
 	frameData := []byte{1, 1, 1, 1}
 	bigFrame := bytes.Repeat([]byte{1}, 32768)
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	testsuite.PipeWithReaderWriter(t,
+		func(server net.Conn) {
+			var count int
+			HandleConn(server, func(frame []byte) {
+				count++
+				if count != 5 {
+					require.Equal(t, frameData, frame)
+				} else {
+					require.Equal(t, bigFrame, frame)
+				}
+			})
 
-		var count int
-		HandleConn(server, func(frame []byte) {
-			count++
-			if count != 5 {
-				require.Equal(t, frameData, frame)
-			} else {
-				require.Equal(t, bigFrame, frame)
-			}
-		})
-		_ = server.Close()
-		require.Equal(t, 5, count)
-	}()
+			err := server.Close()
+			require.NoError(t, err)
 
-	// full
-	_, _ = client.Write([]byte{0, 0, 0, 4, 1, 1, 1, 1})
-	// full with incomplete header
-	_, _ = client.Write([]byte{0, 0, 0, 4, 1, 1, 1, 1, 0, 0})
-	_, _ = client.Write([]byte{0, 4, 1, 1, 1, 1})
-	// incomplete body
-	_, _ = client.Write([]byte{0, 0, 0, 4, 1, 1})
-	_, _ = client.Write([]byte{1, 1})
-	// big frame
-	_, _ = client.Write(convert.Uint32ToBytes(32768))
-	_, _ = client.Write(bigFrame)
+			require.Equal(t, 5, count)
+		},
+		func(client net.Conn) {
+			// full
+			_, err := client.Write([]byte{0, 0, 0, 4, 1, 1, 1, 1})
+			require.NoError(t, err)
 
-	_ = client.Close()
+			// full with incomplete header
+			_, err = client.Write([]byte{0, 0, 0, 4, 1, 1, 1, 1, 0, 0})
+			require.NoError(t, err)
+			_, err = client.Write([]byte{0, 4, 1, 1, 1, 1})
+			require.NoError(t, err)
 
-	wg.Wait()
+			// incomplete body
+			_, err = client.Write([]byte{0, 0, 0, 4, 1, 1})
+			require.NoError(t, err)
+			_, err = client.Write([]byte{1, 1})
+			require.NoError(t, err)
+
+			// big frame
+			_, err = client.Write(convert.Uint32ToBytes(32768))
+			require.NoError(t, err)
+			_, err = client.Write(bigFrame)
+			require.NoError(t, err)
+
+			err = client.Close()
+			require.NoError(t, err)
+		},
+	)
 }
 
 func TestHandleNULLFrame(t *testing.T) {
-	server, client := net.Pipe()
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	testsuite.PipeWithReaderWriter(t,
+		func(server net.Conn) {
+			HandleConn(server, func(frame []byte) {
+				require.Equal(t, ConnErrRecvNullFrame, frame[0])
+			})
 
-		HandleConn(server, func(frame []byte) {
-			require.Equal(t, ConnErrRecvNullFrame, frame[0])
-		})
-		_ = server.Close()
-	}()
+			err := server.Close()
+			require.NoError(t, err)
+		},
+		func(client net.Conn) {
+			_, err := client.Write([]byte{0, 0, 0, 0})
+			require.NoError(t, err)
 
-	_, _ = client.Write([]byte{0, 0, 0, 0})
-
-	_ = client.Close()
-
-	wg.Wait()
+			err = client.Close()
+			require.NoError(t, err)
+		},
+	)
 }
 
 func TestHandleTooBigFrame(t *testing.T) {
-	server, client := net.Pipe()
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	testsuite.PipeWithReaderWriter(t,
+		func(server net.Conn) {
+			HandleConn(server, func(frame []byte) {
+				require.Equal(t, ConnErrRecvTooBigFrame, frame[0])
+			})
 
-		HandleConn(server, func(frame []byte) {
-			require.Equal(t, ConnErrRecvTooBigFrame, frame[0])
-		})
-		_ = server.Close()
-	}()
+			err := server.Close()
+			require.NoError(t, err)
+		},
+		func(client net.Conn) {
+			_, err := client.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF})
+			require.NoError(t, err)
 
-	_, _ = client.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF})
-
-	_ = client.Close()
-
-	wg.Wait()
+			err = client.Close()
+			require.NoError(t, err)
+		},
+	)
 }
 
 func BenchmarkHandleConn_128B(b *testing.B) {
@@ -119,6 +136,9 @@ func BenchmarkHandleConn_1MB(b *testing.B) {
 }
 
 func benchmarkHandleConn(b *testing.B, size int) {
+	gm := testsuite.MarkGoroutines(b)
+	defer gm.Compare()
+
 	server, client := net.Pipe()
 	frameData := bytes.Repeat([]byte{1}, size)
 
@@ -134,7 +154,10 @@ func benchmarkHandleConn(b *testing.B, size int) {
 			}
 			count++
 		})
-		_ = server.Close()
+
+		err := server.Close()
+		require.NoError(b, err)
+
 		require.Equal(b, b.N, count)
 	}()
 
@@ -152,7 +175,8 @@ func benchmarkHandleConn(b *testing.B, size int) {
 
 	b.StopTimer()
 
-	_ = client.Close()
+	err := client.Close()
+	require.NoError(b, err)
 
 	wg.Wait()
 }
@@ -178,6 +202,9 @@ func BenchmarkHandleConnParallel_1MB(b *testing.B) {
 }
 
 func benchmarkHandleConnParallel(b *testing.B, size int) {
+	gm := testsuite.MarkGoroutines(b)
+	defer gm.Compare()
+
 	server, client := net.Pipe()
 
 	frameData := bytes.Repeat([]byte{1}, size)
@@ -193,7 +220,9 @@ func benchmarkHandleConnParallel(b *testing.B, size int) {
 				b.FailNow()
 			}
 		})
-		_ = server.Close()
+
+		err := server.Close()
+		require.NoError(b, err)
 	}()
 
 	b.ReportAllocs()
@@ -210,7 +239,8 @@ func benchmarkHandleConnParallel(b *testing.B, size int) {
 
 	b.StopTimer()
 
-	_ = client.Close()
+	err := client.Close()
+	require.NoError(b, err)
 
 	wg.Wait()
 }
