@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -390,48 +389,48 @@ func TestDialDoH(t *testing.T) {
 	})
 }
 
-func TestFailedToSendMessage(t *testing.T) {
+func TestSendMessage(t *testing.T) {
 	t.Run("failed to write message", func(t *testing.T) {
-		server, client := net.Pipe()
-		_ = server.Close()
-		_, err := sendMessage(client, testDNSMessage, time.Second)
+		conn := testsuite.NewMockConnWithWriteError()
+
+		_, err := sendMessage(conn, testDNSMessage, time.Second)
 		require.Error(t, err)
 	})
 
 	t.Run("failed to read response size", func(t *testing.T) {
-		server, client := net.Pipe()
+		testsuite.PipeWithReaderWriter(t,
+			func(server net.Conn) {
+				buf := make([]byte, headerSize+len(testDNSMessage))
+				_, err := io.ReadFull(server, buf)
+				require.NoError(t, err)
 
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_, err := io.ReadFull(server, make([]byte, headerSize+len(testDNSMessage)))
-			require.NoError(t, err)
-			_ = server.Close()
-		}()
-
-		_, err := sendMessage(client, testDNSMessage, time.Second)
-		require.Error(t, err)
-
-		wg.Wait()
+				err = server.Close()
+				require.NoError(t, err)
+			},
+			func(client net.Conn) {
+				_, err := sendMessage(client, testDNSMessage, time.Second)
+				require.Error(t, err)
+			},
+		)
 	})
 
 	t.Run("failed to read response", func(t *testing.T) {
-		server, client := net.Pipe()
+		testsuite.PipeWithReaderWriter(t,
+			func(server net.Conn) {
+				buf := make([]byte, headerSize+len(testDNSMessage))
+				_, err := io.ReadFull(server, buf)
+				require.NoError(t, err)
 
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_, err := io.ReadFull(server, make([]byte, headerSize+len(testDNSMessage)))
-			require.NoError(t, err)
-			_, _ = server.Write(convert.Uint16ToBytes(4))
-			_ = server.Close()
-		}()
+				_, err = server.Write(convert.Uint16ToBytes(4))
+				require.NoError(t, err)
 
-		_, err := sendMessage(client, testDNSMessage, time.Second)
-		require.Error(t, err)
-
-		wg.Wait()
+				err = server.Close()
+				require.NoError(t, err)
+			},
+			func(client net.Conn) {
+				_, err := sendMessage(client, testDNSMessage, time.Second)
+				require.Error(t, err)
+			},
+		)
 	})
 }
