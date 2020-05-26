@@ -307,6 +307,15 @@ func PipeWithReaderWriter(t *testing.T, reader, writer func(net.Conn)) {
 		err = client.Close()
 		require.NoError(t, err)
 	}()
-	go writer(server)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		writer(server)
+	}()
+
 	reader(client)
+
+	wg.Wait()
 }
