@@ -158,11 +158,18 @@ func TestAcknowledge_Unpack(t *testing.T) {
 	rawAck.Pack(rawData)
 
 	newAck := NewAcknowledge()
-	err = newAck.Unpack(nil)
-	require.Error(t, err)
-	err = newAck.Unpack(rawData.Bytes())
-	require.NoError(t, err)
-	require.Equal(t, rawAck, newAck)
+
+	t.Run("ok", func(t *testing.T) {
+		err = newAck.Unpack(rawData.Bytes())
+		require.NoError(t, err)
+
+		require.Equal(t, rawAck, newAck)
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		err = newAck.Unpack(nil)
+		require.Error(t, err)
+	})
 }
 
 func TestAcknowledge_Validate(t *testing.T) {
@@ -197,11 +204,18 @@ func TestQuery_Unpack(t *testing.T) {
 	rawQuery.Pack(rawData)
 
 	newQuery := NewQuery()
-	err = newQuery.Unpack(nil)
-	require.Error(t, err)
-	err = newQuery.Unpack(rawData.Bytes())
-	require.NoError(t, err)
-	require.Equal(t, rawQuery, newQuery)
+
+	t.Run("ok", func(t *testing.T) {
+		err = newQuery.Unpack(rawData.Bytes())
+		require.NoError(t, err)
+
+		require.Equal(t, rawQuery, newQuery)
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		err = newQuery.Unpack(nil)
+		require.Error(t, err)
+	})
 }
 
 func TestQuery_Validate(t *testing.T) {
