@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"sync"
 	"testing"
 	"time"
 
@@ -240,49 +239,39 @@ func TestClient_Connect(t *testing.T) {
 
 	t.Run("failed to write request", func(t *testing.T) {
 		conn := testsuite.NewMockConnWithWriteError()
+
 		_, err = client.Connect(ctx, conn, network, "127.0.0.1:1")
 		require.Error(t, err)
 	})
 
 	t.Run("invalid response", func(t *testing.T) {
-		srv, cli := net.Pipe()
-		defer func() {
-			err := srv.Close()
-			require.NoError(t, err)
-			err = cli.Close()
-			require.NoError(t, err)
-		}()
+		testsuite.PipeWithReaderWriter(t,
+			func(cli net.Conn) {
+				_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
+				require.Error(t, err)
 
-		wg := sync.WaitGroup{}
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			_, _ = io.Copy(ioutil.Discard, srv)
-		}()
-		go func() {
-			defer wg.Done()
-			_, _ = srv.Write([]byte("HTTP/1.0 302 Connection established\r\n\r\n"))
-		}()
-
-		_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
-		require.Error(t, err)
-
-		err = cli.Close()
-		require.NoError(t, err)
-
-		wg.Wait()
+				err = cli.Close()
+				require.NoError(t, err)
+			},
+			func(srv net.Conn) {
+				go func() { _, _ = io.Copy(ioutil.Discard, srv) }()
+				_, _ = srv.Write([]byte("HTTP/1.0 302 Connection established\r\n\r\n"))
+			},
+		)
 	})
 
 	t.Run("context error", func(t *testing.T) {
 		ctx, cancel := testsuite.NewMockContextWithError()
 		defer cancel()
 		conn := testsuite.NewMockConnWithWriteError()
+
 		_, err = client.Connect(ctx, conn, network, "127.0.0.1:1")
 		testsuite.IsMockContextError(t, err)
 	})
 
 	t.Run("panic from conn write", func(t *testing.T) {
 		conn := testsuite.NewMockConnWithWritePanic()
+
 		_, err = client.Connect(ctx, conn, network, "127.0.0.1:1")
 		testsuite.IsMockConnWritePanic(t, err)
 	})
