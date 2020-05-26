@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"io"
 	"net"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,6 +14,7 @@ import (
 	"project/internal/crypto/rand"
 	"project/internal/guid"
 	"project/internal/patch/monkey"
+	"project/internal/testsuite"
 )
 
 func TestIssueCertificate(t *testing.T) {
@@ -104,11 +104,7 @@ func TestVerifyCertificate(t *testing.T) {
 	certBytes := cert.Encode()
 	require.NoError(t, err)
 
-	wg := sync.WaitGroup{}
-
 	serverAck := func(conn net.Conn) {
-		defer wg.Done()
-
 		// send certificate
 		_, err := conn.Write(certBytes)
 		require.NoError(t, err)
@@ -123,237 +119,185 @@ func TestVerifyCertificate(t *testing.T) {
 	}
 
 	t.Run("with node guid", func(t *testing.T) {
-		server, client := net.Pipe()
-		defer func() {
-			err := server.Close()
-			require.NoError(t, err)
-			err = client.Close()
-			require.NoError(t, err)
-		}()
-
-		wg.Add(1)
-		go serverAck(server)
-
-		publicKey := ctrlPrivateKey.PublicKey()
-		cert, ok, err := VerifyCertificate(client, publicKey, nodeGUID)
-		require.NoError(t, err)
-		require.True(t, ok)
-		require.NotNil(t, cert)
+		testsuite.PipeWithReaderWriter(t,
+			func(client net.Conn) {
+				publicKey := ctrlPrivateKey.PublicKey()
+				cert, ok, err := VerifyCertificate(client, publicKey, nodeGUID)
+				require.NoError(t, err)
+				require.True(t, ok)
+				require.NotNil(t, cert)
+			},
+			func(server net.Conn) {
+				serverAck(server)
+			},
+		)
 	})
 
 	t.Run("with controller guid", func(t *testing.T) {
-		server, client := net.Pipe()
-		defer func() {
-			err := server.Close()
-			require.NoError(t, err)
-			err = client.Close()
-			require.NoError(t, err)
-		}()
-
-		wg.Add(1)
-		go serverAck(server)
-
-		publicKey := ctrlPrivateKey.PublicKey()
-		cert, ok, err := VerifyCertificate(client, publicKey, CtrlGUID)
-		require.NoError(t, err)
-		require.True(t, ok)
-		require.NotNil(t, cert)
+		testsuite.PipeWithReaderWriter(t,
+			func(client net.Conn) {
+				publicKey := ctrlPrivateKey.PublicKey()
+				cert, ok, err := VerifyCertificate(client, publicKey, CtrlGUID)
+				require.NoError(t, err)
+				require.True(t, ok)
+				require.NotNil(t, cert)
+			},
+			func(server net.Conn) {
+				serverAck(server)
+			},
+		)
 	})
 
 	t.Run("skip verify", func(t *testing.T) {
-		server, client := net.Pipe()
-		defer func() {
-			err := server.Close()
-			require.NoError(t, err)
-			err = client.Close()
-			require.NoError(t, err)
-		}()
-
-		wg.Add(1)
-		go serverAck(server)
-
-		cert, ok, err := VerifyCertificate(client, nil, nil)
-		require.NoError(t, err)
-		require.True(t, ok)
-		require.NotNil(t, cert)
+		testsuite.PipeWithReaderWriter(t,
+			func(client net.Conn) {
+				cert, ok, err := VerifyCertificate(client, nil, nil)
+				require.NoError(t, err)
+				require.True(t, ok)
+				require.NotNil(t, cert)
+			},
+			func(server net.Conn) {
+				serverAck(server)
+			},
+		)
 	})
 
 	t.Run("failed to receive certificate", func(t *testing.T) {
-		server, client := net.Pipe()
-		err := server.Close()
-		require.NoError(t, err)
-		defer func() {
-			err := client.Close()
-			require.NoError(t, err)
-		}()
-
-		cert, ok, err := VerifyCertificate(client, nil, nil)
-		require.NoError(t, err)
-		require.False(t, ok)
-		require.Nil(t, cert)
+		testsuite.PipeWithReaderWriter(t,
+			func(client net.Conn) {
+				cert, ok, err := VerifyCertificate(client, nil, nil)
+				require.NoError(t, err)
+				require.False(t, ok)
+				require.Nil(t, cert)
+			},
+			func(server net.Conn) {
+				err := server.Close()
+				require.NoError(t, err)
+			},
+		)
 	})
 
 	t.Run("different node guid", func(t *testing.T) {
-		server, client := net.Pipe()
-		defer func() {
-			err := server.Close()
-			require.NoError(t, err)
-			err = client.Close()
-			require.NoError(t, err)
-		}()
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			_, err := server.Write(bytes.Repeat([]byte{0}, CertificateSize))
-			require.NoError(t, err)
-		}()
-
-		cert, ok, err := VerifyCertificate(client, nil, nodeGUID)
-		require.EqualError(t, err, "different guid in certificate")
-		require.False(t, ok)
-		require.NotNil(t, cert)
+		testsuite.PipeWithReaderWriter(t,
+			func(client net.Conn) {
+				cert, ok, err := VerifyCertificate(client, nil, nodeGUID)
+				require.EqualError(t, err, "different guid in certificate")
+				require.False(t, ok)
+				require.NotNil(t, cert)
+			},
+			func(server net.Conn) {
+				_, err := server.Write(bytes.Repeat([]byte{0}, CertificateSize))
+				require.NoError(t, err)
+			},
+		)
 	})
 
 	t.Run("invalid certificate signature", func(t *testing.T) {
-		server, client := net.Pipe()
-		defer func() {
-			err := server.Close()
-			require.NoError(t, err)
-			err = client.Close()
-			require.NoError(t, err)
-		}()
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			cert := make([]byte, CertificateSize)
-			copy(cert, nodeGUID[:])
-			_, err := server.Write(cert)
-			require.NoError(t, err)
-		}()
-
-		publicKey := ctrlPrivateKey.PublicKey()
-		cert, ok, err := VerifyCertificate(client, publicKey, nodeGUID)
-		require.EqualError(t, err, "invalid certificate signature")
-		require.False(t, ok)
-		require.NotNil(t, cert)
+		testsuite.PipeWithReaderWriter(t,
+			func(client net.Conn) {
+				publicKey := ctrlPrivateKey.PublicKey()
+				cert, ok, err := VerifyCertificate(client, publicKey, nodeGUID)
+				require.EqualError(t, err, "invalid certificate signature")
+				require.False(t, ok)
+				require.NotNil(t, cert)
+			},
+			func(server net.Conn) {
+				cert := make([]byte, CertificateSize)
+				copy(cert, nodeGUID[:])
+				_, err := server.Write(cert)
+				require.NoError(t, err)
+			},
+		)
 	})
 
 	t.Run("failed to generate challenge", func(t *testing.T) {
-		server, client := net.Pipe()
-		defer func() {
-			err := server.Close()
-			require.NoError(t, err)
-			err = client.Close()
-			require.NoError(t, err)
-		}()
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			_, err := server.Write(certBytes)
-			require.NoError(t, err)
-		}()
-
-		// patch
 		patch := func(interface{}, []byte) (int, error) {
 			return 0, monkey.Error
 		}
 		pg := monkey.PatchInstanceMethod(rand.Reader, "Read", patch)
 		defer pg.Unpatch()
 
-		publicKey := ctrlPrivateKey.PublicKey()
-		cert, ok, err := VerifyCertificate(client, publicKey, nodeGUID)
-		require.NoError(t, err)
-		require.False(t, ok)
-		require.NotNil(t, cert)
+		testsuite.PipeWithReaderWriter(t,
+			func(client net.Conn) {
+				publicKey := ctrlPrivateKey.PublicKey()
+				cert, ok, err := VerifyCertificate(client, publicKey, nodeGUID)
+				require.NoError(t, err)
+				require.False(t, ok)
+				require.NotNil(t, cert)
+			},
+			func(server net.Conn) {
+				_, err := server.Write(certBytes)
+				require.NoError(t, err)
+			},
+		)
 	})
 
 	t.Run("failed to send challenge", func(t *testing.T) {
-		server, client := net.Pipe()
-		defer func() {
-			err := client.Close()
-			require.NoError(t, err)
-		}()
+		testsuite.PipeWithReaderWriter(t,
+			func(client net.Conn) {
+				publicKey := ctrlPrivateKey.PublicKey()
+				cert, ok, err := VerifyCertificate(client, publicKey, nodeGUID)
+				require.NoError(t, err)
+				require.False(t, ok)
+				require.NotNil(t, cert)
+			},
+			func(server net.Conn) {
+				_, err := server.Write(certBytes)
+				require.NoError(t, err)
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			_, err := server.Write(certBytes)
-			require.NoError(t, err)
-			err = server.Close()
-			require.NoError(t, err)
-		}()
-
-		publicKey := ctrlPrivateKey.PublicKey()
-		cert, ok, err := VerifyCertificate(client, publicKey, nodeGUID)
-		require.NoError(t, err)
-		require.False(t, ok)
-		require.NotNil(t, cert)
+				err = server.Close()
+				require.NoError(t, err)
+			},
+		)
 	})
 
 	t.Run("failed to receive challenge signature", func(t *testing.T) {
-		server, client := net.Pipe()
-		defer func() {
-			err := client.Close()
-			require.NoError(t, err)
-		}()
+		testsuite.PipeWithReaderWriter(t,
+			func(client net.Conn) {
+				publicKey := ctrlPrivateKey.PublicKey()
+				cert, ok, err := VerifyCertificate(client, publicKey, nodeGUID)
+				require.NoError(t, err)
+				require.False(t, ok)
+				require.NotNil(t, cert)
+			},
+			func(server net.Conn) {
+				_, err := server.Write(certBytes)
+				require.NoError(t, err)
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+				// read challenge
+				challenge := make([]byte, ChallengeSize)
+				_, err = io.ReadFull(server, challenge)
+				require.NoError(t, err)
 
-			_, err := server.Write(certBytes)
-			require.NoError(t, err)
-			// read challenge
-			challenge := make([]byte, ChallengeSize)
-			_, err = io.ReadFull(server, challenge)
-			require.NoError(t, err)
-			err = server.Close()
-			require.NoError(t, err)
-		}()
-
-		publicKey := ctrlPrivateKey.PublicKey()
-		cert, ok, err := VerifyCertificate(client, publicKey, nodeGUID)
-		require.NoError(t, err)
-		require.False(t, ok)
-		require.NotNil(t, cert)
+				err = server.Close()
+				require.NoError(t, err)
+			},
+		)
 	})
 
 	t.Run("invalid challenge signature", func(t *testing.T) {
-		server, client := net.Pipe()
-		defer func() {
-			err := client.Close()
-			require.NoError(t, err)
-		}()
+		testsuite.PipeWithReaderWriter(t,
+			func(client net.Conn) {
+				publicKey := ctrlPrivateKey.PublicKey()
+				cert, ok, err := VerifyCertificate(client, publicKey, nodeGUID)
+				require.EqualError(t, err, "invalid challenge signature")
+				require.False(t, ok)
+				require.NotNil(t, cert)
+			},
+			func(server net.Conn) {
+				_, err := server.Write(certBytes)
+				require.NoError(t, err)
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+				// read challenge
+				challenge := make([]byte, ChallengeSize)
+				_, err = io.ReadFull(server, challenge)
+				require.NoError(t, err)
 
-			_, err := server.Write(certBytes)
-			require.NoError(t, err)
-			// read challenge
-			challenge := make([]byte, ChallengeSize)
-			_, err = io.ReadFull(server, challenge)
-			require.NoError(t, err)
-			_, err = server.Write(bytes.Repeat([]byte{0}, ed25519.SignatureSize))
-			require.NoError(t, err)
-		}()
-
-		publicKey := ctrlPrivateKey.PublicKey()
-		cert, ok, err := VerifyCertificate(client, publicKey, nodeGUID)
-		require.EqualError(t, err, "invalid challenge signature")
-		require.False(t, ok)
-		require.NotNil(t, cert)
+				_, err = server.Write(bytes.Repeat([]byte{0}, ed25519.SignatureSize))
+				require.NoError(t, err)
+			},
+		)
 	})
-
-	wg.Wait()
 }
 
 func TestUpdateNodeRequest(t *testing.T) {
@@ -372,10 +316,13 @@ func TestUpdateNodeRequest(t *testing.T) {
 	rawR.Pack(buf)
 
 	newR := NewUpdateNodeRequest()
-	err = newR.Unpack(buf.Bytes())
-	require.NoError(t, err)
 
-	require.Equal(t, rawR, newR)
+	t.Run("ok", func(t *testing.T) {
+		err = newR.Unpack(buf.Bytes())
+		require.NoError(t, err)
+
+		require.Equal(t, rawR, newR)
+	})
 
 	t.Run("Unpack", func(t *testing.T) {
 		err = newR.Unpack(nil)
@@ -405,10 +352,13 @@ func TestUpdateNodeResponse(t *testing.T) {
 	rawR.Pack(buf)
 
 	newR := NewUpdateNodeResponse()
-	err = newR.Unpack(buf.Bytes())
-	require.NoError(t, err)
 
-	require.Equal(t, rawR, newR)
+	t.Run("ok", func(t *testing.T) {
+		err = newR.Unpack(buf.Bytes())
+		require.NoError(t, err)
+
+		require.Equal(t, rawR, newR)
+	})
 
 	t.Run("Unpack", func(t *testing.T) {
 		err = newR.Unpack(nil)
