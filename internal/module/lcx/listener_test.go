@@ -41,7 +41,7 @@ func TestListener(t *testing.T) {
 	err := listener.Start()
 	require.NoError(t, err)
 
-	// mock slaver and start copy
+	// mock slaver and started copy
 	var address string
 	switch {
 	case testsuite.IPv4Enabled:
@@ -115,7 +115,7 @@ func TestListener_Start(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("start twice", func(t *testing.T) {
+	t.Run("started twice", func(t *testing.T) {
 		listener := testGenerateListener(t)
 
 		err := listener.Start()
@@ -398,9 +398,14 @@ func TestListener_Parallel(t *testing.T) {
 		_ = listener.Status()
 	}
 	f6 := func() {
-		listener.trackConn(nil, true)
+		conn := &lConn{
+			listener: listener,
+			remote:   testsuite.NewMockConn(),
+			local:    testsuite.NewMockConn(),
+		}
+		listener.trackConn(conn, true)
 	}
-	testsuite.RunParallel(f1, f2, f3, f4, f5, f6)
+	testsuite.RunParallel(100, f1, f2, f3, f4, f5, f6)
 
 	listener.Stop()
 

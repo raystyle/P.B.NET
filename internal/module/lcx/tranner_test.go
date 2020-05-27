@@ -104,7 +104,7 @@ func TestTranner_Start(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("start twice", func(t *testing.T) {
+	t.Run("started twice", func(t *testing.T) {
 		tranner := testGenerateTranner(t)
 
 		err := tranner.Start()
@@ -406,9 +406,13 @@ func TestTranner_Parallel(t *testing.T) {
 		_ = tranner.Status()
 	}
 	f6 := func() {
-		tranner.trackConn(nil, true)
+		conn := &tConn{
+			tranner: tranner,
+			local:   testsuite.NewMockConn(),
+		}
+		tranner.trackConn(conn, true)
 	}
-	testsuite.RunParallel(f1, f2, f3, f4, f5, f6)
+	testsuite.RunParallel(100, f1, f2, f3, f4, f5, f6)
 
 	tranner.Stop()
 

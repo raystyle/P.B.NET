@@ -28,11 +28,12 @@ type Slaver struct {
 
 	logSrc  string
 	dialer  net.Dialer
-	start   bool
 	sleeper *random.Sleeper
+	started bool
 	conns   map[*sConn]struct{}
 	rwm     sync.RWMutex
 
+	mu     sync.Mutex // for operation
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -76,14 +77,20 @@ func NewSlaver(
 	}, nil
 }
 
-// Start is used to start slaver.
+// Start is used to started slaver.
 func (s *Slaver) Start() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.start()
+}
+
+func (s *Slaver) start() error {
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
-	if s.start {
-		return errors.New("already start lcx slave")
+	if s.started {
+		return errors.New("already started lcx slave")
 	}
-	s.start = true
+	s.started = true
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.wg.Add(1)
 	go s.serve()
@@ -92,6 +99,8 @@ func (s *Slaver) Start() error {
 
 // Stop is used to stop slaver.
 func (s *Slaver) Stop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.stop()
 	s.wg.Wait()
 }
@@ -99,11 +108,11 @@ func (s *Slaver) Stop() {
 func (s *Slaver) stop() {
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
-	if !s.start {
+	if !s.started {
 		return
 	}
 	s.cancel()
-	s.start = false
+	s.started = false
 	// close all connections
 	for conn := range s.conns {
 		err := conn.Close()
@@ -116,8 +125,11 @@ func (s *Slaver) stop() {
 
 // Restart is used to restart slaver.
 func (s *Slaver) Restart() error {
-	s.Stop()
-	return s.Start()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stop()
+	s.wg.Wait()
+	return s.start()
 }
 
 // Name is used to get the module name.
@@ -162,7 +174,7 @@ func (s *Slaver) serve() {
 		}
 	}()
 
-	s.logf(logger.Info, "start connect listener (%s %s)", s.lNetwork, s.lAddress)
+	s.logf(logger.Info, "started connect listener (%s %s)", s.lNetwork, s.lAddress)
 	defer s.logf(logger.Info, "stop connect listener (%s %s)", s.lNetwork, s.lAddress)
 
 	// dial loop
@@ -202,7 +214,7 @@ func (s *Slaver) full() bool {
 func (s *Slaver) stopped() bool {
 	s.rwm.RLock()
 	defer s.rwm.RUnlock()
-	return !s.start
+	return !s.started
 }
 
 func (s *Slaver) connectToListener() (net.Conn, error) {
@@ -222,7 +234,7 @@ func (s *Slaver) trackConn(conn *sConn, add bool) bool {
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
 	if add {
-		if !s.start {
+		if !s.started {
 			return false
 		}
 		s.conns[conn] = struct{}{}

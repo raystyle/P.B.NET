@@ -25,10 +25,11 @@ type Tranner struct {
 	opts       *Options
 
 	logSrc   string
-	listener net.Listener
+	listener net.Listener // used to check is closed
 	conns    map[*tConn]struct{}
-	rwm      sync.RWMutex
+	rwm      sync.RWMutex // include listener
 
+	mu     sync.Mutex // for operation
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -67,12 +68,18 @@ func NewTranner(
 	}, nil
 }
 
-// Start is used to start tranner.
+// Start is used to started tranner.
 func (t *Tranner) Start() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.start()
+}
+
+func (t *Tranner) start() error {
 	t.rwm.Lock()
 	defer t.rwm.Unlock()
 	if t.listener != nil {
-		return errors.New("already start lcx tran")
+		return errors.New("already started lcx tran")
 	}
 	listener, err := net.Listen(t.opts.LocalNetwork, t.opts.LocalAddress)
 	if err != nil {
@@ -88,6 +95,8 @@ func (t *Tranner) Start() error {
 
 // Stop is used to stop tranner.
 func (t *Tranner) Stop() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.stop()
 	t.wg.Wait()
 }
@@ -120,8 +129,11 @@ func (t *Tranner) stop() {
 
 // Restart is used to restart tranner.
 func (t *Tranner) Restart() error {
-	t.Stop()
-	return t.Start()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.stop()
+	t.wg.Wait()
+	return t.start()
 }
 
 // Name is used to get the module name.
@@ -196,10 +208,10 @@ func (t *Tranner) serve(listener net.Listener) {
 		}
 	}()
 
-	t.logf(logger.Info, "start listener (%s %s)", network, address)
+	t.logf(logger.Info, "started listener (%s %s)", network, address)
 	defer t.logf(logger.Info, "listener closed (%s %s)", network, address)
 
-	// start accept loop
+	// started accept loop
 	var delay time.Duration // how long to sleep on accept failure
 	maxDelay := time.Second
 	for {
@@ -318,7 +330,7 @@ func (c *tConn) serve() {
 	_ = remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
 
-	// start copy
+	// started copy
 	c.tranner.wg.Add(1)
 	go func() {
 		defer c.tranner.wg.Done()

@@ -27,8 +27,9 @@ type Listener struct {
 	iListener net.Listener // accept slaver connection
 	lListener net.Listener // accept user connection
 	conns     map[*lConn]struct{}
-	rwm       sync.RWMutex
+	rwm       sync.RWMutex // include listener
 
+	mu sync.Mutex // for operation
 	wg sync.WaitGroup
 }
 
@@ -65,12 +66,18 @@ func NewListener(
 	}, nil
 }
 
-// Start is used to start listener.
+// Start is used to started listener.
 func (l *Listener) Start() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.start()
+}
+
+func (l *Listener) start() error {
 	l.rwm.Lock()
 	defer l.rwm.Unlock()
 	if l.iListener != nil {
-		return errors.New("already start lcx listen")
+		return errors.New("already started lcx listen")
 	}
 	iListener, err := net.Listen(l.iNetwork, l.iAddress)
 	if err != nil {
@@ -91,6 +98,8 @@ func (l *Listener) Start() error {
 
 // Stop is used to stop listener.
 func (l *Listener) Stop() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.stop()
 	l.wg.Wait()
 }
@@ -129,8 +138,11 @@ func (l *Listener) stop() {
 
 // Restart is used to restart listener.
 func (l *Listener) Restart() error {
-	l.Stop()
-	return l.Start()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.stop()
+	l.wg.Wait()
+	return l.start()
 }
 
 // Name is used to get the module name.
@@ -230,14 +242,14 @@ func (l *Listener) serve(iListener, lListener net.Listener) {
 		}
 	}()
 
-	const format = "start income and local listener (%s %s), (%s %s)"
+	const format = "started income and local listener (%s %s), (%s %s)"
 	l.logf(logger.Info, format, iNetwork, iAddress, lNetwork, lAddress)
 	defer func() {
 		const format = "income and local listener closed (%s %s), (%s %s)"
 		l.logf(logger.Info, format, iNetwork, iAddress, lNetwork, lAddress)
 	}()
 
-	// start accept loop
+	// started accept loop
 	for {
 		// first accept remote connection
 		remote := l.accept(iListener)
@@ -366,7 +378,7 @@ func (c *lConn) serve() {
 	_ = c.remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
 
-	// start copy
+	// started copy
 	c.listener.wg.Add(1)
 	go func() {
 		defer c.listener.wg.Done()
