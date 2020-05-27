@@ -113,6 +113,14 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	srv.handler = handler
 	srv.server.Handler = handler
 	srv.server.ErrorLog = logger.Wrap(logger.Error, srv.tag, lg)
+	srv.server.ConnState = func(conn net.Conn, state http.ConnState) {
+		switch state {
+		case http.StateNew:
+			handler.wg.Add(1)
+		case http.StateHijacked, http.StateClosed:
+			handler.wg.Done()
+		}
+	}
 	srv.addresses = make(map[*net.Addr]struct{})
 	return &srv, nil
 }
@@ -276,8 +284,6 @@ func (h *handler) log(lv logger.Level, r *http.Request, log ...interface{}) {
 
 // ServeHTTP implement http.Handler.
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.wg.Add(1)
-	defer h.wg.Done()
 	defer func() {
 		if rec := recover(); rec != nil {
 			h.log(logger.Fatal, r, xpanic.Print(rec, "server.ServeHTTP()"))
