@@ -383,3 +383,34 @@ func TestTConn_Serve(t *testing.T) {
 		testsuite.IsDestroyed(t, tranner)
 	})
 }
+
+func TestTranner_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	tranner := testGenerateTranner(t)
+
+	f1 := func() {
+		_ = tranner.Start()
+	}
+	f2 := func() {
+		tranner.Stop()
+	}
+	f3 := func() {
+		_ = tranner.Restart()
+	}
+	f4 := func() {
+		_ = tranner.Info()
+	}
+	f5 := func() {
+		_ = tranner.Status()
+	}
+	f6 := func() {
+		tranner.trackConn(nil, true)
+	}
+	testsuite.RunParallel(f1, f2, f3, f4, f5, f6)
+
+	tranner.Stop()
+
+	testsuite.IsDestroyed(t, tranner)
+}

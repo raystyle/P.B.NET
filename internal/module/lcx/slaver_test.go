@@ -527,3 +527,36 @@ func TestSConn_Serve(t *testing.T) {
 		testsuite.IsDestroyed(t, listener)
 	})
 }
+
+func TestSlaver_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	listener, slaver := testGenerateListenerAndSlaver(t)
+
+	f1 := func() {
+		_ = slaver.Start()
+	}
+	f2 := func() {
+		slaver.Stop()
+	}
+	f3 := func() {
+		_ = slaver.Restart()
+	}
+	f4 := func() {
+		_ = slaver.Info()
+	}
+	f5 := func() {
+		_ = slaver.Status()
+	}
+	f6 := func() {
+		slaver.trackConn(nil, true)
+	}
+	testsuite.RunParallel(f1, f2, f3, f4, f5, f6)
+
+	listener.Stop()
+	slaver.Stop()
+
+	testsuite.IsDestroyed(t, listener)
+	testsuite.IsDestroyed(t, slaver)
+}

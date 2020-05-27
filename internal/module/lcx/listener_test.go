@@ -375,3 +375,34 @@ func TestLConn_Close(t *testing.T) {
 	err := conn.Close()
 	require.Error(t, err)
 }
+
+func TestListener_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	listener := testGenerateListener(t)
+
+	f1 := func() {
+		_ = listener.Start()
+	}
+	f2 := func() {
+		listener.Stop()
+	}
+	f3 := func() {
+		_ = listener.Restart()
+	}
+	f4 := func() {
+		_ = listener.Info()
+	}
+	f5 := func() {
+		_ = listener.Status()
+	}
+	f6 := func() {
+		listener.trackConn(nil, true)
+	}
+	testsuite.RunParallel(f1, f2, f3, f4, f5, f6)
+
+	listener.Stop()
+
+	testsuite.IsDestroyed(t, listener)
+}
