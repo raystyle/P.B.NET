@@ -104,6 +104,9 @@ func TestPool_PublicRootCACert(t *testing.T) {
 	})
 
 	t.Run("add parallel", func(t *testing.T) {
+		gm := testsuite.MarkGoroutines(t)
+		defer gm.Compare()
+
 		var pool *Pool
 		pair1 := testGenerateCert(t)
 		pair2 := testGenerateCert(t)
@@ -128,6 +131,9 @@ func TestPool_PublicRootCACert(t *testing.T) {
 	})
 
 	t.Run("delete parallel", func(t *testing.T) {
+		gm := testsuite.MarkGoroutines(t)
+		defer gm.Compare()
+
 		var pool *Pool
 		pair1 := testGenerateCert(t)
 		pair2 := testGenerateCert(t)
@@ -185,6 +191,9 @@ func TestPool_PublicClientCACert(t *testing.T) {
 	})
 
 	t.Run("add parallel", func(t *testing.T) {
+		gm := testsuite.MarkGoroutines(t)
+		defer gm.Compare()
+
 		var pool *Pool
 		pair1 := testGenerateCert(t)
 		pair2 := testGenerateCert(t)
@@ -209,6 +218,9 @@ func TestPool_PublicClientCACert(t *testing.T) {
 	})
 
 	t.Run("delete parallel", func(t *testing.T) {
+		gm := testsuite.MarkGoroutines(t)
+		defer gm.Compare()
+
 		var pool *Pool
 		pair1 := testGenerateCert(t)
 		pair2 := testGenerateCert(t)
@@ -271,6 +283,9 @@ func TestPool_PublicClientCert(t *testing.T) {
 	})
 
 	t.Run("add parallel", func(t *testing.T) {
+		gm := testsuite.MarkGoroutines(t)
+		defer gm.Compare()
+
 		var pool *Pool
 		pair1 := testGenerateCert(t)
 		pair2 := testGenerateCert(t)
@@ -295,6 +310,9 @@ func TestPool_PublicClientCert(t *testing.T) {
 	})
 
 	t.Run("delete parallel", func(t *testing.T) {
+		gm := testsuite.MarkGoroutines(t)
+		defer gm.Compare()
+
 		var pool *Pool
 		pair1 := testGenerateCert(t)
 		pair2 := testGenerateCert(t)
@@ -362,6 +380,9 @@ func TestPool_PrivateRootCACert(t *testing.T) {
 	})
 
 	t.Run("add parallel", func(t *testing.T) {
+		gm := testsuite.MarkGoroutines(t)
+		defer gm.Compare()
+
 		var pool *Pool
 		pair1 := testGenerateCert(t)
 		pair2 := testGenerateCert(t)
@@ -389,6 +410,9 @@ func TestPool_PrivateRootCACert(t *testing.T) {
 	})
 
 	t.Run("delete parallel", func(t *testing.T) {
+		gm := testsuite.MarkGoroutines(t)
+		defer gm.Compare()
+
 		var pool *Pool
 		pair1 := testGenerateCert(t)
 		pair2 := testGenerateCert(t)
@@ -459,6 +483,9 @@ func TestPool_PrivateClientCACert(t *testing.T) {
 	})
 
 	t.Run("add parallel", func(t *testing.T) {
+		gm := testsuite.MarkGoroutines(t)
+		defer gm.Compare()
+
 		var pool *Pool
 		pair1 := testGenerateCert(t)
 		pair2 := testGenerateCert(t)
@@ -486,6 +513,9 @@ func TestPool_PrivateClientCACert(t *testing.T) {
 	})
 
 	t.Run("delete parallel", func(t *testing.T) {
+		gm := testsuite.MarkGoroutines(t)
+		defer gm.Compare()
+
 		var pool *Pool
 		pair1 := testGenerateCert(t)
 		pair2 := testGenerateCert(t)
@@ -551,6 +581,9 @@ func TestPool_PrivateClientCert(t *testing.T) {
 	})
 
 	t.Run("add parallel", func(t *testing.T) {
+		gm := testsuite.MarkGoroutines(t)
+		defer gm.Compare()
+
 		var pool *Pool
 		pair1 := testGenerateCert(t)
 		pair2 := testGenerateCert(t)
@@ -575,6 +608,9 @@ func TestPool_PrivateClientCert(t *testing.T) {
 	})
 
 	t.Run("delete parallel", func(t *testing.T) {
+		gm := testsuite.MarkGoroutines(t)
+		defer gm.Compare()
+
 		var pool *Pool
 		pair1 := testGenerateCert(t)
 		pair2 := testGenerateCert(t)
@@ -603,6 +639,9 @@ func TestPool_PrivateClientCert(t *testing.T) {
 }
 
 func TestPool_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	var pool *Pool
 	pair1 := testGenerateCert(t)
 	pair2 := testGenerateCert(t)
