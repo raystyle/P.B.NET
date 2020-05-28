@@ -31,7 +31,7 @@ var (
 
 func init() {
 	printNetworkInfo()
-	deployPPROFHTTPServer()
+	deployPprofHTTPServer()
 	isInGoland()
 }
 
@@ -48,7 +48,7 @@ func printNetworkInfo() {
 	fmt.Println("[debug] network unavailable")
 }
 
-func deployPPROFHTTPServer() {
+func deployPprofHTTPServer() {
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc("/debug/pprof/", pprof.Index)
 	serveMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -57,7 +57,7 @@ func deployPPROFHTTPServer() {
 	serveMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	server := &http.Server{Handler: serveMux}
 	for port := 9931; port < 65536; port++ {
-		if startPPROFHTTPServer(server, port) {
+		if startPprofHTTPServer(server, port) {
 			fmt.Printf("[debug] pprof http server port: %d\n", port)
 			return
 		}
@@ -65,7 +65,7 @@ func deployPPROFHTTPServer() {
 	panic("failed to deploy pprof http server")
 }
 
-func startPPROFHTTPServer(server *http.Server, port int) bool {
+func startPprofHTTPServer(server *http.Server, port int) bool {
 	var (
 		ipv4 net.Listener
 		ipv6 net.Listener
@@ -229,20 +229,34 @@ func walkOptions(father string, typ reflect.Type, value reflect.Value) string {
 
 // RunParallel is used to call functions with go func().
 // object with Add(), Get() ... need it for test with race.
-func RunParallel(f ...func()) {
-	l := len(f)
+func RunParallel(times int, init, cleanup func(), fns ...func()) {
+	l := len(fns)
 	if l == 0 {
 		return
 	}
-	wg := sync.WaitGroup{}
-	for i := 0; i < l; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			f[i]()
-		}(i)
+	if times < 1 || times > 1000 {
+		times = 100
 	}
-	wg.Wait()
+	wg := sync.WaitGroup{}
+	for i := 0; i < times; i++ {
+		// initialize before call
+		if init != nil {
+			init()
+		}
+		// call functions
+		for j := 0; j < l; j++ {
+			wg.Add(1)
+			go func(j int) {
+				defer wg.Done()
+				fns[j]()
+			}(j)
+		}
+		wg.Wait()
+		// clean after call
+		if cleanup != nil {
+			cleanup()
+		}
+	}
 }
 
 // RunHTTPServer is used to start a http or https server and return port.

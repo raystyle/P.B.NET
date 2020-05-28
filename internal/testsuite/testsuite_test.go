@@ -28,7 +28,7 @@ func TestPrintNetworkInfo(t *testing.T) {
 	printNetworkInfo()
 }
 
-func TestDeployPPROFHTTPServer(t *testing.T) {
+func TestDeployPprofHTTPServer(t *testing.T) {
 	defer DeferForPanic(t)
 
 	patch := func(string, string) (net.Listener, error) {
@@ -37,10 +37,10 @@ func TestDeployPPROFHTTPServer(t *testing.T) {
 	pg := monkey.Patch(net.Listen, patch)
 	defer pg.Unpatch()
 
-	deployPPROFHTTPServer()
+	deployPprofHTTPServer()
 }
 
-func TestStartPPROFHTTPServer(t *testing.T) {
+func TestStartPprofHTTPServer(t *testing.T) {
 	t.Run("tcp4", func(t *testing.T) {
 		patch := func(string, string) (net.Listener, error) {
 			return nil, monkey.Error
@@ -48,7 +48,7 @@ func TestStartPPROFHTTPServer(t *testing.T) {
 		pg := monkey.Patch(net.Listen, patch)
 		defer pg.Unpatch()
 
-		ok := startPPROFHTTPServer(nil, 123)
+		ok := startPprofHTTPServer(nil, 123)
 		require.False(t, ok)
 	})
 
@@ -62,7 +62,7 @@ func TestStartPPROFHTTPServer(t *testing.T) {
 		pg := monkey.Patch(net.Listen, patch)
 		defer pg.Unpatch()
 
-		ok := startPPROFHTTPServer(nil, 123)
+		ok := startPprofHTTPServer(nil, 123)
 		require.False(t, ok)
 	})
 }
@@ -390,6 +390,10 @@ func TestRunParallel(t *testing.T) {
 	test := 0
 	m := sync.Mutex{}
 
+	init := func() {
+		test = 0
+		fmt.Println("init")
+	}
 	f1 := func() {
 		m.Lock()
 		defer m.Unlock()
@@ -404,48 +408,66 @@ func TestRunParallel(t *testing.T) {
 		test++
 		fmt.Println(test)
 	}
+	f3 := func() {
+		m.Lock()
+		defer m.Unlock()
 
-	RunParallel(f1, f2)
+		test++
+	}
+	cleanup := func() {
+		fmt.Println("cleanup")
+	}
 
-	// no functions
-	RunParallel()
+	t.Run("ok", func(t *testing.T) {
+		RunParallel(5, init, cleanup, f1, f2)
+	})
+
+	t.Run("no functions", func(t *testing.T) {
+		RunParallel(1, nil, nil)
+	})
+
+	t.Run("invalid times", func(t *testing.T) {
+		RunParallel(-1, nil, nil, f3)
+	})
 }
 
 func TestRunHTTPServer(t *testing.T) {
 	gm := MarkGoroutines(t)
 	defer gm.Compare()
 
-	// http
-	httpServer := http.Server{Addr: "localhost:0"}
-	port := RunHTTPServer(t, "tcp", &httpServer)
-	defer func() { _ = httpServer.Close() }()
-	t.Log("http server port:", port)
+	t.Run("http", func(t *testing.T) {
+		server := http.Server{Addr: "localhost:0"}
+		port := RunHTTPServer(t, "tcp", &server)
+		defer func() { _ = server.Close() }()
+		t.Log("http server port:", port)
 
-	client := http.Client{}
-	resp, err := client.Get(fmt.Sprintf("http://localhost:%s/", port))
-	require.NoError(t, err)
-	_, err = io.Copy(ioutil.Discard, resp.Body)
-	require.NoError(t, err)
-	client.CloseIdleConnections()
+		client := http.Client{}
+		defer client.CloseIdleConnections()
+		resp, err := client.Get(fmt.Sprintf("http://localhost:%s/", port))
+		require.NoError(t, err)
+		_, err = io.Copy(ioutil.Discard, resp.Body)
+		require.NoError(t, err)
+	})
 
-	// https
-	serverCfg, clientCfg := TLSConfigPair(t, "127.0.0.1")
-	httpsServer := http.Server{
-		Addr:      "localhost:0",
-		TLSConfig: serverCfg,
-	}
-	port = RunHTTPServer(t, "tcp", &httpsServer)
-	defer func() { _ = httpsServer.Close() }()
-	t.Log("https server port:", port)
+	t.Run("https", func(t *testing.T) {
+		serverCfg, clientCfg := TLSConfigPair(t, "127.0.0.1")
+		server := http.Server{
+			Addr:      "localhost:0",
+			TLSConfig: serverCfg,
+		}
+		port := RunHTTPServer(t, "tcp", &server)
+		defer func() { _ = server.Close() }()
+		t.Log("https server port:", port)
 
-	client = http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: clientCfg,
-		},
-	}
-	resp, err = client.Get(fmt.Sprintf("https://localhost:%s/", port))
-	require.NoError(t, err)
-	_, err = io.Copy(ioutil.Discard, resp.Body)
-	require.NoError(t, err)
-	client.CloseIdleConnections()
+		client := http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: clientCfg,
+			},
+		}
+		defer client.CloseIdleConnections()
+		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/", port))
+		require.NoError(t, err)
+		_, err = io.Copy(ioutil.Discard, resp.Body)
+		require.NoError(t, err)
+	})
 }
