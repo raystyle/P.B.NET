@@ -88,7 +88,7 @@ func TestLoadSystemCertWithNameFailed(t *testing.T) {
 
 		certs, err := LoadSystemCertWithName("ROOT")
 		require.NoError(t, err)
-		require.Len(t, certs, 0)
+		require.Empty(t, certs)
 	})
 }
 
