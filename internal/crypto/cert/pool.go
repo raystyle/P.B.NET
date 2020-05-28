@@ -80,7 +80,7 @@ func pairIsExist(pairs []*pair, cert []byte) bool {
 
 func loadCertAndPrivateKey(cert, pri []byte) (*pair, error) {
 	if len(pri) == 0 {
-		return nil, errors.New("need private key")
+		return nil, errors.New("no private key")
 	}
 	return loadCertWithPrivateKey(cert, pri)
 }
@@ -93,20 +93,21 @@ func loadCertWithPrivateKey(cert, pri []byte) (*pair, error) {
 		return nil, err
 	}
 	pair := pair{Certificate: certCopy}
-	if len(pri) != 0 {
-		privateKey, err := ParsePrivateKeyBytes(pri)
-		if err != nil {
-			return nil, err
-		}
-		if !Match(certCopy, privateKey) {
-			return nil, ErrMismatchedKey
-		}
-		priBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
-		if err != nil {
-			return nil, err
-		}
-		pair.PrivateKey = security.NewBytes(priBytes)
+	if len(pri) == 0 {
+		return &pair, nil
 	}
+	privateKey, err := ParsePrivateKeyBytes(pri)
+	if err != nil {
+		return nil, err
+	}
+	if !Match(certCopy, privateKey) {
+		return nil, ErrMismatchedKey
+	}
+	priBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return nil, err
+	}
+	pair.PrivateKey = security.NewBytes(priBytes)
 	return &pair, nil
 }
 
