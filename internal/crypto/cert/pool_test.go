@@ -550,6 +550,54 @@ func TestPool(t *testing.T) {
 			testsuite.RunParallel(100, init, nil, del, del, get)
 		})
 	})
+
+	t.Run("parallel all", func(t *testing.T) {
+		var pool *Pool
+		pair1 := testGenerateCert(t)
+		pair2 := testGenerateCert(t)
+
+		init := func() { pool = NewPool() }
+		fns := []func(){
+			// add
+			func() { _ = pool.AddPublicRootCACert(pair1.Certificate.Raw) },
+			func() { _ = pool.AddPublicRootCACert(pair2.Certificate.Raw) },
+			func() { _ = pool.AddPublicClientCACert(pair1.Certificate.Raw) },
+			func() { _ = pool.AddPublicClientCACert(pair2.Certificate.Raw) },
+			func() { _ = pool.AddPublicClientCert(pair1.Encode()) },
+			func() { _ = pool.AddPublicClientCert(pair2.Encode()) },
+			func() { _ = pool.AddPrivateRootCACert(pair1.Encode()) },
+			func() { _ = pool.AddPrivateRootCACert(pair2.Encode()) },
+			func() { _ = pool.AddPrivateClientCACert(pair1.Encode()) },
+			func() { _ = pool.AddPrivateClientCACert(pair2.Encode()) },
+			func() { _ = pool.AddPrivateClientCert(pair1.Encode()) },
+			func() { _ = pool.AddPrivateClientCert(pair2.Encode()) },
+
+			// delete
+			func() { _ = pool.DeletePublicRootCACert(0) },
+			func() { _ = pool.DeletePublicRootCACert(0) },
+			func() { _ = pool.DeletePublicClientCACert(0) },
+			func() { _ = pool.DeletePublicClientCACert(0) },
+			func() { _ = pool.DeletePublicClientCert(0) },
+			func() { _ = pool.DeletePublicClientCert(0) },
+			func() { _ = pool.DeletePrivateRootCACert(0) },
+			func() { _ = pool.DeletePrivateRootCACert(0) },
+			func() { _ = pool.DeletePrivateClientCACert(0) },
+			func() { _ = pool.DeletePrivateClientCACert(0) },
+			func() { _ = pool.DeletePrivateClientCert(0) },
+			func() { _ = pool.DeletePrivateClientCert(0) },
+
+			// get
+			func() { _ = pool.GetPublicRootCACerts() },
+			func() { _ = pool.GetPublicClientCACerts() },
+			func() { _ = pool.GetPublicClientPairs() },
+			func() { _ = pool.GetPrivateRootCACerts() },
+			func() { _ = pool.GetPrivateClientCACerts() },
+			func() { _ = pool.GetPrivateRootCAPairs() },
+			func() { _ = pool.GetPrivateClientCAPairs() },
+			func() { _ = pool.GetPrivateClientPairs() },
+		}
+		testsuite.RunParallel(100, init, nil, fns...)
+	})
 }
 
 func TestNewPoolWithSystemCerts(t *testing.T) {
