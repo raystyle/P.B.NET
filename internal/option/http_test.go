@@ -98,7 +98,7 @@ func TestHTTPTransportDefault(t *testing.T) {
 	require.Equal(t, httpDefaultMaxResponseHeaderBytes, transport.MaxResponseHeaderBytes)
 	require.Equal(t, false, transport.DisableKeepAlives)
 	require.Equal(t, false, transport.DisableCompression)
-	require.Len(t, transport.ProxyConnectHeader, 0)
+	require.Empty(t, transport.ProxyConnectHeader)
 	require.Nil(t, transport.Proxy)
 	require.Nil(t, transport.DialContext)
 }

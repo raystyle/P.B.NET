@@ -561,13 +561,17 @@ func TestClient_TestOptions(t *testing.T) {
 }
 
 func TestClient_Parallel(t *testing.T) {
-	client := NewClient(nil, nil)
 	const (
 		tag1 = "test-01"
 		tag2 = "test-02"
 	)
 
-	t.Run("simple", func(t *testing.T) {
+	t.Run("add", func(t *testing.T) {
+		var client *Client
+
+		init := func() {
+			client = NewClient(nil, nil)
+		}
 		add1 := func() {
 			err := client.Add(tag1, &Server{
 				Method:  MethodUDP,
@@ -582,8 +586,62 @@ func TestClient_Parallel(t *testing.T) {
 			})
 			require.NoError(t, err)
 		}
-		testsuite.RunParallel(add1, add2)
+		testsuite.RunParallel(1, init, nil, add1, add2)
 
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		var client *Client
+
+		init := func() {
+			client = NewClient(nil, nil)
+
+			err := client.Add(tag1, &Server{
+				Method:  MethodUDP,
+				Address: "127.0.0.1:1080",
+			})
+			require.NoError(t, err)
+			err = client.Add(tag2, &Server{
+				Method:  MethodUDP,
+				Address: "127.0.0.1:1081",
+			})
+			require.NoError(t, err)
+		}
+		delete1 := func() {
+			err := client.Delete(tag1)
+			require.NoError(t, err)
+
+		}
+		delete2 := func() {
+			err := client.Delete(tag2)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(1, init, nil, delete1, delete2)
+
+		servers := client.Servers()
+		require.Empty(t, servers)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("get", func(t *testing.T) {
+		var client *Client
+
+		init := func() {
+			client = NewClient(nil, nil)
+
+			err := client.Add(tag1, &Server{
+				Method:  MethodUDP,
+				Address: "127.0.0.1:1080",
+			})
+			require.NoError(t, err)
+			err = client.Add(tag2, &Server{
+				Method:  MethodUDP,
+				Address: "127.0.0.1:1081",
+			})
+			require.NoError(t, err)
+		}
 		get1 := func() {
 			servers := client.Servers()
 			require.Len(t, servers, 2)
@@ -592,22 +650,17 @@ func TestClient_Parallel(t *testing.T) {
 			servers := client.Servers()
 			require.Len(t, servers, 2)
 		}
-		testsuite.RunParallel(get1, get2)
+		testsuite.RunParallel(1, init, nil, get1, get2)
 
-		delete1 := func() {
-			err := client.Delete(tag1)
-			require.NoError(t, err)
-		}
-		delete2 := func() {
-			err := client.Delete(tag2)
-			require.NoError(t, err)
-		}
-		testsuite.RunParallel(delete1, delete2)
-
-		require.Len(t, client.Servers(), 0)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("mixed", func(t *testing.T) {
+		var client *Client
+
+		init := func() {
+			client = NewClient(nil, nil)
+		}
 		add := func() {
 			err := client.Add(tag1, &Server{
 				Method:  MethodUDP,
@@ -621,10 +674,17 @@ func TestClient_Parallel(t *testing.T) {
 		del := func() {
 			_ = client.Delete(tag1)
 		}
-		testsuite.RunParallel(add, get, del)
+		testsuite.RunParallel(1, init, nil, add, get, del)
+
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("cache", func(t *testing.T) {
+		var client *Client
+
+		init := func() {
+			client = NewClient(nil, nil)
+		}
 		f1 := func() {
 			client.GetCacheExpireTime()
 		}
@@ -635,10 +695,10 @@ func TestClient_Parallel(t *testing.T) {
 		f3 := func() {
 			client.FlushCache()
 		}
-		testsuite.RunParallel(f1, f2, f3)
-	})
+		testsuite.RunParallel(1, init, nil, f1, f2, f3)
 
-	testsuite.IsDestroyed(t, client)
+		testsuite.IsDestroyed(t, client)
+	})
 }
 
 func TestServerOptions(t *testing.T) {
