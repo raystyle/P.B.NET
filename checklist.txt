@@ -1,3 +1,31 @@
+---------------------------------------------test style--------------------------------------------
+
+most test code like this.
+
+func TestTemplate(t *testing.T) {
+	// if code with goroutine
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	// var variable or resource
+	server, client := net.Pipe()
+
+	// test function
+	fmt.Println(server.LocalAddr())
+	fmt.Println(client.LocalAddr())
+
+	// cleanup
+	err := server.Close()
+	require.NoError(t, err)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	// check object is destroyed
+	testsuite.IsDestroyed(t, server)
+	testsuite.IsDestroyed(t, client)
+}
+
 ---------------------------------------------code style--------------------------------------------
 
 1.1: check require
