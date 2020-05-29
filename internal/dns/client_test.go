@@ -561,12 +561,15 @@ func TestClient_TestOptions(t *testing.T) {
 }
 
 func TestClient_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	const (
 		tag1 = "test-01"
 		tag2 = "test-02"
 	)
 
-	t.Run("add", func(t *testing.T) {
+	t.Run("Add", func(t *testing.T) {
 		var client *Client
 
 		init := func() {
@@ -586,12 +589,13 @@ func TestClient_Parallel(t *testing.T) {
 			})
 			require.NoError(t, err)
 		}
-		testsuite.RunParallel(1, init, nil, add1, add2)
+
+		testsuite.RunParallel(100, init, nil, add1, add2)
 
 		testsuite.IsDestroyed(t, client)
 	})
 
-	t.Run("delete", func(t *testing.T) {
+	t.Run("Delete", func(t *testing.T) {
 		var client *Client
 
 		init := func() {
@@ -617,7 +621,7 @@ func TestClient_Parallel(t *testing.T) {
 			err := client.Delete(tag2)
 			require.NoError(t, err)
 		}
-		testsuite.RunParallel(1, init, nil, delete1, delete2)
+		testsuite.RunParallel(100, init, nil, delete1, delete2)
 
 		servers := client.Servers()
 		require.Empty(t, servers)
@@ -625,7 +629,7 @@ func TestClient_Parallel(t *testing.T) {
 		testsuite.IsDestroyed(t, client)
 	})
 
-	t.Run("get", func(t *testing.T) {
+	t.Run("Get", func(t *testing.T) {
 		var client *Client
 
 		init := func() {
@@ -650,7 +654,7 @@ func TestClient_Parallel(t *testing.T) {
 			servers := client.Servers()
 			require.Len(t, servers, 2)
 		}
-		testsuite.RunParallel(1, init, nil, get1, get2)
+		testsuite.RunParallel(100, init, nil, get1, get2)
 
 		testsuite.IsDestroyed(t, client)
 	})
@@ -674,7 +678,7 @@ func TestClient_Parallel(t *testing.T) {
 		del := func() {
 			_ = client.Delete(tag1)
 		}
-		testsuite.RunParallel(1, init, nil, add, get, del)
+		testsuite.RunParallel(100, init, nil, add, get, del)
 
 		testsuite.IsDestroyed(t, client)
 	})
@@ -685,17 +689,17 @@ func TestClient_Parallel(t *testing.T) {
 		init := func() {
 			client = NewClient(nil, nil)
 		}
-		f1 := func() {
+		get := func() {
 			client.GetCacheExpireTime()
 		}
-		f2 := func() {
+		set := func() {
 			err := client.SetCacheExpireTime(time.Minute)
 			require.NoError(t, err)
 		}
-		f3 := func() {
+		flush := func() {
 			client.FlushCache()
 		}
-		testsuite.RunParallel(1, init, nil, f1, f2, f3)
+		testsuite.RunParallel(100, init, nil, get, set, flush)
 
 		testsuite.IsDestroyed(t, client)
 	})
