@@ -21,8 +21,8 @@ type Manager struct {
 
 	closed bool
 	// key = server tag
-	servers    map[string]*Server
-	serversRWM sync.RWMutex
+	servers map[string]*Server
+	rwm     sync.RWMutex
 }
 
 // NewManager is used to create a proxy server manager.
@@ -66,8 +66,8 @@ func (m *Manager) add(server *Server) error {
 	}
 	server.now = m.now
 	server.createAt = m.now()
-	m.serversRWM.Lock()
-	defer m.serversRWM.Unlock()
+	m.rwm.Lock()
+	defer m.rwm.Unlock()
 	if m.closed {
 		return errors.New("proxy server manager closed")
 	}
@@ -125,8 +125,8 @@ func (m *Manager) Delete(tag string) error {
 	if tag == "" {
 		return errors.New("empty proxy server tag")
 	}
-	m.serversRWM.Lock()
-	defer m.serversRWM.Unlock()
+	m.rwm.Lock()
+	defer m.rwm.Unlock()
 	if server, ok := m.servers[tag]; ok {
 		delete(m.servers, tag)
 		return server.Close()
@@ -139,8 +139,8 @@ func (m *Manager) Get(tag string) (*Server, error) {
 	if tag == "" {
 		return nil, errors.New("empty proxy server tag")
 	}
-	m.serversRWM.RLock()
-	defer m.serversRWM.RUnlock()
+	m.rwm.RLock()
+	defer m.rwm.RUnlock()
 	if server, ok := m.servers[tag]; ok {
 		return server, nil
 	}
@@ -149,8 +149,8 @@ func (m *Manager) Get(tag string) (*Server, error) {
 
 // Servers is used to get all proxy servers.
 func (m *Manager) Servers() map[string]*Server {
-	m.serversRWM.RLock()
-	defer m.serversRWM.RUnlock()
+	m.rwm.RLock()
+	defer m.rwm.RUnlock()
 	servers := make(map[string]*Server, len(m.servers))
 	for tag, server := range m.servers {
 		servers[tag] = server
@@ -160,12 +160,11 @@ func (m *Manager) Servers() map[string]*Server {
 
 // Close is used to close all proxy servers.
 func (m *Manager) Close() error {
-	m.serversRWM.Lock()
-	defer m.serversRWM.Unlock()
+	m.rwm.Lock()
+	defer m.rwm.Unlock()
 	if m.closed {
 		return nil
 	}
-	m.closed = true
 	var err error
 	for tag, server := range m.servers {
 		e := server.Close()
@@ -174,5 +173,6 @@ func (m *Manager) Close() error {
 		}
 		delete(m.servers, tag)
 	}
+	m.closed = true
 	return err
 }

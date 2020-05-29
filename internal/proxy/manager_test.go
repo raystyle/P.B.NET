@@ -75,8 +75,9 @@ func TestManager_Add(t *testing.T) {
 			Mode:    ModeSocks5,
 			Options: string(opts),
 		}
+		const errStr = "failed to add proxy server socks5: already exists"
 		err = manager.Add(server)
-		require.EqualError(t, err, "failed to add proxy server socks5: already exists")
+		require.EqualError(t, err, errStr)
 	})
 
 	t.Run("socks server with invalid toml data", func(t *testing.T) {
@@ -124,7 +125,9 @@ func TestManager_Add(t *testing.T) {
 
 	err := manager.Close()
 	require.NoError(t, err)
-	require.Len(t, manager.Servers(), 0)
+
+	servers := manager.Servers()
+	require.Empty(t, servers)
 
 	testsuite.IsDestroyed(t, manager)
 }
@@ -157,14 +160,19 @@ func TestManager_Get(t *testing.T) {
 
 	t.Run("print all", func(t *testing.T) {
 		for tag, server := range manager.Servers() {
-			t.Logf("tag: %s mode: %s info: %s\n", tag, server.Mode, server.Info())
+			const format = "tag: %s mode: %s info: %s\n"
+			t.Logf(format, tag, server.Mode, server.Info())
 		}
 	})
 
-	require.Len(t, manager.Servers(), testServerNum)
+	servers := manager.Servers()
+	require.Len(t, servers, testServerNum)
+
 	err := manager.Close()
 	require.NoError(t, err)
-	require.Len(t, manager.Servers(), 0)
+
+	servers = manager.Servers()
+	require.Empty(t, servers)
 
 	testsuite.IsDestroyed(t, manager)
 }
@@ -180,7 +188,8 @@ func TestManager_Delete(t *testing.T) {
 			err := manager.Delete(tag)
 			require.NoError(t, err)
 		}
-		require.Len(t, manager.Servers(), 0)
+		servers := manager.Servers()
+		require.Empty(t, servers)
 	})
 
 	t.Run("empty tag", func(t *testing.T) {
@@ -195,105 +204,11 @@ func TestManager_Delete(t *testing.T) {
 
 	err := manager.Close()
 	require.NoError(t, err)
-	require.Len(t, manager.Servers(), 0)
+
+	servers := manager.Servers()
+	require.Empty(t, servers)
 
 	testsuite.IsDestroyed(t, manager)
-}
-
-func TestManager_Parallel(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	const (
-		tag1 = "test-01"
-		tag2 = "test-02"
-	)
-
-	t.Run("simple", func(t *testing.T) {
-		manager := testGenerateManager(t)
-
-		add1 := func() {
-			err := manager.Add(&Server{
-				Tag:  tag1,
-				Mode: ModeSocks5,
-			})
-			require.NoError(t, err)
-		}
-		add2 := func() {
-			err := manager.Add(&Server{
-				Tag:  tag2,
-				Mode: ModeHTTP,
-			})
-			require.NoError(t, err)
-		}
-		testsuite.RunParallel(add1, add2)
-
-		get1 := func() {
-			server, err := manager.Get(tag1)
-			require.NoError(t, err)
-			require.NotNil(t, server)
-		}
-		get2 := func() {
-			server, err := manager.Get(tag2)
-			require.NoError(t, err)
-			require.NotNil(t, server)
-		}
-		testsuite.RunParallel(get1, get2)
-
-		getAll1 := func() {
-			servers := manager.Servers()
-			require.Len(t, servers, 2+testServerNum)
-		}
-		getAll2 := func() {
-			servers := manager.Servers()
-			require.Len(t, servers, 2+testServerNum)
-		}
-		testsuite.RunParallel(getAll1, getAll2)
-
-		delete1 := func() {
-			err := manager.Delete(tag1)
-			require.NoError(t, err)
-		}
-		delete2 := func() {
-			err := manager.Delete(tag2)
-			require.NoError(t, err)
-		}
-		testsuite.RunParallel(delete1, delete2)
-
-		require.Len(t, manager.Servers(), testServerNum)
-		err := manager.Close()
-		require.NoError(t, err)
-		require.Len(t, manager.Servers(), 0)
-
-		testsuite.IsDestroyed(t, manager)
-	})
-
-	t.Run("mixed", func(t *testing.T) {
-		manager := testGenerateManager(t)
-
-		add := func() {
-			err := manager.Add(&Server{
-				Tag:  tag1,
-				Mode: ModeSocks5,
-			})
-			require.NoError(t, err)
-		}
-		get := func() {
-			_, _ = manager.Get(tag1)
-		}
-		getAll := func() {
-			_ = manager.Servers()
-		}
-		del := func() {
-			_ = manager.Delete(tag1)
-		}
-		testsuite.RunParallel(add, get, getAll, del)
-
-		err := manager.Close()
-		require.NoError(t, err)
-
-		testsuite.IsDestroyed(t, manager)
-	})
 }
 
 func TestManager_Close(t *testing.T) {
@@ -347,7 +262,190 @@ func TestManager_Close(t *testing.T) {
 	monkey.IsMonkeyError(t, err)
 
 	wg.Wait()
-	require.Len(t, manager.Servers(), 0)
+
+	servers := manager.Servers()
+	require.Empty(t, servers)
 
 	testsuite.IsDestroyed(t, manager)
+}
+
+func TestManager_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const (
+		tag1 = "test-01"
+		tag2 = "test-02"
+	)
+
+	t.Run("Add", func(t *testing.T) {
+		manager := testGenerateManager(t)
+
+		add1 := func() {
+			err := manager.Add(&Server{
+				Tag:  tag1,
+				Mode: ModeSocks5,
+			})
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := manager.Add(&Server{
+				Tag:  tag2,
+				Mode: ModeHTTP,
+			})
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			servers := manager.Servers()
+			require.Len(t, servers, testServerNum+2)
+
+			err := manager.Delete(tag1)
+			require.NoError(t, err)
+			err = manager.Delete(tag2)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(100, nil, cleanup, add1, add2)
+
+		err := manager.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, manager)
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		manager := testGenerateManager(t)
+
+		init := func() {
+			err := manager.Add(&Server{
+				Tag:  tag1,
+				Mode: ModeSocks5,
+			})
+			require.NoError(t, err)
+			err = manager.Add(&Server{
+				Tag:  tag2,
+				Mode: ModeHTTP,
+			})
+			require.NoError(t, err)
+		}
+		delete1 := func() {
+			err := manager.Delete(tag1)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := manager.Delete(tag2)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			servers := manager.Servers()
+			require.Len(t, servers, testServerNum)
+		}
+		testsuite.RunParallel(100, init, cleanup, delete1, delete2)
+
+		err := manager.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, manager)
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		manager := testGenerateManager(t)
+
+		init := func() {
+			err := manager.Add(&Server{
+				Tag:  tag1,
+				Mode: ModeSocks5,
+			})
+			require.NoError(t, err)
+			err = manager.Add(&Server{
+				Tag:  tag2,
+				Mode: ModeHTTP,
+			})
+			require.NoError(t, err)
+		}
+		get1 := func() {
+			server, err := manager.Get(tag1)
+			require.NoError(t, err)
+			require.NotNil(t, server)
+		}
+		get2 := func() {
+			server, err := manager.Get(tag2)
+			require.NoError(t, err)
+			require.NotNil(t, server)
+		}
+		cleanup := func() {
+			err := manager.Delete(tag1)
+			require.NoError(t, err)
+			err = manager.Delete(tag2)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(100, init, cleanup, get1, get2)
+
+		err := manager.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, manager)
+	})
+
+	t.Run("Servers", func(t *testing.T) {
+		manager := testGenerateManager(t)
+
+		init := func() {
+			err := manager.Add(&Server{
+				Tag:  tag1,
+				Mode: ModeSocks5,
+			})
+			require.NoError(t, err)
+			err = manager.Add(&Server{
+				Tag:  tag2,
+				Mode: ModeHTTP,
+			})
+			require.NoError(t, err)
+		}
+		servers := func() {
+			servers := manager.Servers()
+			require.Len(t, servers, testServerNum+2)
+		}
+		cleanup := func() {
+			err := manager.Delete(tag1)
+			require.NoError(t, err)
+			err = manager.Delete(tag2)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(100, init, cleanup, servers, servers)
+
+		err := manager.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, manager)
+	})
+
+	t.Run("mixed", func(t *testing.T) {
+		manager := testGenerateManager(t)
+
+		add := func() {
+			err := manager.Add(&Server{
+				Tag:  tag1,
+				Mode: ModeSocks5,
+			})
+			require.NoError(t, err)
+		}
+		del := func() {
+			_ = manager.Delete(tag1)
+		}
+		get := func() {
+			_, _ = manager.Get(tag1)
+		}
+		servers := func() {
+			_ = manager.Servers()
+		}
+		cleanup := func() {
+			_ = manager.Delete(tag1)
+		}
+		testsuite.RunParallel(100, nil, cleanup, add, del, get, servers)
+
+		err := manager.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, manager)
+	})
 }
