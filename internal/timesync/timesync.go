@@ -62,10 +62,9 @@ type Syncer struct {
 
 	// synchronize interval
 	interval time.Duration
-
 	// key = tag
-	clients    map[string]*Client
-	clientsRWM sync.RWMutex
+	clients map[string]*Client
+	rwm     sync.RWMutex
 
 	now    time.Time
 	nowRWM sync.RWMutex
@@ -98,7 +97,7 @@ func New(
 }
 
 // SetSleep is used to set random sleep time.
-// must execute before Start()
+// must execute it before Start().
 func (syncer *Syncer) SetSleep(fixed, random uint) error {
 	if fixed < 3 {
 		return errors.New("sleep fixed must >= 3")
@@ -125,8 +124,8 @@ func (syncer *Syncer) Add(tag string, client *Client) error {
 	if err != nil {
 		return err
 	}
-	syncer.clientsRWM.Lock()
-	defer syncer.clientsRWM.Unlock()
+	syncer.rwm.Lock()
+	defer syncer.rwm.Unlock()
 	if _, ok := syncer.clients[tag]; !ok {
 		syncer.clients[tag] = client
 		return nil
@@ -136,8 +135,8 @@ func (syncer *Syncer) Add(tag string, client *Client) error {
 
 // Delete is used to delete syncer client.
 func (syncer *Syncer) Delete(tag string) error {
-	syncer.clientsRWM.Lock()
-	defer syncer.clientsRWM.Unlock()
+	syncer.rwm.Lock()
+	defer syncer.rwm.Unlock()
 	if _, exist := syncer.clients[tag]; exist {
 		delete(syncer.clients, tag)
 		return nil
@@ -147,8 +146,8 @@ func (syncer *Syncer) Delete(tag string) error {
 
 // Clients is used to get all time syncer clients.
 func (syncer *Syncer) Clients() map[string]*Client {
-	syncer.clientsRWM.RLock()
-	defer syncer.clientsRWM.RUnlock()
+	syncer.rwm.RLock()
+	defer syncer.rwm.RUnlock()
 	clients := make(map[string]*Client, len(syncer.clients))
 	for tag, client := range syncer.clients {
 		clients[tag] = client
@@ -165,18 +164,18 @@ func (syncer *Syncer) Now() time.Time {
 
 // GetSyncInterval is used to get synchronize time interval.
 func (syncer *Syncer) GetSyncInterval() time.Duration {
-	syncer.clientsRWM.RLock()
-	defer syncer.clientsRWM.RUnlock()
+	syncer.rwm.RLock()
+	defer syncer.rwm.RUnlock()
 	return syncer.interval
 }
 
 // SetSyncInterval is used to set synchronize time interval.
 func (syncer *Syncer) SetSyncInterval(interval time.Duration) error {
 	if interval < time.Minute || interval > 15*time.Minute {
-		return errors.New("synchronize interval must < 1 minute or > 15 minutes")
+		return errors.New("synchronize interval must > 1 or < 15 minutes")
 	}
-	syncer.clientsRWM.Lock()
-	defer syncer.clientsRWM.Unlock()
+	syncer.rwm.Lock()
+	defer syncer.rwm.Unlock()
 	syncer.interval = interval
 	return nil
 }
