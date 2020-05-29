@@ -136,7 +136,7 @@ func TestConn_Deadline(t *testing.T) {
 			err := conn.SetWriteDeadline(time.Now().Add(time.Second))
 			require.Error(t, err)
 		}
-		testsuite.RunParallel(all, read, write)
+		testsuite.RunParallel(100, nil, nil, all, read, write)
 	}
 	do(server)
 	do(client)
