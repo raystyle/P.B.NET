@@ -83,8 +83,9 @@ func TestPool_Add(t *testing.T) {
 			Address: "localhost:1080",
 			Options: string(opts),
 		}
+		const errStr = "failed to add proxy client socks5: already exists"
 		err = pool.Add(client)
-		require.EqualError(t, err, "failed to add proxy client socks5: already exists")
+		require.EqualError(t, err, errStr)
 	})
 
 	t.Run("socks client with invalid toml data", func(t *testing.T) {
@@ -209,7 +210,8 @@ func TestPool_Get(t *testing.T) {
 
 	t.Run("print all", func(t *testing.T) {
 		for tag, client := range pool.Clients() {
-			t.Logf("tag: %s mode: %s info: %s\n", tag, client.Mode, client.Info())
+			const format = "tag: %s mode: %s info: %s\n"
+			t.Logf(format, tag, client.Mode, client.Info())
 		}
 	})
 
@@ -250,13 +252,17 @@ func TestPool_Delete(t *testing.T) {
 }
 
 func TestPool_Parallel(t *testing.T) {
-	pool := testGeneratePool(t)
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	const (
 		tag1 = "test-01"
 		tag2 = "test-02"
 	)
 
-	t.Run("simple", func(t *testing.T) {
+	t.Run("Add", func(t *testing.T) {
+		pool := testGeneratePool(t)
+
 		add1 := func() {
 			err := pool.Add(&Client{
 				Tag:     tag1,
@@ -275,30 +281,39 @@ func TestPool_Parallel(t *testing.T) {
 			})
 			require.NoError(t, err)
 		}
-		testsuite.RunParallel(add1, add2)
-
-		get1 := func() {
-			server, err := pool.Get(tag1)
-			require.NoError(t, err)
-			require.NotNil(t, server)
-		}
-		get2 := func() {
-			server, err := pool.Get(tag2)
-			require.NoError(t, err)
-			require.NotNil(t, server)
-		}
-		testsuite.RunParallel(get1, get2)
-
-		getAll1 := func() {
+		cleanup := func() {
 			clients := pool.Clients()
-			require.Len(t, clients, 2+testClientNum)
-		}
-		getAll2 := func() {
-			clients := pool.Clients()
-			require.Len(t, clients, 2+testClientNum)
-		}
-		testsuite.RunParallel(getAll1, getAll2)
+			require.Len(t, clients, testClientNum+2)
 
+			err := pool.Delete(tag1)
+			require.NoError(t, err)
+			err = pool.Delete(tag2)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(100, nil, cleanup, add1, add2)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		pool := testGeneratePool(t)
+
+		init := func() {
+			err := pool.Add(&Client{
+				Tag:     tag1,
+				Mode:    ModeSocks5,
+				Network: "tcp",
+				Address: "127.0.0.1:1080",
+			})
+			require.NoError(t, err)
+			err = pool.Add(&Client{
+				Tag:     tag2,
+				Mode:    ModeHTTP,
+				Network: "tcp",
+				Address: "127.0.0.1:8080",
+			})
+			require.NoError(t, err)
+		}
 		delete1 := func() {
 			err := pool.Delete(tag1)
 			require.NoError(t, err)
@@ -307,12 +322,92 @@ func TestPool_Parallel(t *testing.T) {
 			err := pool.Delete(tag2)
 			require.NoError(t, err)
 		}
-		testsuite.RunParallel(delete1, delete2)
+		cleanup := func() {
+			clients := pool.Clients()
+			require.Len(t, clients, testClientNum)
+		}
+		testsuite.RunParallel(100, init, cleanup, delete1, delete2)
 
-		require.Len(t, pool.Clients(), testClientNum)
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		pool := testGeneratePool(t)
+
+		init := func() {
+			err := pool.Add(&Client{
+				Tag:     tag1,
+				Mode:    ModeSocks5,
+				Network: "tcp",
+				Address: "127.0.0.1:1080",
+			})
+			require.NoError(t, err)
+			err = pool.Add(&Client{
+				Tag:     tag2,
+				Mode:    ModeHTTP,
+				Network: "tcp",
+				Address: "127.0.0.1:8080",
+			})
+			require.NoError(t, err)
+		}
+		get1 := func() {
+			client, err := pool.Get(tag1)
+			require.NoError(t, err)
+			require.NotNil(t, client)
+		}
+		get2 := func() {
+			client, err := pool.Get(tag2)
+			require.NoError(t, err)
+			require.NotNil(t, client)
+		}
+		cleanup := func() {
+			err := pool.Delete(tag1)
+			require.NoError(t, err)
+			err = pool.Delete(tag2)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(100, init, cleanup, get1, get2)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("Clients", func(t *testing.T) {
+		pool := testGeneratePool(t)
+
+		init := func() {
+			err := pool.Add(&Client{
+				Tag:     tag1,
+				Mode:    ModeSocks5,
+				Network: "tcp",
+				Address: "127.0.0.1:1080",
+			})
+			require.NoError(t, err)
+			err = pool.Add(&Client{
+				Tag:     tag2,
+				Mode:    ModeHTTP,
+				Network: "tcp",
+				Address: "127.0.0.1:8080",
+			})
+			require.NoError(t, err)
+		}
+		clients := func() {
+			clients := pool.Clients()
+			require.Len(t, clients, testClientNum+2)
+		}
+		cleanup := func() {
+			err := pool.Delete(tag1)
+			require.NoError(t, err)
+			err = pool.Delete(tag2)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(100, init, cleanup, clients, clients)
+
+		testsuite.IsDestroyed(t, pool)
 	})
 
 	t.Run("mixed", func(t *testing.T) {
+		pool := testGeneratePool(t)
+
 		add := func() {
 			err := pool.Add(&Client{
 				Tag:     tag1,
@@ -322,17 +417,20 @@ func TestPool_Parallel(t *testing.T) {
 			})
 			require.NoError(t, err)
 		}
-		get := func() {
-			_, _ = pool.Get(tag1)
-		}
-		getAll := func() {
-			_ = pool.Clients()
-		}
 		del := func() {
 			_ = pool.Delete(tag1)
 		}
-		testsuite.RunParallel(add, get, getAll, del)
-	})
+		get := func() {
+			_, _ = pool.Get(tag1)
+		}
+		clients := func() {
+			_ = pool.Clients()
+		}
+		cleanup := func() {
+			_ = pool.Delete(tag1)
+		}
+		testsuite.RunParallel(100, nil, cleanup, add, del, get, clients)
 
-	testsuite.IsDestroyed(t, pool)
+		testsuite.IsDestroyed(t, pool)
+	})
 }
