@@ -499,21 +499,21 @@ func TestMSFRPC_send(t *testing.T) {
 		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
-		f1 := func() {
+		send1 := func() {
 			testdata := []byte{0x00, 0x01}
 			var result []byte
 			err := msfrpc.send(ctx, &testdata, &result)
 			require.NoError(t, err)
 			require.Equal(t, []byte("ok"), result)
 		}
-		f2 := func() {
+		send2 := func() {
 			testdata := []byte{0x02, 0x03}
 			var result []byte
 			err := msfrpc.send(ctx, &testdata, &result)
 			require.NoError(t, err)
 			require.Equal(t, []byte("ok"), result)
 		}
-		testsuite.RunParallel(f1, f2)
+		testsuite.RunParallel(10, nil, nil, send1, send2)
 
 		err = msfrpc.Close()
 		require.Error(t, err)
