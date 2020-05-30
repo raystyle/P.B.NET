@@ -31,8 +31,8 @@ type Module interface {
 type Manager struct {
 	closed bool
 	// key = module tag
-	modules    map[string]Module
-	modulesRWM sync.RWMutex
+	modules map[string]Module
+	rwm     sync.RWMutex
 }
 
 // NewManager is used to create a module manager.
@@ -47,8 +47,8 @@ func (m *Manager) Add(tag string, module Module) error {
 	if tag == "" {
 		return errors.New("empty module tag")
 	}
-	m.modulesRWM.Lock()
-	defer m.modulesRWM.Unlock()
+	m.rwm.Lock()
+	defer m.rwm.Unlock()
 	if m.closed {
 		return errors.New("proxy server manager closed")
 	}
@@ -64,8 +64,8 @@ func (m *Manager) Delete(tag string) error {
 	if tag == "" {
 		return errors.New("empty module tag")
 	}
-	m.modulesRWM.Lock()
-	defer m.modulesRWM.Unlock()
+	m.rwm.Lock()
+	defer m.rwm.Unlock()
 	if module, ok := m.modules[tag]; ok {
 		module.Stop()
 		delete(m.modules, tag)
@@ -79,8 +79,8 @@ func (m *Manager) Get(tag string) (Module, error) {
 	if tag == "" {
 		return nil, errors.New("empty module tag")
 	}
-	m.modulesRWM.RLock()
-	defer m.modulesRWM.RUnlock()
+	m.rwm.RLock()
+	defer m.rwm.RUnlock()
 	if module, ok := m.modules[tag]; ok {
 		return module, nil
 	}
@@ -135,8 +135,8 @@ func (m *Manager) Status(tag string) (string, error) {
 
 // Modules is used to get all modules.
 func (m *Manager) Modules() map[string]Module {
-	m.modulesRWM.RLock()
-	defer m.modulesRWM.RUnlock()
+	m.rwm.RLock()
+	defer m.rwm.RUnlock()
 	modules := make(map[string]Module, len(m.modules))
 	for tag, module := range m.modules {
 		modules[tag] = module
@@ -146,14 +146,15 @@ func (m *Manager) Modules() map[string]Module {
 
 // Close is used to stop all modules.
 func (m *Manager) Close() {
-	m.modulesRWM.Lock()
-	defer m.modulesRWM.Unlock()
+	m.rwm.Lock()
+	defer m.rwm.Unlock()
 	if m.closed {
 		return
 	}
-	m.closed = true
 	for tag, module := range m.modules {
 		module.Stop()
 		delete(m.modules, tag)
 	}
+	// prevent panic before here
+	m.closed = true
 }

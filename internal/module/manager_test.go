@@ -255,7 +255,8 @@ func TestManager_Modules(t *testing.T) {
 
 	manager := NewManager()
 
-	require.Len(t, manager.Modules(), 0)
+	modules := manager.Modules()
+	require.Empty(t, modules)
 
 	module := testGenerateModule(t)
 	err := manager.Add("tag", module)
@@ -263,7 +264,9 @@ func TestManager_Modules(t *testing.T) {
 	require.Len(t, manager.Modules(), 1)
 
 	manager.Close()
-	require.Len(t, manager.Modules(), 0)
+
+	modules = manager.Modules()
+	require.Empty(t, modules)
 
 	testsuite.IsDestroyed(t, manager)
 }
@@ -272,13 +275,15 @@ func TestManager_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	manager := NewManager()
-
 	const deleteTag = "delete"
-	module := testGenerateModule(t)
-	err := manager.Add(deleteTag, module)
-	require.NoError(t, err)
 
+	manager := NewManager()
+	module := testGenerateModule(t)
+
+	init := func() {
+		err := manager.Add(deleteTag, module)
+		require.NoError(t, err)
+	}
 	add := func() {
 		_ = manager.Add("test", module)
 	}
@@ -297,10 +302,12 @@ func TestManager_Parallel(t *testing.T) {
 		modules := manager.Modules()
 		require.NotNil(t, modules)
 	}
-	close1 := func() {
-		manager.Close()
+	// TODO think manager.Close()
+	cleanup := func() {
+		_ = manager.Delete(deleteTag)
 	}
-	testsuite.RunParallel(add, del, get1, get2, modules, close1)
+	testsuite.RunParallel(100, init, cleanup,
+		add, del, get1, get2, modules)
 
 	manager.Close()
 
