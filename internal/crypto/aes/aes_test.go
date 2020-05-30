@@ -173,18 +173,20 @@ func TestCBC(t *testing.T) {
 	})
 }
 
-func BenchmarkCBC_Encrypt_128(b *testing.B) {
-	key := bytes.Repeat([]byte{0}, 16)
+func BenchmarkCBC_Encrypt(b *testing.B) {
 	data := bytes.Repeat([]byte{0}, 64)
 
-	benchmarkCBCEncrypt(b, data, key)
-}
+	b.Run("128bit", func(b *testing.B) {
+		key := bytes.Repeat([]byte{0}, 16)
 
-func BenchmarkCBC_Encrypt_256(b *testing.B) {
-	key := bytes.Repeat([]byte{0}, 32)
-	data := bytes.Repeat([]byte{0}, 64)
+		benchmarkCBCEncrypt(b, data, key)
+	})
 
-	benchmarkCBCEncrypt(b, data, key)
+	b.Run("256bit", func(b *testing.B) {
+		key := bytes.Repeat([]byte{0}, 32)
+
+		benchmarkCBCEncrypt(b, data, key)
+	})
 }
 
 func benchmarkCBCEncrypt(b *testing.B, data, key []byte) {
@@ -196,28 +198,33 @@ func benchmarkCBCEncrypt(b *testing.B, data, key []byte) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = cbc.Encrypt(data)
+		_, err := cbc.Encrypt(data)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 
 	b.StopTimer()
 }
 
-func BenchmarkCBC_Decrypt_128(b *testing.B) {
-	key := bytes.Repeat([]byte{0}, 16)
+func BenchmarkCBC_Decrypt(b *testing.B) {
 	iv := bytes.Repeat([]byte{0}, IVSize)
-	cipherData, err := CBCEncrypt(bytes.Repeat([]byte{0}, 64), key, iv)
-	require.NoError(b, err)
 
-	benchmarkCBCDecrypt(b, cipherData, key, iv)
-}
+	b.Run("128bit", func(b *testing.B) {
+		key := bytes.Repeat([]byte{0}, 16)
+		cipherData, err := CBCEncrypt(bytes.Repeat([]byte{0}, 64), key, iv)
+		require.NoError(b, err)
 
-func BenchmarkCBC_Decrypt_256(b *testing.B) {
-	key := bytes.Repeat([]byte{0}, 32)
-	iv := bytes.Repeat([]byte{0}, IVSize)
-	cipherData, err := CBCEncrypt(bytes.Repeat([]byte{0}, 64), key, iv)
-	require.NoError(b, err)
+		benchmarkCBCDecrypt(b, cipherData, key, iv)
+	})
 
-	benchmarkCBCDecrypt(b, cipherData, key, iv)
+	b.Run("256bit", func(b *testing.B) {
+		key := bytes.Repeat([]byte{0}, 32)
+		cipherData, err := CBCEncrypt(bytes.Repeat([]byte{0}, 64), key, iv)
+		require.NoError(b, err)
+
+		benchmarkCBCDecrypt(b, cipherData, key, iv)
+	})
 }
 
 func benchmarkCBCDecrypt(b *testing.B, data, key, iv []byte) {
@@ -228,7 +235,10 @@ func benchmarkCBCDecrypt(b *testing.B, data, key, iv []byte) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = cbc.Decrypt(data)
+		_, err := cbc.Decrypt(data)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 
 	b.StopTimer()
