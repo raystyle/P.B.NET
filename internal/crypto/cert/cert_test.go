@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -53,130 +52,199 @@ func TestIsDomainName(t *testing.T) {
 
 func TestGeneratePrivateKey(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
-		_, _, err := generatePrivateKey("")
+		pri, pub, err := generatePrivateKey("")
 		require.NoError(t, err)
+		require.NotNil(t, pub)
+		require.NotNil(t, pri)
+	})
 
-		patch := func(io.Reader, int) (*rsa.PrivateKey, error) {
-			return nil, monkey.Error
-		}
-		pg := monkey.Patch(rsa.GenerateKey, patch)
-		defer pg.Unpatch()
-
-		_, _, err = generatePrivateKey("")
-		monkey.IsMonkeyError(t, err)
+	t.Run("ed25519", func(t *testing.T) {
+		pri, pub, err := generatePrivateKey("ed25519")
+		require.NoError(t, err)
+		require.NotNil(t, pub)
+		require.NotNil(t, pri)
 	})
 
 	t.Run("rsa", func(t *testing.T) {
-		_, _, err := generatePrivateKey("rsa|1024")
+		pri, pub, err := generatePrivateKey("rsa|2048")
 		require.NoError(t, err)
-		_, _, err = generatePrivateKey("rsa|foo")
-		require.Error(t, err)
+		require.NotNil(t, pub)
+		require.NotNil(t, pri)
+	})
 
+	t.Run("ecdsa", func(t *testing.T) {
+		pri, pub, err := generatePrivateKey("ecdsa|p256")
+		require.NoError(t, err)
+		require.NotNil(t, pub)
+		require.NotNil(t, pri)
+	})
+
+	t.Run("invalid config", func(t *testing.T) {
+		pri, pub, err := generatePrivateKey("ecdsa")
+		require.Error(t, err)
+		require.Nil(t, pub)
+		require.Nil(t, pri)
+		t.Log(err)
+	})
+
+	t.Run("unknown algorithm", func(t *testing.T) {
+		pri, pub, err := generatePrivateKey("foo|cfg")
+		require.Error(t, err)
+		require.Nil(t, pub)
+		require.Nil(t, pri)
+		t.Log(err)
+	})
+}
+
+func TestGenerateRSA(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		pri, pub, err := generateRSA("2048")
+		require.NoError(t, err)
+		require.NotNil(t, pub)
+		require.NotNil(t, pri)
+	})
+
+	t.Run("invalid bits", func(t *testing.T) {
+		pri, pub, err := generateRSA("NaN")
+		require.Error(t, err)
+		require.Nil(t, pub)
+		require.Nil(t, pri)
+		t.Log(err)
+	})
+
+	t.Run("<2048", func(t *testing.T) {
+		pri, pub, err := generateRSA("1024")
+		require.Error(t, err)
+		require.Nil(t, pub)
+		require.Nil(t, pri)
+		t.Log(err)
+	})
+
+	t.Run("failed to generate", func(t *testing.T) {
 		patch := func(io.Reader, int) (*rsa.PrivateKey, error) {
 			return nil, monkey.Error
 		}
 		pg := monkey.Patch(rsa.GenerateKey, patch)
 		defer pg.Unpatch()
 
-		_, _, err = generatePrivateKey("rsa|1024")
+		pri, pub, err := generateRSA("2048")
 		monkey.IsMonkeyError(t, err)
+		require.Nil(t, pub)
+		require.Nil(t, pri)
+	})
+}
+
+func TestGenerateECDSA(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		pri, pub, err := generateECDSA("p256")
+		require.NoError(t, err)
+		require.NotNil(t, pub)
+		require.NotNil(t, pri)
 	})
 
-	t.Run("ecdsa", func(t *testing.T) {
-		_, _, err := generatePrivateKey("ecdsa|p256")
-		require.NoError(t, err)
-		_, _, err = generatePrivateKey("ecdsa|p384")
-		require.NoError(t, err)
-		_, _, err = generatePrivateKey("ecdsa|p521")
-		require.NoError(t, err)
-		_, _, err = generatePrivateKey("ecdsa|foo")
-		require.Error(t, err)
+	for _, curve := range []string{
+		"p224", "p256", "p384", "p521",
+	} {
+		t.Run(curve, func(t *testing.T) {
+			pri, pub, err := generateECDSA(curve)
+			require.NoError(t, err)
+			require.NotNil(t, pub)
+			require.NotNil(t, pri)
+		})
+	}
 
+	t.Run("unsupported elliptic curve", func(t *testing.T) {
+		pri, pub, err := generateECDSA("foo")
+		require.Error(t, err)
+		require.Nil(t, pub)
+		require.Nil(t, pri)
+		t.Log(err)
+	})
+
+	t.Run("failed to generate", func(t *testing.T) {
 		patch := func(elliptic.Curve, io.Reader) (*ecdsa.PrivateKey, error) {
 			return nil, monkey.Error
 		}
 		pg := monkey.Patch(ecdsa.GenerateKey, patch)
 		defer pg.Unpatch()
 
-		_, _, err = generatePrivateKey("ecdsa|p256")
+		pri, pub, err := generateECDSA("p256")
 		monkey.IsMonkeyError(t, err)
+		require.Nil(t, pub)
+		require.Nil(t, pri)
+	})
+}
+
+func TestGenerateEd25519(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		pri, pub, err := generateEd25519()
+		require.NoError(t, err)
+		require.NotNil(t, pub)
+		require.NotNil(t, pri)
 	})
 
-	t.Run("ed25519", func(t *testing.T) {
-		_, _, err := generatePrivateKey("ed25519")
-		require.NoError(t, err)
-
+	t.Run("failed to generate", func(t *testing.T) {
 		patch := func(io.Reader) (ed25519.PublicKey, ed25519.PrivateKey, error) {
 			return nil, nil, monkey.Error
 		}
 		pg := monkey.Patch(ed25519.GenerateKey, patch)
 		defer pg.Unpatch()
 
-		_, _, err = generatePrivateKey("ed25519")
+		pri, pub, err := generateEd25519()
 		monkey.IsMonkeyError(t, err)
+		require.Nil(t, pub)
+		require.Nil(t, pri)
 	})
-}
-
-func TestUnknownAlgorithm(t *testing.T) {
-	pri, pub, err := generatePrivateKey("foo|alg")
-	require.EqualError(t, err, "unknown algorithm: foo|alg")
-	require.Nil(t, pri)
-	require.Nil(t, pub)
-	opts := &Options{Algorithm: "foo alg"}
-	pair, err := GenerateCA(opts)
-	require.Error(t, err)
-	require.Nil(t, pair)
-
-	opts.Algorithm = "rsa|1024"
-	pair, err = GenerateCA(opts)
-	require.NoError(t, err)
-
-	_, err = Generate(pair.Certificate, pair.PrivateKey, nil)
-	require.NoError(t, err)
-
-	opts.Algorithm = "foo|alg"
-	pair, err = Generate(pair.Certificate, pair.PrivateKey, opts)
-	require.Error(t, err)
-	require.Nil(t, pair)
 }
 
 func TestGenerateCA(t *testing.T) {
-	ca, err := GenerateCA(nil)
-	require.NoError(t, err)
-	_, err = tls.X509KeyPair(ca.EncodeToPEM())
-	require.NoError(t, err)
+	t.Run("compare", func(t *testing.T) {
+		now := time.Now()
+		notAfter := now.AddDate(0, 0, 1)
+		opts := &Options{
+			Algorithm: "rsa|2048",
+			NotBefore: now,
+			NotAfter:  notAfter,
+		}
+		opts.Subject.CommonName = "test common name"
+		opts.Subject.Organization = []string{"test organization"}
 
-	// set options
-	now := time.Now()
-	notAfter := now.AddDate(0, 0, 1)
-	opts := &Options{
-		Algorithm: "rsa|1024",
-		NotBefore: now,
-		NotAfter:  notAfter,
-	}
-	opts.Subject.CommonName = "test common name"
-	opts.Subject.Organization = []string{"test organization"}
-	ca, err = GenerateCA(opts)
-	require.NoError(t, err)
-	require.Equal(t, "test common name", ca.Certificate.Subject.CommonName)
-	require.Equal(t, []string{"test organization"}, ca.Certificate.Subject.Organization)
-	excepted := now.Format(timeLayout)
-	actual := ca.Certificate.NotBefore.Local().Format(timeLayout)
-	require.Equal(t, excepted, actual)
-	excepted = notAfter.Format(timeLayout)
-	actual = ca.Certificate.NotAfter.Local().Format(timeLayout)
-	require.Equal(t, excepted, actual)
+		ca, err := GenerateCA(opts)
+		require.NoError(t, err)
+
+		require.Equal(t, "test common name", ca.Certificate.Subject.CommonName)
+		require.Equal(t, []string{"test organization"}, ca.Certificate.Subject.Organization)
+
+		excepted := now.Format(timeLayout)
+		actual := ca.Certificate.NotBefore.Local().Format(timeLayout)
+		require.Equal(t, excepted, actual)
+
+		excepted = notAfter.Format(timeLayout)
+		actual = ca.Certificate.NotAfter.Local().Format(timeLayout)
+		require.Equal(t, excepted, actual)
+	})
 
 	t.Run("invalid domain name", func(t *testing.T) {
-		opts.DNSNames = []string{"foo-"}
-		_, err = GenerateCA(opts)
+		opts := Options{
+			DNSNames: []string{"foo-"},
+		}
+		_, err := GenerateCA(&opts)
 		require.Error(t, err)
-		opts.DNSNames = nil
 	})
 
 	t.Run("invalid IP address", func(t *testing.T) {
-		opts.IPAddresses = []string{"foo ip"}
-		_, err = GenerateCA(opts)
+		opts := Options{
+			IPAddresses: []string{"foo ip"},
+		}
+		_, err := GenerateCA(&opts)
+		require.Error(t, err)
+	})
+
+	t.Run("failed to generate private key", func(t *testing.T) {
+		opts := Options{
+			Algorithm: "foo",
+		}
+		_, err := GenerateCA(&opts)
 		require.Error(t, err)
 	})
 
@@ -193,7 +261,12 @@ func TestGenerateCA(t *testing.T) {
 }
 
 func TestGenerate(t *testing.T) {
-	for _, alg := range []string{"", "rsa|1024", "ecdsa|p224", "ed25519"} {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	for _, alg := range []string{
+		"rsa|2048", "ecdsa|p256", "ed25519",
+	} {
 		t.Run(alg, func(t *testing.T) {
 			opts := Options{Algorithm: alg}
 			ca, err := GenerateCA(&opts)
@@ -211,32 +284,23 @@ func TestGenerate(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("failed to generate private key", func(t *testing.T) {
+		opts := Options{
+			Algorithm: "foo",
+		}
+		_, err := Generate(new(x509.Certificate), "foo", &opts)
+		require.Error(t, err)
+	})
+
 	t.Run("invalid private key", func(t *testing.T) {
 		_, err := Generate(new(x509.Certificate), "foo", nil)
 		require.Error(t, err)
 	})
 }
 
-func testRunHTTPServer(t testing.TB, network string, server *http.Server) string {
-	listener, err := net.Listen(network, server.Addr)
-	require.NoError(t, err)
-	// run
-	go func() {
-		if server.TLSConfig != nil {
-			_ = server.ServeTLS(listener, "", "")
-		} else {
-			_ = server.Serve(listener)
-		}
-	}()
-	// get port
-	_, port, err := net.SplitHostPort(listener.Addr().String())
-	require.NoError(t, err)
-	return port
-}
-
 func testGenerate(t *testing.T, ca *Pair) {
 	opts := &Options{
-		Algorithm:   "rsa|1024",
+		Algorithm:   "rsa|2048",
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
@@ -267,7 +331,7 @@ func testGenerate(t *testing.T, ca *Pair) {
 		Handler:   serveMux,
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
 	}
-	port1 := testRunHTTPServer(t, "tcp", &server1)
+	port1 := testsuite.RunHTTPServer(t, "tcp", &server1)
 	defer func() { _ = server1.Close() }()
 	// IPv4-only
 	server2 := http.Server{
@@ -275,7 +339,7 @@ func testGenerate(t *testing.T, ca *Pair) {
 		Handler:   serveMux,
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
 	}
-	port2 := testRunHTTPServer(t, "tcp", &server2)
+	port2 := testsuite.RunHTTPServer(t, "tcp", &server2)
 	defer func() { _ = server2.Close() }()
 	// IPv6-only
 	server3 := http.Server{
@@ -283,7 +347,7 @@ func testGenerate(t *testing.T, ca *Pair) {
 		Handler:   serveMux,
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
 	}
-	port3 := testRunHTTPServer(t, "tcp", &server3)
+	port3 := testsuite.RunHTTPServer(t, "tcp", &server3)
 	defer func() { _ = server3.Close() }()
 
 	// client
@@ -294,10 +358,13 @@ func testGenerate(t *testing.T, ca *Pair) {
 		tlsConfig.RootCAs.AddCert(pair.Certificate)
 	}
 	client := http.Client{Transport: &http.Transport{TLSClientConfig: &tlsConfig}}
+	defer client.CloseIdleConnections()
+
 	get := func(hostname, port string) {
 		resp, err := client.Get(fmt.Sprintf("https://%s:%s/", hostname, port))
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
+
 		b, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, respData, b)
@@ -309,12 +376,33 @@ func testGenerate(t *testing.T, ca *Pair) {
 	get("[::1]", port3)
 }
 
+func TestPair_Encode(t *testing.T) {
+	defer testsuite.DeferForPanic(t)
+
+	ca, err := GenerateCA(nil)
+	require.NoError(t, err)
+
+	pair := &Pair{Certificate: ca.Certificate}
+
+	pair.Encode()
+}
+
+func TestPair_EncodeToPEM(t *testing.T) {
+	ca, err := GenerateCA(nil)
+	require.NoError(t, err)
+
+	_, err = tls.X509KeyPair(ca.EncodeToPEM())
+	require.NoError(t, err)
+}
+
 func TestPrint(t *testing.T) {
 	ca, err := GenerateCA(nil)
 	require.NoError(t, err)
+
 	org := []string{"org a", "org b"}
 	ca.Certificate.Subject.Organization = org
 	ca.Certificate.Issuer.Organization = org
+
 	t.Log("\n", Print(ca.Certificate))
 }
 

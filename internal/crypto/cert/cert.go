@@ -9,13 +9,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"math/big"
 	"net"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"project/internal/crypto/rand"
 	"project/internal/random"
@@ -171,62 +172,70 @@ func checkChar(c byte, last byte, nonNumeric *bool, partLen *int, ok *bool) {
 }
 
 func generatePrivateKey(algorithm string) (interface{}, interface{}, error) {
-	switch algorithm {
+	alg := strings.ToLower(algorithm)
+	switch alg {
 	case "":
-		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			return nil, nil, err
-		}
-		return privateKey, &privateKey.PublicKey, nil
+		return generateRSA("2048")
 	case "ed25519":
-		publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
-		if err != nil {
-			return nil, nil, err
-		}
-		return privateKey, publicKey, nil
+		return generateEd25519()
 	}
-	return generatePrivateKeyAboutRSAAndECDSA(algorithm)
-}
-
-func generatePrivateKeyAboutRSAAndECDSA(algorithm string) (interface{}, interface{}, error) {
-	configs := strings.Split(algorithm, "|")
+	configs := strings.Split(alg, "|")
 	if len(configs) != 2 {
 		return nil, nil, fmt.Errorf("invalid algorithm configs: %s", algorithm)
 	}
 	switch configs[0] {
 	case "rsa":
-		bits, err := strconv.Atoi(configs[1])
-		if err != nil {
-			return nil, nil, fmt.Errorf("invalid RSA bits: %s %s", algorithm, err)
-		}
-		privateKey, err := rsa.GenerateKey(rand.Reader, bits)
-		if err != nil {
-			return nil, nil, err
-		}
-		return privateKey, &privateKey.PublicKey, nil
+		return generateRSA(configs[1])
 	case "ecdsa":
-		var (
-			privateKey *ecdsa.PrivateKey
-			err        error
-		)
-		switch configs[1] {
-		case "p224":
-			privateKey, err = ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
-		case "p256":
-			privateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		case "p384":
-			privateKey, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
-		case "p521":
-			privateKey, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
-		default:
-			return nil, nil, fmt.Errorf("unsupported elliptic curve: %s", configs[1])
-		}
-		if err != nil {
-			return nil, nil, err
-		}
-		return privateKey, &privateKey.PublicKey, nil
+		return generateECDSA(configs[1])
 	}
-	return nil, nil, fmt.Errorf("unknown algorithm: %s", algorithm)
+	return nil, nil, fmt.Errorf("unknown algorithm: %s", configs[0])
+}
+
+func generateRSA(bits string) (interface{}, interface{}, error) {
+	n, err := strconv.Atoi(bits)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid RSA bits: %s %s", bits, err)
+	}
+	if n < 2048 {
+		return nil, nil, errors.New("bits must >= 2048")
+	}
+	privateKey, err := rsa.GenerateKey(rand.Reader, n)
+	if err != nil {
+		return nil, nil, err
+	}
+	return privateKey, &privateKey.PublicKey, nil
+}
+
+func generateECDSA(curve string) (interface{}, interface{}, error) {
+	var (
+		privateKey *ecdsa.PrivateKey
+		err        error
+	)
+	switch curve {
+	case "p224":
+		privateKey, err = ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+	case "p256":
+		privateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	case "p384":
+		privateKey, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	case "p521":
+		privateKey, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+	default:
+		return nil, nil, fmt.Errorf("unsupported elliptic curve: %s", curve)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	return privateKey, &privateKey.PublicKey, nil
+}
+
+func generateEd25519() (interface{}, interface{}, error) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
+	return privateKey, publicKey, nil
 }
 
 // Pair contains certificate and private key.
@@ -245,7 +254,10 @@ func (p *Pair) ASN1() []byte {
 // Encode is used to get certificate ASN1 data and encode private key to PKCS8.
 func (p *Pair) Encode() ([]byte, []byte) {
 	cert := p.ASN1()
-	key, _ := x509.MarshalPKCS8PrivateKey(p.PrivateKey)
+	key, err := x509.MarshalPKCS8PrivateKey(p.PrivateKey)
+	if err != nil {
+		panic(fmt.Sprintf("cert internal error: %s", err))
+	}
 	return cert, key
 }
 
