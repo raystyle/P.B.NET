@@ -86,10 +86,11 @@ func (t *Tranner) start() error {
 		return err
 	}
 	listener = netutil.LimitListener(listener, t.opts.MaxConns)
-	t.listener = listener
 	t.ctx, t.cancel = context.WithCancel(context.Background())
 	t.wg.Add(1)
 	go t.serve(listener)
+	// prevent panic before here
+	t.listener = listener
 	return nil
 }
 
@@ -116,7 +117,6 @@ func (t *Tranner) stop() {
 		const format = "failed to close listener (%s %s): %s"
 		t.logf(logger.Error, format, network, address, err)
 	}
-	t.listener = nil
 	// close all connections
 	for conn := range t.conns {
 		err = conn.Close()
@@ -125,6 +125,8 @@ func (t *Tranner) stop() {
 		}
 		delete(t.conns, conn)
 	}
+	// prevent panic before here
+	t.listener = nil
 }
 
 // Restart is used to restart tranner.

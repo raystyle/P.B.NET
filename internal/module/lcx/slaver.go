@@ -29,7 +29,7 @@ type Slaver struct {
 	logSrc  string
 	dialer  net.Dialer
 	sleeper *random.Sleeper
-	started bool
+	stopped bool
 	conns   map[*sConn]struct{}
 	rwm     sync.RWMutex
 
@@ -73,6 +73,7 @@ func NewSlaver(
 		opts:       opts,
 		logSrc:     "lcx slave-" + tag,
 		sleeper:    random.NewSleeper(),
+		stopped:    true,
 		conns:      make(map[*sConn]struct{}),
 	}, nil
 }
@@ -87,13 +88,13 @@ func (s *Slaver) Start() error {
 func (s *Slaver) start() error {
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
-	if s.started {
+	if !s.stopped {
 		return errors.New("already started lcx slave")
 	}
-	s.started = true
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.wg.Add(1)
 	go s.serve()
+	s.stopped = false
 	return nil
 }
 
@@ -108,11 +109,10 @@ func (s *Slaver) Stop() {
 func (s *Slaver) stop() {
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
-	if !s.started {
+	if s.stopped {
 		return
 	}
 	s.cancel()
-	s.started = false
 	// close all connections
 	for conn := range s.conns {
 		err := conn.Close()
@@ -121,6 +121,8 @@ func (s *Slaver) stop() {
 		}
 		delete(s.conns, conn)
 	}
+	// prevent panic before here
+	s.stopped = true
 }
 
 // Restart is used to restart slaver.
@@ -188,7 +190,7 @@ func (s *Slaver) serve() {
 			}
 			continue
 		}
-		if s.stopped() {
+		if s.isStopped() {
 			return
 		}
 		conn, err := s.connectToListener()
@@ -211,10 +213,10 @@ func (s *Slaver) full() bool {
 	return len(s.conns) >= s.opts.MaxConns
 }
 
-func (s *Slaver) stopped() bool {
+func (s *Slaver) isStopped() bool {
 	s.rwm.RLock()
 	defer s.rwm.RUnlock()
-	return !s.started
+	return s.stopped
 }
 
 func (s *Slaver) connectToListener() (net.Conn, error) {
@@ -234,7 +236,7 @@ func (s *Slaver) trackConn(conn *sConn, add bool) bool {
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
 	if add {
-		if !s.started {
+		if s.stopped {
 			return false
 		}
 		s.conns[conn] = struct{}{}

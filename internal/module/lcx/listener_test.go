@@ -382,22 +382,22 @@ func TestListener_Parallel(t *testing.T) {
 
 	listener := testGenerateListener(t)
 
-	f1 := func() {
+	start := func() {
 		_ = listener.Start()
 	}
-	f2 := func() {
+	stop := func() {
 		listener.Stop()
 	}
-	f3 := func() {
+	restart := func() {
 		_ = listener.Restart()
 	}
-	f4 := func() {
+	info := func() {
 		_ = listener.Info()
 	}
-	f5 := func() {
+	status := func() {
 		_ = listener.Status()
 	}
-	f6 := func() {
+	track := func() {
 		conn := &lConn{
 			listener: listener,
 			remote:   testsuite.NewMockConn(),
@@ -405,7 +405,8 @@ func TestListener_Parallel(t *testing.T) {
 		}
 		listener.trackConn(conn, true)
 	}
-	testsuite.RunParallel(100, f1, f2, f3, f4, f5, f6)
+	testsuite.RunParallel(100, nil, nil,
+		start, stop, restart, info, status, track)
 
 	listener.Stop()
 

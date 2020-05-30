@@ -155,7 +155,6 @@ func TestSlaver_Stop(t *testing.T) {
 
 	t.Run("close with error", func(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
-		slaver.started = true
 		slaver.ctx, slaver.cancel = context.WithCancel(context.Background())
 
 		conn := &sConn{
@@ -534,29 +533,30 @@ func TestSlaver_Parallel(t *testing.T) {
 
 	listener, slaver := testGenerateListenerAndSlaver(t)
 
-	f1 := func() {
+	start := func() {
 		_ = slaver.Start()
 	}
-	f2 := func() {
+	stop := func() {
 		slaver.Stop()
 	}
-	f3 := func() {
+	restart := func() {
 		_ = slaver.Restart()
 	}
-	f4 := func() {
+	info := func() {
 		_ = slaver.Info()
 	}
-	f5 := func() {
+	status := func() {
 		_ = slaver.Status()
 	}
-	f6 := func() {
+	track := func() {
 		conn := &sConn{
 			slaver: slaver,
 			local:  testsuite.NewMockConn(),
 		}
 		slaver.trackConn(conn, true)
 	}
-	testsuite.RunParallel(100, f1, f2, f3, f4, f5, f6)
+	testsuite.RunParallel(100, nil, nil,
+		start, stop, restart, info, status, track)
 
 	listener.Stop()
 	slaver.Stop()

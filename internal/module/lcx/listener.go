@@ -89,10 +89,11 @@ func (l *Listener) start() error {
 	}
 	iListener = netutil.LimitListener(iListener, l.opts.MaxConns)
 	lListener = netutil.LimitListener(lListener, l.opts.MaxConns)
-	l.iListener = iListener
-	l.lListener = lListener
 	l.wg.Add(1)
 	go l.serve(iListener, lListener)
+	// prevent panic before here
+	l.iListener = iListener
+	l.lListener = lListener
 	return nil
 }
 
@@ -124,8 +125,6 @@ func (l *Listener) stop() {
 		const format = "failed to close local listener (%s %s): %s"
 		l.logf(logger.Error, format, network, address, err)
 	}
-	l.iListener = nil
-	l.lListener = nil
 	// close all connections
 	for conn := range l.conns {
 		err = conn.Close()
@@ -134,6 +133,9 @@ func (l *Listener) stop() {
 		}
 		delete(l.conns, conn)
 	}
+	// prevent panic before here
+	l.iListener = nil
+	l.lListener = nil
 }
 
 // Restart is used to restart listener.
@@ -164,7 +166,9 @@ func (l *Listener) Info() string {
 		addr := l.iListener.Addr()
 		iNetwork = addr.Network()
 		iAddress = addr.String()
-		addr = l.lListener.Addr()
+	}
+	if l.lListener != nil {
+		addr := l.lListener.Addr()
 		lNetwork = addr.Network()
 		lAddress = addr.String()
 	}

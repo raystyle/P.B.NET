@@ -390,29 +390,30 @@ func TestTranner_Parallel(t *testing.T) {
 
 	tranner := testGenerateTranner(t)
 
-	f1 := func() {
+	start := func() {
 		_ = tranner.Start()
 	}
-	f2 := func() {
+	stop := func() {
 		tranner.Stop()
 	}
-	f3 := func() {
+	restart := func() {
 		_ = tranner.Restart()
 	}
-	f4 := func() {
+	info := func() {
 		_ = tranner.Info()
 	}
-	f5 := func() {
+	status := func() {
 		_ = tranner.Status()
 	}
-	f6 := func() {
+	track := func() {
 		conn := &tConn{
 			tranner: tranner,
 			local:   testsuite.NewMockConn(),
 		}
 		tranner.trackConn(conn, true)
 	}
-	testsuite.RunParallel(100, f1, f2, f3, f4, f5, f6)
+	testsuite.RunParallel(100, nil, nil,
+		start, stop, restart, info, status, track)
 
 	tranner.Stop()
 

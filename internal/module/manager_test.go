@@ -275,6 +275,8 @@ func TestManager_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	// TODO add more add delete
+
 	const deleteTag = "delete"
 
 	manager := NewManager()
