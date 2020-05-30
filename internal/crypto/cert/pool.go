@@ -3,6 +3,7 @@ package cert
 import (
 	"bytes"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"sync"
 
@@ -27,7 +28,7 @@ func (p *pair) ToPair() *Pair {
 	defer p.PrivateKey.Put(pkcs8)
 	pri, err := x509.ParsePKCS8PrivateKey(pkcs8)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("cert internal error: %s", err))
 	}
 	return &Pair{
 		Certificate: p.Certificate,
@@ -60,18 +61,18 @@ func NewPool() *Pool {
 	return new(Pool)
 }
 
-func certIsExist(certs []*x509.Certificate, cert []byte) bool {
+func certIsExist(certs []*x509.Certificate, cert *x509.Certificate) bool {
 	for i := 0; i < len(certs); i++ {
-		if bytes.Equal(certs[i].Raw, cert) {
+		if bytes.Equal(certs[i].Raw, cert.Raw) {
 			return true
 		}
 	}
 	return false
 }
 
-func pairIsExist(pairs []*pair, cert []byte) bool {
+func pairIsExist(pairs []*pair, pair *pair) bool {
 	for i := 0; i < len(pairs); i++ {
-		if bytes.Equal(pairs[i].Certificate.Raw, cert) {
+		if bytes.Equal(pairs[i].Certificate.Raw, pair.Certificate.Raw) {
 			return true
 		}
 	}
@@ -123,11 +124,6 @@ func loadCertToPair(cert []byte) (*pair, error) {
 
 // AddPublicRootCACert is used to add public root CA certificate.
 func (p *Pool) AddPublicRootCACert(cert []byte) error {
-	p.rwm.Lock()
-	defer p.rwm.Unlock()
-	if certIsExist(p.pubRootCACerts, cert) {
-		return errors.New("this public root ca certificate already exists")
-	}
 	// must copy
 	raw := make([]byte, len(cert))
 	copy(raw, cert)
@@ -135,17 +131,17 @@ func (p *Pool) AddPublicRootCACert(cert []byte) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to add public root ca certificate")
 	}
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if certIsExist(p.pubRootCACerts, certCopy) {
+		return errors.New("this public root ca certificate already exists")
+	}
 	p.pubRootCACerts = append(p.pubRootCACerts, certCopy)
 	return nil
 }
 
 // AddPublicClientCACert is used to add public client CA certificate.
 func (p *Pool) AddPublicClientCACert(cert []byte) error {
-	p.rwm.Lock()
-	defer p.rwm.Unlock()
-	if certIsExist(p.pubClientCACerts, cert) {
-		return errors.New("this public client ca certificate already exists")
-	}
 	// must copy
 	raw := make([]byte, len(cert))
 	copy(raw, cert)
@@ -153,20 +149,25 @@ func (p *Pool) AddPublicClientCACert(cert []byte) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to add public client ca certificate")
 	}
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if certIsExist(p.pubClientCACerts, certCopy) {
+		return errors.New("this public client ca certificate already exists")
+	}
 	p.pubClientCACerts = append(p.pubClientCACerts, certCopy)
 	return nil
 }
 
 // AddPublicClientPair is used to add public client certificate.
 func (p *Pool) AddPublicClientPair(cert, pri []byte) error {
-	p.rwm.Lock()
-	defer p.rwm.Unlock()
-	if pairIsExist(p.pubClientCerts, cert) {
-		return errors.New("this public client certificate already exists")
-	}
 	pair, err := loadPair(cert, pri)
 	if err != nil {
 		return errors.Wrap(err, "failed to add public client certificate")
+	}
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if pairIsExist(p.pubClientCerts, pair) {
+		return errors.New("this public client certificate already exists")
 	}
 	p.pubClientCerts = append(p.pubClientCerts, pair)
 	return nil
@@ -174,14 +175,14 @@ func (p *Pool) AddPublicClientPair(cert, pri []byte) error {
 
 // AddPrivateRootCAPair is used to add private root CA certificate with private key.
 func (p *Pool) AddPrivateRootCAPair(cert, pri []byte) error {
-	p.rwm.Lock()
-	defer p.rwm.Unlock()
-	if pairIsExist(p.priRootCACerts, cert) {
-		return errors.New("this private root ca certificate already exists")
-	}
 	pair, err := loadPair(cert, pri)
 	if err != nil {
 		return errors.Wrap(err, "failed to add private root ca certificate")
+	}
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if pairIsExist(p.priRootCACerts, pair) {
+		return errors.New("this private root ca certificate already exists")
 	}
 	p.priRootCACerts = append(p.priRootCACerts, pair)
 	return nil
@@ -189,14 +190,14 @@ func (p *Pool) AddPrivateRootCAPair(cert, pri []byte) error {
 
 // AddPrivateRootCACert is used to add private root CA certificate.
 func (p *Pool) AddPrivateRootCACert(cert []byte) error {
-	p.rwm.Lock()
-	defer p.rwm.Unlock()
-	if pairIsExist(p.priRootCACerts, cert) {
-		return errors.New("this private root ca certificate already exists")
-	}
 	pair, err := loadCertToPair(cert)
 	if err != nil {
 		return errors.Wrap(err, "failed to add private root ca certificate")
+	}
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if pairIsExist(p.priRootCACerts, pair) {
+		return errors.New("this private root ca certificate already exists")
 	}
 	p.priRootCACerts = append(p.priRootCACerts, pair)
 	return nil
@@ -204,14 +205,14 @@ func (p *Pool) AddPrivateRootCACert(cert []byte) error {
 
 // AddPrivateClientCAPair is used to add private client CA certificate with private key.
 func (p *Pool) AddPrivateClientCAPair(cert, pri []byte) error {
-	p.rwm.Lock()
-	defer p.rwm.Unlock()
-	if pairIsExist(p.priClientCACerts, cert) {
-		return errors.New("this private client ca certificate already exists")
-	}
 	pair, err := loadPair(cert, pri)
 	if err != nil {
 		return errors.Wrap(err, "failed to add private client ca certificate")
+	}
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if pairIsExist(p.priClientCACerts, pair) {
+		return errors.New("this private client ca certificate already exists")
 	}
 	p.priClientCACerts = append(p.priClientCACerts, pair)
 	return nil
@@ -219,14 +220,14 @@ func (p *Pool) AddPrivateClientCAPair(cert, pri []byte) error {
 
 // AddPrivateClientCACert is used to add private client CA certificate with private key.
 func (p *Pool) AddPrivateClientCACert(cert []byte) error {
-	p.rwm.Lock()
-	defer p.rwm.Unlock()
-	if pairIsExist(p.priClientCACerts, cert) {
-		return errors.New("this private client ca certificate already exists")
-	}
 	pair, err := loadCertToPair(cert)
 	if err != nil {
 		return errors.Wrap(err, "failed to add private client ca certificate")
+	}
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if pairIsExist(p.priClientCACerts, pair) {
+		return errors.New("this private client ca certificate already exists")
 	}
 	p.priClientCACerts = append(p.priClientCACerts, pair)
 	return nil
@@ -234,14 +235,14 @@ func (p *Pool) AddPrivateClientCACert(cert []byte) error {
 
 // AddPrivateClientPair is used to add private client certificate.
 func (p *Pool) AddPrivateClientPair(cert, pri []byte) error {
-	p.rwm.Lock()
-	defer p.rwm.Unlock()
-	if pairIsExist(p.priClientCerts, cert) {
-		return errors.New("this private client certificate already exists")
-	}
 	pair, err := loadPair(cert, pri)
 	if err != nil {
 		return errors.Wrap(err, "failed to add private client certificate")
+	}
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if pairIsExist(p.priClientCerts, pair) {
+		return errors.New("this private client certificate already exists")
 	}
 	p.priClientCerts = append(p.priClientCerts, pair)
 	return nil
@@ -401,6 +402,78 @@ func (p *Pool) GetPrivateClientPairs() []*Pair {
 		pairs[i] = p.priClientCerts[i].ToPair()
 	}
 	return pairs
+}
+
+// ExportPublicRootCACert is used to export public root CA certificate.
+func (p *Pool) ExportPublicRootCACert(i int) ([]byte, error) {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if i < 0 || i > len(p.pubRootCACerts)-1 {
+		return nil, errors.Errorf("invalid id: %d", i)
+	}
+	certBlock := &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: p.pubRootCACerts[i].Raw,
+	}
+	return pem.EncodeToMemory(certBlock), nil
+}
+
+// ExportPublicClientCACert is used to export public client CA certificate.
+func (p *Pool) ExportPublicClientCACert(i int) ([]byte, error) {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if i < 0 || i > len(p.pubClientCACerts)-1 {
+		return nil, errors.Errorf("invalid id: %d", i)
+	}
+	certBlock := &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: p.pubClientCACerts[i].Raw,
+	}
+	return pem.EncodeToMemory(certBlock), nil
+}
+
+// ExportPublicClientPair is used to export public client CA certificate.
+func (p *Pool) ExportPublicClientPair(i int) ([]byte, []byte, error) {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if i < 0 || i > len(p.pubClientCerts)-1 {
+		return nil, nil, errors.Errorf("invalid id: %d", i)
+	}
+	cert, key := p.pubClientCerts[i].ToPair().EncodeToPEM()
+	return cert, key, nil
+}
+
+// ExportPrivateRootCAPair is used to export private root CA certificate.
+func (p *Pool) ExportPrivateRootCAPair(i int) ([]byte, []byte, error) {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if i < 0 || i > len(p.pubClientCerts)-1 {
+		return nil, nil, errors.Errorf("invalid id: %d", i)
+	}
+	cert, key := p.pubClientCerts[i].ToPair().EncodeToPEM()
+	return cert, key, nil
+}
+
+// ExportPrivateClientCAPair is used to export private client CA certificate.
+func (p *Pool) ExportPrivateClientCAPair(i int) ([]byte, []byte, error) {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if i < 0 || i > len(p.pubClientCerts)-1 {
+		return nil, nil, errors.Errorf("invalid id: %d", i)
+	}
+	cert, key := p.pubClientCerts[i].ToPair().EncodeToPEM()
+	return cert, key, nil
+}
+
+// ExportPrivateClientPair is used to export private client certificate.
+func (p *Pool) ExportPrivateClientPair(i int) ([]byte, []byte, error) {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if i < 0 || i > len(p.pubClientCerts)-1 {
+		return nil, nil, errors.Errorf("invalid id: %d", i)
+	}
+	cert, key := p.pubClientCerts[i].ToPair().EncodeToPEM()
+	return cert, key, nil
 }
 
 // NewPoolWithSystemCerts is used to create a certificate pool with system certificate.
