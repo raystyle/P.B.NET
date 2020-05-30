@@ -398,6 +398,20 @@ func TestPool_DeletePublicRootCACert(t *testing.T) {
 
 		testsuite.IsDestroyed(t, pool)
 	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		pool := NewPool()
+
+		for _, id := range []int{
+			-1, 0, 1,
+		} {
+			err := pool.DeletePublicRootCACert(id)
+			require.Error(t, err)
+			t.Log(err)
+		}
+
+		testsuite.IsDestroyed(t, pool)
+	})
 }
 
 func TestPool_DeletePublicClientCACert(t *testing.T) {
@@ -424,6 +438,20 @@ func TestPool_DeletePublicClientCACert(t *testing.T) {
 		err = pool.DeletePublicClientCACert(0)
 		require.Error(t, err)
 		t.Log(err)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		pool := NewPool()
+
+		for _, id := range []int{
+			-1, 0, 1,
+		} {
+			err := pool.DeletePublicClientCACert(id)
+			require.Error(t, err)
+			t.Log(err)
+		}
 
 		testsuite.IsDestroyed(t, pool)
 	})
@@ -456,6 +484,20 @@ func TestPool_DeletePublicClientCert(t *testing.T) {
 
 		testsuite.IsDestroyed(t, pool)
 	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		pool := NewPool()
+
+		for _, id := range []int{
+			-1, 0, 1,
+		} {
+			err := pool.DeletePublicClientCert(id)
+			require.Error(t, err)
+			t.Log(err)
+		}
+
+		testsuite.IsDestroyed(t, pool)
+	})
 }
 
 func TestPool_DeletePrivateRootCACert(t *testing.T) {
@@ -482,6 +524,20 @@ func TestPool_DeletePrivateRootCACert(t *testing.T) {
 		err = pool.DeletePrivateRootCACert(0)
 		require.Error(t, err)
 		t.Log(err)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		pool := NewPool()
+
+		for _, id := range []int{
+			-1, 0, 1,
+		} {
+			err := pool.DeletePrivateRootCACert(id)
+			require.Error(t, err)
+			t.Log(err)
+		}
 
 		testsuite.IsDestroyed(t, pool)
 	})
@@ -514,6 +570,20 @@ func TestPool_DeletePrivateClientCACert(t *testing.T) {
 
 		testsuite.IsDestroyed(t, pool)
 	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		pool := NewPool()
+
+		for _, id := range []int{
+			-1, 0, 1,
+		} {
+			err := pool.DeletePrivateClientCACert(id)
+			require.Error(t, err)
+			t.Log(err)
+		}
+
+		testsuite.IsDestroyed(t, pool)
+	})
 }
 
 func TestPool_DeletePrivateClientPair(t *testing.T) {
@@ -540,6 +610,20 @@ func TestPool_DeletePrivateClientPair(t *testing.T) {
 		err = pool.DeletePrivateClientCert(0)
 		require.Error(t, err)
 		t.Log(err)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		pool := NewPool()
+
+		for _, id := range []int{
+			-1, 0, 1,
+		} {
+			err := pool.DeletePrivateClientCert(id)
+			require.Error(t, err)
+			t.Log(err)
+		}
 
 		testsuite.IsDestroyed(t, pool)
 	})
@@ -642,27 +726,203 @@ func TestPool_GetPrivateClientPair(t *testing.T) {
 }
 
 func TestPool_ExportPublicRootCACert(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		pair := testGeneratePair(t)
+		pool := NewPool()
+		err := pool.AddPublicRootCACert(pair.Certificate.Raw)
+		require.NoError(t, err)
 
+		cert, err := pool.ExportPublicRootCACert(0)
+		require.NoError(t, err)
+
+		c, _ := pair.EncodeToPEM()
+		require.Equal(t, c, cert)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		pool := NewPool()
+
+		for _, id := range []int{
+			-1, 0, 1,
+		} {
+			cert, err := pool.ExportPublicRootCACert(id)
+			require.Error(t, err)
+			require.Nil(t, cert)
+			t.Log(err)
+		}
+
+		testsuite.IsDestroyed(t, pool)
+	})
 }
 
 func TestPool_ExportPublicClientCACert(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		pair := testGeneratePair(t)
+		pool := NewPool()
+		err := pool.AddPublicClientCACert(pair.Certificate.Raw)
+		require.NoError(t, err)
 
+		cert, err := pool.ExportPublicClientCACert(0)
+		require.NoError(t, err)
+
+		c, _ := pair.EncodeToPEM()
+		require.Equal(t, c, cert)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		pool := NewPool()
+
+		for _, id := range []int{
+			-1, 0, 1,
+		} {
+			cert, err := pool.ExportPublicClientCACert(id)
+			require.Error(t, err)
+			require.Nil(t, cert)
+			t.Log(err)
+		}
+
+		testsuite.IsDestroyed(t, pool)
+	})
 }
 
 func TestPool_ExportPublicClientCert(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		pair := testGeneratePair(t)
+		pool := NewPool()
+		err := pool.AddPublicClientPair(pair.Encode())
+		require.NoError(t, err)
 
+		cert, key, err := pool.ExportPublicClientPair(0)
+		require.NoError(t, err)
+
+		c, k := pair.EncodeToPEM()
+		require.Equal(t, c, cert)
+		require.Equal(t, k, key)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		pool := NewPool()
+
+		for _, id := range []int{
+			-1, 0, 1,
+		} {
+			cert, key, err := pool.ExportPublicClientPair(id)
+			require.Error(t, err)
+			require.Nil(t, cert)
+			require.Nil(t, key)
+			t.Log(err)
+		}
+
+		testsuite.IsDestroyed(t, pool)
+	})
 }
 
 func TestPool_ExportPrivateRootCACert(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		pair := testGeneratePair(t)
+		pool := NewPool()
+		err := pool.AddPrivateRootCAPair(pair.Encode())
+		require.NoError(t, err)
 
+		cert, key, err := pool.ExportPrivateRootCAPair(0)
+		require.NoError(t, err)
+
+		c, k := pair.EncodeToPEM()
+		require.Equal(t, c, cert)
+		require.Equal(t, k, key)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		pool := NewPool()
+
+		for _, id := range []int{
+			-1, 0, 1,
+		} {
+			cert, key, err := pool.ExportPrivateRootCAPair(id)
+			require.Error(t, err)
+			require.Nil(t, cert)
+			require.Nil(t, key)
+			t.Log(err)
+		}
+
+		testsuite.IsDestroyed(t, pool)
+	})
 }
 
 func TestPool_ExportPrivateClientCACert(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		pair := testGeneratePair(t)
+		pool := NewPool()
+		err := pool.AddPrivateClientCAPair(pair.Encode())
+		require.NoError(t, err)
 
+		cert, key, err := pool.ExportPrivateClientCAPair(0)
+		require.NoError(t, err)
+
+		c, k := pair.EncodeToPEM()
+		require.Equal(t, c, cert)
+		require.Equal(t, k, key)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		pool := NewPool()
+
+		for _, id := range []int{
+			-1, 0, 1,
+		} {
+			cert, key, err := pool.ExportPrivateClientCAPair(id)
+			require.Error(t, err)
+			require.Nil(t, cert)
+			require.Nil(t, key)
+			t.Log(err)
+		}
+
+		testsuite.IsDestroyed(t, pool)
+	})
 }
 
 func TestPool_ExportPrivateClientPair(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		pair := testGeneratePair(t)
+		pool := NewPool()
+		err := pool.AddPrivateClientPair(pair.Encode())
+		require.NoError(t, err)
 
+		cert, key, err := pool.ExportPrivateClientPair(0)
+		require.NoError(t, err)
+
+		c, k := pair.EncodeToPEM()
+		require.Equal(t, c, cert)
+		require.Equal(t, k, key)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("invalid id", func(t *testing.T) {
+		pool := NewPool()
+
+		for _, id := range []int{
+			-1, 0, 1,
+		} {
+			cert, key, err := pool.ExportPrivateClientPair(id)
+			require.Error(t, err)
+			require.Nil(t, cert)
+			require.Nil(t, key)
+			t.Log(err)
+		}
+
+		testsuite.IsDestroyed(t, pool)
+	})
 }
 
 func TestPool_PublicClientCACert(t *testing.T) {
