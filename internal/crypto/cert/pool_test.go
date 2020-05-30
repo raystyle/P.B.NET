@@ -26,17 +26,28 @@ func testGenerateCert(t *testing.T) *Pair {
 	return pair
 }
 
-func TestLoadCertWithPrivateKey(t *testing.T) {
-	t.Run("no private key", func(t *testing.T) {
+func TestLoadPair(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
 		pair := testGenerateCert(t)
-		cert, _ := pair.Encode()
 
-		_, err := loadCertWithPrivateKey(cert, nil)
+		p, err := loadPair(pair.Encode())
 		require.NoError(t, err)
+		require.NotNil(t, p)
+	})
+
+	t.Run("no certificate", func(t *testing.T) {
+		_, err := loadPair(nil, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("no private key", func(t *testing.T) {
+		_, err := loadPair(make([]byte, 1024), nil)
+		require.Error(t, err)
 	})
 
 	t.Run("invalid certificate", func(t *testing.T) {
-		_, err := loadCertWithPrivateKey(make([]byte, 1024), nil)
+		padding := make([]byte, 1024)
+		_, err := loadPair(padding, padding)
 		require.Error(t, err)
 	})
 
@@ -44,7 +55,7 @@ func TestLoadCertWithPrivateKey(t *testing.T) {
 		pair := testGenerateCert(t)
 		cert, _ := pair.Encode()
 
-		_, err := loadCertWithPrivateKey(cert, make([]byte, 1024))
+		_, err := loadPair(cert, make([]byte, 1024))
 		require.Error(t, err)
 	})
 
@@ -55,13 +66,14 @@ func TestLoadCertWithPrivateKey(t *testing.T) {
 		pair2 := testGenerateCert(t)
 		_, key := pair2.Encode()
 
-		_, err := loadCertWithPrivateKey(cert, key)
+		_, err := loadPair(cert, key)
 		require.Error(t, err)
 	})
 
-	t.Run("MarshalPKCS8PrivateKey", func(t *testing.T) {
+	t.Run("failed to marshal PKCS8 private key", func(t *testing.T) {
+		// must before patch
 		pair := testGenerateCert(t)
-		cert, key := pair.Encode() // must before patch
+		cert, key := pair.Encode()
 
 		patch := func(interface{}) ([]byte, error) {
 			return nil, monkey.Error
@@ -69,8 +81,29 @@ func TestLoadCertWithPrivateKey(t *testing.T) {
 		pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patch)
 		defer pg.Unpatch()
 
-		_, err := loadCertWithPrivateKey(cert, key)
+		_, err := loadPair(cert, key)
 		monkey.IsMonkeyError(t, err)
+	})
+}
+
+func TestLoadCertToPair(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		pair := testGenerateCert(t)
+
+		p, err := loadCertToPair(pair.ASN1())
+		require.NoError(t, err)
+		require.NotNil(t, p)
+		require.Nil(t, p.PrivateKey)
+	})
+
+	t.Run("no certificate", func(t *testing.T) {
+		_, err := loadCertToPair(nil)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid certificate", func(t *testing.T) {
+		_, err := loadCertToPair(make([]byte, 1024))
+		require.Error(t, err)
 	})
 }
 
@@ -258,15 +291,15 @@ func TestPool_PublicClientCert(t *testing.T) {
 
 	t.Run("add", func(t *testing.T) {
 		cert, key := pair.Encode()
-		err := pool.AddPublicClientCert(cert, key)
+		err := pool.AddPublicClientPair(cert, key)
 		require.NoError(t, err)
-		err = pool.AddPublicClientCert(cert, key)
+		err = pool.AddPublicClientPair(cert, key)
 		require.Error(t, err)
-		err = pool.AddPublicClientCert(cert, nil)
+		err = pool.AddPublicClientPair(cert, nil)
 		require.Error(t, err)
 
 		// loadCertWithPrivateKey
-		err = pool.AddPublicClientCert(nil, nil)
+		err = pool.AddPublicClientPair(nil, nil)
 		require.Error(t, err)
 	})
 
@@ -294,11 +327,11 @@ func TestPool_PublicClientCert(t *testing.T) {
 			pool = NewPool()
 		}
 		add1 := func() {
-			err := pool.AddPublicClientCert(pair1.Encode())
+			err := pool.AddPublicClientPair(pair1.Encode())
 			require.NoError(t, err)
 		}
 		add2 := func() {
-			err := pool.AddPublicClientCert(pair2.Encode())
+			err := pool.AddPublicClientPair(pair2.Encode())
 			require.NoError(t, err)
 		}
 		get := func() {
@@ -320,9 +353,9 @@ func TestPool_PublicClientCert(t *testing.T) {
 		init := func() {
 			pool = NewPool()
 
-			err := pool.AddPublicClientCert(pair1.Encode())
+			err := pool.AddPublicClientPair(pair1.Encode())
 			require.NoError(t, err)
-			err = pool.AddPublicClientCert(pair2.Encode())
+			err = pool.AddPublicClientPair(pair2.Encode())
 			require.NoError(t, err)
 		}
 		del := func() {
@@ -350,15 +383,15 @@ func TestPool_PrivateRootCACert(t *testing.T) {
 
 	t.Run("add", func(t *testing.T) {
 		cert, key := pair.Encode()
-		err := pool.AddPrivateRootCACert(cert, key)
+		err := pool.AddPrivateRootCAPair(cert, key)
 		require.NoError(t, err)
-		err = pool.AddPrivateRootCACert(cert, key)
+		err = pool.AddPrivateRootCAPair(cert, key)
 		require.Error(t, err)
-		err = pool.AddPrivateRootCACert(cert, []byte{})
+		err = pool.AddPrivateRootCAPair(cert, []byte{})
 		require.Error(t, err)
 
 		// loadCertWithPrivateKey
-		err = pool.AddPrivateRootCACert(nil, nil)
+		err = pool.AddPrivateRootCAPair(nil, nil)
 		require.Error(t, err)
 	})
 
@@ -391,11 +424,11 @@ func TestPool_PrivateRootCACert(t *testing.T) {
 			pool = NewPool()
 		}
 		add1 := func() {
-			err := pool.AddPrivateRootCACert(pair1.Encode())
+			err := pool.AddPrivateRootCAPair(pair1.Encode())
 			require.NoError(t, err)
 		}
 		add2 := func() {
-			err := pool.AddPrivateRootCACert(pair2.Encode())
+			err := pool.AddPrivateRootCAPair(pair2.Encode())
 			require.NoError(t, err)
 		}
 		get1 := func() {
@@ -420,9 +453,9 @@ func TestPool_PrivateRootCACert(t *testing.T) {
 		init := func() {
 			pool = NewPool()
 
-			err := pool.AddPrivateRootCACert(pair1.Encode())
+			err := pool.AddPrivateRootCAPair(pair1.Encode())
 			require.NoError(t, err)
-			err = pool.AddPrivateRootCACert(pair2.Encode())
+			err = pool.AddPrivateRootCAPair(pair2.Encode())
 			require.NoError(t, err)
 		}
 		del := func() {
@@ -453,15 +486,15 @@ func TestPool_PrivateClientCACert(t *testing.T) {
 
 	t.Run("add", func(t *testing.T) {
 		cert, key := pair.Encode()
-		err := pool.AddPrivateClientCACert(cert, key)
+		err := pool.AddPrivateClientCAPair(cert, key)
 		require.NoError(t, err)
-		err = pool.AddPrivateClientCACert(cert, key)
+		err = pool.AddPrivateClientCAPair(cert, key)
 		require.Error(t, err)
-		err = pool.AddPrivateClientCACert(cert, []byte{})
+		err = pool.AddPrivateClientCAPair(cert, []byte{})
 		require.Error(t, err)
 
 		// loadCertWithPrivateKey
-		err = pool.AddPrivateClientCACert(nil, nil)
+		err = pool.AddPrivateClientCAPair(nil, nil)
 		require.Error(t, err)
 	})
 
@@ -494,11 +527,11 @@ func TestPool_PrivateClientCACert(t *testing.T) {
 			pool = NewPool()
 		}
 		add1 := func() {
-			err := pool.AddPrivateClientCACert(pair1.Encode())
+			err := pool.AddPrivateClientCAPair(pair1.Encode())
 			require.NoError(t, err)
 		}
 		add2 := func() {
-			err := pool.AddPrivateClientCACert(pair2.Encode())
+			err := pool.AddPrivateClientCAPair(pair2.Encode())
 			require.NoError(t, err)
 		}
 		get1 := func() {
@@ -523,9 +556,9 @@ func TestPool_PrivateClientCACert(t *testing.T) {
 		init := func() {
 			pool = NewPool()
 
-			err := pool.AddPrivateClientCACert(pair1.Encode())
+			err := pool.AddPrivateClientCAPair(pair1.Encode())
 			require.NoError(t, err)
-			err = pool.AddPrivateClientCACert(pair2.Encode())
+			err = pool.AddPrivateClientCAPair(pair2.Encode())
 			require.NoError(t, err)
 		}
 		del := func() {
@@ -556,15 +589,15 @@ func TestPool_PrivateClientCert(t *testing.T) {
 
 	t.Run("add", func(t *testing.T) {
 		cert, key := pair.Encode()
-		err := pool.AddPrivateClientCert(cert, key)
+		err := pool.AddPrivateClientPair(cert, key)
 		require.NoError(t, err)
-		err = pool.AddPrivateClientCert(cert, key)
+		err = pool.AddPrivateClientPair(cert, key)
 		require.Error(t, err)
-		err = pool.AddPrivateClientCert(cert, []byte{})
+		err = pool.AddPrivateClientPair(cert, []byte{})
 		require.Error(t, err)
 
 		// loadCertWithPrivateKey
-		err = pool.AddPrivateClientCert(nil, nil)
+		err = pool.AddPrivateClientPair(nil, nil)
 		require.Error(t, err)
 	})
 
@@ -592,11 +625,11 @@ func TestPool_PrivateClientCert(t *testing.T) {
 			pool = NewPool()
 		}
 		add1 := func() {
-			err := pool.AddPrivateClientCert(pair1.Encode())
+			err := pool.AddPrivateClientPair(pair1.Encode())
 			require.NoError(t, err)
 		}
 		add2 := func() {
-			err := pool.AddPrivateClientCert(pair2.Encode())
+			err := pool.AddPrivateClientPair(pair2.Encode())
 			require.NoError(t, err)
 		}
 		get := func() {
@@ -618,9 +651,9 @@ func TestPool_PrivateClientCert(t *testing.T) {
 		init := func() {
 			pool = NewPool()
 
-			err := pool.AddPrivateClientCert(pair1.Encode())
+			err := pool.AddPrivateClientPair(pair1.Encode())
 			require.NoError(t, err)
-			err = pool.AddPrivateClientCert(pair2.Encode())
+			err = pool.AddPrivateClientPair(pair2.Encode())
 			require.NoError(t, err)
 		}
 		del := func() {
@@ -653,14 +686,14 @@ func TestPool_Parallel(t *testing.T) {
 		func() { _ = pool.AddPublicRootCACert(pair2.Certificate.Raw) },
 		func() { _ = pool.AddPublicClientCACert(pair1.Certificate.Raw) },
 		func() { _ = pool.AddPublicClientCACert(pair2.Certificate.Raw) },
-		func() { _ = pool.AddPublicClientCert(pair1.Encode()) },
-		func() { _ = pool.AddPublicClientCert(pair2.Encode()) },
-		func() { _ = pool.AddPrivateRootCACert(pair1.Encode()) },
-		func() { _ = pool.AddPrivateRootCACert(pair2.Encode()) },
-		func() { _ = pool.AddPrivateClientCACert(pair1.Encode()) },
-		func() { _ = pool.AddPrivateClientCACert(pair2.Encode()) },
-		func() { _ = pool.AddPrivateClientCert(pair1.Encode()) },
-		func() { _ = pool.AddPrivateClientCert(pair2.Encode()) },
+		func() { _ = pool.AddPublicClientPair(pair1.Encode()) },
+		func() { _ = pool.AddPublicClientPair(pair2.Encode()) },
+		func() { _ = pool.AddPrivateRootCAPair(pair1.Encode()) },
+		func() { _ = pool.AddPrivateRootCAPair(pair2.Encode()) },
+		func() { _ = pool.AddPrivateClientCAPair(pair1.Encode()) },
+		func() { _ = pool.AddPrivateClientCAPair(pair2.Encode()) },
+		func() { _ = pool.AddPrivateClientPair(pair1.Encode()) },
+		func() { _ = pool.AddPrivateClientPair(pair2.Encode()) },
 
 		// delete
 		func() { _ = pool.DeletePublicRootCACert(0) },
