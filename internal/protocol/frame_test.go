@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -115,24 +116,14 @@ func TestHandleTooBigFrame(t *testing.T) {
 	)
 }
 
-func BenchmarkHandleConn_128B(b *testing.B) {
-	benchmarkHandleConn(b, 128)
-}
-
-func BenchmarkHandleConn_2KB(b *testing.B) {
-	benchmarkHandleConn(b, 2048)
-}
-
-func BenchmarkHandleConn_4KB(b *testing.B) {
-	benchmarkHandleConn(b, 4096)
-}
-
-func BenchmarkHandleConn_32KB(b *testing.B) {
-	benchmarkHandleConn(b, 32768)
-}
-
-func BenchmarkHandleConn_1MB(b *testing.B) {
-	benchmarkHandleConn(b, 1048576)
+func BenchmarkHandleConn(b *testing.B) {
+	for _, size := range []int{
+		128, 2048, 4096, 32768, 1048576,
+	} {
+		b.Run(fmt.Sprint(size), func(b *testing.B) {
+			benchmarkHandleConn(b, size)
+		})
+	}
 }
 
 func benchmarkHandleConn(b *testing.B, size int) {
@@ -150,7 +141,7 @@ func benchmarkHandleConn(b *testing.B, size int) {
 		count := 0
 		HandleConn(server, func(frame []byte) {
 			if !bytes.Equal(frame, frameData) {
-				b.FailNow()
+				b.Fatal("different frame data:", frame, frameData)
 			}
 			count++
 		})
@@ -169,7 +160,7 @@ func benchmarkHandleConn(b *testing.B, size int) {
 	for i := 0; i < b.N; i++ {
 		_, err := client.Write(frame)
 		if err != nil {
-			b.FailNow()
+			b.Fatal(err)
 		}
 	}
 
@@ -181,24 +172,14 @@ func benchmarkHandleConn(b *testing.B, size int) {
 	wg.Wait()
 }
 
-func BenchmarkHandleConnParallel_128B(b *testing.B) {
-	benchmarkHandleConnParallel(b, 128)
-}
-
-func BenchmarkHandleConnParallel_2KB(b *testing.B) {
-	benchmarkHandleConnParallel(b, 2048)
-}
-
-func BenchmarkHandleConnParallel_4KB(b *testing.B) {
-	benchmarkHandleConnParallel(b, 4096)
-}
-
-func BenchmarkHandleConnParallel_32KB(b *testing.B) {
-	benchmarkHandleConnParallel(b, 32768)
-}
-
-func BenchmarkHandleConnParallel_1MB(b *testing.B) {
-	benchmarkHandleConnParallel(b, 1048576)
+func BenchmarkHandleConnParallel(b *testing.B) {
+	for _, size := range []int{
+		128, 2048, 4096, 32768, 1048576,
+	} {
+		b.Run(fmt.Sprint(size), func(b *testing.B) {
+			benchmarkHandleConnParallel(b, size)
+		})
+	}
 }
 
 func benchmarkHandleConnParallel(b *testing.B, size int) {
@@ -217,7 +198,7 @@ func benchmarkHandleConnParallel(b *testing.B, size int) {
 
 		HandleConn(server, func(frame []byte) {
 			if !bytes.Equal(frame, frameData) {
-				b.FailNow()
+				b.Fatal("different frame data:", frame, frameData)
 			}
 		})
 
@@ -232,7 +213,7 @@ func benchmarkHandleConnParallel(b *testing.B, size int) {
 		for pb.Next() {
 			_, err := client.Write(frame)
 			if err != nil {
-				b.FailNow()
+				b.Fatal(err)
 			}
 		}
 	})
