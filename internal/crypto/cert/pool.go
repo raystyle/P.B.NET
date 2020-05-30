@@ -13,9 +13,6 @@ import (
 	"project/internal/security"
 )
 
-// ErrMismatchedKey is the error about the key.
-var ErrMismatchedKey = fmt.Errorf("private key does not match public key in certificate")
-
 // pair is used to protect private key about certificate.
 type pair struct {
 	Certificate *x509.Certificate
@@ -81,10 +78,10 @@ func pairIsExist(pairs []*pair, pair *pair) bool {
 
 func loadPair(cert, pri []byte) (*pair, error) {
 	if len(cert) == 0 {
-		return nil, errors.New("no certificate")
+		return nil, errors.New("empty certificate data")
 	}
 	if len(pri) == 0 {
-		return nil, errors.New("no private key")
+		return nil, errors.New("empty private key data")
 	}
 	raw := make([]byte, len(cert))
 	copy(raw, cert)
@@ -97,7 +94,7 @@ func loadPair(cert, pri []byte) (*pair, error) {
 		return nil, err
 	}
 	if !Match(certCp, privateKey) {
-		return nil, ErrMismatchedKey
+		return nil, errors.New("private key in certificate is mismatched")
 	}
 	priBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
@@ -111,7 +108,7 @@ func loadPair(cert, pri []byte) (*pair, error) {
 
 func loadCertToPair(cert []byte) (*pair, error) {
 	if len(cert) == 0 {
-		return nil, errors.New("no certificate")
+		return nil, errors.New("empty certificate data")
 	}
 	raw := make([]byte, len(cert))
 	copy(raw, cert)
@@ -447,10 +444,10 @@ func (p *Pool) ExportPublicClientPair(i int) ([]byte, []byte, error) {
 func (p *Pool) ExportPrivateRootCAPair(i int) ([]byte, []byte, error) {
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
-	if i < 0 || i > len(p.pubClientCerts)-1 {
+	if i < 0 || i > len(p.priRootCACerts)-1 {
 		return nil, nil, errors.Errorf("invalid id: %d", i)
 	}
-	cert, key := p.pubClientCerts[i].ToPair().EncodeToPEM()
+	cert, key := p.priRootCACerts[i].ToPair().EncodeToPEM()
 	return cert, key, nil
 }
 
@@ -458,10 +455,10 @@ func (p *Pool) ExportPrivateRootCAPair(i int) ([]byte, []byte, error) {
 func (p *Pool) ExportPrivateClientCAPair(i int) ([]byte, []byte, error) {
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
-	if i < 0 || i > len(p.pubClientCerts)-1 {
+	if i < 0 || i > len(p.priClientCACerts)-1 {
 		return nil, nil, errors.Errorf("invalid id: %d", i)
 	}
-	cert, key := p.pubClientCerts[i].ToPair().EncodeToPEM()
+	cert, key := p.priClientCACerts[i].ToPair().EncodeToPEM()
 	return cert, key, nil
 }
 
@@ -469,10 +466,10 @@ func (p *Pool) ExportPrivateClientCAPair(i int) ([]byte, []byte, error) {
 func (p *Pool) ExportPrivateClientPair(i int) ([]byte, []byte, error) {
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
-	if i < 0 || i > len(p.pubClientCerts)-1 {
+	if i < 0 || i > len(p.priClientCerts)-1 {
 		return nil, nil, errors.Errorf("invalid id: %d", i)
 	}
-	cert, key := p.pubClientCerts[i].ToPair().EncodeToPEM()
+	cert, key := p.priClientCerts[i].ToPair().EncodeToPEM()
 	return cert, key, nil
 }
 
