@@ -197,8 +197,8 @@ func generateRSA(bits string) (interface{}, interface{}, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid RSA bits: %s %s", bits, err)
 	}
-	if n < 2048 {
-		return nil, nil, errors.New("bits must >= 2048")
+	if n < 1024 {
+		return nil, nil, errors.New("RSA bits must >= 1024")
 	}
 	privateKey, err := rsa.GenerateKey(rand.Reader, n)
 	if err != nil {

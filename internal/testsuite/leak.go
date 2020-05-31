@@ -27,6 +27,8 @@ type GoroutineMark struct {
 }
 
 // MarkGoroutines is used to mark the number of the goroutines.
+// It must add it in to the top Test, can't use is into the sub test
+// that use t.Run().
 func MarkGoroutines(t testing.TB) *GoroutineMark {
 	// save current goroutine stack record
 	num := runtime.NumGoroutine()

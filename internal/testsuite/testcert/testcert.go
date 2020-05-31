@@ -68,9 +68,9 @@ func addPublicClientCACerts(t *testing.T, pool *cert.Pool) {
 
 		err = pool.AddPublicClientCACert(caPair.Certificate.Raw)
 		require.NoError(t, err)
-		err = pool.AddPublicClientCert(cPair1.Encode())
+		err = pool.AddPublicClientPair(cPair1.Encode())
 		require.NoError(t, err)
-		err = pool.AddPublicClientCert(cPair2.Encode())
+		err = pool.AddPublicClientPair(cPair2.Encode())
 		require.NoError(t, err)
 	}
 }
@@ -79,7 +79,7 @@ func addPrivateRootCACerts(t *testing.T, pool *cert.Pool) {
 	for i := 0; i < PrivateRootCANum; i++ {
 		caPair, err := cert.GenerateCA(opts)
 		require.NoError(t, err)
-		err = pool.AddPrivateRootCACert(caPair.Encode())
+		err = pool.AddPrivateRootCAPair(caPair.Encode())
 		require.NoError(t, err)
 	}
 }
@@ -87,7 +87,7 @@ func addPrivateRootCACerts(t *testing.T, pool *cert.Pool) {
 func addPrivateClientCACerts(t *testing.T, pool *cert.Pool) {
 	caPair, err := cert.GenerateCA(opts)
 	require.NoError(t, err)
-	err = pool.AddPrivateClientCACert(caPair.Encode())
+	err = pool.AddPrivateClientCAPair(caPair.Encode())
 	require.NoError(t, err)
 
 	for i := 0; i < PrivateClientCertNum; i++ {
@@ -96,9 +96,9 @@ func addPrivateClientCACerts(t *testing.T, pool *cert.Pool) {
 		cPair, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, opts)
 		require.NoError(t, err)
 
-		err = pool.AddPrivateClientCACert(caPair.Encode())
+		err = pool.AddPrivateClientCAPair(caPair.Encode())
 		require.NoError(t, err)
-		err = pool.AddPrivateClientCert(cPair.Encode())
+		err = pool.AddPrivateClientPair(cPair.Encode())
 		require.NoError(t, err)
 	}
 }

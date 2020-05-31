@@ -112,8 +112,8 @@ func TestGenerateRSA(t *testing.T) {
 		t.Log(err)
 	})
 
-	t.Run("<2048", func(t *testing.T) {
-		pri, pub, err := generateRSA("1024")
+	t.Run("<1024", func(t *testing.T) {
+		pri, pub, err := generateRSA("512")
 		require.Error(t, err)
 		require.Nil(t, pub)
 		require.Nil(t, pri)
