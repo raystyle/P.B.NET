@@ -19,9 +19,9 @@ type Manager struct {
 	logger   logger.Logger
 	now      func() time.Time
 
-	closed bool
 	// key = server tag
 	servers map[string]*Server
+	closed  bool
 	rwm     sync.RWMutex
 }
 

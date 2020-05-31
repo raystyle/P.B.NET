@@ -29,9 +29,9 @@ type Module interface {
 
 // Manager is the module manager.
 type Manager struct {
-	closed bool
 	// key = module tag
 	modules map[string]Module
+	closed  bool
 	rwm     sync.RWMutex
 }
 
