@@ -257,7 +257,7 @@ func (node *Node) CloseCtrlConn(tag *guid.GUID) error {
 	return node.server.CloseCtrlConn(tag)
 }
 
-// CloseNodeConnByGUID is used ot close Node connection by GUID.
+// CloseNodeConnByGUID is used to close Node connection by GUID.
 func (node *Node) CloseNodeConnByGUID(guid *guid.GUID) error {
 	nodeGUID := *guid
 	for _, conn := range node.server.NodeConns() {
@@ -274,7 +274,7 @@ func (node *Node) CloseNodeConnByTag(tag *guid.GUID) error {
 	return node.server.CloseNodeConn(tag)
 }
 
-// CloseBeaconConnByGUID is used ot close Beacon connection by GUID.
+// CloseBeaconConnByGUID is used to close Beacon connection by GUID.
 func (node *Node) CloseBeaconConnByGUID(guid *guid.GUID) error {
 	beaconGUID := *guid
 	for _, conn := range node.server.BeaconConns() {
