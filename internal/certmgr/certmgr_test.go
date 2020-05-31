@@ -28,7 +28,7 @@ func testGenerateCertPool(t *testing.T) *cert.Pool {
 	// create Root CA certificate
 	rootCA, err := cert.GenerateCA(nil)
 	require.NoError(t, err)
-	err = pool.AddPrivateRootCACert(rootCA.Encode())
+	err = pool.AddPrivateRootCAPair(rootCA.Encode())
 	require.NoError(t, err)
 
 	// create Client CA certificate
@@ -36,15 +36,15 @@ func testGenerateCertPool(t *testing.T) *cert.Pool {
 	require.NoError(t, err)
 	err = pool.AddPublicClientCACert(clientCA.ASN1())
 	require.NoError(t, err)
-	err = pool.AddPrivateClientCACert(clientCA.Encode())
+	err = pool.AddPrivateClientCAPair(clientCA.Encode())
 	require.NoError(t, err)
 
 	// generate a client certificate and use client CA sign it
 	clientCert, err := cert.Generate(clientCA.Certificate, clientCA.PrivateKey, nil)
 	require.NoError(t, err)
-	err = pool.AddPublicClientCert(clientCert.Encode())
+	err = pool.AddPublicClientPair(clientCert.Encode())
 	require.NoError(t, err)
-	err = pool.AddPrivateClientCert(clientCert.Encode())
+	err = pool.AddPrivateClientPair(clientCert.Encode())
 	require.NoError(t, err)
 	return pool
 }
@@ -281,13 +281,13 @@ func TestNBCertPool_GetCertsFromPool(t *testing.T) {
 	require.NoError(t, err)
 	err = pool.AddPublicClientCACert(c)
 	require.NoError(t, err)
-	err = pool.AddPublicClientCert(c, k)
+	err = pool.AddPublicClientPair(c, k)
 	require.NoError(t, err)
-	err = pool.AddPrivateRootCACert(c, k)
+	err = pool.AddPrivateRootCAPair(c, k)
 	require.NoError(t, err)
-	err = pool.AddPrivateClientCACert(c, k)
+	err = pool.AddPrivateClientCAPair(c, k)
 	require.NoError(t, err)
-	err = pool.AddPrivateClientCert(c, k)
+	err = pool.AddPrivateClientPair(c, k)
 	require.NoError(t, err)
 
 	cp := new(NBCertPool)

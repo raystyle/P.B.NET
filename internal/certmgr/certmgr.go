@@ -223,7 +223,7 @@ func addCertsToPool(pool *cert.Pool, cp *ctrlCertPool) error {
 	for i := 0; i < len(cp.PublicClientPairs); i++ {
 		memory.Padding()
 		pair := cp.PublicClientPairs[i]
-		err = pool.AddPublicClientCert(pair.Cert, pair.Key)
+		err = pool.AddPublicClientPair(pair.Cert, pair.Key)
 		if err != nil {
 			return err
 		}
@@ -231,7 +231,7 @@ func addCertsToPool(pool *cert.Pool, cp *ctrlCertPool) error {
 	for i := 0; i < len(cp.PrivateRootCAPairs); i++ {
 		memory.Padding()
 		pair := cp.PrivateRootCAPairs[i]
-		err = pool.AddPrivateRootCACert(pair.Cert, pair.Key)
+		err = pool.AddPrivateRootCAPair(pair.Cert, pair.Key)
 		if err != nil {
 			return err
 		}
@@ -239,7 +239,7 @@ func addCertsToPool(pool *cert.Pool, cp *ctrlCertPool) error {
 	for i := 0; i < len(cp.PrivateClientCAPairs); i++ {
 		memory.Padding()
 		pair := cp.PrivateClientCAPairs[i]
-		err = pool.AddPrivateClientCACert(pair.Cert, pair.Key)
+		err = pool.AddPrivateClientCAPair(pair.Cert, pair.Key)
 		if err != nil {
 			return err
 		}
@@ -247,7 +247,7 @@ func addCertsToPool(pool *cert.Pool, cp *ctrlCertPool) error {
 	for i := 0; i < len(cp.PrivateClientPairs); i++ {
 		memory.Padding()
 		pair := cp.PrivateClientPairs[i]
-		err = pool.AddPrivateClientCert(pair.Cert, pair.Key)
+		err = pool.AddPrivateClientPair(pair.Cert, pair.Key)
 		if err != nil {
 			return err
 		}
@@ -330,19 +330,19 @@ func (cp *NBCertPool) ToPool() (*cert.Pool, error) {
 	for i := 0; i < len(cp.PublicClientPairs); i++ {
 		memory.Padding()
 		pair := cp.PublicClientPairs[i]
-		err := pool.AddPublicClientCert(pair.Cert, pair.Key)
+		err := pool.AddPublicClientPair(pair.Cert, pair.Key)
 		if err != nil {
 			return nil, err
 		}
 	}
 	for i := 0; i < len(cp.PrivateRootCACerts); i++ {
-		err := pool.AddPrivateRootCACert(cp.PrivateRootCACerts[i], nil)
+		err := pool.AddPrivateRootCACert(cp.PrivateRootCACerts[i])
 		if err != nil {
 			return nil, err
 		}
 	}
 	for i := 0; i < len(cp.PrivateClientCACerts); i++ {
-		err := pool.AddPrivateClientCACert(cp.PrivateClientCACerts[i], nil)
+		err := pool.AddPrivateClientCACert(cp.PrivateClientCACerts[i])
 		if err != nil {
 			return nil, err
 		}
@@ -350,7 +350,7 @@ func (cp *NBCertPool) ToPool() (*cert.Pool, error) {
 	for i := 0; i < len(cp.PrivateClientPairs); i++ {
 		memory.Padding()
 		pair := cp.PrivateClientPairs[i]
-		err := pool.AddPrivateClientCert(pair.Cert, pair.Key)
+		err := pool.AddPrivateClientPair(pair.Cert, pair.Key)
 		if err != nil {
 			return nil, err
 		}
