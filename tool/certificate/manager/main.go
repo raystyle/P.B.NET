@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -75,19 +74,19 @@ func initialize() {
 	// create Root CA certificate
 	rootCA, err := cert.GenerateCA(nil)
 	checkError(err, true)
-	err = pool.AddPrivateRootCACert(rootCA.Encode())
+	err = pool.AddPrivateRootCAPair(rootCA.Encode())
 	checkError(err, true)
 
 	// create Client CA certificate
 	clientCA, err := cert.GenerateCA(nil)
 	checkError(err, true)
-	err = pool.AddPrivateClientCACert(clientCA.Encode())
+	err = pool.AddPrivateClientCAPair(clientCA.Encode())
 	checkError(err, true)
 
 	// generate a client certificate and use client CA sign it
 	clientCert, err := cert.Generate(clientCA.Certificate, clientCA.PrivateKey, nil)
 	checkError(err, true)
-	err = pool.AddPrivateClientCert(clientCert.Encode())
+	err = pool.AddPrivateClientPair(clientCert.Encode())
 	checkError(err, true)
 
 	_ = os.Mkdir("key", 0750)
@@ -165,9 +164,6 @@ func loadPairs(certFile, keyFile string) ([]*x509.Certificate, []interface{}) {
 
 func checkError(err error, exit bool) bool {
 	if err != nil {
-		if strings.Contains(err.Error(), "unexpected newline") {
-			return true
-		}
 		if err != io.EOF {
 			fmt.Printf("%s\n", err)
 		}
@@ -210,7 +206,11 @@ help about manager/%s:
   
   list         list all %s certificates
   add          add a certificate
+                command: add "cert.pem" ["key.pem"]
   delete       delete a certificate with ID
+                command: delete 0
+  export       export certificate and private key with ID
+                command: export 0 "cert1.pem" ["key1.pem"]
   help         print help
   save         save certificate pool
   reload       reload certificate pool
@@ -425,10 +425,6 @@ func (m *manager) publicRootCA() {
 	if len(args) == 0 {
 		return
 	}
-	if len(args) > 2 {
-		fmt.Printf("unknown command: \"%s\"\n", cmd)
-		return
-	}
 	switch args[0] {
 	case "list":
 		m.publicRootCAList()
@@ -444,6 +440,12 @@ func (m *manager) publicRootCA() {
 			return
 		}
 		m.publicRootCADelete(args[1])
+	case "export":
+		if len(args) < 3 {
+			fmt.Println("no certificate ID or export file name")
+			return
+		}
+		m.publicRootCAExport(args[1], args[2])
 	case "help":
 		fmt.Printf(certHelpTemplate, "public/root-ca", "Root CA", "public")
 	case "save":
@@ -492,16 +494,25 @@ func (m *manager) publicRootCADelete(id string) {
 	checkError(err, false)
 }
 
+func (m *manager) publicRootCAExport(id, file string) {
+	i, err := strconv.Atoi(id)
+	if checkError(err, false) {
+		return
+	}
+	certPEM, err := m.pool.ExportPublicRootCACert(i)
+	if checkError(err, false) {
+		return
+	}
+	err = system.WriteFile(file, certPEM)
+	checkError(err, false)
+}
+
 // ----------------------------------------Public Client CA----------------------------------------
 
 func (m *manager) publicClientCA() {
 	cmd := m.scanner.Text()
 	args := shell.CommandLineToArgv(cmd)
 	if len(args) == 0 {
-		return
-	}
-	if len(args) > 2 {
-		fmt.Printf("unknown command: \"%s\"\n", cmd)
 		return
 	}
 	switch args[0] {
@@ -519,6 +530,12 @@ func (m *manager) publicClientCA() {
 			return
 		}
 		m.publicClientCADelete(args[1])
+	case "export":
+		if len(args) < 3 {
+			fmt.Println("no certificate ID or export file name")
+			return
+		}
+		m.publicClientCAExport(args[1], args[2])
 	case "help":
 		fmt.Printf(certHelpTemplate, "public/client-ca", "Client CA", "public")
 	case "save":
@@ -567,16 +584,25 @@ func (m *manager) publicClientCADelete(id string) {
 	checkError(err, false)
 }
 
+func (m *manager) publicClientCAExport(id, file string) {
+	i, err := strconv.Atoi(id)
+	if checkError(err, false) {
+		return
+	}
+	certPEM, err := m.pool.ExportPublicClientCACert(i)
+	if checkError(err, false) {
+		return
+	}
+	err = system.WriteFile(file, certPEM)
+	checkError(err, false)
+}
+
 // -----------------------------------------Public Client------------------------------------------
 
 func (m *manager) publicClient() {
 	cmd := m.scanner.Text()
 	args := shell.CommandLineToArgv(cmd)
 	if len(args) == 0 {
-		return
-	}
-	if len(args) > 3 {
-		fmt.Printf("unknown command: \"%s\"\n", cmd)
 		return
 	}
 	switch args[0] {
@@ -594,6 +620,12 @@ func (m *manager) publicClient() {
 			return
 		}
 		m.publicClientDelete(args[1])
+	case "export":
+		if len(args) < 4 {
+			fmt.Println("no certificate ID or two export file name")
+			return
+		}
+		m.publicClientExport(args[1], args[2], args[3])
 	case "help":
 		fmt.Printf(certHelpTemplate, "public/client", "Client", "public")
 	case "save":
@@ -621,7 +653,7 @@ func (m *manager) publicClientAdd(certFile, keyFile string) {
 	certs, keys := loadPairs(certFile, keyFile)
 	for i := 0; i < len(certs); i++ {
 		keyData, _ := x509.MarshalPKCS8PrivateKey(keys[i])
-		err := m.pool.AddPublicClientCert(certs[i].Raw, keyData)
+		err := m.pool.AddPublicClientPair(certs[i].Raw, keyData)
 		checkError(err, false)
 		fmt.Printf("\n%s\n\n", cert.Print(certs[i]))
 	}
@@ -636,16 +668,29 @@ func (m *manager) publicClientDelete(id string) {
 	checkError(err, false)
 }
 
+func (m *manager) publicClientExport(id, cert, key string) {
+	i, err := strconv.Atoi(id)
+	if checkError(err, false) {
+		return
+	}
+	certPEM, keyPEM, err := m.pool.ExportPublicClientPair(i)
+	if checkError(err, false) {
+		return
+	}
+	err = system.WriteFile(cert, certPEM)
+	if checkError(err, false) {
+		return
+	}
+	err = system.WriteFile(key, keyPEM)
+	checkError(err, false)
+}
+
 // ----------------------------------------Private Root CA-----------------------------------------
 
 func (m *manager) privateRootCA() {
 	cmd := m.scanner.Text()
 	args := shell.CommandLineToArgv(cmd)
 	if len(args) == 0 {
-		return
-	}
-	if len(args) > 3 {
-		fmt.Printf("unknown command: \"%s\"\n", cmd)
 		return
 	}
 	switch args[0] {
@@ -663,6 +708,12 @@ func (m *manager) privateRootCA() {
 			return
 		}
 		m.privateRootCADelete(args[1])
+	case "export":
+		if len(args) < 4 {
+			fmt.Println("no certificate ID or two export file name")
+			return
+		}
+		m.privateRootCAExport(args[1], args[2], args[3])
 	case "help":
 		fmt.Printf(certHelpTemplate, "private/root-ca", "Root CA", "private")
 	case "save":
@@ -690,7 +741,7 @@ func (m *manager) privateRootCAAdd(certFile, keyFile string) {
 	certs, keys := loadPairs(certFile, keyFile)
 	for i := 0; i < len(certs); i++ {
 		keyData, _ := x509.MarshalPKCS8PrivateKey(keys[i])
-		err := m.pool.AddPrivateRootCACert(certs[i].Raw, keyData)
+		err := m.pool.AddPrivateRootCAPair(certs[i].Raw, keyData)
 		checkError(err, false)
 		fmt.Printf("\n%s\n\n", cert.Print(certs[i]))
 	}
@@ -705,16 +756,29 @@ func (m *manager) privateRootCADelete(id string) {
 	checkError(err, false)
 }
 
+func (m *manager) privateRootCAExport(id, cert, key string) {
+	i, err := strconv.Atoi(id)
+	if checkError(err, false) {
+		return
+	}
+	certPEM, keyPEM, err := m.pool.ExportPrivateRootCAPair(i)
+	if checkError(err, false) {
+		return
+	}
+	err = system.WriteFile(cert, certPEM)
+	if checkError(err, false) {
+		return
+	}
+	err = system.WriteFile(key, keyPEM)
+	checkError(err, false)
+}
+
 // ---------------------------------------Private Client CA----------------------------------------
 
 func (m *manager) privateClientCA() {
 	cmd := m.scanner.Text()
 	args := shell.CommandLineToArgv(cmd)
 	if len(args) == 0 {
-		return
-	}
-	if len(args) > 3 {
-		fmt.Printf("unknown command: \"%s\"\n", cmd)
 		return
 	}
 	switch args[0] {
@@ -732,6 +796,12 @@ func (m *manager) privateClientCA() {
 			return
 		}
 		m.privateClientCADelete(args[1])
+	case "export":
+		if len(args) < 4 {
+			fmt.Println("no certificate ID or two export file name")
+			return
+		}
+		m.privateClientCAExport(args[1], args[2], args[3])
 	case "help":
 		fmt.Printf(certHelpTemplate, "private/client-ca", "Client CA", "private")
 	case "save":
@@ -759,7 +829,7 @@ func (m *manager) privateClientCAAdd(certFile, keyFile string) {
 	certs, keys := loadPairs(certFile, keyFile)
 	for i := 0; i < len(certs); i++ {
 		keyData, _ := x509.MarshalPKCS8PrivateKey(keys[i])
-		err := m.pool.AddPrivateClientCACert(certs[i].Raw, keyData)
+		err := m.pool.AddPrivateClientCAPair(certs[i].Raw, keyData)
 		checkError(err, false)
 		fmt.Printf("\n%s\n\n", cert.Print(certs[i]))
 	}
@@ -774,16 +844,29 @@ func (m *manager) privateClientCADelete(id string) {
 	checkError(err, false)
 }
 
+func (m *manager) privateClientCAExport(id, cert, key string) {
+	i, err := strconv.Atoi(id)
+	if checkError(err, false) {
+		return
+	}
+	certPEM, keyPEM, err := m.pool.ExportPrivateClientCAPair(i)
+	if checkError(err, false) {
+		return
+	}
+	err = system.WriteFile(cert, certPEM)
+	if checkError(err, false) {
+		return
+	}
+	err = system.WriteFile(key, keyPEM)
+	checkError(err, false)
+}
+
 // ----------------------------------------Private Client------------------------------------------
 
 func (m *manager) privateClient() {
 	cmd := m.scanner.Text()
 	args := shell.CommandLineToArgv(cmd)
 	if len(args) == 0 {
-		return
-	}
-	if len(args) > 3 {
-		fmt.Printf("unknown command: \"%s\"\n", cmd)
 		return
 	}
 	switch args[0] {
@@ -801,6 +884,12 @@ func (m *manager) privateClient() {
 			return
 		}
 		m.privateClientDelete(args[1])
+	case "export":
+		if len(args) < 4 {
+			fmt.Println("no certificate ID or two export file name")
+			return
+		}
+		m.privateClientExport(args[1], args[2], args[3])
 	case "help":
 		fmt.Printf(certHelpTemplate, "private/client", "Client", "private")
 	case "save":
@@ -828,7 +917,7 @@ func (m *manager) privateClientAdd(certFile, keyFile string) {
 	certs, keys := loadPairs(certFile, keyFile)
 	for i := 0; i < len(certs); i++ {
 		keyData, _ := x509.MarshalPKCS8PrivateKey(keys[i])
-		err := m.pool.AddPrivateClientCert(certs[i].Raw, keyData)
+		err := m.pool.AddPrivateClientPair(certs[i].Raw, keyData)
 		checkError(err, false)
 		fmt.Printf("\n%s\n\n", cert.Print(certs[i]))
 	}
@@ -840,5 +929,22 @@ func (m *manager) privateClientDelete(id string) {
 		return
 	}
 	err = m.pool.DeletePrivateClientCert(i)
+	checkError(err, false)
+}
+
+func (m *manager) privateClientExport(id, cert, key string) {
+	i, err := strconv.Atoi(id)
+	if checkError(err, false) {
+		return
+	}
+	certPEM, keyPEM, err := m.pool.ExportPrivateClientPair(i)
+	if checkError(err, false) {
+		return
+	}
+	err = system.WriteFile(cert, certPEM)
+	if checkError(err, false) {
+		return
+	}
+	err = system.WriteFile(key, keyPEM)
 	checkError(err, false)
 }
