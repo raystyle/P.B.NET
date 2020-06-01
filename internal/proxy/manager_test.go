@@ -111,7 +111,8 @@ func TestManager_Add(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	require.Len(t, manager.Servers(), testServerNum)
+	servers := manager.Servers()
+	require.Len(t, servers, testServerNum)
 
 	t.Run("add after close", func(t *testing.T) {
 		err := manager.Close()
@@ -126,7 +127,7 @@ func TestManager_Add(t *testing.T) {
 	err := manager.Close()
 	require.NoError(t, err)
 
-	servers := manager.Servers()
+	servers = manager.Servers()
 	require.Empty(t, servers)
 
 	testsuite.IsDestroyed(t, manager)
@@ -267,6 +268,103 @@ func TestManager_Close(t *testing.T) {
 	require.Empty(t, servers)
 
 	testsuite.IsDestroyed(t, manager)
+}
+
+func TestManager_Add_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const (
+		tag1 = "test1"
+		tag2 = "test2"
+	)
+
+	pool := testcert.CertPool(t)
+	server1 := &Server{
+		Tag:  tag1,
+		Mode: ModeSocks5,
+	}
+	server2 := &Server{
+		Tag:  tag2,
+		Mode: ModeHTTP,
+	}
+
+	t.Run("part", func(t *testing.T) {
+		manager := NewManager(pool, logger.Test, nil)
+
+		add1 := func() {
+			err := manager.Add(server1)
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := manager.Add(server2)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			servers := manager.Servers()
+			require.Len(t, servers, 2)
+
+			err := manager.Delete(tag1)
+			require.NoError(t, err)
+			err = manager.Delete(tag2)
+			require.NoError(t, err)
+
+			servers = manager.Servers()
+			require.Empty(t, servers)
+		}
+		testsuite.RunParallel(100, nil, cleanup, add1, add2)
+
+		err := manager.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, manager)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var manager *Manager
+
+		init := func() {
+			manager = NewManager(pool, logger.Test, nil)
+		}
+		add1 := func() {
+			err := manager.Add(server1)
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := manager.Add(server2)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			err := manager.Close()
+			require.NoError(t, err)
+
+			servers := manager.Servers()
+			require.Empty(t, servers)
+		}
+		testsuite.RunParallel(100, init, cleanup, add1, add2)
+
+		testsuite.IsDestroyed(t, manager)
+	})
+
+	testsuite.IsDestroyed(t, pool)
+	testsuite.IsDestroyed(t, server1)
+	testsuite.IsDestroyed(t, server2)
+}
+
+func TestManager_Delete_Parallel(t *testing.T) {
+
+}
+
+func TestManager_Get_Parallel(t *testing.T) {
+
+}
+
+func TestManager_Servers_Parallel(t *testing.T) {
+
+}
+
+func TestManager_Close_Parallel(t *testing.T) {
+
 }
 
 func TestManager_Parallel(t *testing.T) {
