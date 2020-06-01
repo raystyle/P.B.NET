@@ -266,6 +266,151 @@ func TestServer_Close(t *testing.T) {
 	testsuite.IsDestroyed(t, server)
 }
 
+func TestServer_ListenAndServe_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	var server *Server
+
+	init := func() {
+		var err error
+		server, err = NewHTTPServer(testTag, logger.Test, nil)
+		require.NoError(t, err)
+	}
+	las := func() {
+		go func() {
+			err := server.ListenAndServe("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+		}()
+		time.Sleep(250 * time.Millisecond)
+	}
+	cleanup := func() {
+		err := server.Close()
+		require.NoError(t, err)
+	}
+	testsuite.RunParallel(10, init, cleanup, las, las)
+
+	testsuite.IsDestroyed(t, server)
+}
+
+func TestServer_Serve_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	var server *Server
+
+	init := func() {
+		var err error
+		server, err = NewHTTPServer(testTag, logger.Test, nil)
+		require.NoError(t, err)
+	}
+	serve := func() {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		go func() {
+			err := server.Serve(listener)
+			require.NoError(t, err)
+		}()
+		time.Sleep(250 * time.Millisecond)
+	}
+	cleanup := func() {
+		err := server.Close()
+		require.NoError(t, err)
+	}
+	testsuite.RunParallel(10, init, cleanup, serve, serve)
+
+	testsuite.IsDestroyed(t, server)
+}
+
+func TestServer_Addresses_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	var server *Server
+
+	init := func() {
+		server = testGenerateHTTPProxyServer(t)
+	}
+	addrs := func() {
+		addrs := server.Addresses()
+		require.Len(t, addrs, 1)
+	}
+	cleanup := func() {
+		err := server.Close()
+		require.NoError(t, err)
+	}
+	testsuite.RunParallel(10, init, cleanup, addrs, addrs)
+
+	testsuite.IsDestroyed(t, server)
+}
+
+func TestServer_Info_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	var server *Server
+
+	init := func() {
+		opts := Options{
+			Username: "admin",
+			Password: "123456",
+		}
+		var err error
+		server, err = NewHTTPServer(testTag, logger.Test, &opts)
+		require.NoError(t, err)
+	}
+	serve := func() {
+		go func() {
+			err := server.ListenAndServe("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+		}()
+	}
+	info := func() {
+		for i := 0; i < 3; i++ {
+			t.Log(i, server.Info())
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	cleanup := func() {
+		err := server.Close()
+		require.NoError(t, err)
+	}
+	testsuite.RunParallel(10, init, cleanup, serve, serve, info)
+
+	testsuite.IsDestroyed(t, server)
+}
+
+func TestServer_Close_Parallel(t *testing.T) {
+
+}
+
+func TestServer_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("without close", func(t *testing.T) {
+		// init := func() {
+		//
+		// }
+		// export1 := func() {
+		//
+		// }
+		// export2 := func() {
+		//
+		// }
+		// export3 := func() {
+		//
+		// }
+		// cleanup := func() {
+		//
+		// }
+	})
+
+	t.Run("with close", func(t *testing.T) {
+
+	})
+}
+
 func TestHandler_ServeHTTP(t *testing.T) {
 	testsuite.InitHTTPServers(t)
 
