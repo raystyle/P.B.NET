@@ -58,9 +58,13 @@ func IPToHost(address string) string {
 	return "[" + address + "]"
 }
 
-// IsNetClosingError is used to check this error is src/internal/poll.ErrNetClosing.
+// IsNetClosingError is used to check this error is GOROOT/src/internal/poll.ErrNetClosing.
 func IsNetClosingError(err error) bool {
-	return strings.Contains(err.Error(), "use of closed network connection")
+	if err == nil {
+		return false
+	}
+	const errStr = "use of closed network connection"
+	return strings.Contains(err.Error(), errStr)
 }
 
 // EncodeExternalAddress is used to encode connection external address.

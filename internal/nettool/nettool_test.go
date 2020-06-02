@@ -93,6 +93,11 @@ func TestIsNetClosingError(t *testing.T) {
 		require.True(t, r)
 	})
 
+	t.Run("nil error", func(t *testing.T) {
+		r := IsNetClosingError(nil)
+		require.False(t, r)
+	})
+
 	t.Run("not", func(t *testing.T) {
 		err := errors.New("test error")
 		r := IsNetClosingError(err)
