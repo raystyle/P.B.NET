@@ -181,7 +181,7 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 	} else {
 		err = s.server.Serve(listener)
 	}
-	if err == http.ErrServerClosed {
+	if nettool.IsNetClosingError(err) || err == http.ErrServerClosed {
 		return nil
 	}
 	return err
