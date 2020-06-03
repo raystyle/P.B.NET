@@ -300,7 +300,7 @@ func (s *Server) Close() error {
 		// close all listeners
 		for listener := range s.listeners {
 			e := (*listener).Close()
-			if e != nil && err == nil {
+			if e != nil && !nettool.IsNetClosingError(e) && err == nil {
 				err = e
 			}
 			delete(s.listeners, listener)
@@ -308,13 +308,10 @@ func (s *Server) Close() error {
 		// close all connections
 		for conn := range s.conns {
 			e := conn.Close()
-			if e != nil && err == nil {
+			if e != nil && !nettool.IsNetClosingError(e) && err == nil {
 				err = e
 			}
 			delete(s.conns, conn)
-		}
-		if nettool.IsNetClosingError(err) {
-			err = nil
 		}
 	})
 	s.wg.Wait()

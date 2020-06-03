@@ -8,6 +8,7 @@ import (
 
 	"project/internal/crypto/cert"
 	"project/internal/logger"
+	"project/internal/nettool"
 	"project/internal/patch/toml"
 	"project/internal/proxy/http"
 	"project/internal/proxy/socks"
@@ -168,7 +169,7 @@ func (m *Manager) Close() error {
 	var err error
 	for tag, server := range m.servers {
 		e := server.Close()
-		if e != nil && err == nil {
+		if e != nil && !nettool.IsNetClosingError(e) && err == nil {
 			err = e
 		}
 		delete(m.servers, tag)
