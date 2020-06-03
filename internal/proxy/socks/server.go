@@ -313,6 +313,9 @@ func (s *Server) Close() error {
 			}
 			delete(s.conns, conn)
 		}
+		if nettool.IsNetClosingError(err) {
+			err = nil
+		}
 	})
 	s.wg.Wait()
 	return err
