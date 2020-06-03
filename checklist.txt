@@ -1,6 +1,6 @@
 ---------------------------------------------test style--------------------------------------------
 
-most test code like this.
+most code about test like this.
 
 func TestTemplate(t *testing.T) {
 	// if code with goroutine
@@ -24,6 +24,58 @@ func TestTemplate(t *testing.T) {
 	// check object is destroyed
 	testsuite.IsDestroyed(t, server)
 	testsuite.IsDestroyed(t, client)
+}
+
+----------------------------------------test parallel style----------------------------------------
+
+most code about test parallel like this.
+
+func TestTemplate_Parallel(t *testing.T) {
+    gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("part", func(t *testing.T) {
+		server, err := NewHTTPServer(testTag, logger.Test, nil)
+		require.NoError(t, err)
+
+		las := func() {
+			go func() {
+				err := server.ListenAndServe("tcp", "127.0.0.1:0")
+				require.NoError(t, err)
+			}()
+			time.Sleep(250 * time.Millisecond)
+		}
+		testsuite.RunParallel(10, nil, nil, las, las)
+
+		err = server.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, server)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var server *Server
+
+		init := func() {
+			var err error
+			server, err = NewHTTPServer(testTag, logger.Test, nil)
+			require.NoError(t, err)
+		}
+		las := func() {
+			go func() {
+				err := server.ListenAndServe("tcp", "127.0.0.1:0")
+				require.NoError(t, err)
+			}()
+			time.Sleep(250 * time.Millisecond)
+		}
+		cleanup := func() {
+			err := server.Close()
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(10, init, cleanup, las, las)
+
+		testsuite.IsDestroyed(t, server)
+	})
 }
 
 ---------------------------------------------code style--------------------------------------------
