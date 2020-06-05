@@ -20,9 +20,9 @@ var testClientTags = [...]string{
 	"balance",
 }
 
-const reserveClientNum = 2
+const testReserveClientNum = 2
 
-var testClientNum = reserveClientNum + len(testClientTags)
+var testClientNum = testReserveClientNum + len(testClientTags)
 
 func testGeneratePool(t *testing.T) *Pool {
 	pool := NewPool(testcert.CertPool(t))
@@ -231,7 +231,7 @@ func TestPool_Delete(t *testing.T) {
 			require.NoError(t, err)
 		}
 		clients := pool.Clients()
-		require.Len(t, clients, reserveClientNum)
+		require.Len(t, clients, testReserveClientNum)
 	})
 
 	t.Run("doesn't exist", func(t *testing.T) {
@@ -250,7 +250,7 @@ func TestPool_Delete(t *testing.T) {
 	})
 
 	clients := pool.Clients()
-	require.Len(t, clients, reserveClientNum)
+	require.Len(t, clients, testReserveClientNum)
 
 	testsuite.IsDestroyed(t, pool)
 }
@@ -291,7 +291,7 @@ func TestPool_Add_Parallel(t *testing.T) {
 		}
 		cleanup := func() {
 			clients := pool.Clients()
-			require.Len(t, clients, reserveClientNum+2)
+			require.Len(t, clients, testReserveClientNum+2)
 
 			err := pool.Delete(tag1)
 			require.NoError(t, err)
@@ -299,7 +299,7 @@ func TestPool_Add_Parallel(t *testing.T) {
 			require.NoError(t, err)
 
 			clients = pool.Clients()
-			require.Len(t, clients, reserveClientNum)
+			require.Len(t, clients, testReserveClientNum)
 		}
 		testsuite.RunParallel(100, nil, cleanup, add1, add2)
 
@@ -331,11 +331,121 @@ func TestPool_Add_Parallel(t *testing.T) {
 }
 
 func TestPool_Delete_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	const (
+		tag1 = "test1"
+		tag2 = "test2"
+	)
+
+	certPool := testcert.CertPool(t)
+	client1 := &Client{
+		Tag:     tag1,
+		Mode:    ModeSocks5,
+		Network: "tcp",
+		Address: "127.0.0.1:1080",
+	}
+	client2 := &Client{
+		Tag:     tag2,
+		Mode:    ModeHTTP,
+		Network: "tcp",
+		Address: "127.0.0.1:1080",
+	}
+
+	t.Run("part", func(t *testing.T) {
+		pool := NewPool(certPool)
+
+		init := func() {
+			err := pool.Add(client1)
+			require.NoError(t, err)
+			err = pool.Add(client2)
+			require.NoError(t, err)
+		}
+		delete1 := func() {
+			err := pool.Delete(tag1)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := pool.Delete(tag2)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			clients := pool.Clients()
+			require.Len(t, clients, testReserveClientNum)
+		}
+		testsuite.RunParallel(100, init, cleanup, delete1, delete2)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var pool *Pool
+
+		init := func() {
+			pool = NewPool(certPool)
+
+			err := pool.Add(client1)
+			require.NoError(t, err)
+			err = pool.Add(client2)
+			require.NoError(t, err)
+		}
+		delete1 := func() {
+			err := pool.Delete(tag1)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := pool.Delete(tag2)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			clients := pool.Clients()
+			require.Len(t, clients, testReserveClientNum)
+		}
+		testsuite.RunParallel(100, init, cleanup, delete1, delete2)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	testsuite.IsDestroyed(t, certPool)
+	testsuite.IsDestroyed(t, client1)
+	testsuite.IsDestroyed(t, client2)
 }
 
 func TestPool_Get_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	const (
+		tag1 = "test1"
+		tag2 = "test2"
+	)
+
+	certPool := testcert.CertPool(t)
+	client1 := &Client{
+		Tag:     tag1,
+		Mode:    ModeSocks5,
+		Network: "tcp",
+		Address: "127.0.0.1:1080",
+	}
+	client2 := &Client{
+		Tag:     tag2,
+		Mode:    ModeHTTP,
+		Network: "tcp",
+		Address: "127.0.0.1:1080",
+	}
+
+	t.Run("part", func(t *testing.T) {
+
+	})
+
+	t.Run("whole", func(t *testing.T) {
+
+	})
+
+	testsuite.IsDestroyed(t, certPool)
+	testsuite.IsDestroyed(t, client1)
+	testsuite.IsDestroyed(t, client2)
 }
 
 func TestPool_Clients_Parallel(t *testing.T) {
