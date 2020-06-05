@@ -785,17 +785,162 @@ func TestManager_Parallel(t *testing.T) {
 		})
 
 		t.Run("with close", func(t *testing.T) {
+			manager := NewManager(pool, logger.Test, nil)
 
+			init := func() {
+				_ = manager.Add(server1)
+				_ = manager.Add(server2)
+				_ = manager.Add(server5)
+				_ = manager.Add(server6)
+			}
+			add1 := func() {
+				_ = manager.Add(server3)
+			}
+			add2 := func() {
+				_ = manager.Add(server4)
+			}
+			delete1 := func() {
+				_ = manager.Delete(tag1)
+			}
+			delete2 := func() {
+				_ = manager.Delete(tag2)
+			}
+			get1 := func() {
+				_, _ = manager.Get(tag5)
+			}
+			get2 := func() {
+				_, _ = manager.Get(tag6)
+			}
+			servers := func() {
+				_ = manager.Servers()
+			}
+			close1 := func() {
+				err := manager.Close()
+				require.NoError(t, err)
+			}
+			fns := []func(){
+				add1, add2, delete1, delete2,
+				get1, get2, servers, servers,
+				close1,
+			}
+			testsuite.RunParallel(100, init, nil, fns...)
+
+			testsuite.IsDestroyed(t, manager)
 		})
 	})
 
 	t.Run("whole", func(t *testing.T) {
 		t.Run("without close", func(t *testing.T) {
+			var manager *Manager
 
+			init := func() {
+				manager = NewManager(pool, logger.Test, nil)
+
+				err := manager.Add(server1)
+				require.NoError(t, err)
+				err = manager.Add(server2)
+				require.NoError(t, err)
+				err = manager.Add(server5)
+				require.NoError(t, err)
+				err = manager.Add(server6)
+				require.NoError(t, err)
+			}
+			add1 := func() {
+				err := manager.Add(server3)
+				require.NoError(t, err)
+			}
+			add2 := func() {
+				err := manager.Add(server4)
+				require.NoError(t, err)
+			}
+			delete1 := func() {
+				err := manager.Delete(tag1)
+				require.NoError(t, err)
+			}
+			delete2 := func() {
+				err := manager.Delete(tag2)
+				require.NoError(t, err)
+			}
+			get1 := func() {
+				server, err := manager.Get(tag5)
+				require.NoError(t, err)
+				require.NotNil(t, server)
+				require.Equal(t, tag5, server.Tag)
+			}
+			get2 := func() {
+				server, err := manager.Get(tag6)
+				require.NoError(t, err)
+				require.NotNil(t, server)
+				require.Equal(t, tag6, server.Tag)
+			}
+			servers := func() {
+				servers := manager.Servers()
+				require.NotEmpty(t, servers)
+			}
+			cleanup := func() {
+				err := manager.Close()
+				require.NoError(t, err)
+
+				servers := manager.Servers()
+				require.Empty(t, servers)
+			}
+			fns := []func(){
+				add1, add2, delete1, delete2,
+				get1, get2, servers, servers,
+			}
+			testsuite.RunParallel(100, init, cleanup, fns...)
+
+			testsuite.IsDestroyed(t, manager)
 		})
 
 		t.Run("with close", func(t *testing.T) {
+			var manager *Manager
 
+			init := func() {
+				manager = NewManager(pool, logger.Test, nil)
+
+				err := manager.Add(server1)
+				require.NoError(t, err)
+				err = manager.Add(server2)
+				require.NoError(t, err)
+				err = manager.Add(server5)
+				require.NoError(t, err)
+				err = manager.Add(server6)
+				require.NoError(t, err)
+			}
+			add1 := func() {
+				_ = manager.Add(server3)
+			}
+			add2 := func() {
+				_ = manager.Add(server4)
+			}
+			delete1 := func() {
+				_ = manager.Delete(tag1)
+			}
+			delete2 := func() {
+				_ = manager.Delete(tag2)
+			}
+			get1 := func() {
+				_, _ = manager.Get(tag5)
+			}
+			get2 := func() {
+				_, _ = manager.Get(tag6)
+			}
+			servers := func() {
+				_ = manager.Servers()
+			}
+			close1 := func() {
+				err := manager.Close()
+				require.NoError(t, err)
+			}
+			fns := []func(){
+				add1, add2, delete1, delete2,
+				get1, get2, servers, servers,
+				close1,
+			}
+			testsuite.RunParallel(100, init, nil, fns...)
+
+			testsuite.IsDestroyed(t, manager)
 		})
 	})
 
