@@ -176,7 +176,8 @@ func TestPool_Add(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	require.Len(t, pool.Clients(), testClientNum)
+	clients := pool.Clients()
+	require.Len(t, clients, testClientNum)
 
 	testsuite.IsDestroyed(t, pool)
 }
@@ -215,7 +216,8 @@ func TestPool_Get(t *testing.T) {
 		}
 	})
 
-	require.Len(t, pool.Clients(), testClientNum)
+	clients := pool.Clients()
+	require.Len(t, clients, testClientNum)
 
 	testsuite.IsDestroyed(t, pool)
 }
@@ -228,7 +230,8 @@ func TestPool_Delete(t *testing.T) {
 			err := pool.Delete(tag)
 			require.NoError(t, err)
 		}
-		require.Len(t, pool.Clients(), reserveClientNum)
+		clients := pool.Clients()
+		require.Len(t, clients, reserveClientNum)
 	})
 
 	t.Run("doesn't exist", func(t *testing.T) {
@@ -246,9 +249,97 @@ func TestPool_Delete(t *testing.T) {
 		require.EqualError(t, err, "direct is the reserve proxy client")
 	})
 
-	require.Len(t, pool.Clients(), reserveClientNum)
+	clients := pool.Clients()
+	require.Len(t, clients, reserveClientNum)
 
 	testsuite.IsDestroyed(t, pool)
+}
+
+func TestPool_Add_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const (
+		tag1 = "test1"
+		tag2 = "test2"
+	)
+
+	certPool := testcert.CertPool(t)
+	client1 := &Client{
+		Tag:     tag1,
+		Mode:    ModeSocks5,
+		Network: "tcp",
+		Address: "127.0.0.1:1080",
+	}
+	client2 := &Client{
+		Tag:     tag2,
+		Mode:    ModeHTTP,
+		Network: "tcp",
+		Address: "127.0.0.1:1080",
+	}
+
+	t.Run("part", func(t *testing.T) {
+		pool := NewPool(certPool)
+
+		add1 := func() {
+			err := pool.Add(client1)
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := pool.Add(client2)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			clients := pool.Clients()
+			require.Len(t, clients, reserveClientNum+2)
+
+			err := pool.Delete(tag1)
+			require.NoError(t, err)
+			err = pool.Delete(tag2)
+			require.NoError(t, err)
+
+			clients = pool.Clients()
+			require.Len(t, clients, reserveClientNum)
+		}
+		testsuite.RunParallel(100, nil, cleanup, add1, add2)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var pool *Pool
+
+		init := func() {
+			pool = NewPool(certPool)
+		}
+		add1 := func() {
+			err := pool.Add(client1)
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := pool.Add(client2)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(100, init, nil, add1, add2)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	testsuite.IsDestroyed(t, certPool)
+	testsuite.IsDestroyed(t, client1)
+	testsuite.IsDestroyed(t, client2)
+}
+
+func TestPool_Delete_Parallel(t *testing.T) {
+
+}
+
+func TestPool_Get_Parallel(t *testing.T) {
+
+}
+
+func TestPool_Clients_Parallel(t *testing.T) {
+
 }
 
 func TestPool_Parallel(t *testing.T) {

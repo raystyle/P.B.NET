@@ -947,4 +947,8 @@ func TestManager_Parallel(t *testing.T) {
 	testsuite.IsDestroyed(t, pool)
 	testsuite.IsDestroyed(t, server1)
 	testsuite.IsDestroyed(t, server2)
+	testsuite.IsDestroyed(t, server3)
+	testsuite.IsDestroyed(t, server4)
+	testsuite.IsDestroyed(t, server5)
+	testsuite.IsDestroyed(t, server6)
 }
