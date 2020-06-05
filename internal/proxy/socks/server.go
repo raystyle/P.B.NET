@@ -293,28 +293,34 @@ func (s *Server) Info() string {
 func (s *Server) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
-		atomic.StoreInt32(&s.inShutdown, 1)
-		s.cancel()
-		s.rwm.Lock()
-		defer s.rwm.Unlock()
-		// close all listeners
-		for listener := range s.listeners {
-			e := (*listener).Close()
-			if e != nil && !nettool.IsNetClosingError(e) && err == nil {
-				err = e
-			}
-			delete(s.listeners, listener)
-		}
-		// close all connections
-		for conn := range s.conns {
-			e := conn.Close()
-			if e != nil && !nettool.IsNetClosingError(e) && err == nil {
-				err = e
-			}
-			delete(s.conns, conn)
-		}
+		err = s.close()
+		s.wg.Wait()
 	})
-	s.wg.Wait()
+	return err
+}
+
+func (s *Server) close() error {
+	atomic.StoreInt32(&s.inShutdown, 1)
+	s.cancel()
+	var err error
+	s.rwm.Lock()
+	defer s.rwm.Unlock()
+	// close all listeners
+	for listener := range s.listeners {
+		e := (*listener).Close()
+		if e != nil && !nettool.IsNetClosingError(e) && err == nil {
+			err = e
+		}
+		delete(s.listeners, listener)
+	}
+	// close all connections
+	for conn := range s.conns {
+		e := conn.Close()
+		if e != nil && !nettool.IsNetClosingError(e) && err == nil {
+			err = e
+		}
+		delete(s.conns, conn)
+	}
 	return err
 }
 
