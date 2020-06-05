@@ -436,6 +436,95 @@ func TestPool_Get_Parallel(t *testing.T) {
 	}
 
 	t.Run("part", func(t *testing.T) {
+		pool := NewPool(certPool)
+
+		err := pool.Add(client1)
+		require.NoError(t, err)
+		err = pool.Add(client2)
+		require.NoError(t, err)
+
+		get1 := func() {
+			client, err := pool.Get(tag1)
+			require.NoError(t, err)
+			require.NotNil(t, client)
+			require.Equal(t, tag1, client.Tag)
+		}
+		get2 := func() {
+			client, err := pool.Get(tag2)
+			require.NoError(t, err)
+			require.NotNil(t, client)
+			require.Equal(t, tag2, client.Tag)
+		}
+		cleanup := func() {
+			clients := pool.Clients()
+			require.Len(t, clients, testReserveClientNum+2)
+		}
+		testsuite.RunParallel(100, nil, cleanup, get1, get2)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var pool *Pool
+
+		init := func() {
+			pool = NewPool(certPool)
+
+			err := pool.Add(client1)
+			require.NoError(t, err)
+			err = pool.Add(client2)
+			require.NoError(t, err)
+		}
+		get1 := func() {
+			client, err := pool.Get(tag1)
+			require.NoError(t, err)
+			require.NotNil(t, client)
+			require.Equal(t, tag1, client.Tag)
+		}
+		get2 := func() {
+			client, err := pool.Get(tag2)
+			require.NoError(t, err)
+			require.NotNil(t, client)
+			require.Equal(t, tag2, client.Tag)
+		}
+		cleanup := func() {
+			clients := pool.Clients()
+			require.Len(t, clients, testReserveClientNum+2)
+		}
+		testsuite.RunParallel(100, init, cleanup, get1, get2)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	testsuite.IsDestroyed(t, certPool)
+	testsuite.IsDestroyed(t, client1)
+	testsuite.IsDestroyed(t, client2)
+}
+
+func TestPool_Clients_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const (
+		tag1 = "test1"
+		tag2 = "test2"
+	)
+
+	certPool := testcert.CertPool(t)
+	client1 := &Client{
+		Tag:     tag1,
+		Mode:    ModeSocks5,
+		Network: "tcp",
+		Address: "127.0.0.1:1080",
+	}
+	client2 := &Client{
+		Tag:     tag2,
+		Mode:    ModeHTTP,
+		Network: "tcp",
+		Address: "127.0.0.1:1080",
+	}
+
+	t.Run("part", func(t *testing.T) {
 
 	})
 
@@ -446,10 +535,6 @@ func TestPool_Get_Parallel(t *testing.T) {
 	testsuite.IsDestroyed(t, certPool)
 	testsuite.IsDestroyed(t, client1)
 	testsuite.IsDestroyed(t, client2)
-}
-
-func TestPool_Clients_Parallel(t *testing.T) {
-
 }
 
 func TestPool_Parallel(t *testing.T) {
