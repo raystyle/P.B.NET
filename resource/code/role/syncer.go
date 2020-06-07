@@ -1,4 +1,4 @@
-package code
+package role
 
 import (
 	"fmt"
@@ -15,7 +15,8 @@ func (syncer *syncer) Check<f>GUIDSlice(slice []byte) bool {
 	defer syncer.<a>GUIDRWM.RUnlock()
 	_, ok := syncer.<a>GUID[*key]
 	return !ok
-}`
+}
+`
 	generateCodeAboutSyncer(template, need)
 }
 
@@ -29,7 +30,8 @@ func (syncer *syncer) Check<f>GUID(guid *guid.GUID, timestamp int64) bool {
 	}
 	syncer.<a>GUID[*guid] = timestamp
 	return true
-}`
+}
+`
 	generateCodeAboutSyncer(template, need)
 }
 
@@ -43,7 +45,8 @@ func (syncer *syncer) clean<f>GUID(now int64) {
 			delete(syncer.<a>GUID, key)
 		}
 	}
-}`
+}
+`
 	generateCodeAboutSyncer(template, need)
 }
 
@@ -57,7 +60,8 @@ func (syncer *syncer) clean<f>GUIDMap() {
 		newMap[key] = timestamp
 	}
 	syncer.<a>GUID = newMap
-}`
+}
+`
 	generateCodeAboutSyncer(template, need)
 }
 
@@ -67,5 +71,4 @@ func generateCodeAboutSyncer(template string, need []string) {
 		f := strings.ToUpper(need[i][:1]) + need[i][1:]
 		fmt.Println(strings.ReplaceAll(a, "<f>", f))
 	}
-	fmt.Println()
 }
