@@ -2,7 +2,6 @@ package cert
 
 import (
 	"crypto/x509"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -926,7 +925,7 @@ func TestPool_ExportPrivateClientPair(t *testing.T) {
 	})
 }
 
-func TestPool_AddPublicRootCA_Parallel(t *testing.T) {
+func TestPool_AddPublicRootCACert_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -996,7 +995,7 @@ func TestPool_AddPublicRootCA_Parallel(t *testing.T) {
 	testsuite.IsDestroyed(t, pair2)
 }
 
-func TestPool_AddPublicClientCA_Parallel(t *testing.T) {
+func TestPool_AddPublicClientCACert_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1494,30 +1493,6 @@ func TestPool_AddPrivateClientPair_Parallel(t *testing.T) {
 	testsuite.IsDestroyed(t, pair2)
 }
 
-func testPoolTemp(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	pair1 := testGeneratePair(t)
-	pair2 := testGeneratePair(t)
-	cert1, key1 := pair1.Encode()
-	cert2, key2 := pair2.Encode()
-
-	t.Run("part", func(t *testing.T) {
-
-	})
-
-	t.Run("whole", func(t *testing.T) {
-
-	})
-
-	testsuite.IsDestroyed(t, pair1)
-	testsuite.IsDestroyed(t, pair2)
-
-	fmt.Println(cert1, key1)
-	fmt.Println(cert2, key2)
-}
-
 func TestPool_DeletePublicRootCACert_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -1815,11 +1790,153 @@ func TestPool_DeletePrivateRootCACert_Parallel(t *testing.T) {
 }
 
 func TestPool_DeletePrivateClientCACert_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	pair1 := testGeneratePair(t)
+	pair2 := testGeneratePair(t)
+	cert1, key1 := pair1.Encode()
+	cert2, key2 := pair2.Encode()
+
+	t.Run("part", func(t *testing.T) {
+		pool := NewPool()
+
+		init := func() {
+			err := pool.AddPrivateClientCAPair(cert1, key1)
+			require.NoError(t, err)
+			err = pool.AddPrivateClientCAPair(cert2, key2)
+			require.NoError(t, err)
+		}
+		delete1 := func() {
+			err := pool.DeletePrivateClientCACert(0)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := pool.DeletePrivateClientCACert(0)
+			require.NoError(t, err)
+		}
+		delete3 := func() {
+			err := pool.DeletePrivateClientCACert(2)
+			require.Error(t, err)
+		}
+		cleanup := func() {
+			pairs := pool.GetPrivateClientCAPairs()
+			require.Len(t, pairs, 0)
+		}
+		testsuite.RunParallel(100, init, cleanup, delete1, delete2, delete3)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var pool *Pool
+
+		init := func() {
+			pool = NewPool()
+
+			err := pool.AddPrivateClientCAPair(cert1, key1)
+			require.NoError(t, err)
+			err = pool.AddPrivateClientCAPair(cert2, key2)
+			require.NoError(t, err)
+		}
+		delete1 := func() {
+			err := pool.DeletePrivateClientCACert(0)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := pool.DeletePrivateClientCACert(0)
+			require.NoError(t, err)
+		}
+		delete3 := func() {
+			err := pool.DeletePrivateClientCACert(2)
+			require.Error(t, err)
+		}
+		cleanup := func() {
+			pairs := pool.GetPrivateClientCAPairs()
+			require.Len(t, pairs, 0)
+		}
+		testsuite.RunParallel(100, init, cleanup, delete1, delete2, delete3)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	testsuite.IsDestroyed(t, pair1)
+	testsuite.IsDestroyed(t, pair2)
 }
 
 func TestPool_DeletePrivateClientCert_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	pair1 := testGeneratePair(t)
+	pair2 := testGeneratePair(t)
+	cert1, key1 := pair1.Encode()
+	cert2, key2 := pair2.Encode()
+
+	t.Run("part", func(t *testing.T) {
+		pool := NewPool()
+
+		init := func() {
+			err := pool.AddPrivateClientPair(cert1, key1)
+			require.NoError(t, err)
+			err = pool.AddPrivateClientPair(cert2, key2)
+			require.NoError(t, err)
+		}
+		delete1 := func() {
+			err := pool.DeletePrivateClientCert(0)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := pool.DeletePrivateClientCert(0)
+			require.NoError(t, err)
+		}
+		delete3 := func() {
+			err := pool.DeletePrivateClientCert(2)
+			require.Error(t, err)
+		}
+		cleanup := func() {
+			pairs := pool.GetPrivateClientPairs()
+			require.Len(t, pairs, 0)
+		}
+		testsuite.RunParallel(100, init, cleanup, delete1, delete2, delete3)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var pool *Pool
+
+		init := func() {
+			pool = NewPool()
+
+			err := pool.AddPrivateClientPair(cert1, key1)
+			require.NoError(t, err)
+			err = pool.AddPrivateClientPair(cert2, key2)
+			require.NoError(t, err)
+		}
+		delete1 := func() {
+			err := pool.DeletePrivateClientCert(0)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := pool.DeletePrivateClientCert(0)
+			require.NoError(t, err)
+		}
+		delete3 := func() {
+			err := pool.DeletePrivateClientCert(2)
+			require.Error(t, err)
+		}
+		cleanup := func() {
+			pairs := pool.GetPrivateClientPairs()
+			require.Len(t, pairs, 0)
+		}
+		testsuite.RunParallel(100, init, cleanup, delete1, delete2, delete3)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	testsuite.IsDestroyed(t, pair1)
+	testsuite.IsDestroyed(t, pair2)
 }
 
 func TestPool_PublicRootCA_Parallel(t *testing.T) {
