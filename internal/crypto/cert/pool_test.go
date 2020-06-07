@@ -1996,6 +1996,63 @@ func TestPool_GetPublicRootCACerts_Parallel(t *testing.T) {
 	testsuite.IsDestroyed(t, pair2)
 }
 
+func TestPool_GetPublicClientCACerts_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	pair1 := testGeneratePair(t)
+	pair2 := testGeneratePair(t)
+
+	t.Run("part", func(t *testing.T) {
+		pool := NewPool()
+
+		init := func() {
+			err := pool.AddPublicClientCACert(pair1.Certificate.Raw)
+			require.NoError(t, err)
+			err = pool.AddPublicClientCACert(pair2.Certificate.Raw)
+			require.NoError(t, err)
+		}
+		get := func() {
+			certs := pool.GetPublicClientCACerts()
+			expect := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
+			require.Equal(t, expect, certs)
+		}
+		cleanup := func() {
+			err := pool.DeletePublicClientCACert(0)
+			require.NoError(t, err)
+			err = pool.DeletePublicClientCACert(0)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(100, init, cleanup, get, get)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var pool *Pool
+
+		init := func() {
+			pool = NewPool()
+
+			err := pool.AddPublicClientCACert(pair1.Certificate.Raw)
+			require.NoError(t, err)
+			err = pool.AddPublicClientCACert(pair2.Certificate.Raw)
+			require.NoError(t, err)
+		}
+		get := func() {
+			certs := pool.GetPublicClientCACerts()
+			expect := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
+			require.Equal(t, expect, certs)
+		}
+		testsuite.RunParallel(100, init, nil, get, get)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	testsuite.IsDestroyed(t, pair1)
+	testsuite.IsDestroyed(t, pair2)
+}
+
 func TestPool_GetPublicClientPairs_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -2025,7 +2082,7 @@ func TestPool_GetPublicClientPairs_Parallel(t *testing.T) {
 			err = pool.DeletePublicClientCert(0)
 			require.NoError(t, err)
 		}
-		testsuite.RunParallel(1, init, cleanup, get, get)
+		testsuite.RunParallel(100, init, cleanup, get, get)
 
 		testsuite.IsDestroyed(t, pool)
 	})
@@ -2046,7 +2103,66 @@ func TestPool_GetPublicClientPairs_Parallel(t *testing.T) {
 			expect := []*Pair{pair1, pair2}
 			require.Equal(t, expect, pairs)
 		}
-		testsuite.RunParallel(1, init, nil, get, get)
+		testsuite.RunParallel(100, init, nil, get, get)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	testsuite.IsDestroyed(t, pair1)
+	testsuite.IsDestroyed(t, pair2)
+}
+
+func TestPool_GetPrivateRootCAPairs_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	pair1 := testGeneratePair(t)
+	pair2 := testGeneratePair(t)
+	cert1, key1 := pair1.Encode()
+	cert2, key2 := pair2.Encode()
+
+	t.Run("part", func(t *testing.T) {
+		pool := NewPool()
+
+		init := func() {
+			err := pool.AddPrivateRootCAPair(cert1, key1)
+			require.NoError(t, err)
+			err = pool.AddPrivateRootCAPair(cert2, key2)
+			require.NoError(t, err)
+		}
+		get := func() {
+			pairs := pool.GetPrivateRootCAPairs()
+			expect := []*Pair{pair1, pair2}
+			require.Equal(t, expect, pairs)
+		}
+		cleanup := func() {
+			err := pool.DeletePrivateRootCACert(0)
+			require.NoError(t, err)
+			err = pool.DeletePrivateRootCACert(0)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(100, init, cleanup, get, get)
+
+		testsuite.IsDestroyed(t, pool)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var pool *Pool
+
+		init := func() {
+			pool = NewPool()
+
+			err := pool.AddPrivateRootCAPair(cert1, key1)
+			require.NoError(t, err)
+			err = pool.AddPrivateRootCAPair(cert2, key2)
+			require.NoError(t, err)
+		}
+		get := func() {
+			pairs := pool.GetPrivateRootCAPairs()
+			expect := []*Pair{pair1, pair2}
+			require.Equal(t, expect, pairs)
+		}
+		testsuite.RunParallel(100, init, nil, get, get)
 
 		testsuite.IsDestroyed(t, pool)
 	})
