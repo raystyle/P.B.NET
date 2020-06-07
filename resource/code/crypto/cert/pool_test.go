@@ -128,3 +128,38 @@ func TestGenerateTestPoolGetParallel(t *testing.T) {
 		generateTestPoolGetPairsParallel("PrivateClient")
 	})
 }
+
+func TestGenerateTestPoolExportParallel(t *testing.T) {
+	t.Run("PublicRootCACert", func(t *testing.T) {
+		generateTestPoolExportCertParallel("PublicRootCA")
+	})
+
+	t.Run("PublicClientCACert", func(t *testing.T) {
+		generateTestPoolExportCertParallel("PublicClientCA")
+	})
+
+	t.Run("PublicClientPair", func(t *testing.T) {
+		generateTestPoolExportPairParallel("PublicClient")
+	})
+
+	t.Run("PrivateRootCAPair", func(t *testing.T) {
+		generateTestPoolExportPairParallel("PrivateRootCA")
+	})
+
+	t.Run("PrivateClientCAPair", func(t *testing.T) {
+		generateTestPoolExportPairParallel("PrivateClientCA")
+	})
+
+	t.Run("PrivateClientPair", func(t *testing.T) {
+		generateTestPoolExportPairParallel("PrivateClient")
+	})
+
+	t.Run("all", func(t *testing.T) {
+		generateTestPoolExportCertParallel("PublicRootCA")
+		generateTestPoolExportCertParallel("PublicClientCA")
+		generateTestPoolExportPairParallel("PublicClient")
+		generateTestPoolExportPairParallel("PrivateRootCA")
+		generateTestPoolExportPairParallel("PrivateClientCA")
+		generateTestPoolExportPairParallel("PrivateClient")
+	})
+}
