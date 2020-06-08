@@ -360,11 +360,11 @@ func (c *conn) receiveTarget() string {
 		return ""
 	}
 	if buf[0] != version5 {
-		c.log(logger.Exploit, "unexpected socks5 version")
+		c.log(logger.Error, "unexpected socks5 version")
 		return ""
 	}
 	if buf[1] != connect {
-		c.log(logger.Exploit, "unknown command")
+		c.log(logger.Error, "unknown command:", buf[1])
 		_, _ = c.local.Write([]byte{version5, cmdNotSupport, reserve})
 		return ""
 	}
@@ -409,7 +409,7 @@ func (c *conn) receiveTarget() string {
 		}
 		host = string(buf[:l])
 	default:
-		c.log(logger.Exploit, "invalid address type")
+		c.log(logger.Error, "invalid address type:", buf[3])
 		_, _ = c.local.Write(v5ReplyAddressNotSupport)
 		return ""
 	}

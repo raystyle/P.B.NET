@@ -16,11 +16,12 @@ import (
 	"project/internal/logger"
 	"project/internal/nettool"
 	"project/internal/xpanic"
+	"project/internal/xsync"
 )
 
 // ErrServerClosed is returned by the Server's Serve, ListenAndServe,
 // methods after a call Close.
-var ErrServerClosed = errors.New("socks server closed")
+var ErrServerClosed = fmt.Errorf("socks server closed")
 
 // Server implemented internal/proxy.server.
 type Server struct {
@@ -44,10 +45,9 @@ type Server struct {
 	inShutdown int32
 	rwm        sync.RWMutex
 
-	ctx       context.Context
-	cancel    context.CancelFunc
-	closeOnce sync.Once
-	wg        sync.WaitGroup
+	ctx     context.Context
+	cancel  context.CancelFunc
+	counter xsync.Counter
 }
 
 // NewSocks5Server is used to create a socks5 server.
@@ -133,8 +133,10 @@ func (s *Server) trackListener(listener *net.Listener, add bool) bool {
 			return false
 		}
 		s.listeners[listener] = struct{}{}
+		s.counter.Add(1)
 	} else {
 		delete(s.listeners, listener)
+		s.counter.Done()
 	}
 	return true
 }
@@ -157,9 +159,6 @@ func (s *Server) ListenAndServe(network, address string) error {
 
 // Serve accepts incoming connections on the listener.
 func (s *Server) Serve(listener net.Listener) (err error) {
-	s.wg.Add(1)
-	defer s.wg.Done()
-
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error(r, "Server.Serve")
@@ -188,8 +187,8 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 	defer s.logf(logger.Info, "listener closed (%s %s)", network, address)
 
 	// start accept loop
+	const maxDelay = time.Second
 	var delay time.Duration // how long to sleep on accept failure
-	maxDelay := time.Second
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -233,8 +232,10 @@ func (s *Server) trackConn(conn *conn, add bool) bool {
 			return false
 		}
 		s.conns[conn] = struct{}{}
+		s.counter.Add(1)
 	} else {
 		delete(s.conns, conn)
+		s.counter.Done()
 	}
 	return true
 }
@@ -291,11 +292,8 @@ func (s *Server) Info() string {
 
 // Close is used to close socks server.
 func (s *Server) Close() error {
-	var err error
-	s.closeOnce.Do(func() {
-		err = s.close()
-		s.wg.Wait()
-	})
+	err := s.close()
+	s.counter.Wait()
 	return err
 }
 
@@ -327,7 +325,7 @@ func (s *Server) close() error {
 type conn struct {
 	server *Server
 	local  net.Conn // listener accepted conn
-	remote net.Conn // dial
+	remote net.Conn // dial target host
 }
 
 func (c *conn) logf(lv logger.Level, format string, log ...interface{}) {
@@ -346,12 +344,12 @@ func (c *conn) log(lv logger.Level, log ...interface{}) {
 }
 
 func (c *conn) Serve() {
-	c.server.wg.Add(1)
+	c.server.counter.Add(1)
 	go c.serve()
 }
 
 func (c *conn) serve() {
-	defer c.server.wg.Done()
+	defer c.server.counter.Done()
 
 	const title = "conn.serve()"
 	defer func() {
@@ -395,9 +393,9 @@ func (c *conn) serve() {
 	_ = c.local.SetDeadline(time.Time{})
 
 	// start copy
-	c.server.wg.Add(1)
+	c.server.counter.Add(1)
 	go func() {
-		defer c.server.wg.Done()
+		defer c.server.counter.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				c.log(logger.Fatal, xpanic.Print(r, title))

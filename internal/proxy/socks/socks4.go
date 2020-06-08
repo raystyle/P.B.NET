@@ -127,7 +127,7 @@ func (c *conn) serveSocks4() {
 	}
 	// command
 	if buf[1] != connect {
-		c.log(logger.Error, "unknown command")
+		c.log(logger.Error, "unknown command:", buf[1])
 		return
 	}
 	if !c.checkUserID() {
