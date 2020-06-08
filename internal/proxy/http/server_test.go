@@ -558,6 +558,106 @@ func TestServer_Close_Parallel(t *testing.T) {
 	})
 }
 
+func TestServer_NewRequest_Parallel(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("part", func(t *testing.T) {
+		server, err := NewHTTPServer(testTag, logger.Test, nil)
+		require.NoError(t, err)
+
+		var listener net.Listener
+
+		init := func() {
+			listener, err = net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+		}
+		serve := func() {
+			err := server.Serve(listener)
+			require.NoError(t, err)
+		}
+		req := func() {
+			u := &url.URL{
+				Scheme: "http",
+				Host:   listener.Addr().String(),
+				User:   url.UserPassword("admin", "123456"),
+			}
+			tr := http.Transport{
+				Proxy: http.ProxyURL(u),
+			}
+			client := http.Client{
+				Transport: &tr,
+				Timeout:   time.Second,
+			}
+			defer client.CloseIdleConnections()
+			resp, err := client.Get("http://127.0.0.1:" + testsuite.HTTPServerPort)
+			if err != nil {
+				return
+			}
+			_, _ = ioutil.ReadAll(resp.Body)
+		}
+		close1 := func() {
+			time.Sleep(250 * time.Millisecond)
+
+			err := server.Close()
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(10, init, nil, serve, req, req, close1, close1)
+
+		testsuite.IsDestroyed(t, server)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var (
+			server   *Server
+			listener net.Listener
+		)
+
+		init := func() {
+			var err error
+			server, err = NewHTTPServer(testTag, logger.Test, nil)
+			require.NoError(t, err)
+			listener, err = net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+		}
+		serve := func() {
+			err := server.Serve(listener)
+			require.NoError(t, err)
+		}
+		req := func() {
+			u := &url.URL{
+				Scheme: "http",
+				Host:   listener.Addr().String(),
+				User:   url.UserPassword("admin", "123456"),
+			}
+			tr := http.Transport{
+				Proxy: http.ProxyURL(u),
+			}
+			client := http.Client{
+				Transport: &tr,
+				Timeout:   time.Second,
+			}
+			defer client.CloseIdleConnections()
+			resp, err := client.Get("http://127.0.0.1:" + testsuite.HTTPServerPort)
+			if err != nil {
+				return
+			}
+			_, _ = ioutil.ReadAll(resp.Body)
+		}
+		close1 := func() {
+			time.Sleep(250 * time.Millisecond)
+
+			err := server.Close()
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(10, init, nil, serve, req, req, close1, close1)
+
+		testsuite.IsDestroyed(t, server)
+	})
+}
+
 func TestServer_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
