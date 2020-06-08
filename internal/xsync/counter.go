@@ -6,7 +6,8 @@ import (
 	"time"
 )
 
-// Counter is used to wait all resource closed like connection in Server program.
+// Counter is used to wait all resource closed like connection and goroutine
+// in Server program. It also can use like sync.WaitGroup.
 type Counter struct {
 	count int32
 }
@@ -39,7 +40,7 @@ func (c *Counter) Wait() {
 			const format = "xsync: negative counter %d in Wait()"
 			panic(fmt.Sprintf(format, count))
 		}
-		// wait until count equal zero
+		// wait loop until count equal zero
 		if delay == 0 {
 			delay = 5 * time.Millisecond
 		} else {
