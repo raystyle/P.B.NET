@@ -298,10 +298,10 @@ func TestServer_ListenAndServe_Parallel(t *testing.T) {
 			require.NoError(t, err)
 		}
 		las := func() {
-			go func() {
+			go func(server *Server) {
 				err := server.ListenAndServe("tcp", "127.0.0.1:0")
 				require.NoError(t, err)
-			}()
+			}(server)
 			time.Sleep(250 * time.Millisecond)
 		}
 		cleanup := func() {
@@ -334,17 +334,17 @@ func TestServer_Serve_Parallel(t *testing.T) {
 			require.NoError(t, err)
 		}
 		serve1 := func() {
-			go func() {
-				err := server.Serve(listener1)
+			go func(listener net.Listener) {
+				err := server.Serve(listener)
 				require.NoError(t, err)
-			}()
+			}(listener1)
 			time.Sleep(250 * time.Millisecond)
 		}
 		serve2 := func() {
-			go func() {
-				err := server.Serve(listener2)
+			go func(listener net.Listener) {
+				err := server.Serve(listener)
 				require.NoError(t, err)
-			}()
+			}(listener2)
 			time.Sleep(250 * time.Millisecond)
 		}
 		cleanup := func() {
@@ -372,10 +372,10 @@ func TestServer_Serve_Parallel(t *testing.T) {
 		serve := func() {
 			listener, err := net.Listen("tcp", "127.0.0.1:0")
 			require.NoError(t, err)
-			go func() {
+			go func(server *Server) {
 				err := server.Serve(listener)
 				require.NoError(t, err)
-			}()
+			}(server)
 			time.Sleep(250 * time.Millisecond)
 		}
 		cleanup := func() {
@@ -451,17 +451,17 @@ func TestServer_Info_Parallel(t *testing.T) {
 			require.NoError(t, err)
 		}
 		serve1 := func() {
-			go func() {
-				err := server.Serve(listener1)
+			go func(listener net.Listener) {
+				err := server.Serve(listener)
 				require.NoError(t, err)
-			}()
+			}(listener1)
 			time.Sleep(250 * time.Millisecond)
 		}
 		serve2 := func() {
-			go func() {
-				err := server.Serve(listener2)
+			go func(listener net.Listener) {
+				err := server.Serve(listener)
 				require.NoError(t, err)
-			}()
+			}(listener2)
 			time.Sleep(250 * time.Millisecond)
 		}
 		info := func() {
@@ -497,10 +497,10 @@ func TestServer_Info_Parallel(t *testing.T) {
 			require.NoError(t, err)
 		}
 		serve := func() {
-			go func() {
+			go func(server *Server) {
 				err := server.ListenAndServe("tcp", "127.0.0.1:0")
 				require.NoError(t, err)
-			}()
+			}(server)
 		}
 		info := func() {
 			for i := 0; i < 3; i++ {
@@ -525,11 +525,15 @@ func TestServer_Close_Parallel(t *testing.T) {
 	t.Run("part", func(t *testing.T) {
 		server := testGenerateHTTPProxyServer(t)
 
+		serve := func() {
+			err := server.ListenAndServe("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+		}
 		close1 := func() {
 			err := server.Close()
 			require.NoError(t, err)
 		}
-		testsuite.RunParallel(10, nil, nil, close1, close1)
+		testsuite.RunParallel(10, nil, nil, serve, serve, close1, close1)
 
 		testsuite.IsDestroyed(t, server)
 	})
@@ -540,11 +544,15 @@ func TestServer_Close_Parallel(t *testing.T) {
 		init := func() {
 			server = testGenerateHTTPProxyServer(t)
 		}
+		serve := func() {
+			err := server.ListenAndServe("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+		}
 		close1 := func() {
 			err := server.Close()
 			require.NoError(t, err)
 		}
-		testsuite.RunParallel(10, init, nil, close1, close1)
+		testsuite.RunParallel(10, init, nil, serve, serve, close1, close1)
 
 		testsuite.IsDestroyed(t, server)
 	})
@@ -554,8 +562,8 @@ func TestServer_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("part", func(t *testing.T) {
-		t.Run("without close", func(t *testing.T) {
+	t.Run("without close", func(t *testing.T) {
+		t.Run("part", func(t *testing.T) {
 			opts := Options{
 				Username: "admin",
 				Password: "123456",
@@ -576,10 +584,10 @@ func TestServer_Parallel(t *testing.T) {
 				}()
 			}
 			serve := func() {
-				go func() {
+				go func(listener net.Listener) {
 					err := server.Serve(listener)
 					require.NoError(t, err)
-				}()
+				}(listener)
 			}
 			addrs := func() {
 				for i := 0; i < 3; i++ {
@@ -605,57 +613,7 @@ func TestServer_Parallel(t *testing.T) {
 			testsuite.IsDestroyed(t, server)
 		})
 
-		t.Run("with close", func(t *testing.T) {
-			opts := Options{
-				Username: "admin",
-				Password: "123456",
-			}
-			server, err := NewHTTPServer(testTag, logger.Test, &opts)
-			require.NoError(t, err)
-
-			var listener net.Listener
-
-			init := func() {
-				listener, err = net.Listen("tcp", "127.0.0.1:0")
-				require.NoError(t, err)
-			}
-			las := func() {
-				go func() {
-					_ = server.ListenAndServe("tcp", "127.0.0.1:0")
-				}()
-			}
-			serve := func() {
-				go func() {
-					_ = server.Serve(listener)
-				}()
-			}
-			addrs := func() {
-				for i := 0; i < 3; i++ {
-					t.Log(i, server.Addresses())
-					time.Sleep(100 * time.Millisecond)
-				}
-			}
-			info := func() {
-				for i := 0; i < 3; i++ {
-					t.Log(i, server.Info())
-					time.Sleep(100 * time.Millisecond)
-				}
-			}
-			close1 := func() {
-				err := server.Close()
-				require.NoError(t, err)
-			}
-			testsuite.RunParallel(10, init, nil, las, serve, addrs, info, close1)
-
-			err = server.Close()
-			require.NoError(t, err)
-
-			testsuite.IsDestroyed(t, server)
-		})
-	})
-
-	t.Run("whole", func(t *testing.T) {
-		t.Run("without close", func(t *testing.T) {
+		t.Run("whole", func(t *testing.T) {
 			var server *Server
 
 			init := func() {
@@ -668,18 +626,18 @@ func TestServer_Parallel(t *testing.T) {
 				require.NoError(t, err)
 			}
 			las := func() {
-				go func() {
+				go func(server *Server) {
 					err := server.ListenAndServe("tcp", "127.0.0.1:0")
 					require.NoError(t, err)
-				}()
+				}(server)
 			}
 			serve := func() {
 				listener, err := net.Listen("tcp", "127.0.0.1:0")
 				require.NoError(t, err)
-				go func() {
+				go func(server *Server) {
 					err := server.Serve(listener)
 					require.NoError(t, err)
-				}()
+				}(server)
 			}
 			addrs := func() {
 				for i := 0; i < 3; i++ {
@@ -701,8 +659,65 @@ func TestServer_Parallel(t *testing.T) {
 
 			testsuite.IsDestroyed(t, server)
 		})
+	})
 
-		t.Run("with close", func(t *testing.T) {
+	t.Run("with close", func(t *testing.T) {
+		t.Run("part", func(t *testing.T) {
+			opts := Options{
+				Username: "admin",
+				Password: "123456",
+			}
+			server, err := NewHTTPServer(testTag, logger.Test, &opts)
+			require.NoError(t, err)
+
+			var listener net.Listener
+
+			init := func() {
+				listener, err = net.Listen("tcp", "127.0.0.1:0")
+				require.NoError(t, err)
+			}
+			las := func() {
+				go func() {
+					_ = server.ListenAndServe("tcp", "127.0.0.1:0")
+				}()
+			}
+			serve := func() {
+				go func(listener net.Listener) {
+					_ = server.Serve(listener)
+				}(listener)
+			}
+			addrs := func() {
+				for i := 0; i < 3; i++ {
+					t.Log(i, server.Addresses())
+					time.Sleep(100 * time.Millisecond)
+				}
+			}
+			info := func() {
+				for i := 0; i < 3; i++ {
+					t.Log(i, server.Info())
+					time.Sleep(100 * time.Millisecond)
+				}
+			}
+			close1 := func() {
+				err := server.Close()
+				require.NoError(t, err)
+			}
+			cleanup := func() {
+				_ = listener.Close()
+			}
+			fns := []func(){
+				las, las, serve, addrs, info,
+				close1, close1,
+			}
+			testsuite.RunParallel(10, init, cleanup, fns...)
+
+			err = server.Close()
+			require.NoError(t, err)
+
+			testsuite.IsDestroyed(t, server)
+		})
+
+		t.Run("whole", func(t *testing.T) {
 			var server *Server
 
 			init := func() {
@@ -715,14 +730,16 @@ func TestServer_Parallel(t *testing.T) {
 				require.NoError(t, err)
 			}
 			las := func() {
-				go func() {
+				go func(server *Server) {
 					_ = server.ListenAndServe("tcp", "127.0.0.1:0")
-				}()
+				}(server)
 			}
 			serve := func() {
 				listener, err := net.Listen("tcp", "127.0.0.1:0")
 				require.NoError(t, err)
-				go func() { _ = server.Serve(listener) }()
+				go func(server *Server) {
+					_ = server.Serve(listener)
+				}(server)
 			}
 			addrs := func() {
 				for i := 0; i < 3; i++ {
@@ -744,7 +761,11 @@ func TestServer_Parallel(t *testing.T) {
 				err := server.Close()
 				require.NoError(t, err)
 			}
-			testsuite.RunParallel(10, init, cleanup, las, serve, addrs, info, close1)
+			fns := []func(){
+				las, las, serve, addrs, info,
+				close1, close1,
+			}
+			testsuite.RunParallel(10, init, cleanup, fns...)
 
 			testsuite.IsDestroyed(t, server)
 		})

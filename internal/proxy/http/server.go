@@ -20,6 +20,7 @@ import (
 	"project/internal/logger"
 	"project/internal/nettool"
 	"project/internal/xpanic"
+	"project/internal/xsync"
 )
 
 // Server implemented internal/proxy.server.
@@ -109,16 +110,16 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 		handler.password = []byte(opts.Password)
 	}
 	handler.ctx, handler.cancel = context.WithCancel(context.Background())
-
+	// http proxy server
 	srv.handler = handler
 	srv.server.Handler = handler
 	srv.server.ErrorLog = logger.Wrap(logger.Error, srv.tag, lg)
 	srv.server.ConnState = func(conn net.Conn, state http.ConnState) {
 		switch state {
 		case http.StateNew:
-			handler.wg.Add(1)
+			handler.counter.Add(1)
 		case http.StateHijacked, http.StateClosed:
-			handler.wg.Done()
+			handler.counter.Done()
 		}
 	}
 	srv.addresses = make(map[*net.Addr]struct{})
@@ -160,6 +161,9 @@ func (s *Server) ListenAndServe(network, address string) error {
 
 // Serve accepts incoming connections on the listener.
 func (s *Server) Serve(listener net.Listener) (err error) {
+	s.handler.counter.Add(1)
+	defer s.handler.counter.Done()
+
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error(r, "Server.Serve")
@@ -168,6 +172,8 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 	}()
 
 	listener = netutil.LimitListener(listener, s.maxConns)
+	defer func() { _ = listener.Close() }()
+
 	address := listener.Addr()
 	network := address.Network()
 	s.addAddress(&address)
@@ -181,6 +187,7 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 	} else {
 		err = s.server.Serve(listener)
 	}
+
 	if nettool.IsNetClosingError(err) || err == http.ErrServerClosed {
 		return nil
 	}
@@ -231,11 +238,8 @@ func (s *Server) Info() string {
 
 // Close is used to close HTTP proxy server.
 func (s *Server) Close() error {
-	var err error
-	s.closeOnce.Do(func() {
-		err = s.server.Close()
-		s.handler.Close()
-	})
+	err := s.server.Close()
+	s.handler.Close()
 	return err
 }
 
@@ -260,9 +264,9 @@ type handler struct {
 	username []byte
 	password []byte
 
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	ctx     context.Context
+	cancel  context.CancelFunc
+	counter xsync.Counter
 }
 
 // [2018-11-27 00:00:00] [info] <http proxy-tag> test log
@@ -387,11 +391,13 @@ func (h *handler) handleConnectRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// http.Server.Close() will not close hijacked conn
+	// so we need create a goroutine to close it if the
+	// handler.ctx is Done.
 	done := make(chan struct{})
 	defer close(done)
-	h.wg.Add(1)
+	h.counter.Add(1)
 	go func() {
-		defer h.wg.Done()
+		defer h.counter.Done()
 		defer func() {
 			if rec := recover(); rec != nil {
 				h.log(logger.Fatal, r, xpanic.Print(rec, title))
@@ -406,9 +412,9 @@ func (h *handler) handleConnectRequest(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// start copy
-	h.wg.Add(1)
+	h.counter.Add(1)
 	go func() {
-		defer h.wg.Done()
+		defer h.counter.Done()
 		defer func() {
 			if rec := recover(); rec != nil {
 				h.log(logger.Fatal, r, xpanic.Print(rec, title))
@@ -440,6 +446,6 @@ func (h *handler) handleCommonRequest(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) Close() {
 	h.cancel()
-	h.wg.Wait()
+	h.counter.Wait()
 	h.transport.CloseIdleConnections()
 }
