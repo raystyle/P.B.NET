@@ -713,8 +713,8 @@ func TestManager_Parallel(t *testing.T) {
 		Mode: ModeHTTPS,
 	}
 
-	t.Run("part", func(t *testing.T) {
-		t.Run("without close", func(t *testing.T) {
+	t.Run("without close", func(t *testing.T) {
+		t.Run("part", func(t *testing.T) {
 			manager := NewManager(pool, logger.Test, nil)
 
 			init := func() {
@@ -784,53 +784,7 @@ func TestManager_Parallel(t *testing.T) {
 			testsuite.IsDestroyed(t, manager)
 		})
 
-		t.Run("with close", func(t *testing.T) {
-			manager := NewManager(pool, logger.Test, nil)
-
-			init := func() {
-				_ = manager.Add(server1)
-				_ = manager.Add(server2)
-				_ = manager.Add(server5)
-				_ = manager.Add(server6)
-			}
-			add1 := func() {
-				_ = manager.Add(server3)
-			}
-			add2 := func() {
-				_ = manager.Add(server4)
-			}
-			delete1 := func() {
-				_ = manager.Delete(tag1)
-			}
-			delete2 := func() {
-				_ = manager.Delete(tag2)
-			}
-			get1 := func() {
-				_, _ = manager.Get(tag5)
-			}
-			get2 := func() {
-				_, _ = manager.Get(tag6)
-			}
-			servers := func() {
-				_ = manager.Servers()
-			}
-			close1 := func() {
-				err := manager.Close()
-				require.NoError(t, err)
-			}
-			fns := []func(){
-				add1, add2, delete1, delete2,
-				get1, get2, servers, servers,
-				close1,
-			}
-			testsuite.RunParallel(100, init, nil, fns...)
-
-			testsuite.IsDestroyed(t, manager)
-		})
-	})
-
-	t.Run("whole", func(t *testing.T) {
-		t.Run("without close", func(t *testing.T) {
+		t.Run("whole", func(t *testing.T) {
 			var manager *Manager
 
 			init := func() {
@@ -892,8 +846,54 @@ func TestManager_Parallel(t *testing.T) {
 
 			testsuite.IsDestroyed(t, manager)
 		})
+	})
 
-		t.Run("with close", func(t *testing.T) {
+	t.Run("with close", func(t *testing.T) {
+		t.Run("part", func(t *testing.T) {
+			manager := NewManager(pool, logger.Test, nil)
+
+			init := func() {
+				_ = manager.Add(server1)
+				_ = manager.Add(server2)
+				_ = manager.Add(server5)
+				_ = manager.Add(server6)
+			}
+			add1 := func() {
+				_ = manager.Add(server3)
+			}
+			add2 := func() {
+				_ = manager.Add(server4)
+			}
+			delete1 := func() {
+				_ = manager.Delete(tag1)
+			}
+			delete2 := func() {
+				_ = manager.Delete(tag2)
+			}
+			get1 := func() {
+				_, _ = manager.Get(tag5)
+			}
+			get2 := func() {
+				_, _ = manager.Get(tag6)
+			}
+			servers := func() {
+				_ = manager.Servers()
+			}
+			close1 := func() {
+				err := manager.Close()
+				require.NoError(t, err)
+			}
+			fns := []func(){
+				add1, add2, delete1, delete2,
+				get1, get2, servers, servers,
+				close1,
+			}
+			testsuite.RunParallel(100, init, nil, fns...)
+
+			testsuite.IsDestroyed(t, manager)
+		})
+
+		t.Run("whole", func(t *testing.T) {
 			var manager *Manager
 
 			init := func() {
