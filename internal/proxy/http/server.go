@@ -37,11 +37,9 @@ type Server struct {
 	// listener addresses
 	addresses    map[*net.Addr]struct{}
 	addressesRWM sync.RWMutex
-
-	closeOnce sync.Once
 }
 
-// NewHTTPServer is used to create a HTTPS proxy server.
+// NewHTTPServer is used to create a HTTP proxy server.
 func NewHTTPServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	return newServer(tag, lg, opts, false)
 }

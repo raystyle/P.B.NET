@@ -579,13 +579,13 @@ func TestServer_NewRequest_Parallel(t *testing.T) {
 			require.NoError(t, err)
 		}
 		req := func() {
-			u := &url.URL{
+			URL := &url.URL{
 				Scheme: "http",
 				Host:   listener.Addr().String(),
 				User:   url.UserPassword("admin", "123456"),
 			}
 			tr := http.Transport{
-				Proxy: http.ProxyURL(u),
+				Proxy: http.ProxyURL(URL),
 			}
 			client := http.Client{
 				Transport: &tr,
@@ -627,13 +627,13 @@ func TestServer_NewRequest_Parallel(t *testing.T) {
 			require.NoError(t, err)
 		}
 		req := func() {
-			u := &url.URL{
+			URL := &url.URL{
 				Scheme: "http",
 				Host:   listener.Addr().String(),
 				User:   url.UserPassword("admin", "123456"),
 			}
 			tr := http.Transport{
-				Proxy: http.ProxyURL(u),
+				Proxy: http.ProxyURL(URL),
 			}
 			client := http.Client{
 				Transport: &tr,
@@ -704,13 +704,13 @@ func TestServer_Parallel(t *testing.T) {
 				}
 			}
 			req := func() {
-				u := &url.URL{
+				URL := &url.URL{
 					Scheme: "http",
 					Host:   listener.Addr().String(),
 					User:   url.UserPassword("admin", "123456"),
 				}
 				tr := http.Transport{
-					Proxy: http.ProxyURL(u),
+					Proxy: http.ProxyURL(URL),
 				}
 				client := http.Client{
 					Transport: &tr,
@@ -762,13 +762,13 @@ func TestServer_Parallel(t *testing.T) {
 				}(server)
 
 				// new request
-				u := &url.URL{
+				URL := &url.URL{
 					Scheme: "http",
 					Host:   listener.Addr().String(),
 					User:   url.UserPassword("admin", "123456"),
 				}
 				tr := http.Transport{
-					Proxy: http.ProxyURL(u),
+					Proxy: http.ProxyURL(URL),
 				}
 				client := http.Client{
 					Transport: &tr,
@@ -841,13 +841,13 @@ func TestServer_Parallel(t *testing.T) {
 				}
 			}
 			req := func() {
-				u := &url.URL{
+				URL := &url.URL{
 					Scheme: "http",
 					Host:   listener.Addr().String(),
 					User:   url.UserPassword("admin", "123456"),
 				}
 				tr := http.Transport{
-					Proxy: http.ProxyURL(u),
+					Proxy: http.ProxyURL(URL),
 				}
 				client := http.Client{
 					Transport: &tr,
@@ -904,13 +904,13 @@ func TestServer_Parallel(t *testing.T) {
 				}(server)
 
 				// new request
-				u := &url.URL{
+				URL := &url.URL{
 					Scheme: "http",
 					Host:   listener.Addr().String(),
 					User:   url.UserPassword("admin", "123456"),
 				}
 				tr := http.Transport{
-					Proxy: http.ProxyURL(u),
+					Proxy: http.ProxyURL(URL),
 				}
 				client := http.Client{
 					Transport: &tr,
