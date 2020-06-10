@@ -560,6 +560,183 @@ func TestClient_TestOptions(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
+func TestClient_Add_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const (
+		tag1 = "test-01"
+		tag2 = "test-02"
+	)
+
+	server1 := &Server{
+		Method:  MethodUDP,
+		Address: "127.0.0.1:1080",
+	}
+	server2 := &Server{
+		Method:  MethodUDP,
+		Address: "127.0.0.1:1081",
+	}
+
+	t.Run("part", func(t *testing.T) {
+		client := NewClient(nil, nil)
+
+		add1 := func() {
+			err := client.Add(tag1, server1)
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := client.Add(tag2, server2)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			servers := client.Servers()
+			require.Len(t, servers, 2)
+
+			err := client.Delete(tag1)
+			require.NoError(t, err)
+			err = client.Delete(tag2)
+			require.NoError(t, err)
+
+			servers = client.Servers()
+			require.Len(t, servers, 0)
+		}
+		testsuite.RunParallel(100, nil, cleanup, add1, add2)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var client *Client
+
+		init := func() {
+			client = NewClient(nil, nil)
+		}
+		add1 := func() {
+			err := client.Add(tag1, server1)
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := client.Add(tag2, server2)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			servers := client.Servers()
+			require.Len(t, servers, 2)
+
+			err := client.Delete(tag1)
+			require.NoError(t, err)
+			err = client.Delete(tag2)
+			require.NoError(t, err)
+
+			servers = client.Servers()
+			require.Len(t, servers, 0)
+		}
+		testsuite.RunParallel(100, init, cleanup, add1, add2)
+
+		testsuite.IsDestroyed(t, client)
+	})
+}
+
+func TestClient_Delete_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const (
+		tag1 = "test-01"
+		tag2 = "test-02"
+	)
+
+	server1 := &Server{
+		Method:  MethodUDP,
+		Address: "127.0.0.1:1080",
+	}
+	server2 := &Server{
+		Method:  MethodUDP,
+		Address: "127.0.0.1:1081",
+	}
+
+	t.Run("part", func(t *testing.T) {
+		client := NewClient(nil, nil)
+
+		init := func() {
+			err := client.Add(tag1, server1)
+			require.NoError(t, err)
+			err = client.Add(tag2, server2)
+			require.NoError(t, err)
+		}
+		delete1 := func() {
+			err := client.Delete(tag1)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := client.Delete(tag2)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			servers := client.Servers()
+			require.Empty(t, servers)
+		}
+		testsuite.RunParallel(100, init, cleanup, delete1, delete2)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var client *Client
+
+		init := func() {
+			client = NewClient(nil, nil)
+
+			err := client.Add(tag1, server1)
+			require.NoError(t, err)
+			err = client.Add(tag2, server2)
+			require.NoError(t, err)
+		}
+		delete1 := func() {
+			err := client.Delete(tag1)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := client.Delete(tag2)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			servers := client.Servers()
+			require.Empty(t, servers)
+		}
+		testsuite.RunParallel(100, init, cleanup, delete1, delete2)
+
+		testsuite.IsDestroyed(t, client)
+	})
+}
+
+func TestClient_Servers_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("part", func(t *testing.T) {
+
+	})
+
+	t.Run("whole", func(t *testing.T) {
+
+	})
+}
+
+func TestClient_Resolve_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("part", func(t *testing.T) {
+
+	})
+
+	t.Run("whole", func(t *testing.T) {
+
+	})
+}
+
 func TestClient_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

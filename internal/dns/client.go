@@ -236,8 +236,8 @@ func (c *Client) ResolveContext(ctx context.Context, domain string, opts *Option
 
 func (c *Client) selectType(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	ipv4Enabled, ipv6Enabled := nettool.IPEnabled()
-	// double stack
-	if ipv4Enabled && ipv6Enabled {
+	switch {
+	case ipv4Enabled && ipv6Enabled: // double stack
 		opts := opts.Clone()
 		opts.Type = TypeIPv6
 		ipv6, err := c.customResolve(ctx, domain, opts)
@@ -252,15 +252,11 @@ func (c *Client) selectType(ctx context.Context, domain string, opts *Options) (
 			return result, nil
 		}
 		return nil, errors.WithStack(ErrNoResolveResult)
-	}
-	// IPv4 only
-	if ipv4Enabled {
+	case ipv4Enabled: // IPv4 only
 		opts := opts.Clone()
 		opts.Type = TypeIPv4
 		return c.customResolve(ctx, domain, opts)
-	}
-	// IPv6 only
-	if ipv6Enabled {
+	case ipv6Enabled: // IPv6 only
 		opts := opts.Clone()
 		opts.Type = TypeIPv6
 		return c.customResolve(ctx, domain, opts)
@@ -285,7 +281,6 @@ func (c *Client) setCertPoolAndProxy(opts *Options) error {
 	case MethodUDP, MethodTCP, MethodDoT:
 		opts.dialContext = p.DialContext
 	case MethodDoH:
-		// apply DoH options (http.Transport)
 		var err error
 		opts.transport, err = opts.Transport.Apply()
 		if err != nil {
