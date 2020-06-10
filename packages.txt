@@ -11,7 +11,7 @@ project/internal/logger                        project/internal/nettool
 project/internal/xpanic                        project/internal/xreflect
 
 // basic packages with little dependence
-project/internal/random                        project/internal/guid
+project/internal/random                        project/internal/guid------------------------%
 project/internal/security                      project/internal/system
 project/internal/namer---------------$%
 

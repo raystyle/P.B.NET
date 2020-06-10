@@ -198,6 +198,115 @@ func TestGenerator(t *testing.T) {
 	})
 }
 
+func TestGenerator_Get_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("part", func(t *testing.T) {
+		g := New(512, nil)
+
+		get := func() {
+			guid := g.Get()
+			require.False(t, guid.IsZero())
+		}
+		testsuite.RunParallel(100, nil, nil, get, get)
+
+		g.Close()
+
+		testsuite.IsDestroyed(t, g)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var g *Generator
+
+		init := func() {
+			g = New(512, nil)
+		}
+		get := func() {
+			guid := g.Get()
+			require.False(t, guid.IsZero())
+		}
+		cleanup := func() {
+			g.Close()
+		}
+		testsuite.RunParallel(100, init, cleanup, get, get)
+
+		testsuite.IsDestroyed(t, g)
+	})
+}
+
+func TestGenerator_Close_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("part", func(t *testing.T) {
+		g := New(512, nil)
+
+		close1 := func() {
+			g.Close()
+		}
+		testsuite.RunParallel(100, nil, nil, close1, close1)
+
+		testsuite.IsDestroyed(t, g)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var g *Generator
+
+		init := func() {
+			g = New(512, nil)
+		}
+		close1 := func() {
+			g.Close()
+		}
+		testsuite.RunParallel(100, init, nil, close1, close1)
+
+		testsuite.IsDestroyed(t, g)
+	})
+}
+
+func TestGenerator_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("part", func(t *testing.T) {
+		g := New(512, nil)
+
+		get := func() {
+			g.Get()
+		}
+		close1 := func() {
+			g.Close()
+		}
+		cleanup := func() {
+			g.Close()
+		}
+		testsuite.RunParallel(100, nil, cleanup, get, get, close1, close1)
+
+		testsuite.IsDestroyed(t, g)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var g *Generator
+
+		init := func() {
+			g = New(512, nil)
+		}
+		get := func() {
+			g.Get()
+		}
+		close1 := func() {
+			g.Close()
+		}
+		cleanup := func() {
+			g.Close()
+		}
+		testsuite.RunParallel(100, init, cleanup, get, get, close1, close1)
+
+		testsuite.IsDestroyed(t, g)
+	})
+}
+
 func BenchmarkGenerator_Get(b *testing.B) {
 	gm := testsuite.MarkGoroutines(b)
 	defer gm.Compare()
