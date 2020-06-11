@@ -16,33 +16,33 @@ import (
 )
 
 var (
-	skipDownload bool
-	configFile   string
+	downloadAll bool
+	configFile  string
 
 	cfg config.Config
 )
 
 func main() {
-	log.SetSource("build")
-
-	usage := "skip call go mod download"
-	flag.BoolVar(&skipDownload, "skip-download", false, usage)
+	usage := "run go mod download to download dependencies about all modules"
+	flag.BoolVar(&downloadAll, "download-all", false, usage)
 	usage = "config file path"
 	flag.StringVar(&configFile, "config", "config.toml", usage)
 	flag.Parse()
 
+	log.SetSource("build")
 	for _, step := range []func() bool{
 		printCurrentDirectory,
 		loadConfigFile,
-		downloadModule,
+		listModule,
+		downloadAllDep,
 		verifyModule,
+		downloadModule,
 		addPatchToGoRoot,
 	} {
 		if !step() {
 			return
 		}
 	}
-
 	log.Println(logger.Info, "install successfully")
 }
 
@@ -68,27 +68,42 @@ func loadConfigFile() bool {
 		return false
 	}
 	log.Println(logger.Info, "load config file successfully")
-
 	log.Println(logger.Info, "Go latest root path:", cfg.GoRootLatest)
 	log.Println(logger.Info, "Go 1.10.8 root path:", cfg.GoRoot1108)
 	return true
 }
 
-func downloadModule() bool {
-	if skipDownload {
-		log.Println(logger.Warning, "skip run go mod download")
-		return true
-	}
-	output, code, err := exec.Run("go", "mod", "download")
+func listModule() bool {
+	log.Println(logger.Info, "list all modules about project")
+	output, code, err := exec.Run("go", "list", "-m", "all")
 	if err != nil {
 		log.Println(logger.Error, err)
 		return false
 	}
-	log.Println(logger.Info, output)
 	if code != 0 {
+		log.Println(logger.Error, output)
 		return false
 	}
-	log.Println(logger.Info, "download go module successfully")
+	output = output[:len(output)-1] // remove the last "\n"
+	log.Println(logger.Info, output)
+	return true
+}
+
+func downloadAllDep() bool {
+	if !downloadAll {
+		return true
+	}
+	log.Println(logger.Info, "download all module dependencies")
+	output, code, err := exec.Run("go", "mod", "download", "-x")
+	if err != nil {
+		log.Println(logger.Error, err)
+		return false
+	}
+	if code != 0 {
+		log.Println(logger.Info, output)
+		return false
+	}
+	log.Println(logger.Info, "download all module dependencies successfully")
 	return true
 }
 
@@ -103,7 +118,22 @@ func verifyModule() bool {
 	if code != 0 {
 		return false
 	}
-	log.Println(logger.Info, "verify go module successfully")
+	log.Println(logger.Info, "verify module successfully")
+	return true
+}
+
+func downloadModule() bool {
+	log.Println(logger.Info, "download module if it doesn't exist")
+	output, code, err := exec.Run("go", "build", "./...")
+	if err != nil {
+		log.Println(logger.Error, err)
+		return false
+	}
+	if code != 0 {
+		log.Println(logger.Info, output)
+		return false
+	}
+	log.Println(logger.Info, "download all modules successfully")
 	return true
 }
 
@@ -126,7 +156,6 @@ func addPatchToGoRoot() bool {
 			log.Printf(logger.Error, format, val.note, err)
 			return false
 		}
-
 		go1108 := fmt.Sprintf("%s/src/%s", cfg.GoRoot1108, val.dst)
 		err = copyFileToGoRoot(val.src, go1108)
 		if err != nil {
@@ -134,7 +163,6 @@ func addPatchToGoRoot() bool {
 			log.Printf(logger.Error, format, val.note, err)
 			return false
 		}
-
 		log.Printf(logger.Info, "add patch file %s successfully", val.src)
 	}
 	log.Println(logger.Info, "add all patch files to go root path successfully")
