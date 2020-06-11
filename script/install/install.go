@@ -170,7 +170,7 @@ func addPatchToGoRoot() bool {
 }
 
 func copyFileToGoRoot(src, dst string) error {
-	data, err := ioutil.ReadFile(src)
+	data, err := ioutil.ReadFile(src) // #nosec
 	if err != nil {
 		return err
 	}
