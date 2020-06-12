@@ -20,9 +20,9 @@ func initCryptoRand() {
 		"Reader": reflect.ValueOf(rand.Reader),
 
 		// define functions
-		"Read":  reflect.ValueOf(rand.Read),
-		"Prime": reflect.ValueOf(rand.Prime),
 		"Int":   reflect.ValueOf(rand.Int),
+		"Prime": reflect.ValueOf(rand.Prime),
+		"Read":  reflect.ValueOf(rand.Read),
 	}
 	var ()
 	env.PackageTypes["crypto/rand"] = map[string]reflect.Type{}
