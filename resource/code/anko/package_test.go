@@ -185,10 +185,21 @@ func init() {
 		{"time time.Time", "t time.Time"},
 		{"(&time)", "(&t)"},
 
+		// amd64
 		{"(crc64.ECMA)", "(uint64(crc64.ECMA))"},
 		{"(crc64.ISO)", "(uint64(crc64.ISO))"},
 		{"(math.MaxUint64)", "(uint64(math.MaxUint64))"},
 
+		// 386
+		{"(crc32.IEEE)", "(uint32(crc32.IEEE))"},
+		{"(crc32.Castagnoli)", "(uint32(crc32.Castagnoli))"},
+		{"(crc32.Koopman)", "(uint32(crc32.Koopman))"},
+		{"(math.MaxInt64)", "(int64(math.MaxInt64))"},
+		{"(math.MaxUint32)", "(uint32(math.MaxUint32))"},
+		{"(math.MinInt64)", "(int64(math.MinInt64))"},
+		{"(big.MaxPrec)", "(uint32(big.MaxPrec))"},
+
+		// skip gosec
 		{`	"crypto/des"`, `	"crypto/des" // #nosec`},
 		{`	"crypto/md5"`, `	"crypto/md5" // #nosec`},
 		{`	"crypto/rc4"`, `	"crypto/rc4" // #nosec`},
@@ -236,7 +247,6 @@ func init() {
 	}{
 		{"internal/patch/json", "PatchJSON"},
 	} {
-
 		_, _ = fmt.Fprintf(pkgBuf, `	"project/%s"`+"\n", item.name)
 		_, _ = fmt.Fprintf(initBuf, "\tinit%s()\n", item.init)
 		src, err := exportDeclaration(dir, item.name, item.init)

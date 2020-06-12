@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -34,13 +35,14 @@ func parseDir(dir string) (map[string]*ast.Package, error) {
 
 func getPackageName(packages map[string]*ast.Package) string {
 	var pkgName string
+loop:
 	for pn := range packages {
 		switch {
 		case pn == "main":
 		case strings.HasSuffix(pn, "_test"):
 		default:
 			pkgName = pn
-			break
+			break loop
 		}
 	}
 	return pkgName
@@ -131,12 +133,24 @@ func exportDeclaration(root, path, init string) (string, error) {
 	if root[0] == '$' {
 
 	}
+	c := sortStringMap(constants)
+	v := sortStringMap(variables)
+	t := sortStringMap(types)
+	f := sortStringMap(functions)
+	return generateCode(path, pkgName, init, c, v, t, f), nil
+}
 
-	return generateCode(path, pkgName, init, constants, variables, types, functions), nil
+func sortStringMap(m map[string]struct{}) []string {
+	s := make([]string, 0, len(m))
+	for k := range m {
+		s = append(s, k)
+	}
+	sort.Strings(s)
+	return s
 }
 
 // pn = package name
-func generateCode(path, pn, init string, consts, vars, types, fns map[string]struct{}) string {
+func generateCode(path, pn, init string, consts, vars, types, fns []string) string {
 	const template = `
 func init%s() {
 	env.Packages["%s"] = map[string]reflect.Value{
@@ -166,19 +180,19 @@ func init%s() {
 	)
 
 	buf := new(bytes.Buffer)
-	for c := range consts {
+	for _, c := range consts {
 		_, _ = fmt.Fprintf(buf, valFormat, c, pn, c)
 	}
 	constStr := buf.String()
 
 	buf.Reset()
-	for v := range vars {
+	for _, v := range vars {
 		_, _ = fmt.Fprintf(buf, valFormat, v, pn, v)
 	}
 	varStr := buf.String()
 
 	buf.Reset()
-	for fn := range fns {
+	for _, fn := range fns {
 		_, _ = fmt.Fprintf(buf, valFormat, fn, pn, fn)
 	}
 	funcStr := buf.String()
@@ -186,7 +200,7 @@ func init%s() {
 	// prepare var buffer for struct and interface
 	vpBuf := new(bytes.Buffer)
 	buf.Reset()
-	for typ := range types {
+	for _, typ := range types {
 		// "ReadWriter" -> "readWriter"
 		varName := strings.ToLower(typ[0:1]) + typ[1:]
 		_, _ = fmt.Fprintf(vpBuf, vpFormat, varName, pn, typ)
