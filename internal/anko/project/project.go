@@ -10,27 +10,27 @@ import (
 )
 
 func init() {
-	initPatchJSON()
+	initInternalPatchJSON()
 }
 
-func initPatchJSON() {
-	env.Packages["internal/patch/json"] = map[string]reflect.Value{
+func initInternalPatchJSON() {
+	env.Packages["project/internal/patch/json"] = map[string]reflect.Value{
 		// define constants
 
 		// define variables
 
 		// define functions
-		"NewEncoder": reflect.ValueOf(json.NewEncoder),
-		"NewDecoder": reflect.ValueOf(json.NewDecoder),
 		"Marshal":    reflect.ValueOf(json.Marshal),
+		"NewDecoder": reflect.ValueOf(json.NewDecoder),
+		"NewEncoder": reflect.ValueOf(json.NewEncoder),
 		"Unmarshal":  reflect.ValueOf(json.Unmarshal),
 	}
 	var (
-		encoder json.Encoder
 		decoder json.Decoder
+		encoder json.Encoder
 	)
-	env.PackageTypes["internal/patch/json"] = map[string]reflect.Type{
-		"Encoder": reflect.TypeOf(&encoder).Elem(),
+	env.PackageTypes["project/internal/patch/json"] = map[string]reflect.Type{
 		"Decoder": reflect.TypeOf(&decoder).Elem(),
+		"Encoder": reflect.TypeOf(&encoder).Elem(),
 	}
 }
