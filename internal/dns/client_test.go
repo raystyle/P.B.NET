@@ -954,7 +954,35 @@ func TestClient_Resolve_Parallel(t *testing.T) {
 	})
 
 	t.Run("whole", func(t *testing.T) {
+		var client *Client
 
+		init := func() {
+			client = NewClient(certPool, proxyPool)
+			testAddAllDNSServers(t, client)
+		}
+		udp := func() {
+
+		}
+		tcp := func() {
+
+		}
+		dot := func() {
+
+		}
+		doh := func() {
+
+		}
+		system := func() {
+
+		}
+		resolves := []func(){
+			udp, tcp, dot, doh,
+			system,
+		}
+
+		testsuite.RunParallel(10, init, nil, resolves...)
+
+		testsuite.IsDestroyed(t, client)
 	})
 }
 
