@@ -277,8 +277,8 @@ func (l *Listener) serve(iListener, lListener net.Listener) {
 }
 
 func (l *Listener) accept(listener net.Listener) net.Conn {
+	const maxDelay = time.Second
 	var delay time.Duration // how long to sleep on accept failure
-	maxDelay := time.Second
 	for {
 		conn, err := listener.Accept()
 		if err != nil {

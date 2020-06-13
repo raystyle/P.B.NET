@@ -214,8 +214,8 @@ func (t *Tranner) serve(listener net.Listener) {
 	defer t.logf(logger.Info, "listener closed (%s %s)", network, address)
 
 	// started accept loop
+	const maxDelay = time.Second
 	var delay time.Duration // how long to sleep on accept failure
-	maxDelay := time.Second
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
