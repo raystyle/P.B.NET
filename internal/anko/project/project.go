@@ -5,12 +5,16 @@ import (
 	"reflect"
 
 	"project/internal/patch/json"
+	"project/internal/patch/msgpack"
+	"project/internal/patch/toml"
 
 	"github.com/mattn/anko/env"
 )
 
 func init() {
 	initInternalPatchJSON()
+	initInternalPatchMsgpack()
+	initInternalPatchToml()
 }
 
 func initInternalPatchJSON() {
@@ -33,4 +37,40 @@ func initInternalPatchJSON() {
 		"Decoder": reflect.TypeOf(&decoder).Elem(),
 		"Encoder": reflect.TypeOf(&encoder).Elem(),
 	}
+}
+
+func initInternalPatchMsgpack() {
+	env.Packages["project/internal/patch/msgpack"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+
+		// define functions
+		"Marshal":    reflect.ValueOf(msgpack.Marshal),
+		"NewDecoder": reflect.ValueOf(msgpack.NewDecoder),
+		"NewEncoder": reflect.ValueOf(msgpack.NewEncoder),
+		"Unmarshal":  reflect.ValueOf(msgpack.Unmarshal),
+	}
+	var (
+		decoder msgpack.Decoder
+		encoder msgpack.Encoder
+	)
+	env.PackageTypes["project/internal/patch/msgpack"] = map[string]reflect.Type{
+		"Decoder": reflect.TypeOf(&decoder).Elem(),
+		"Encoder": reflect.TypeOf(&encoder).Elem(),
+	}
+}
+
+func initInternalPatchToml() {
+	env.Packages["project/internal/patch/toml"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+
+		// define functions
+		"Marshal":   reflect.ValueOf(toml.Marshal),
+		"Unmarshal": reflect.ValueOf(toml.Unmarshal),
+	}
+	var ()
+	env.PackageTypes["project/internal/patch/toml"] = map[string]reflect.Type{}
 }
