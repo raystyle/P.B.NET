@@ -102,7 +102,8 @@ func exportFunction(decl *ast.FuncDecl, m map[string]struct{}) {
 
 func exportDeclaration(root, path, init string) (string, error) {
 	// package file path
-	packages, err := parseDir(filepath.Join(root, path))
+	dir := filepath.Join(root, strings.ReplaceAll(path, "$", ""))
+	packages, err := parseDir(dir)
 	if err != nil {
 		return "", err
 	}
@@ -130,8 +131,8 @@ func exportDeclaration(root, path, init string) (string, error) {
 		}
 	}
 	// replace special path
-	if root[0] == '$' {
-
+	if path[0] == '$' {
+		path = "project/" + path[1:]
 	}
 	c := sortStringMap(constants)
 	v := sortStringMap(variables)

@@ -245,11 +245,11 @@ func init() {
 		name string
 		init string
 	}{
-		{"internal/patch/json", "PatchJSON"},
+		{"internal/patch/json", "InternalPatchJSON"},
 	} {
 		_, _ = fmt.Fprintf(pkgBuf, `	"project/%s"`+"\n", item.name)
 		_, _ = fmt.Fprintf(initBuf, "\tinit%s()\n", item.init)
-		src, err := exportDeclaration(dir, item.name, item.init)
+		src, err := exportDeclaration(dir, "$"+item.name, item.init)
 		require.NoError(t, err)
 		srcBuf.WriteString(src)
 	}
@@ -262,8 +262,7 @@ func init() {
 		old string
 		new string
 	}{
-		{"interface heap.Interface", "iface heap.Interface"},
-		{"(&interface)", "(&iface)"},
+		// {},
 	} {
 		src = strings.ReplaceAll(src, item.old, item.new)
 	}
