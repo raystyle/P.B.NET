@@ -246,6 +246,8 @@ func init() {
 		init string
 	}{
 		{"internal/patch/json", "InternalPatchJSON"},
+		{"internal/patch/msgpack", "InternalPatchMsgpack"},
+		{"internal/patch/toml", "InternalPatchToml"},
 	} {
 		_, _ = fmt.Fprintf(pkgBuf, `	"project/%s"`+"\n", item.name)
 		_, _ = fmt.Fprintf(initBuf, "\tinit%s()\n", item.init)
