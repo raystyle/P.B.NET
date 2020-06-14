@@ -192,6 +192,9 @@ for key in keys(m) {
 }
 
 func TestCoreRange(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	t.Run("np", func(t *testing.T) {
 		const src = `range()`
 		testRun(t, src, true)
@@ -224,6 +227,9 @@ func TestCoreRange(t *testing.T) {
 }
 
 func TestCoreTypeOf(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	const src = `
 a = 10
 println(typeOf(a))
@@ -232,6 +238,9 @@ println(typeOf(a))
 }
 
 func TestCoreKindOf(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	t.Run("int64", func(t *testing.T) {
 		const src = `
 a = 10
@@ -250,6 +259,9 @@ println(kindOf(a))
 }
 
 func TestCoreEval(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	t.Run("ok", func(t *testing.T) {
 		const src = `eval("println('in eval')")`
 		testRun(t, src, false)
