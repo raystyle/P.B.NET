@@ -28,9 +28,6 @@ func NewEnv() *env.Env {
 func addCore(e *env.Env) {
 	_ = e.Define("keys", func(v interface{}) []interface{} {
 		rv := reflect.ValueOf(v)
-		if rv.Kind() == reflect.Interface {
-			rv = rv.Elem()
-		}
 		mapKeysValue := rv.MapKeys()
 		mapKeys := make([]interface{}, len(mapKeysValue))
 		for i := 0; i < len(mapKeysValue); i++ {
@@ -82,7 +79,7 @@ func addCore(e *env.Env) {
 	})
 
 	childEnv := e.DeepCopy()
-	_ = e.Define("load", func(s string) interface{} {
+	_ = e.Define("eval", func(s string) interface{} {
 		body, err := ioutil.ReadFile(s)
 		if err != nil {
 			panic(err)
@@ -97,13 +94,12 @@ func addCore(e *env.Env) {
 			}
 			panic(err)
 		}
-		rv, err := vm.Run(childEnv, nil, stmts)
+		rv, err := vm.Run(childEnv.DeepCopy(), nil, stmts)
 		if err != nil {
 			panic(err)
 		}
 		return rv
 	})
-
 	_ = e.Define("print", fmt.Print)
 	_ = e.Define("println", fmt.Println)
 	_ = e.Define("printf", fmt.Printf)
@@ -114,7 +110,7 @@ func ParseSrc(src string) (ast.Stmt, error) {
 	defer security.CoverString(src)
 	stmt, err := parser.ParseSrc(src)
 	if err != nil {
-		const format = "%s at line:%d column:%d"
+		const format = "parse source with %s at line:%d column:%d"
 		e := err.(*parser.Error)
 		return nil, fmt.Errorf(format, e.Message, e.Pos.Line, e.Pos.Column)
 	}
@@ -126,7 +122,7 @@ func RunContext(ctx context.Context, env *env.Env, stmt ast.Stmt) (interface{}, 
 	val, err := vm.RunContext(ctx, env, nil, stmt)
 	if err != nil {
 		if e, ok := err.(*vm.Error); ok {
-			const format = "%s at line:%d column:%d"
+			const format = "run with %s at line:%d column:%d"
 			return val, fmt.Errorf(format, e.Message, e.Pos.Line, e.Pos.Column)
 		}
 		return val, err
