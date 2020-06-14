@@ -2,6 +2,7 @@ package anko
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,9 @@ import (
 func TestNewEnv(t *testing.T) {
 	env := NewEnv()
 	require.NotNil(t, env)
+
+	fmt.Println(Packages)
+	fmt.Println(Types)
 
 	v, err := env.Get("keys")
 	require.NoError(t, err)
@@ -74,7 +78,7 @@ println(a)
 		stmt := testParseSrc(t, src)
 
 		env := NewEnv()
-		val, err := RunContext(context.Background(), env, stmt)
+		val, err := Run(env, stmt)
 		require.NoError(t, err)
 
 		t.Log(val)
@@ -89,16 +93,15 @@ a = 10
 println(a)
 `
 		stmt := testParseSrc(t, src)
-		ctx := context.Background()
 
 		env1 := NewEnv()
-		val, err := RunContext(ctx, env1, stmt)
+		val, err := Run(env1, stmt)
 		require.NoError(t, err)
 		t.Log(val)
 		testsuite.IsDestroyed(t, env1)
 
 		env2 := NewEnv()
-		val, err = RunContext(ctx, env2, stmt)
+		val, err = Run(env2, stmt)
 		require.NoError(t, err)
 		t.Log(val)
 		testsuite.IsDestroyed(t, env2)
@@ -116,7 +119,7 @@ println(b)
 		stmt := testParseSrc(t, src)
 
 		env := NewEnv()
-		val, err := RunContext(context.Background(), env, stmt)
+		val, err := Run(env, stmt)
 		require.Error(t, err)
 
 		t.Log(val, err)
@@ -158,46 +161,112 @@ for {
 	})
 }
 
-func testRun(t *testing.T, s string) {
+func testRun(t *testing.T, s string, fail bool) {
 	stmt := testParseSrc(t, s)
 
 	env := NewEnv()
-	val, err := RunContext(context.Background(), env, stmt)
-	require.NoError(t, err)
-
-	t.Log(val)
+	val, err := Run(env, stmt)
+	if fail {
+		require.Error(t, err)
+		t.Log(val, err)
+	} else {
+		require.NoError(t, err)
+		t.Log(val)
+	}
 
 	testsuite.IsDestroyed(t, env)
 	testsuite.IsDestroyed(t, stmt)
 }
 
-func TestCore(t *testing.T) {
+func TestCoreKeys(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("keys", func(t *testing.T) {
-		const src = `
+	const src = `
 m = {"foo": "bar", "bar": "baz"}
 for key in keys(m) {
 	println(key, m[key])
 }
 `
-		testRun(t, src)
+	testRun(t, src, false)
+}
+
+func TestCoreRange(t *testing.T) {
+	t.Run("np", func(t *testing.T) {
+		const src = `range()`
+		testRun(t, src, true)
 	})
 
-	t.Run("range", func(t *testing.T) {
-
+	t.Run("1p", func(t *testing.T) {
+		const src = `range(3)`
+		testRun(t, src, false)
 	})
 
-	t.Run("typeOf", func(t *testing.T) {
-
+	t.Run("2p", func(t *testing.T) {
+		const src = `range(1, 3)`
+		testRun(t, src, false)
 	})
 
-	t.Run("kindOf", func(t *testing.T) {
-
+	t.Run("3p", func(t *testing.T) {
+		const src = `range(1, 10, 2)`
+		testRun(t, src, false)
 	})
 
-	t.Run("eval", func(t *testing.T) {
+	t.Run("3p-zero step", func(t *testing.T) {
+		const src = `range(1, 10, 0)`
+		testRun(t, src, true)
+	})
 
+	t.Run("4p", func(t *testing.T) {
+		const src = `range(1, 2, 3, 4)`
+		testRun(t, src, true)
+	})
+}
+
+func TestCoreTypeOf(t *testing.T) {
+	const src = `
+a = 10
+println(typeOf(a))
+`
+	testRun(t, src, false)
+}
+
+func TestCoreKindOf(t *testing.T) {
+	t.Run("int64", func(t *testing.T) {
+		const src = `
+a = 10
+println(kindOf(a))
+`
+		testRun(t, src, false)
+	})
+
+	t.Run("nil", func(t *testing.T) {
+		const src = `
+a = nil
+println(kindOf(a))
+`
+		testRun(t, src, false)
+	})
+}
+
+func TestCoreEval(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		const src = `eval("println('in eval')")`
+		testRun(t, src, false)
+	})
+
+	t.Run("invalid source", func(t *testing.T) {
+		const src = `eval("a -- a")`
+		testRun(t, src, true)
+	})
+
+	t.Run("eval with error", func(t *testing.T) {
+		const src = "eval(`" + `
+a = 10
+println(a)
+
+println(b)
+` + "`)"
+		testRun(t, src, true)
 	})
 }
