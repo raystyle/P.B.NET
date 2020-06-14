@@ -248,6 +248,12 @@ func init() {
 		{"internal/patch/json", "InternalPatchJSON"},
 		{"internal/patch/msgpack", "InternalPatchMsgpack"},
 		{"internal/patch/toml", "InternalPatchToml"},
+		{"internal/convert", "InternalConvert"},
+		{"internal/httptool", "InternalHTTPTool"},
+		{"internal/logger", "InternalLogger"},
+		{"internal/nettool", "InternalNetTool"},
+		{"internal/xpanic", "InternalXPanic"},
+		{"internal/xreflect", "InternalXReflect"},
 	} {
 		_, _ = fmt.Fprintf(pkgBuf, `	"project/%s"`+"\n", item.name)
 		_, _ = fmt.Fprintf(initBuf, "\tinit%s()\n", item.init)
@@ -264,7 +270,8 @@ func init() {
 		old string
 		new string
 	}{
-		// {},
+		{"logger logger.Logger", "lg logger.Logger"},
+		{"(&logger)", "(&lg)"},
 	} {
 		src = strings.ReplaceAll(src, item.old, item.new)
 	}
