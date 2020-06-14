@@ -41,8 +41,11 @@ project/internal/protocol                      project/internal/messages
 project/internal/virtualconn---------%
 
 // packages about basic module
-project/internal/info                          project/internal/shell
-project/internal/shellcode                     project/internal/meterpreter
+project/internal/module                        project/internal/module/ankom
+project/internal/module/info                   project/internal/module/shell
+project/internal/module/shellcode              project/internal/module/meterpreter
+project/internal/module/lcx----------$%
 
-// packages about internal module
-project/internal/module                        project/internal/module/lcx------------------$%
+// packages about anko
+project/internal/anko
+project/internal/anko/gosrc                    project/internal/anko/project
