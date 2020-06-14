@@ -1,0 +1,6 @@
+time = import("time")
+
+for i = 0; i < 10; i++{
+    println(args)
+    time.Sleep(time.Second)
+}
