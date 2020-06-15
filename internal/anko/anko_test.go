@@ -178,6 +178,63 @@ func testRun(t *testing.T, s string, fail bool) {
 	testsuite.IsDestroyed(t, stmt)
 }
 
+func TestBasicType(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const src = `
+a = []int8{1, 2}
+a[0] += 1
+a += 3
+println(a, typeOf(a))
+a = a[:2]
+
+a = make([]int8, 0, 3)
+a += 4
+println(a, typeOf(a))
+
+a = []int16{1, 2}
+a[0] += 1
+println(a, typeOf(a))
+
+a = []int32{1, 2}
+a[0] += 1
+println(a, typeOf(a))
+
+a = []int64{1, 2}
+a[0] += 1
+println(a, typeOf(a))
+
+a = [1, 2]
+a[0] += 1
+println(a, typeOf(a))
+
+a = []uint16{1, 2}
+a[0] += 1
+println(a, typeOf(a))
+
+a = []uint32{1, 2}
+a[0] += 1
+println(a, typeOf(a))
+
+a = []uint64{1, 2}
+a[0] += 1
+println(a, typeOf(a))
+
+a = []uintptr{1, 2}
+a[0] += 1
+println(a, typeOf(a))
+
+a = 1<<64 - 1
+println(a, typeOf(a))
+
+println(1<<64 - 1)
+
+b = 1<<64 - 1
+`
+	testRun(t, src, false)
+}
+
 func TestCoreKeys(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

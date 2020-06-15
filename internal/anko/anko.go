@@ -24,13 +24,22 @@ var (
 func NewEnv() *env.Env {
 	e := env.NewEnv()
 	core.ImportToX(e)
-	addCore(e)
+	defineBasicType(e)
+	defineCoreFunc(e)
 	return e
 }
 
-// addCore is used to add core function.
+func defineBasicType(e *env.Env) {
+	_ = e.DefineType("int8", int8(1))
+	_ = e.DefineType("int16", int16(1))
+	_ = e.DefineType("uint8", uint8(1))
+	_ = e.DefineType("uint16", uint16(1))
+	_ = e.DefineType("uintptr", uintptr(1))
+}
+
+// defineCoreFunc is used to add core function.
 // core.Import() with leaks, so we implement it self.
-func addCore(e *env.Env) {
+func defineCoreFunc(e *env.Env) {
 	_ = e.Define("keys", coreKeys)
 	_ = e.Define("range", coreRange)
 
