@@ -81,6 +81,12 @@ func init() {
 		{"hash", "Hash"},
 		{"hash/crc32", "HashCRC32"},
 		{"hash/crc64", "HashCRC64"},
+		{"image", "Image"},
+		{"image/color", "ImageColor"},
+		{"image/draw", "ImageDraw"},
+		{"image/gif", "ImageGIF"},
+		{"image/jpeg", "ImageJPEG"},
+		{"image/png", "ImagePNG"},
 		{"io", "IO"},
 		{"io/ioutil", "IOioutil"},
 		{"math", "Math"},
@@ -145,6 +151,15 @@ func init() {
 
 		{"hash hash.Hash", "h hash.Hash"},
 		{"(&hash)", "(&h)"},
+
+		{"image image.Image", "img image.Image"},
+		{"(&image)", "(&img)"},
+
+		{"color color.Color", "c color.Color"},
+		{"(&color)", "(&c)"},
+
+		{"image draw.Image", "img draw.Image"},
+		{"(&image)", "(&img)"},
 
 		{"int big.Int", "i big.Int"},
 		{"(&int)", "(&i)"},
