@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"image"
+	"image/color"
 	"net"
 	"net/http"
 	"sync"
@@ -494,4 +496,68 @@ func NewMockResponseWriterWithCloseError() http.ResponseWriter {
 // connection and when call Close() it will panic.
 func NewMockResponseWriterWithClosePanic() http.ResponseWriter {
 	return &mockResponseWriter{conn: NewMockConnWithClosePanic()}
+}
+
+// MockImage implemented image.Image.
+type MockImage struct {
+	model color.Model
+	min   image.Point
+	max   image.Point
+	pixel [][]color.Color
+}
+
+// NewMockImage is used to create a mock image with 160*90, white, NRGBA64 model.
+func NewMockImage() *MockImage {
+	pixel := make([][]color.Color, 160)
+	for i := 0; i < 160; i++ {
+		pixel[i] = make([]color.Color, 90)
+	}
+	for x := 0; x < 160; x++ {
+		for y := 0; y < 90; y++ {
+			pixel[x][y] = color.NRGBA64{
+				R: 65535,
+				G: 65535,
+				B: 65535,
+				A: 65535,
+			}
+		}
+	}
+	mi := MockImage{
+		model: color.NRGBA64Model,
+		min:   image.Point{X: 0, Y: 0},
+		max:   image.Point{X: 160, Y: 90},
+		pixel: pixel,
+	}
+	return &mi
+}
+
+// SetColorModel is used to set the color model about mock image.
+func (mc *MockImage) SetColorModel(model color.Model) {
+	mc.model = model
+}
+
+// SetMinPoint is used to set the minimum point about mock image.
+func (mc *MockImage) SetMinPoint(x, y int) {
+	mc.min = image.Point{X: x, Y: y}
+}
+
+// SetMaxPoint is used to set the mock image maximum point.
+func (mc *MockImage) SetMaxPoint(x, y int) {
+	mc.max = image.Point{X: x, Y: y}
+}
+
+// ColorModel returns the mock image color model.
+func (mc *MockImage) ColorModel() color.Model {
+	return mc.model
+}
+
+// Bounds returns the domain for which At can return non-zero color.
+// The bounds do not necessarily contain the point (0, 0).
+func (mc *MockImage) Bounds() image.Rectangle {
+	return image.Rect(mc.min.X, mc.min.Y, mc.max.X, mc.max.Y)
+}
+
+// At returns the color of the pixel at (x, y).
+func (mc *MockImage) At(x, y int) color.Color {
+	return mc.pixel[x][y]
 }

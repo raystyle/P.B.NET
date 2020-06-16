@@ -3,6 +3,8 @@ package testsuite
 import (
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
 	"net/http"
 	"sync"
 	"testing"
@@ -359,4 +361,41 @@ func TestNewMockResponseWriterWithClosePanic(t *testing.T) {
 
 	defer DeferForPanic(t)
 	_ = conn.Close()
+}
+
+func TestMockImage(t *testing.T) {
+	mi := NewMockImage()
+
+	t.Run("SetColorModel", func(t *testing.T) {
+		mi.SetColorModel(color.NRGBA64Model)
+
+		model := mi.ColorModel()
+		require.Equal(t, color.NRGBA64Model, model)
+	})
+
+	t.Run("SetMinPoint", func(t *testing.T) {
+		mi.SetMinPoint(1, 1)
+
+		rect := mi.Bounds()
+		require.Equal(t, image.Point{X: 1, Y: 1}, rect.Min)
+	})
+
+	t.Run("SetMaxPoint", func(t *testing.T) {
+		mi.SetMaxPoint(2, 2)
+
+		rect := mi.Bounds()
+		require.Equal(t, image.Point{X: 2, Y: 2}, rect.Max)
+	})
+
+	t.Run("At", func(t *testing.T) {
+		pixel := mi.At(1, 1)
+
+		r, g, b, a := pixel.RGBA()
+
+		expected := uint32(65535)
+		require.Equal(t, expected, r)
+		require.Equal(t, expected, g)
+		require.Equal(t, expected, b)
+		require.Equal(t, expected, a)
+	})
 }
