@@ -38,9 +38,14 @@ func CalculateStorageSize(rect image.Rectangle) int {
 	width := rect.Dx()
 	height := rect.Dy()
 	size := width * height
-	// reserved pixel, see writeDataToImage()
-	block := (size-headerSize-sha256.Size-1)/aes.BlockSize - 1
-	return block*aes.BlockSize + (aes.BlockSize - 1)
+	// sha256.Size-1,  "1" is reserved pixel, see writeDataToImage()
+	block := (size-headerSize-sha256.Size-1)/aes.BlockSize - 1 // "1" is for aes padding
+	// actual data that can store
+	max := block*aes.BlockSize + (aes.BlockSize - 1)
+	if max < 0 {
+		max = 0
+	}
+	return max
 }
 
 // EncryptToPNG is used to load PNG image and encrypt data to it.
@@ -54,7 +59,10 @@ func EncryptToPNG(pic, plainData, key, iv []byte) ([]byte, error) {
 		return nil, err
 	}
 	buf := bytes.NewBuffer(make([]byte, 0, len(pic)))
-	err = png.Encode(buf, newImg)
+	encoder := png.Encoder{
+		CompressionLevel: png.BestCompression,
+	}
+	err = encoder.Encode(buf, newImg)
 	if err != nil {
 		return nil, err
 	}
@@ -114,14 +122,14 @@ func writeDataToImage(img image.Image, rect image.Rectangle, data []byte) *image
 
 				// write 8 bit to the last bit about 4(RGBA) * 2(front and end) byte
 				var m [8]uint8
-				m[0] = uint8(rgba.R >> 8) // red front
-				m[1] = uint8(rgba.R)      // red end
-				m[2] = uint8(rgba.G >> 8) // green front
-				m[3] = uint8(rgba.G)      // green end
-				m[4] = uint8(rgba.B >> 8) // blue front
-				m[5] = uint8(rgba.B)      // blue end
-				m[6] = uint8(rgba.A >> 8) // alpha front
-				m[7] = uint8(rgba.A)      // alpha end
+				m[0] = uint8(rgba.R >> 8) // red front 8 bit
+				m[1] = uint8(rgba.R)      // red end 8 bit
+				m[2] = uint8(rgba.G >> 8) // green front 8 bit
+				m[3] = uint8(rgba.G)      // green end 8 bit
+				m[4] = uint8(rgba.B >> 8) // blue front 8 bit
+				m[5] = uint8(rgba.B)      // blue end 8 bit
+				m[6] = uint8(rgba.A >> 8) // alpha front 8 bit
+				m[7] = uint8(rgba.A)      // alpha end 8 bit
 
 				for i := 0; i < 8; i++ {
 					// get the bit about the byte
@@ -226,14 +234,14 @@ func readDataFromImage(img *image.NRGBA64, width, height int, x, y *int, size in
 
 		// write 8 bit to the last bit about 4(RGBA) * 2(front and end) byte
 		var m [8]uint8
-		m[0] = uint8(rgba.R >> 8) // red front
-		m[1] = uint8(rgba.R)      // red end
-		m[2] = uint8(rgba.G >> 8) // green front
-		m[3] = uint8(rgba.G)      // green end
-		m[4] = uint8(rgba.B >> 8) // blue front
-		m[5] = uint8(rgba.B)      // blue end
-		m[6] = uint8(rgba.A >> 8) // alpha front
-		m[7] = uint8(rgba.A)      // alpha end
+		m[0] = uint8(rgba.R >> 8) // red front 8 bit
+		m[1] = uint8(rgba.R)      // red end 8 bit
+		m[2] = uint8(rgba.G >> 8) // green front 8 bit
+		m[3] = uint8(rgba.G)      // green end 8 bit
+		m[4] = uint8(rgba.B >> 8) // blue front 8 bit
+		m[5] = uint8(rgba.B)      // blue end 8 bit
+		m[6] = uint8(rgba.A >> 8) // alpha front 8 bit
+		m[7] = uint8(rgba.A)      // alpha end 8 bit
 
 		// set bits
 		var b byte
