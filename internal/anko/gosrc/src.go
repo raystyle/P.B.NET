@@ -43,6 +43,12 @@ import (
 	"hash"
 	"hash/crc32"
 	"hash/crc64"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/gif"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"io/ioutil"
 	"math"
@@ -115,6 +121,12 @@ func init() {
 	initHash()
 	initHashCRC32()
 	initHashCRC64()
+	initImage()
+	initImageColor()
+	initImageDraw()
+	initImageGIF()
+	initImageJPEG()
+	initImagePNG()
 	initIO()
 	initIOioutil()
 	initMath()
@@ -1517,6 +1529,259 @@ func initHashCRC64() {
 	)
 	env.PackageTypes["hash/crc64"] = map[string]reflect.Type{
 		"Table": reflect.TypeOf(&table).Elem(),
+	}
+}
+
+func initImage() {
+	env.Packages["image"] = map[string]reflect.Value{
+		// define constants
+		"YCbCrSubsampleRatio410": reflect.ValueOf(image.YCbCrSubsampleRatio410),
+		"YCbCrSubsampleRatio411": reflect.ValueOf(image.YCbCrSubsampleRatio411),
+		"YCbCrSubsampleRatio420": reflect.ValueOf(image.YCbCrSubsampleRatio420),
+		"YCbCrSubsampleRatio422": reflect.ValueOf(image.YCbCrSubsampleRatio422),
+		"YCbCrSubsampleRatio440": reflect.ValueOf(image.YCbCrSubsampleRatio440),
+		"YCbCrSubsampleRatio444": reflect.ValueOf(image.YCbCrSubsampleRatio444),
+
+		// define variables
+		"Black":       reflect.ValueOf(image.Black),
+		"ErrFormat":   reflect.ValueOf(image.ErrFormat),
+		"Opaque":      reflect.ValueOf(image.Opaque),
+		"Transparent": reflect.ValueOf(image.Transparent),
+		"White":       reflect.ValueOf(image.White),
+
+		// define functions
+		"Decode":         reflect.ValueOf(image.Decode),
+		"DecodeConfig":   reflect.ValueOf(image.DecodeConfig),
+		"NewAlpha":       reflect.ValueOf(image.NewAlpha),
+		"NewAlpha16":     reflect.ValueOf(image.NewAlpha16),
+		"NewCMYK":        reflect.ValueOf(image.NewCMYK),
+		"NewGray":        reflect.ValueOf(image.NewGray),
+		"NewGray16":      reflect.ValueOf(image.NewGray16),
+		"NewNRGBA":       reflect.ValueOf(image.NewNRGBA),
+		"NewNRGBA64":     reflect.ValueOf(image.NewNRGBA64),
+		"NewNYCbCrA":     reflect.ValueOf(image.NewNYCbCrA),
+		"NewPaletted":    reflect.ValueOf(image.NewPaletted),
+		"NewRGBA":        reflect.ValueOf(image.NewRGBA),
+		"NewRGBA64":      reflect.ValueOf(image.NewRGBA64),
+		"NewUniform":     reflect.ValueOf(image.NewUniform),
+		"NewYCbCr":       reflect.ValueOf(image.NewYCbCr),
+		"Pt":             reflect.ValueOf(image.Pt),
+		"Rect":           reflect.ValueOf(image.Rect),
+		"RegisterFormat": reflect.ValueOf(image.RegisterFormat),
+	}
+	var (
+		alpha               image.Alpha
+		alpha16             image.Alpha16
+		cMYK                image.CMYK
+		config              image.Config
+		gray                image.Gray
+		gray16              image.Gray16
+		img                 image.Image
+		nRGBA               image.NRGBA
+		nRGBA64             image.NRGBA64
+		nYCbCrA             image.NYCbCrA
+		paletted            image.Paletted
+		palettedImage       image.PalettedImage
+		point               image.Point
+		rGBA                image.RGBA
+		rGBA64              image.RGBA64
+		rectangle           image.Rectangle
+		uniform             image.Uniform
+		yCbCr               image.YCbCr
+		yCbCrSubsampleRatio image.YCbCrSubsampleRatio
+	)
+	env.PackageTypes["image"] = map[string]reflect.Type{
+		"Alpha":               reflect.TypeOf(&alpha).Elem(),
+		"Alpha16":             reflect.TypeOf(&alpha16).Elem(),
+		"CMYK":                reflect.TypeOf(&cMYK).Elem(),
+		"Config":              reflect.TypeOf(&config).Elem(),
+		"Gray":                reflect.TypeOf(&gray).Elem(),
+		"Gray16":              reflect.TypeOf(&gray16).Elem(),
+		"Image":               reflect.TypeOf(&img).Elem(),
+		"NRGBA":               reflect.TypeOf(&nRGBA).Elem(),
+		"NRGBA64":             reflect.TypeOf(&nRGBA64).Elem(),
+		"NYCbCrA":             reflect.TypeOf(&nYCbCrA).Elem(),
+		"Paletted":            reflect.TypeOf(&paletted).Elem(),
+		"PalettedImage":       reflect.TypeOf(&palettedImage).Elem(),
+		"Point":               reflect.TypeOf(&point).Elem(),
+		"RGBA":                reflect.TypeOf(&rGBA).Elem(),
+		"RGBA64":              reflect.TypeOf(&rGBA64).Elem(),
+		"Rectangle":           reflect.TypeOf(&rectangle).Elem(),
+		"Uniform":             reflect.TypeOf(&uniform).Elem(),
+		"YCbCr":               reflect.TypeOf(&yCbCr).Elem(),
+		"YCbCrSubsampleRatio": reflect.TypeOf(&yCbCrSubsampleRatio).Elem(),
+	}
+}
+
+func initImageColor() {
+	env.Packages["image/color"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+		"Alpha16Model": reflect.ValueOf(color.Alpha16Model),
+		"AlphaModel":   reflect.ValueOf(color.AlphaModel),
+		"Black":        reflect.ValueOf(color.Black),
+		"CMYKModel":    reflect.ValueOf(color.CMYKModel),
+		"Gray16Model":  reflect.ValueOf(color.Gray16Model),
+		"GrayModel":    reflect.ValueOf(color.GrayModel),
+		"NRGBA64Model": reflect.ValueOf(color.NRGBA64Model),
+		"NRGBAModel":   reflect.ValueOf(color.NRGBAModel),
+		"NYCbCrAModel": reflect.ValueOf(color.NYCbCrAModel),
+		"Opaque":       reflect.ValueOf(color.Opaque),
+		"RGBA64Model":  reflect.ValueOf(color.RGBA64Model),
+		"RGBAModel":    reflect.ValueOf(color.RGBAModel),
+		"Transparent":  reflect.ValueOf(color.Transparent),
+		"White":        reflect.ValueOf(color.White),
+		"YCbCrModel":   reflect.ValueOf(color.YCbCrModel),
+
+		// define functions
+		"CMYKToRGB":  reflect.ValueOf(color.CMYKToRGB),
+		"ModelFunc":  reflect.ValueOf(color.ModelFunc),
+		"RGBToCMYK":  reflect.ValueOf(color.RGBToCMYK),
+		"RGBToYCbCr": reflect.ValueOf(color.RGBToYCbCr),
+		"YCbCrToRGB": reflect.ValueOf(color.YCbCrToRGB),
+	}
+	var (
+		alpha   color.Alpha
+		alpha16 color.Alpha16
+		cMYK    color.CMYK
+		c       color.Color
+		gray    color.Gray
+		gray16  color.Gray16
+		model   color.Model
+		nRGBA   color.NRGBA
+		nRGBA64 color.NRGBA64
+		nYCbCrA color.NYCbCrA
+		palette color.Palette
+		rGBA    color.RGBA
+		rGBA64  color.RGBA64
+		yCbCr   color.YCbCr
+	)
+	env.PackageTypes["image/color"] = map[string]reflect.Type{
+		"Alpha":   reflect.TypeOf(&alpha).Elem(),
+		"Alpha16": reflect.TypeOf(&alpha16).Elem(),
+		"CMYK":    reflect.TypeOf(&cMYK).Elem(),
+		"Color":   reflect.TypeOf(&c).Elem(),
+		"Gray":    reflect.TypeOf(&gray).Elem(),
+		"Gray16":  reflect.TypeOf(&gray16).Elem(),
+		"Model":   reflect.TypeOf(&model).Elem(),
+		"NRGBA":   reflect.TypeOf(&nRGBA).Elem(),
+		"NRGBA64": reflect.TypeOf(&nRGBA64).Elem(),
+		"NYCbCrA": reflect.TypeOf(&nYCbCrA).Elem(),
+		"Palette": reflect.TypeOf(&palette).Elem(),
+		"RGBA":    reflect.TypeOf(&rGBA).Elem(),
+		"RGBA64":  reflect.TypeOf(&rGBA64).Elem(),
+		"YCbCr":   reflect.TypeOf(&yCbCr).Elem(),
+	}
+}
+
+func initImageDraw() {
+	env.Packages["image/draw"] = map[string]reflect.Value{
+		// define constants
+		"Over": reflect.ValueOf(draw.Over),
+		"Src":  reflect.ValueOf(draw.Src),
+
+		// define variables
+		"FloydSteinberg": reflect.ValueOf(draw.FloydSteinberg),
+
+		// define functions
+		"Draw":     reflect.ValueOf(draw.Draw),
+		"DrawMask": reflect.ValueOf(draw.DrawMask),
+	}
+	var (
+		drawer    draw.Drawer
+		img       draw.Image
+		op        draw.Op
+		quantizer draw.Quantizer
+	)
+	env.PackageTypes["image/draw"] = map[string]reflect.Type{
+		"Drawer":    reflect.TypeOf(&drawer).Elem(),
+		"Image":     reflect.TypeOf(&img).Elem(),
+		"Op":        reflect.TypeOf(&op).Elem(),
+		"Quantizer": reflect.TypeOf(&quantizer).Elem(),
+	}
+}
+
+func initImageGIF() {
+	env.Packages["image/gif"] = map[string]reflect.Value{
+		// define constants
+		"DisposalBackground": reflect.ValueOf(gif.DisposalBackground),
+		"DisposalNone":       reflect.ValueOf(gif.DisposalNone),
+		"DisposalPrevious":   reflect.ValueOf(gif.DisposalPrevious),
+
+		// define variables
+
+		// define functions
+		"Decode":       reflect.ValueOf(gif.Decode),
+		"DecodeAll":    reflect.ValueOf(gif.DecodeAll),
+		"DecodeConfig": reflect.ValueOf(gif.DecodeConfig),
+		"Encode":       reflect.ValueOf(gif.Encode),
+		"EncodeAll":    reflect.ValueOf(gif.EncodeAll),
+	}
+	var (
+		gIF     gif.GIF
+		options gif.Options
+	)
+	env.PackageTypes["image/gif"] = map[string]reflect.Type{
+		"GIF":     reflect.TypeOf(&gIF).Elem(),
+		"Options": reflect.TypeOf(&options).Elem(),
+	}
+}
+
+func initImageJPEG() {
+	env.Packages["image/jpeg"] = map[string]reflect.Value{
+		// define constants
+		"DefaultQuality": reflect.ValueOf(jpeg.DefaultQuality),
+
+		// define variables
+
+		// define functions
+		"Decode":       reflect.ValueOf(jpeg.Decode),
+		"DecodeConfig": reflect.ValueOf(jpeg.DecodeConfig),
+		"Encode":       reflect.ValueOf(jpeg.Encode),
+	}
+	var (
+		formatError      jpeg.FormatError
+		options          jpeg.Options
+		unsupportedError jpeg.UnsupportedError
+	)
+	env.PackageTypes["image/jpeg"] = map[string]reflect.Type{
+		"FormatError":      reflect.TypeOf(&formatError).Elem(),
+		"Options":          reflect.TypeOf(&options).Elem(),
+		"UnsupportedError": reflect.TypeOf(&unsupportedError).Elem(),
+	}
+}
+
+func initImagePNG() {
+	env.Packages["image/png"] = map[string]reflect.Value{
+		// define constants
+		"BestCompression":    reflect.ValueOf(png.BestCompression),
+		"BestSpeed":          reflect.ValueOf(png.BestSpeed),
+		"DefaultCompression": reflect.ValueOf(png.DefaultCompression),
+		"NoCompression":      reflect.ValueOf(png.NoCompression),
+
+		// define variables
+
+		// define functions
+		"Decode":       reflect.ValueOf(png.Decode),
+		"DecodeConfig": reflect.ValueOf(png.DecodeConfig),
+		"Encode":       reflect.ValueOf(png.Encode),
+	}
+	var (
+		compressionLevel  png.CompressionLevel
+		encoder           png.Encoder
+		encoderBuffer     png.EncoderBuffer
+		encoderBufferPool png.EncoderBufferPool
+		formatError       png.FormatError
+		unsupportedError  png.UnsupportedError
+	)
+	env.PackageTypes["image/png"] = map[string]reflect.Type{
+		"CompressionLevel":  reflect.TypeOf(&compressionLevel).Elem(),
+		"Encoder":           reflect.TypeOf(&encoder).Elem(),
+		"EncoderBuffer":     reflect.TypeOf(&encoderBuffer).Elem(),
+		"EncoderBufferPool": reflect.TypeOf(&encoderBufferPool).Elem(),
+		"FormatError":       reflect.TypeOf(&formatError).Elem(),
+		"UnsupportedError":  reflect.TypeOf(&unsupportedError).Elem(),
 	}
 }
 
