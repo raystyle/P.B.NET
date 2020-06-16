@@ -2,20 +2,22 @@ package lsb
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"fmt"
 	"image"
 	"image/png"
 	"io"
 	"io/ioutil"
-	"os"
+	"math"
+	"reflect"
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/aes"
 	"project/internal/patch/monkey"
 	"project/internal/random"
+	"project/internal/testsuite"
 )
 
 func TestCalculateStorageSize(t *testing.T) {
@@ -67,28 +69,28 @@ func testLSB(t *testing.T, name string) {
 	require.NoError(t, err)
 }
 
-func testGeneratePNG() *image.NRGBA64 {
-	rect := image.Rect(0, 0, 160, 90)
+func testGeneratePNG(width, height int) *image.NRGBA64 {
+	rect := image.Rect(0, 0, width, height)
 	return image.NewNRGBA64(rect)
 }
 
-func testGeneratePNGBytes(t *testing.T) []byte {
-	img := testGeneratePNG()
-	buf := bytes.NewBuffer(make([]byte, 0, 128))
+func testGeneratePNGBytes(t *testing.T, width, height int) []byte {
+	img := testGeneratePNG(width, height)
+	buf := bytes.NewBuffer(make([]byte, 0, width*height/4))
 	err := png.Encode(buf, img)
 	require.NoError(t, err)
 	return buf.Bytes()
 }
 
 func TestEncryptToPNG(t *testing.T) {
-	t.Run("invalid png file", func(t *testing.T) {
+	t.Run("invalid png data", func(t *testing.T) {
 		img, err := EncryptToPNG(nil, nil, nil, nil)
 		require.Error(t, err)
 		require.Nil(t, img)
 	})
 
 	t.Run("failed to encrypt", func(t *testing.T) {
-		pic := testGeneratePNGBytes(t)
+		pic := testGeneratePNGBytes(t, 160, 90)
 		img, err := EncryptToPNG(pic, nil, nil, nil)
 		require.Error(t, err)
 		require.Nil(t, img)
@@ -96,7 +98,7 @@ func TestEncryptToPNG(t *testing.T) {
 
 	t.Run("failed to encode", func(t *testing.T) {
 		// must before patch, because testGeneratePNGBytes call png.Encode
-		pic := testGeneratePNGBytes(t)
+		pic := testGeneratePNGBytes(t, 160, 90)
 
 		encoder := new(png.Encoder)
 		patch := func(interface{}, io.Writer, image.Image) error {
@@ -116,51 +118,46 @@ func TestEncryptToPNG(t *testing.T) {
 }
 
 func TestDecryptFromPNG(t *testing.T) {
+	t.Run("invalid png data", func(t *testing.T) {
+		plainData, err := DecryptFromPNG(nil, nil, nil)
+		require.Error(t, err)
+		require.Nil(t, plainData)
+	})
 
+	t.Run("invalid png", func(t *testing.T) {
+		rect := image.Rect(0, 0, 160, 90)
+		img := image.NewRGBA(rect)
+		buf := bytes.NewBuffer(make([]byte, 0, 128))
+		err := png.Encode(buf, img)
+		require.NoError(t, err)
+
+		plainData, err := DecryptFromPNG(buf.Bytes(), nil, nil)
+		require.Error(t, err)
+		require.Nil(t, plainData)
+	})
 }
 
 func TestEncrypt(t *testing.T) {
-	t.Skip()
+	t.Run("size > storage", func(t *testing.T) {
+		img := testGeneratePNG(10, 10)
+		plainData := make([]byte, 1024)
 
-	file, err := os.Open("testdata/desktop.png")
-	require.NoError(t, err)
-	defer func() { _ = file.Close() }()
-	rawImage, err := png.Decode(file)
-	require.NoError(t, err)
+		pic, err := Encrypt(img, plainData, nil, nil)
+		require.Error(t, err)
+		require.Nil(t, pic)
+	})
 
-	key := random.Bytes(aes.Key256Bit)
-	iv := random.Bytes(aes.IVSize)
+	t.Run("size > 4GB", func(t *testing.T) {
+		img := testsuite.NewMockImage()
+		img.SetMaxPoint(math.MaxInt32, math.MaxInt32)
 
-	rawData := random.Bytes(1 << 20)
-	rawHash := sha256.Sum256(rawData)
+		// create fake slice to make slice.Len too large
+		plainData := make([]byte, 1024)
+		sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&plainData)) // #nosec
+		sliceHeader.Len = math.MaxInt32
 
-	fmt.Println("plain data hash", rawHash[:])
-
-	img, err := Encrypt(rawImage, rawData, key, iv)
-	require.NoError(t, err)
-
-	file2, err := os.Create("testdata/desktop2.png")
-	require.NoError(t, err)
-	err = png.Encode(file2, img)
-	require.NoError(t, err)
-
-	err = file2.Close()
-	require.NoError(t, err)
-
-	fmt.Println("---------------------")
-
-	file2, err = os.Open("testdata/desktop2.png")
-	require.NoError(t, err)
-
-	img2, err := png.Decode(file2)
-	require.NoError(t, err)
-
-	data, err := Decrypt(img2.(*image.NRGBA64), key, iv)
-	require.NoError(t, err)
-
-	require.Equal(t, rawData, data)
-
-	nowHash := sha256.Sum256(data)
-
-	fmt.Println("decrypted data hash", nowHash[:])
+		pic, err := Encrypt(img, plainData, nil, nil)
+		require.Error(t, err)
+		require.Nil(t, pic)
+	})
 }
