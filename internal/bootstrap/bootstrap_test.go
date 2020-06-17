@@ -142,6 +142,6 @@ func TestListener_String(t *testing.T) {
 	address := strings.Repeat("127.0.0.1:53123", 1)
 	listener := NewListener(mode, network, address)
 
-	expect := "tls (tcp 127.0.0.1:53123)"
-	require.Equal(t, expect, listener.String())
+	expected := "tls (tcp 127.0.0.1:53123)"
+	require.Equal(t, expected, listener.String())
 }
