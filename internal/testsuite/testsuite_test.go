@@ -159,57 +159,57 @@ func TestCheckOptions(t *testing.T) {
 	})
 
 	t.Run("foo", func(t *testing.T) {
-		const except = "testOptions.Foo is zero value"
+		const expected = "testOptions.Foo is zero value"
 		opts := testOptions{
 			Bar: "",
 			BA:  ob,
 			BB:  &ob,
 		}
-		require.Equal(t, except, checkOptions("", opts))
+		require.Equal(t, expected, checkOptions("", opts))
 	})
 
 	t.Run("bar", func(t *testing.T) {
-		const except = "testOptions.Bar is zero value"
+		const expected = "testOptions.Bar is zero value"
 		opts := testOptions{
 			Foo: 123,
 			BA:  ob,
 			BB:  &ob,
 		}
-		require.Equal(t, except, checkOptions("", opts))
+		require.Equal(t, expected, checkOptions("", opts))
 	})
 
 	t.Run("BA.A", func(t *testing.T) {
-		const except = "testOptions.BA.A is zero value"
+		const expected = "testOptions.BA.A is zero value"
 		opts := testOptions{
 			Foo: 123,
 			Bar: "bar",
 		}
-		require.Equal(t, except, checkOptions("", opts))
+		require.Equal(t, expected, checkOptions("", opts))
 	})
 
 	t.Run("BA.B", func(t *testing.T) {
-		const except = "testOptions.BA.B is zero value"
+		const expected = "testOptions.BA.B is zero value"
 		opts := testOptions{
 			Foo: 123,
 			Bar: "bar",
 		}
 		opts.BA.A = 123
-		require.Equal(t, except, checkOptions("", opts))
+		require.Equal(t, expected, checkOptions("", opts))
 	})
 
 	t.Run("BA.C-nil point", func(t *testing.T) {
-		const except = "testOptions.BA.C is nil point"
+		const expected = "testOptions.BA.C is nil point"
 		opts := testOptions{
 			Foo: 123,
 			Bar: "bar",
 		}
 		opts.BA.A = 123
 		opts.BA.B = "bar"
-		require.Equal(t, except, checkOptions("", opts))
+		require.Equal(t, expected, checkOptions("", opts))
 	})
 
 	t.Run("BB-nil point", func(t *testing.T) {
-		const except = "testOptions.BB is nil point"
+		const expected = "testOptions.BB is nil point"
 		opts := testOptions{
 			Foo: 123,
 			Bar: "bar",
@@ -221,11 +221,11 @@ func TestCheckOptions(t *testing.T) {
 				},
 			},
 		}
-		require.Equal(t, except, checkOptions("", opts))
+		require.Equal(t, expected, checkOptions("", opts))
 	})
 
 	t.Run("BB.A", func(t *testing.T) {
-		const except = "testOptions.BB.A is zero value"
+		const expected = "testOptions.BB.A is zero value"
 		opts := testOptions{
 			Foo: 123,
 			Bar: "bar",
@@ -238,11 +238,11 @@ func TestCheckOptions(t *testing.T) {
 			},
 			BB: &testOptionsB{},
 		}
-		require.Equal(t, except, checkOptions("", opts))
+		require.Equal(t, expected, checkOptions("", opts))
 	})
 
 	t.Run("BB.B", func(t *testing.T) {
-		const except = "testOptions.BB.B is zero value"
+		const expected = "testOptions.BB.B is zero value"
 		opts := testOptions{
 			Foo: 123,
 			Bar: "bar",
@@ -257,11 +257,11 @@ func TestCheckOptions(t *testing.T) {
 				A: 123,
 			},
 		}
-		require.Equal(t, except, checkOptions("", opts))
+		require.Equal(t, expected, checkOptions("", opts))
 	})
 
 	t.Run("BB.C-nil point", func(t *testing.T) {
-		const except = "testOptions.BB.C is nil point"
+		const expected = "testOptions.BB.C is nil point"
 		opts := testOptions{
 			Foo: 123,
 			Bar: "bar",
@@ -277,11 +277,11 @@ func TestCheckOptions(t *testing.T) {
 				B: "bbb",
 			},
 		}
-		require.Equal(t, except, checkOptions("", opts))
+		require.Equal(t, expected, checkOptions("", opts))
 	})
 
 	t.Run("BB.C.D", func(t *testing.T) {
-		const except = "testOptions.BB.C.D is zero value"
+		const expected = "testOptions.BB.C.D is zero value"
 		opts := testOptions{
 			Foo: 123,
 			Bar: "bar",
@@ -298,7 +298,7 @@ func TestCheckOptions(t *testing.T) {
 				C: &testOptionsC{},
 			},
 		}
-		require.Equal(t, except, checkOptions("", opts))
+		require.Equal(t, expected, checkOptions("", opts))
 	})
 
 	t.Run("nest-ok", func(t *testing.T) {
@@ -316,7 +316,7 @@ func TestCheckOptions(t *testing.T) {
 	})
 
 	t.Run("nest-B.NA", func(t *testing.T) {
-		const except = "testOptionNest.B.NA is zero value"
+		const expected = "testOptionNest.B.NA is zero value"
 		opts := testOptionNest{
 			A: 1,
 			B: struct {
@@ -324,11 +324,11 @@ func TestCheckOptions(t *testing.T) {
 				NB string
 			}{},
 		}
-		require.Equal(t, except, checkOptions("", opts))
+		require.Equal(t, expected, checkOptions("", opts))
 	})
 
 	t.Run("nest-B.NB", func(t *testing.T) {
-		const except = "testOptionNest.B.NB is zero value"
+		const expected = "testOptionNest.B.NB is zero value"
 		opts := testOptionNest{
 			A: 1,
 			B: struct {
@@ -338,15 +338,15 @@ func TestCheckOptions(t *testing.T) {
 				NA: 123,
 			},
 		}
-		require.Equal(t, except, checkOptions("", opts))
+		require.Equal(t, expected, checkOptions("", opts))
 	})
 
 	t.Run("skip time.Time", func(t *testing.T) {
 		t.Run("single", func(t *testing.T) {
-			const except = "time.Time is zero value"
+			const expected = "time.Time is zero value"
 			ti := time.Time{}
-			require.Equal(t, except, checkOptions("", ti))
-			require.Equal(t, except, checkOptions("", &ti))
+			require.Equal(t, expected, checkOptions("", ti))
+			require.Equal(t, expected, checkOptions("", &ti))
 		})
 
 		t.Run("struct", func(t *testing.T) {
@@ -360,16 +360,16 @@ func TestCheckOptions(t *testing.T) {
 			require.Zero(t, checkOptions("", opts))
 
 			const (
-				except1 = "testOptionSpecial.B is zero value"
-				except2 = "testOptionSpecial.C is zero value"
+				expected1 = "testOptionSpecial.B is zero value"
+				expected2 = "testOptionSpecial.C is zero value"
 			)
 
 			opts.B = time.Time{}
-			require.Equal(t, except1, checkOptions("", opts))
+			require.Equal(t, expected1, checkOptions("", opts))
 			opts.B = ti
 
 			opts.C = nil
-			require.Equal(t, except2, checkOptions("", opts))
+			require.Equal(t, expected2, checkOptions("", opts))
 		})
 	})
 
