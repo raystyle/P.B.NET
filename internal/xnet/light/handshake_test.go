@@ -26,7 +26,7 @@ func testGenerateConnPair() (*Conn, *Conn) {
 	return server, client
 }
 
-func testConnClientHandshake(t *testing.T, f func(t *testing.T, server *Conn), expect error) {
+func testConnClientHandshake(t *testing.T, f func(t *testing.T, server *Conn), expected error) {
 	server, client := testGenerateConnPair()
 
 	wg := sync.WaitGroup{}
@@ -40,8 +40,8 @@ func testConnClientHandshake(t *testing.T, f func(t *testing.T, server *Conn), e
 		f(t, server)
 	}()
 	err := client.clientHandshake()
-	if expect != nil {
-		require.Equal(t, expect, err)
+	if expected != nil {
+		require.Equal(t, expected, err)
 	} else {
 		require.Error(t, err)
 	}
@@ -182,7 +182,7 @@ func TestConn_clientHandshake(t *testing.T) {
 	})
 }
 
-func testConnServerHandshake(t *testing.T, f func(t *testing.T, client *Conn), expect error) {
+func testConnServerHandshake(t *testing.T, f func(t *testing.T, client *Conn), expected error) {
 	server, client := testGenerateConnPair()
 
 	wg := sync.WaitGroup{}
@@ -196,8 +196,8 @@ func testConnServerHandshake(t *testing.T, f func(t *testing.T, client *Conn), e
 		f(t, client)
 	}()
 	err := server.serverHandshake()
-	if expect != nil {
-		require.Equal(t, expect, err)
+	if expected != nil {
+		require.Equal(t, expected, err)
 	} else {
 		require.Error(t, err)
 	}
