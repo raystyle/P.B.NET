@@ -339,8 +339,8 @@ func TestPool_Get<f1>Certs_Parallel(t *testing.T) {
 		}
 		get := func() {
 			certs := pool.Get<f1>Certs()
-			expect := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
-			require.Equal(t, expect, certs)
+			expected := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
+			require.Equal(t, expected, certs)
 		}
 		cleanup := func() {
 			err := pool.Delete<f1>Cert(0)
@@ -366,8 +366,8 @@ func TestPool_Get<f1>Certs_Parallel(t *testing.T) {
 		}
 		get := func() {
 			certs := pool.Get<f1>Certs()
-			expect := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
-			require.Equal(t, expect, certs)
+			expected := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
+			require.Equal(t, expected, certs)
 		}
 		testsuite.RunParallel(100, init, nil, get, get)
 
@@ -404,8 +404,8 @@ func TestPool_Get<f1>Pairs_Parallel(t *testing.T) {
 		}
 		get := func() {
 			pairs := pool.Get<f1>Pairs()
-			expect := []*Pair{pair1, pair2}
-			require.Equal(t, expect, pairs)
+			expected := []*Pair{pair1, pair2}
+			require.Equal(t, expected, pairs)
 		}
 		cleanup := func() {
 			err := pool.Delete<f1>Cert(0)
@@ -431,8 +431,8 @@ func TestPool_Get<f1>Pairs_Parallel(t *testing.T) {
 		}
 		get := func() {
 			pairs := pool.Get<f1>Pairs()
-			expect := []*Pair{pair1, pair2}
-			require.Equal(t, expect, pairs)
+			expected := []*Pair{pair1, pair2}
+			require.Equal(t, expected, pairs)
 		}
 		testsuite.RunParallel(100, init, nil, get, get)
 

@@ -215,13 +215,13 @@ func TestGenerateCA(t *testing.T) {
 		require.Equal(t, "test common name", ca.Certificate.Subject.CommonName)
 		require.Equal(t, []string{"test organization"}, ca.Certificate.Subject.Organization)
 
-		excepted := now.Format(timeLayout)
+		expected := now.Format(timeLayout)
 		actual := ca.Certificate.NotBefore.Local().Format(timeLayout)
-		require.Equal(t, excepted, actual)
+		require.Equal(t, expected, actual)
 
-		excepted = notAfter.Format(timeLayout)
+		expected = notAfter.Format(timeLayout)
 		actual = ca.Certificate.NotAfter.Local().Format(timeLayout)
-		require.Equal(t, excepted, actual)
+		require.Equal(t, expected, actual)
 	})
 
 	t.Run("invalid domain name", func(t *testing.T) {

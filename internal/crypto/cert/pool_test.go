@@ -1957,8 +1957,8 @@ func TestPool_GetPublicRootCACerts_Parallel(t *testing.T) {
 		}
 		get := func() {
 			certs := pool.GetPublicRootCACerts()
-			expect := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
-			require.Equal(t, expect, certs)
+			expected := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
+			require.Equal(t, expected, certs)
 		}
 		cleanup := func() {
 			err := pool.DeletePublicRootCACert(0)
@@ -1984,8 +1984,8 @@ func TestPool_GetPublicRootCACerts_Parallel(t *testing.T) {
 		}
 		get := func() {
 			certs := pool.GetPublicRootCACerts()
-			expect := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
-			require.Equal(t, expect, certs)
+			expected := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
+			require.Equal(t, expected, certs)
 		}
 		testsuite.RunParallel(100, init, nil, get, get)
 
@@ -2014,8 +2014,8 @@ func TestPool_GetPublicClientCACerts_Parallel(t *testing.T) {
 		}
 		get := func() {
 			certs := pool.GetPublicClientCACerts()
-			expect := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
-			require.Equal(t, expect, certs)
+			expected := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
+			require.Equal(t, expected, certs)
 		}
 		cleanup := func() {
 			err := pool.DeletePublicClientCACert(0)
@@ -2041,8 +2041,8 @@ func TestPool_GetPublicClientCACerts_Parallel(t *testing.T) {
 		}
 		get := func() {
 			certs := pool.GetPublicClientCACerts()
-			expect := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
-			require.Equal(t, expect, certs)
+			expected := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
+			require.Equal(t, expected, certs)
 		}
 		testsuite.RunParallel(100, init, nil, get, get)
 
@@ -2073,8 +2073,8 @@ func TestPool_GetPublicClientPairs_Parallel(t *testing.T) {
 		}
 		get := func() {
 			pairs := pool.GetPublicClientPairs()
-			expect := []*Pair{pair1, pair2}
-			require.Equal(t, expect, pairs)
+			expected := []*Pair{pair1, pair2}
+			require.Equal(t, expected, pairs)
 		}
 		cleanup := func() {
 			err := pool.DeletePublicClientCert(0)
@@ -2100,8 +2100,8 @@ func TestPool_GetPublicClientPairs_Parallel(t *testing.T) {
 		}
 		get := func() {
 			pairs := pool.GetPublicClientPairs()
-			expect := []*Pair{pair1, pair2}
-			require.Equal(t, expect, pairs)
+			expected := []*Pair{pair1, pair2}
+			require.Equal(t, expected, pairs)
 		}
 		testsuite.RunParallel(100, init, nil, get, get)
 
@@ -2132,8 +2132,8 @@ func TestPool_GetPrivateRootCAPairs_Parallel(t *testing.T) {
 		}
 		get := func() {
 			pairs := pool.GetPrivateRootCAPairs()
-			expect := []*Pair{pair1, pair2}
-			require.Equal(t, expect, pairs)
+			expected := []*Pair{pair1, pair2}
+			require.Equal(t, expected, pairs)
 		}
 		cleanup := func() {
 			err := pool.DeletePrivateRootCACert(0)
@@ -2159,8 +2159,8 @@ func TestPool_GetPrivateRootCAPairs_Parallel(t *testing.T) {
 		}
 		get := func() {
 			pairs := pool.GetPrivateRootCAPairs()
-			expect := []*Pair{pair1, pair2}
-			require.Equal(t, expect, pairs)
+			expected := []*Pair{pair1, pair2}
+			require.Equal(t, expected, pairs)
 		}
 		testsuite.RunParallel(100, init, nil, get, get)
 
@@ -2189,8 +2189,8 @@ func TestPool_GetPrivateRootCACerts_Parallel(t *testing.T) {
 		}
 		get := func() {
 			certs := pool.GetPrivateRootCACerts()
-			expect := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
-			require.Equal(t, expect, certs)
+			expected := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
+			require.Equal(t, expected, certs)
 		}
 		cleanup := func() {
 			err := pool.DeletePrivateRootCACert(0)
@@ -2216,8 +2216,8 @@ func TestPool_GetPrivateRootCACerts_Parallel(t *testing.T) {
 		}
 		get := func() {
 			certs := pool.GetPrivateRootCACerts()
-			expect := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
-			require.Equal(t, expect, certs)
+			expected := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
+			require.Equal(t, expected, certs)
 		}
 		testsuite.RunParallel(100, init, nil, get, get)
 
@@ -2248,8 +2248,8 @@ func TestPool_GetPrivateClientCAPairs_Parallel(t *testing.T) {
 		}
 		get := func() {
 			pairs := pool.GetPrivateClientCAPairs()
-			expect := []*Pair{pair1, pair2}
-			require.Equal(t, expect, pairs)
+			expected := []*Pair{pair1, pair2}
+			require.Equal(t, expected, pairs)
 		}
 		cleanup := func() {
 			err := pool.DeletePrivateClientCACert(0)
@@ -2275,8 +2275,8 @@ func TestPool_GetPrivateClientCAPairs_Parallel(t *testing.T) {
 		}
 		get := func() {
 			pairs := pool.GetPrivateClientCAPairs()
-			expect := []*Pair{pair1, pair2}
-			require.Equal(t, expect, pairs)
+			expected := []*Pair{pair1, pair2}
+			require.Equal(t, expected, pairs)
 		}
 		testsuite.RunParallel(100, init, nil, get, get)
 
@@ -2305,8 +2305,8 @@ func TestPool_GetPrivateClientCACerts_Parallel(t *testing.T) {
 		}
 		get := func() {
 			certs := pool.GetPrivateClientCACerts()
-			expect := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
-			require.Equal(t, expect, certs)
+			expected := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
+			require.Equal(t, expected, certs)
 		}
 		cleanup := func() {
 			err := pool.DeletePrivateClientCACert(0)
@@ -2332,8 +2332,8 @@ func TestPool_GetPrivateClientCACerts_Parallel(t *testing.T) {
 		}
 		get := func() {
 			certs := pool.GetPrivateClientCACerts()
-			expect := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
-			require.Equal(t, expect, certs)
+			expected := []*x509.Certificate{pair1.Certificate, pair2.Certificate}
+			require.Equal(t, expected, certs)
 		}
 		testsuite.RunParallel(100, init, nil, get, get)
 
@@ -2364,8 +2364,8 @@ func TestPool_GetPrivateClientPairs_Parallel(t *testing.T) {
 		}
 		get := func() {
 			pairs := pool.GetPrivateClientPairs()
-			expect := []*Pair{pair1, pair2}
-			require.Equal(t, expect, pairs)
+			expected := []*Pair{pair1, pair2}
+			require.Equal(t, expected, pairs)
 		}
 		cleanup := func() {
 			err := pool.DeletePrivateClientCert(0)
@@ -2391,8 +2391,8 @@ func TestPool_GetPrivateClientPairs_Parallel(t *testing.T) {
 		}
 		get := func() {
 			pairs := pool.GetPrivateClientPairs()
-			expect := []*Pair{pair1, pair2}
-			require.Equal(t, expect, pairs)
+			expected := []*Pair{pair1, pair2}
+			require.Equal(t, expected, pairs)
 		}
 		testsuite.RunParallel(100, init, nil, get, get)
 
