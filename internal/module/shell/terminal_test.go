@@ -15,15 +15,15 @@ import (
 
 func TestTrimPrefixSpace(t *testing.T) {
 	for _, testdata := range [...]*struct {
-		input  string
-		except string
+		input    string
+		expected string
 	}{
-		{input: "a  ", except: "a  "},
-		{input: "  a", except: "a"},
-		{input: "   ", except: ""},
-		{input: "  a ", except: "a "},
+		{input: "a  ", expected: "a  "},
+		{input: "  a", expected: "a"},
+		{input: "   ", expected: ""},
+		{input: "  a ", expected: "a "},
 	} {
-		require.Equal(t, testdata.except, trimPrefixSpace(testdata.input))
+		require.Equal(t, testdata.expected, trimPrefixSpace(testdata.input))
 	}
 }
 

@@ -25,8 +25,8 @@ func TestOptions(t *testing.T) {
 
 	opts = opts.apply()
 	for _, testdata := range [...]*struct {
-		except interface{}
-		actual interface{}
+		expected interface{}
+		actual   interface{}
 	}{
 		{"tcp4", opts.LocalNetwork},
 		{"127.0.0.1:1099", opts.LocalAddress},
@@ -34,7 +34,7 @@ func TestOptions(t *testing.T) {
 		{30 * time.Second, opts.DialTimeout},
 		{100, opts.MaxConns},
 	} {
-		require.Equal(t, testdata.except, testdata.actual)
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
 
@@ -43,8 +43,8 @@ func TestOptions_Apply(t *testing.T) {
 	opts = opts.apply()
 
 	for _, testdata := range [...]*struct {
-		except interface{}
-		actual interface{}
+		expected interface{}
+		actual   interface{}
 	}{
 		{"tcp", opts.LocalNetwork},
 		{":0", opts.LocalAddress},
@@ -52,6 +52,6 @@ func TestOptions_Apply(t *testing.T) {
 		{DefaultDialTimeout, opts.DialTimeout},
 		{DefaultMaxConnections, opts.MaxConns},
 	} {
-		require.Equal(t, testdata.except, testdata.actual)
+		require.Equal(t, testdata.expected, testdata.actual)
 	}
 }
