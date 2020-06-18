@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"io"
 	"io/ioutil"
@@ -53,7 +54,6 @@ func testLSB(t *testing.T, name string) {
 
 	key := bytes.Repeat([]byte{1}, aes.Key256Bit)
 	iv := bytes.Repeat([]byte{2}, aes.IVSize)
-
 	plainData := bytes.Repeat(pic[:128], 5)
 
 	picEnc, err := EncryptToPNG(pic, plainData, key, iv)
@@ -64,9 +64,11 @@ func testLSB(t *testing.T, name string) {
 
 	require.Equal(t, plainData, dec)
 
-	fileName := fmt.Sprintf("testdata/%s_enc.png", name)
-	err = ioutil.WriteFile(fileName, picEnc, 0600)
-	require.NoError(t, err)
+	// look the different about two pictures
+	//
+	// fileName := fmt.Sprintf("testdata/%s_enc.png", name)
+	// err = ioutil.WriteFile(fileName, picEnc, 0600)
+	// require.NoError(t, err)
 }
 
 func testGeneratePNG(width, height int) *image.NRGBA64 {
@@ -154,10 +156,89 @@ func TestEncrypt(t *testing.T) {
 		// create fake slice to make slice.Len too large
 		plainData := make([]byte, 1024)
 		sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&plainData)) // #nosec
-		sliceHeader.Len = math.MaxInt32
+		sliceHeader.Len = math.MaxInt32 + 1
 
 		pic, err := Encrypt(img, plainData, nil, nil)
 		require.Error(t, err)
 		require.Nil(t, pic)
+	})
+
+	t.Run("alpha", func(t *testing.T) {
+		img := testsuite.NewMockImage()
+		img.SetPixel(1, 1, color.NRGBA64{
+			R: 65535,
+			G: 65535,
+			B: 65535,
+			A: 65521,
+		})
+
+		plainData := []byte{1, 2, 3, 4}
+		key := random.Bytes(aes.Key256Bit)
+		iv := random.Bytes(aes.IVSize)
+
+		pic, err := Encrypt(img, plainData, key, iv)
+		require.NoError(t, err)
+		require.NotNil(t, pic)
+	})
+}
+
+func TestDecrypt(t *testing.T) {
+	key := random.Bytes(aes.Key256Bit)
+	iv := random.Bytes(aes.IVSize)
+
+	t.Run("invalid image size", func(t *testing.T) {
+		img := testGeneratePNG(5, 5)
+
+		plainData, err := Decrypt(img, key, iv)
+		require.Error(t, err)
+		require.Nil(t, plainData)
+	})
+
+	t.Run("invalid size in header", func(t *testing.T) {
+		// set header first byte [85, 0, 0, 0]
+		img := testGeneratePNG(100, 100)
+		img.SetNRGBA64(0, 0, color.NRGBA64{
+			R: 1,
+			G: 1,
+			B: 1,
+			A: 1,
+		})
+
+		plainData, err := Decrypt(img, key, iv)
+		require.Error(t, err)
+		require.Nil(t, plainData)
+	})
+
+	t.Run("invalid cipher data", func(t *testing.T) {
+		img := testGeneratePNG(100, 100)
+
+		plainData, err := Decrypt(img, key, iv)
+		require.Error(t, err)
+		require.Nil(t, plainData)
+	})
+
+	t.Run("invalid hash", func(t *testing.T) {
+		// set header first byte [0, 0, 32, 0]
+		img := testGeneratePNG(100, 100)
+		img.SetNRGBA64(0, 2, color.NRGBA64{
+			R: 0,
+			G: 256, // 0010 0000 -> 32
+			B: 0,
+			A: 0,
+		})
+
+		plainData, err := Decrypt(img, key, iv)
+		require.Error(t, err)
+		require.Nil(t, plainData)
+	})
+
+	t.Run("internal error", func(t *testing.T) {
+		defer testsuite.DeferForPanic(t)
+
+		x := 0
+		y := 0
+		img := testGeneratePNG(1, 1)
+
+		readDataFromImage(img, 1, 1, &x, &y, 1024)
 	})
 }

@@ -80,7 +80,7 @@ func Encrypt(img image.Image, plainData, key, iv []byte) (*image.NRGBA64, error)
 		str := convert.ByteToString(uint64(storageSize))
 		return nil, fmt.Errorf(format, str, size)
 	}
-	if size > math.MaxInt32-aes.BlockSize {
+	if size > math.MaxInt32-1 { // because aes block size
 		return nil, errors.New("plain data size is bigger than 4GB")
 	}
 	// encrypted data
@@ -195,8 +195,7 @@ func DecryptFromPNG(pic, key, iv []byte) ([]byte, error) {
 func Decrypt(img *image.NRGBA64, key, iv []byte) ([]byte, error) {
 	// basic information
 	rect := img.Bounds()
-	storageSize := CalculateStorageSize(rect)
-	if storageSize < headerSize+sha256.Size+aes.BlockSize {
+	if CalculateStorageSize(rect) < headerSize+sha256.Size+aes.BlockSize {
 		return nil, errors.New("invalid image size")
 	}
 	min := rect.Min
@@ -207,7 +206,7 @@ func Decrypt(img *image.NRGBA64, key, iv []byte) ([]byte, error) {
 	// read header
 	header := readDataFromImage(img, width, height, x, y, headerSize)
 	size := int(convert.BytesToUint32(header))
-	if size > storageSize-headerSize {
+	if headerSize+sha256.Size+size > rect.Dx()*rect.Dx() {
 		return nil, errors.New("invalid size in header")
 	}
 	// read hash
@@ -257,7 +256,7 @@ func readDataFromImage(img *image.NRGBA64, width, height int, x, y *int, size in
 			*x++
 		}
 		if *x >= width {
-			break
+			panic("lsb: internal error")
 		}
 	}
 	return data
