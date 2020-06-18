@@ -195,24 +195,25 @@ func DecryptFromPNG(pic, key, iv []byte) ([]byte, error) {
 func Decrypt(img *image.NRGBA64, key, iv []byte) ([]byte, error) {
 	// basic information
 	rect := img.Bounds()
-	if CalculateStorageSize(rect) < headerSize+sha256.Size+aes.BlockSize {
+	width, height := rect.Dx(), rect.Dy()
+	maxSize := width * height // one pixel one byte
+	if maxSize < headerSize+sha256.Size+aes.BlockSize {
 		return nil, errors.New("invalid image size")
 	}
 	min := rect.Min
-	width, height := rect.Dx(), rect.Dy()
 	// store global position
 	x := &min.X
 	y := &min.Y
 	// read header
 	header := readDataFromImage(img, width, height, x, y, headerSize)
-	size := int(convert.BytesToUint32(header))
-	if headerSize+sha256.Size+size > rect.Dx()*rect.Dx() {
+	cipherDataSize := int(convert.BytesToUint32(header))
+	if headerSize+sha256.Size+cipherDataSize > maxSize {
 		return nil, errors.New("invalid size in header")
 	}
 	// read hash
 	rawHash := readDataFromImage(img, width, height, x, y, sha256.Size)
 	// read cipher data
-	cipherData := readDataFromImage(img, width, height, x, y, size)
+	cipherData := readDataFromImage(img, width, height, x, y, cipherDataSize)
 	// decrypt
 	plainData, err := aes.CBCDecrypt(cipherData, key, iv)
 	if err != nil {

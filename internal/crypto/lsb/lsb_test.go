@@ -186,6 +186,27 @@ func TestDecrypt(t *testing.T) {
 	key := random.Bytes(aes.Key256Bit)
 	iv := random.Bytes(aes.IVSize)
 
+	t.Run("bounds", func(t *testing.T) {
+		for _, testdata := range [...]*struct {
+			width  int
+			height int
+			size   int
+		}{
+			{width: 100, height: 200, size: 19951},
+			{width: 20, height: 3, size: 15},
+		} {
+			pic := testGeneratePNGBytes(t, testdata.width, testdata.height)
+			plainData := random.Bytes(testdata.size)
+
+			picEnc, err := EncryptToPNG(pic, plainData, key, iv)
+			require.NoError(t, err)
+			dec, err := DecryptFromPNG(picEnc, key, iv)
+			require.NoError(t, err)
+
+			require.Equal(t, plainData, dec)
+		}
+	})
+
 	t.Run("invalid image size", func(t *testing.T) {
 		img := testGeneratePNG(5, 5)
 
