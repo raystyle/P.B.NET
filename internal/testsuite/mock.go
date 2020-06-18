@@ -546,6 +546,11 @@ func (mc *MockImage) SetMaxPoint(x, y int) {
 	mc.max = image.Point{X: x, Y: y}
 }
 
+// SetPixel is used to set color of the pixel at (x, y).
+func (mc *MockImage) SetPixel(x, y int, color color.Color) {
+	mc.pixel[x][y] = color
+}
+
 // ColorModel returns the mock image color model.
 func (mc *MockImage) ColorModel() color.Model {
 	return mc.model

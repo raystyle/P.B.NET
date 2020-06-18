@@ -387,12 +387,18 @@ func TestMockImage(t *testing.T) {
 		require.Equal(t, image.Point{X: 2, Y: 2}, rect.Max)
 	})
 
-	t.Run("At", func(t *testing.T) {
-		pixel := mi.At(1, 1)
+	t.Run("SetPixel", func(t *testing.T) {
+		mi.SetPixel(1, 1, color.NRGBA64{
+			R: 65535,
+			G: 65535,
+			B: 65535,
+			A: 65521,
+		})
 
+		pixel := mi.At(1, 1)
 		r, g, b, a := pixel.RGBA()
 
-		expected := uint32(65535)
+		expected := uint32(65521)
 		require.Equal(t, expected, r)
 		require.Equal(t, expected, g)
 		require.Equal(t, expected, b)
