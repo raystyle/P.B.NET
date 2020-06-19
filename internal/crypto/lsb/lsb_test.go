@@ -186,13 +186,14 @@ func TestDecrypt(t *testing.T) {
 	key := random.Bytes(aes.Key256Bit)
 	iv := random.Bytes(aes.IVSize)
 
-	t.Run("bounds", func(t *testing.T) {
+	t.Run("bounds-ok", func(t *testing.T) {
 		for _, testdata := range [...]*struct {
 			width  int
 			height int
 			size   int
 		}{
 			{width: 100, height: 200, size: 19951},
+			{width: 100, height: 100, size: 9951},
 			{width: 20, height: 3, size: 15},
 		} {
 			pic := testGeneratePNGBytes(t, testdata.width, testdata.height)
@@ -204,6 +205,25 @@ func TestDecrypt(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, plainData, dec)
+		}
+	})
+
+	t.Run("bounds-failed", func(t *testing.T) {
+		for _, testdata := range [...]*struct {
+			width  int
+			height int
+			size   int
+		}{
+			{width: 100, height: 200, size: 19951 + 1},
+			{width: 100, height: 100, size: 9951 + 1},
+			{width: 20, height: 3, size: 15 + 1},
+		} {
+			pic := testGeneratePNGBytes(t, testdata.width, testdata.height)
+			plainData := random.Bytes(testdata.size)
+
+			picEnc, err := EncryptToPNG(pic, plainData, key, iv)
+			require.Error(t, err)
+			require.Nil(t, picEnc)
 		}
 	})
 
@@ -262,4 +282,39 @@ func TestDecrypt(t *testing.T) {
 
 		readDataFromImage(img, 1, 1, &x, &y, 1024)
 	})
+}
+
+func TestFuzz(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		width := 30 + random.Int(300)
+		height := 10 + random.Int(100)
+		size := CalculateStorageSize(image.Rect(0, 0, width, height))
+
+		pic := testGeneratePNGBytes(t, width, height)
+		key := random.Bytes(aes.Key256Bit)
+		iv := random.Bytes(aes.IVSize)
+
+		// ok
+		for _, size := range [...]int{
+			size,
+			size - 1,
+			size - random.Int(100),
+		} {
+			plainData := random.Bytes(size)
+
+			picEnc, err := EncryptToPNG(pic, plainData, key, iv)
+			require.NoError(t, err)
+			dec, err := DecryptFromPNG(picEnc, key, iv)
+			require.NoError(t, err)
+
+			require.Equal(t, plainData, dec)
+		}
+
+		// failed
+		plainData := random.Bytes(size + 1)
+
+		picEnc, err := EncryptToPNG(pic, plainData, key, iv)
+		require.Error(t, err)
+		require.Nil(t, picEnc)
+	}
 }
