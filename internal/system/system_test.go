@@ -1,6 +1,7 @@
 package system
 
 import (
+	"errors"
 	"log"
 	"os"
 	"syscall"
@@ -69,6 +70,26 @@ func TestGetConnHandle(t *testing.T) {
 	})
 }
 
+func TestExecutableName(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		name, err := ExecutableName()
+		require.NoError(t, err)
+		t.Log(name)
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		patch := func() (string, error) {
+			return "", monkey.Error
+		}
+		pg := monkey.Patch(os.Executable, patch)
+		defer pg.Unpatch()
+
+		name, err := ExecutableName()
+		monkey.IsMonkeyError(t, err)
+		require.Empty(t, name)
+	})
+}
+
 func TestChangeCurrentDirectory(t *testing.T) {
 	cd, err := os.Getwd()
 	require.NoError(t, err)
@@ -78,24 +99,27 @@ func TestChangeCurrentDirectory(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	err = ChangeCurrentDirectory()
-	require.NoError(t, err)
+	t.Run("ok", func(t *testing.T) {
+		err = ChangeCurrentDirectory()
+		require.NoError(t, err)
 
-	dd, err := os.Getwd()
-	require.NoError(t, err)
-	t.Log("now directory:", dd)
+		dd, err := os.Getwd()
+		require.NoError(t, err)
+		t.Log("now directory:", dd)
 
-	require.NotEqual(t, cd, dd)
+		require.NotEqual(t, cd, dd)
+	})
 
-	// failed
-	patch := func() (string, error) {
-		return "", monkey.Error
-	}
-	pg := monkey.Patch(os.Executable, patch)
-	defer pg.Unpatch()
+	t.Run("failed", func(t *testing.T) {
+		patch := func() (string, error) {
+			return "", monkey.Error
+		}
+		pg := monkey.Patch(os.Executable, patch)
+		defer pg.Unpatch()
 
-	err = ChangeCurrentDirectory()
-	monkey.IsMonkeyError(t, err)
+		err = ChangeCurrentDirectory()
+		monkey.IsMonkeyError(t, err)
+	})
 }
 
 func TestSetErrorLogger(t *testing.T) {
@@ -117,4 +141,12 @@ func TestSetErrorLogger(t *testing.T) {
 	f2, err := SetErrorLogger("invalid//name")
 	require.Error(t, err)
 	require.Nil(t, f2)
+}
+
+func TestCheckError(t *testing.T) {
+	patch := func(int) {}
+	pg := monkey.Patch(os.Exit, patch)
+	defer pg.Unpatch()
+
+	CheckError(errors.New("test error"))
 }

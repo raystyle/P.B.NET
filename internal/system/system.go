@@ -1,6 +1,7 @@
 package system
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -40,6 +41,16 @@ func GetConnHandle(conn syscall.Conn) (uintptr, error) {
 	return f, nil
 }
 
+// ExecutableName is used to get the executable file name.
+func ExecutableName() (string, error) {
+	path, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	_, file := filepath.Split(path)
+	return file, nil
+}
+
 // ChangeCurrentDirectory is used to changed path for service program
 // and prevent get invalid path when test.
 func ChangeCurrentDirectory() error {
@@ -61,4 +72,13 @@ func SetErrorLogger(name string) (*os.File, error) {
 	mLogger := logger.NewMultiLogger(logger.Error, os.Stdout, file)
 	logger.HijackLogWriter(logger.Error, "init", mLogger, 0)
 	return file, nil
+}
+
+// CheckError is used to check error is nil, if not print error and
+// exit program with code 1.
+func CheckError(err error) {
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
