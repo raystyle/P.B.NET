@@ -46,31 +46,27 @@ func main() {
 	flag.Parse()
 
 	const tag = "s"
+	var (
+		mod module.Module
+		err error
+	)
 	switch method {
 	case "tran":
-		tranner, err := lcx.NewTranner(tag, dstNetwork, dstAddress, logger.Common, &opts)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		start(tranner)
+		mod, err = lcx.NewTranner(tag, dstNetwork, dstAddress, logger.Common, &opts)
 	case "listen":
-		listener, err := lcx.NewListener(tag, iNetwork, iAddress, logger.Common, &opts)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		start(listener)
+		mod, err = lcx.NewListener(tag, iNetwork, iAddress, logger.Common, &opts)
 	case "slave":
-		slaver, err := lcx.NewSlaver(tag, iNetwork, iAddress, dstNetwork, dstAddress, logger.Common, &opts)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		start(slaver)
+		mod, err = lcx.NewSlaver(tag, iNetwork, iAddress, dstNetwork, dstAddress, logger.Common, &opts)
 	case "":
 		printHelp()
+		return
 	default:
 		fmt.Println("unknown method:", method)
 		printHelp()
+		return
 	}
+	checkError(err)
+	start(mod)
 }
 
 func printHelp() {
@@ -87,12 +83,16 @@ func printHelp() {
 
 func start(module module.Module) {
 	err := module.Start()
-	if err != nil {
-		log.Fatalln(err)
-	}
+	checkError(err)
 	// stop signal
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
 	<-signalChan
 	module.Stop()
+}
+
+func checkError(err error) {
+	if err != nil {
+		log.Fatalln(err)
+	}
 }

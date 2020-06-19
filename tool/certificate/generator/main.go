@@ -19,61 +19,44 @@ func main() {
 	flag.Parse()
 
 	options, err := ioutil.ReadFile("options.toml")
-	if err != nil {
-		log.Fatalln(err)
-	}
+	checkError(err)
 	opts := &cert.Options{}
 	err = toml.Unmarshal(options, opts)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	checkError(err)
 
 	switch {
 	case ca:
 		ca, err := cert.GenerateCA(opts)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		checkError(err)
 		caCert, caKey := ca.EncodeToPEM()
 		err = ioutil.WriteFile("ca.crt", caCert, 0600)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		checkError(err)
 		err = ioutil.WriteFile("ca.key", caKey, 0600)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		checkError(err)
 	case gen:
 		// load CA certificate
 		pemData, err := ioutil.ReadFile("ca.crt")
-		if err != nil {
-			log.Fatalln(err)
-		}
+		checkError(err)
 		caCert, err := cert.ParseCertificate(pemData)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		checkError(err)
 		// load CA private key
 		pemData, err = ioutil.ReadFile("ca.key")
-		if err != nil {
-			log.Fatalln(err)
-		}
+		checkError(err)
 		caKey, err := cert.ParsePrivateKey(pemData)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		checkError(err)
+		// generate
 		kp, err := cert.Generate(caCert, caKey, opts)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		checkError(err)
 		crt, key := kp.EncodeToPEM()
 		err = ioutil.WriteFile("server.crt", crt, 0600)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		checkError(err)
 		err = ioutil.WriteFile("server.key", key, 0600)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		checkError(err)
+	}
+}
+
+func checkError(err error) {
+	if err != nil {
+		log.Fatalln(err)
 	}
 }
