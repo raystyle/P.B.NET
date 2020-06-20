@@ -33,7 +33,10 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding"
+	"encoding/ascii85"
+	"encoding/base32"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
@@ -51,12 +54,21 @@ import (
 	"image/png"
 	"io"
 	"io/ioutil"
+	"log"
 	"math"
 	"math/big"
+	"math/bits"
+	"math/cmplx"
 	"math/rand"
+	"mime"
+	"mime/multipart"
+	"mime/quotedprintable"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/mail"
+	"net/smtp"
+	"net/textproto"
 	"net/url"
 	"os"
 	"os/exec"
@@ -111,7 +123,10 @@ func init() {
 	initCryptoX509()
 	initCryptoX509PKIX()
 	initEncoding()
+	initEncodingASCII85()
+	initEncodingBase32()
 	initEncodingBase64()
+	initEncodingBinary()
 	initEncodingCSV()
 	initEncodingHex()
 	initEncodingJSON()
@@ -129,12 +144,21 @@ func init() {
 	initImagePNG()
 	initIO()
 	initIOioutil()
+	initLog()
 	initMath()
 	initMathBig()
+	initMathBits()
+	initMathCmplx()
 	initMathRand()
+	initMIME()
+	initMIMEMultiPart()
+	initMIMEQuotedPrintable()
 	initNet()
 	initNetHTTP()
 	initNetHTTPCookieJar()
+	initNetMail()
+	initNetSMTP()
+	initNetTextProto()
 	initNetURL()
 	initOS()
 	initOSExec()
@@ -1202,6 +1226,52 @@ func initEncoding() {
 	}
 }
 
+func initEncodingASCII85() {
+	env.Packages["encoding/ascii85"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+
+		// define functions
+		"Decode":        reflect.ValueOf(ascii85.Decode),
+		"Encode":        reflect.ValueOf(ascii85.Encode),
+		"MaxEncodedLen": reflect.ValueOf(ascii85.MaxEncodedLen),
+		"NewDecoder":    reflect.ValueOf(ascii85.NewDecoder),
+		"NewEncoder":    reflect.ValueOf(ascii85.NewEncoder),
+	}
+	var (
+		corruptInputError ascii85.CorruptInputError
+	)
+	env.PackageTypes["encoding/ascii85"] = map[string]reflect.Type{
+		"CorruptInputError": reflect.TypeOf(&corruptInputError).Elem(),
+	}
+}
+
+func initEncodingBase32() {
+	env.Packages["encoding/base32"] = map[string]reflect.Value{
+		// define constants
+		"NoPadding":  reflect.ValueOf(base32.NoPadding),
+		"StdPadding": reflect.ValueOf(base32.StdPadding),
+
+		// define variables
+		"HexEncoding": reflect.ValueOf(base32.HexEncoding),
+		"StdEncoding": reflect.ValueOf(base32.StdEncoding),
+
+		// define functions
+		"NewDecoder":  reflect.ValueOf(base32.NewDecoder),
+		"NewEncoder":  reflect.ValueOf(base32.NewEncoder),
+		"NewEncoding": reflect.ValueOf(base32.NewEncoding),
+	}
+	var (
+		corruptInputError base32.CorruptInputError
+		enc               base32.Encoding
+	)
+	env.PackageTypes["encoding/base32"] = map[string]reflect.Type{
+		"CorruptInputError": reflect.TypeOf(&corruptInputError).Elem(),
+		"Encoding":          reflect.TypeOf(&enc).Elem(),
+	}
+}
+
 func initEncodingBase64() {
 	env.Packages["encoding/base64"] = map[string]reflect.Value{
 		// define constants
@@ -1226,6 +1296,36 @@ func initEncodingBase64() {
 	env.PackageTypes["encoding/base64"] = map[string]reflect.Type{
 		"CorruptInputError": reflect.TypeOf(&corruptInputError).Elem(),
 		"Encoding":          reflect.TypeOf(&enc).Elem(),
+	}
+}
+
+func initEncodingBinary() {
+	env.Packages["encoding/binary"] = map[string]reflect.Value{
+		// define constants
+		"MaxVarintLen16": reflect.ValueOf(binary.MaxVarintLen16),
+		"MaxVarintLen32": reflect.ValueOf(binary.MaxVarintLen32),
+		"MaxVarintLen64": reflect.ValueOf(binary.MaxVarintLen64),
+
+		// define variables
+		"BigEndian":    reflect.ValueOf(binary.BigEndian),
+		"LittleEndian": reflect.ValueOf(binary.LittleEndian),
+
+		// define functions
+		"PutUvarint":  reflect.ValueOf(binary.PutUvarint),
+		"PutVarint":   reflect.ValueOf(binary.PutVarint),
+		"Read":        reflect.ValueOf(binary.Read),
+		"ReadUvarint": reflect.ValueOf(binary.ReadUvarint),
+		"ReadVarint":  reflect.ValueOf(binary.ReadVarint),
+		"Size":        reflect.ValueOf(binary.Size),
+		"Uvarint":     reflect.ValueOf(binary.Uvarint),
+		"Varint":      reflect.ValueOf(binary.Varint),
+		"Write":       reflect.ValueOf(binary.Write),
+	}
+	var (
+		byteOrder binary.ByteOrder
+	)
+	env.PackageTypes["encoding/binary"] = map[string]reflect.Type{
+		"ByteOrder": reflect.TypeOf(&byteOrder).Elem(),
 	}
 }
 
@@ -1890,6 +1990,47 @@ func initIOioutil() {
 	env.PackageTypes["io/ioutil"] = map[string]reflect.Type{}
 }
 
+func initLog() {
+	env.Packages["log"] = map[string]reflect.Value{
+		// define constants
+		"LUTC":          reflect.ValueOf(log.LUTC),
+		"Ldate":         reflect.ValueOf(log.Ldate),
+		"Llongfile":     reflect.ValueOf(log.Llongfile),
+		"Lmicroseconds": reflect.ValueOf(log.Lmicroseconds),
+		"Lmsgprefix":    reflect.ValueOf(log.Lmsgprefix),
+		"Lshortfile":    reflect.ValueOf(log.Lshortfile),
+		"LstdFlags":     reflect.ValueOf(log.LstdFlags),
+		"Ltime":         reflect.ValueOf(log.Ltime),
+
+		// define variables
+
+		// define functions
+		"Fatal":     reflect.ValueOf(log.Fatal),
+		"Fatalf":    reflect.ValueOf(log.Fatalf),
+		"Fatalln":   reflect.ValueOf(log.Fatalln),
+		"Flags":     reflect.ValueOf(log.Flags),
+		"New":       reflect.ValueOf(log.New),
+		"Output":    reflect.ValueOf(log.Output),
+		"Panic":     reflect.ValueOf(log.Panic),
+		"Panicf":    reflect.ValueOf(log.Panicf),
+		"Panicln":   reflect.ValueOf(log.Panicln),
+		"Prefix":    reflect.ValueOf(log.Prefix),
+		"Print":     reflect.ValueOf(log.Print),
+		"Printf":    reflect.ValueOf(log.Printf),
+		"Println":   reflect.ValueOf(log.Println),
+		"SetFlags":  reflect.ValueOf(log.SetFlags),
+		"SetOutput": reflect.ValueOf(log.SetOutput),
+		"SetPrefix": reflect.ValueOf(log.SetPrefix),
+		"Writer":    reflect.ValueOf(log.Writer),
+	}
+	var (
+		logger log.Logger
+	)
+	env.PackageTypes["log"] = map[string]reflect.Type{
+		"Logger": reflect.TypeOf(&logger).Elem(),
+	}
+}
+
 func initMath() {
 	env.Packages["math"] = map[string]reflect.Value{
 		// define constants
@@ -2042,6 +2183,107 @@ func initMathBig() {
 	}
 }
 
+func initMathBits() {
+	env.Packages["math/bits"] = map[string]reflect.Value{
+		// define constants
+		"UintSize": reflect.ValueOf(bits.UintSize),
+
+		// define variables
+
+		// define functions
+		"Add":             reflect.ValueOf(bits.Add),
+		"Add32":           reflect.ValueOf(bits.Add32),
+		"Add64":           reflect.ValueOf(bits.Add64),
+		"Div":             reflect.ValueOf(bits.Div),
+		"Div32":           reflect.ValueOf(bits.Div32),
+		"Div64":           reflect.ValueOf(bits.Div64),
+		"LeadingZeros":    reflect.ValueOf(bits.LeadingZeros),
+		"LeadingZeros16":  reflect.ValueOf(bits.LeadingZeros16),
+		"LeadingZeros32":  reflect.ValueOf(bits.LeadingZeros32),
+		"LeadingZeros64":  reflect.ValueOf(bits.LeadingZeros64),
+		"LeadingZeros8":   reflect.ValueOf(bits.LeadingZeros8),
+		"Len":             reflect.ValueOf(bits.Len),
+		"Len16":           reflect.ValueOf(bits.Len16),
+		"Len32":           reflect.ValueOf(bits.Len32),
+		"Len64":           reflect.ValueOf(bits.Len64),
+		"Len8":            reflect.ValueOf(bits.Len8),
+		"Mul":             reflect.ValueOf(bits.Mul),
+		"Mul32":           reflect.ValueOf(bits.Mul32),
+		"Mul64":           reflect.ValueOf(bits.Mul64),
+		"OnesCount":       reflect.ValueOf(bits.OnesCount),
+		"OnesCount16":     reflect.ValueOf(bits.OnesCount16),
+		"OnesCount32":     reflect.ValueOf(bits.OnesCount32),
+		"OnesCount64":     reflect.ValueOf(bits.OnesCount64),
+		"OnesCount8":      reflect.ValueOf(bits.OnesCount8),
+		"Rem":             reflect.ValueOf(bits.Rem),
+		"Rem32":           reflect.ValueOf(bits.Rem32),
+		"Rem64":           reflect.ValueOf(bits.Rem64),
+		"Reverse":         reflect.ValueOf(bits.Reverse),
+		"Reverse16":       reflect.ValueOf(bits.Reverse16),
+		"Reverse32":       reflect.ValueOf(bits.Reverse32),
+		"Reverse64":       reflect.ValueOf(bits.Reverse64),
+		"Reverse8":        reflect.ValueOf(bits.Reverse8),
+		"ReverseBytes":    reflect.ValueOf(bits.ReverseBytes),
+		"ReverseBytes16":  reflect.ValueOf(bits.ReverseBytes16),
+		"ReverseBytes32":  reflect.ValueOf(bits.ReverseBytes32),
+		"ReverseBytes64":  reflect.ValueOf(bits.ReverseBytes64),
+		"RotateLeft":      reflect.ValueOf(bits.RotateLeft),
+		"RotateLeft16":    reflect.ValueOf(bits.RotateLeft16),
+		"RotateLeft32":    reflect.ValueOf(bits.RotateLeft32),
+		"RotateLeft64":    reflect.ValueOf(bits.RotateLeft64),
+		"RotateLeft8":     reflect.ValueOf(bits.RotateLeft8),
+		"Sub":             reflect.ValueOf(bits.Sub),
+		"Sub32":           reflect.ValueOf(bits.Sub32),
+		"Sub64":           reflect.ValueOf(bits.Sub64),
+		"TrailingZeros":   reflect.ValueOf(bits.TrailingZeros),
+		"TrailingZeros16": reflect.ValueOf(bits.TrailingZeros16),
+		"TrailingZeros32": reflect.ValueOf(bits.TrailingZeros32),
+		"TrailingZeros64": reflect.ValueOf(bits.TrailingZeros64),
+		"TrailingZeros8":  reflect.ValueOf(bits.TrailingZeros8),
+	}
+	var ()
+	env.PackageTypes["math/bits"] = map[string]reflect.Type{}
+}
+
+func initMathCmplx() {
+	env.Packages["math/cmplx"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+
+		// define functions
+		"Abs":   reflect.ValueOf(cmplx.Abs),
+		"Acos":  reflect.ValueOf(cmplx.Acos),
+		"Acosh": reflect.ValueOf(cmplx.Acosh),
+		"Asin":  reflect.ValueOf(cmplx.Asin),
+		"Asinh": reflect.ValueOf(cmplx.Asinh),
+		"Atan":  reflect.ValueOf(cmplx.Atan),
+		"Atanh": reflect.ValueOf(cmplx.Atanh),
+		"Conj":  reflect.ValueOf(cmplx.Conj),
+		"Cos":   reflect.ValueOf(cmplx.Cos),
+		"Cosh":  reflect.ValueOf(cmplx.Cosh),
+		"Cot":   reflect.ValueOf(cmplx.Cot),
+		"Exp":   reflect.ValueOf(cmplx.Exp),
+		"Inf":   reflect.ValueOf(cmplx.Inf),
+		"IsInf": reflect.ValueOf(cmplx.IsInf),
+		"IsNaN": reflect.ValueOf(cmplx.IsNaN),
+		"Log":   reflect.ValueOf(cmplx.Log),
+		"Log10": reflect.ValueOf(cmplx.Log10),
+		"NaN":   reflect.ValueOf(cmplx.NaN),
+		"Phase": reflect.ValueOf(cmplx.Phase),
+		"Polar": reflect.ValueOf(cmplx.Polar),
+		"Pow":   reflect.ValueOf(cmplx.Pow),
+		"Rect":  reflect.ValueOf(cmplx.Rect),
+		"Sin":   reflect.ValueOf(cmplx.Sin),
+		"Sinh":  reflect.ValueOf(cmplx.Sinh),
+		"Sqrt":  reflect.ValueOf(cmplx.Sqrt),
+		"Tan":   reflect.ValueOf(cmplx.Tan),
+		"Tanh":  reflect.ValueOf(cmplx.Tanh),
+	}
+	var ()
+	env.PackageTypes["math/cmplx"] = map[string]reflect.Type{}
+}
+
 func initMathRand() {
 	env.Packages["math/rand"] = map[string]reflect.Value{
 		// define constants
@@ -2080,6 +2322,81 @@ func initMathRand() {
 		"Source":   reflect.TypeOf(&source).Elem(),
 		"Source64": reflect.TypeOf(&source64).Elem(),
 		"Zipf":     reflect.TypeOf(&zipf).Elem(),
+	}
+}
+
+func initMIME() {
+	env.Packages["mime"] = map[string]reflect.Value{
+		// define constants
+		"BEncoding": reflect.ValueOf(mime.BEncoding),
+		"QEncoding": reflect.ValueOf(mime.QEncoding),
+
+		// define variables
+		"ErrInvalidMediaParameter": reflect.ValueOf(mime.ErrInvalidMediaParameter),
+
+		// define functions
+		"AddExtensionType": reflect.ValueOf(mime.AddExtensionType),
+		"ExtensionsByType": reflect.ValueOf(mime.ExtensionsByType),
+		"FormatMediaType":  reflect.ValueOf(mime.FormatMediaType),
+		"ParseMediaType":   reflect.ValueOf(mime.ParseMediaType),
+		"TypeByExtension":  reflect.ValueOf(mime.TypeByExtension),
+	}
+	var (
+		wordDecoder mime.WordDecoder
+		wordEncoder mime.WordEncoder
+	)
+	env.PackageTypes["mime"] = map[string]reflect.Type{
+		"WordDecoder": reflect.TypeOf(&wordDecoder).Elem(),
+		"WordEncoder": reflect.TypeOf(&wordEncoder).Elem(),
+	}
+}
+
+func initMIMEMultiPart() {
+	env.Packages["mime/multipart"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+		"ErrMessageTooLarge": reflect.ValueOf(multipart.ErrMessageTooLarge),
+
+		// define functions
+		"NewReader": reflect.ValueOf(multipart.NewReader),
+		"NewWriter": reflect.ValueOf(multipart.NewWriter),
+	}
+	var (
+		file       multipart.File
+		fileHeader multipart.FileHeader
+		form       multipart.Form
+		part       multipart.Part
+		reader     multipart.Reader
+		writer     multipart.Writer
+	)
+	env.PackageTypes["mime/multipart"] = map[string]reflect.Type{
+		"File":       reflect.TypeOf(&file).Elem(),
+		"FileHeader": reflect.TypeOf(&fileHeader).Elem(),
+		"Form":       reflect.TypeOf(&form).Elem(),
+		"Part":       reflect.TypeOf(&part).Elem(),
+		"Reader":     reflect.TypeOf(&reader).Elem(),
+		"Writer":     reflect.TypeOf(&writer).Elem(),
+	}
+}
+
+func initMIMEQuotedPrintable() {
+	env.Packages["mime/quotedprintable"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+
+		// define functions
+		"NewReader": reflect.ValueOf(quotedprintable.NewReader),
+		"NewWriter": reflect.ValueOf(quotedprintable.NewWriter),
+	}
+	var (
+		reader quotedprintable.Reader
+		writer quotedprintable.Writer
+	)
+	env.PackageTypes["mime/quotedprintable"] = map[string]reflect.Type{
+		"Reader": reflect.TypeOf(&reader).Elem(),
+		"Writer": reflect.TypeOf(&writer).Elem(),
 	}
 }
 
@@ -2446,6 +2763,93 @@ func initNetHTTPCookieJar() {
 		"Jar":              reflect.TypeOf(&jar).Elem(),
 		"Options":          reflect.TypeOf(&options).Elem(),
 		"PublicSuffixList": reflect.TypeOf(&publicSuffixList).Elem(),
+	}
+}
+
+func initNetMail() {
+	env.Packages["net/mail"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+		"ErrHeaderNotPresent": reflect.ValueOf(mail.ErrHeaderNotPresent),
+
+		// define functions
+		"ParseAddress":     reflect.ValueOf(mail.ParseAddress),
+		"ParseAddressList": reflect.ValueOf(mail.ParseAddressList),
+		"ParseDate":        reflect.ValueOf(mail.ParseDate),
+		"ReadMessage":      reflect.ValueOf(mail.ReadMessage),
+	}
+	var (
+		address       mail.Address
+		addressParser mail.AddressParser
+		header        mail.Header
+		message       mail.Message
+	)
+	env.PackageTypes["net/mail"] = map[string]reflect.Type{
+		"Address":       reflect.TypeOf(&address).Elem(),
+		"AddressParser": reflect.TypeOf(&addressParser).Elem(),
+		"Header":        reflect.TypeOf(&header).Elem(),
+		"Message":       reflect.TypeOf(&message).Elem(),
+	}
+}
+
+func initNetSMTP() {
+	env.Packages["net/smtp"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+
+		// define functions
+		"CRAMMD5Auth": reflect.ValueOf(smtp.CRAMMD5Auth),
+		"Dial":        reflect.ValueOf(smtp.Dial),
+		"NewClient":   reflect.ValueOf(smtp.NewClient),
+		"PlainAuth":   reflect.ValueOf(smtp.PlainAuth),
+		"SendMail":    reflect.ValueOf(smtp.SendMail),
+	}
+	var (
+		auth       smtp.Auth
+		client     smtp.Client
+		serverInfo smtp.ServerInfo
+	)
+	env.PackageTypes["net/smtp"] = map[string]reflect.Type{
+		"Auth":       reflect.TypeOf(&auth).Elem(),
+		"Client":     reflect.TypeOf(&client).Elem(),
+		"ServerInfo": reflect.TypeOf(&serverInfo).Elem(),
+	}
+}
+
+func initNetTextProto() {
+	env.Packages["net/textproto"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+
+		// define functions
+		"CanonicalMIMEHeaderKey": reflect.ValueOf(textproto.CanonicalMIMEHeaderKey),
+		"Dial":                   reflect.ValueOf(textproto.Dial),
+		"NewConn":                reflect.ValueOf(textproto.NewConn),
+		"NewReader":              reflect.ValueOf(textproto.NewReader),
+		"NewWriter":              reflect.ValueOf(textproto.NewWriter),
+		"TrimBytes":              reflect.ValueOf(textproto.TrimBytes),
+		"TrimString":             reflect.ValueOf(textproto.TrimString),
+	}
+	var (
+		conn          textproto.Conn
+		err           textproto.Error
+		mIMEHeader    textproto.MIMEHeader
+		pipeline      textproto.Pipeline
+		protocolError textproto.ProtocolError
+		reader        textproto.Reader
+		writer        textproto.Writer
+	)
+	env.PackageTypes["net/textproto"] = map[string]reflect.Type{
+		"Conn":          reflect.TypeOf(&conn).Elem(),
+		"Error":         reflect.TypeOf(&err).Elem(),
+		"MIMEHeader":    reflect.TypeOf(&mIMEHeader).Elem(),
+		"Pipeline":      reflect.TypeOf(&pipeline).Elem(),
+		"ProtocolError": reflect.TypeOf(&protocolError).Elem(),
+		"Reader":        reflect.TypeOf(&reader).Elem(),
+		"Writer":        reflect.TypeOf(&writer).Elem(),
 	}
 }
 
