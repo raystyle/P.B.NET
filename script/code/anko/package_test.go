@@ -71,7 +71,10 @@ func init() {
 		{"crypto/x509", "CryptoX509"},
 		{"crypto/x509/pkix", "CryptoX509PKIX"},
 		{"encoding", "Encoding"},
+		{"encoding/ascii85", "EncodingASCII85"},
+		{"encoding/base32", "EncodingBase32"},
 		{"encoding/base64", "EncodingBase64"},
+		{"encoding/binary", "EncodingBinary"},
 		{"encoding/csv", "EncodingCSV"},
 		{"encoding/hex", "EncodingHex"},
 		{"encoding/json", "EncodingJSON"},
@@ -89,12 +92,21 @@ func init() {
 		{"image/png", "ImagePNG"},
 		{"io", "IO"},
 		{"io/ioutil", "IOioutil"},
+		{"log", "Log"},
 		{"math", "Math"},
 		{"math/big", "MathBig"},
+		{"math/bits", "MathBits"},
+		{"math/cmplx", "MathCmplx"},
 		{"math/rand", "MathRand"},
+		{"mime", "MIME"},
+		{"mime/multipart", "MIMEMultiPart"},
+		{"mime/quotedprintable", "MIMEQuotedPrintable"},
 		{"net", "Net"},
 		{"net/http", "NetHTTP"},
 		{"net/http/cookiejar", "NetHTTPCookieJar"},
+		{"net/mail", "NetMail"},
+		{"net/smtp", "NetSMTP"},
+		{"net/textproto", "NetTextProto"},
 		{"net/url", "NetURL"},
 		{"os", "OS"},
 		{"os/exec", "OSExec"},
@@ -149,6 +161,9 @@ func init() {
 		{"encoding base64.Encoding", "enc base64.Encoding"},
 		{"(&encoding)", "(&enc)"},
 
+		{"encoding base32.Encoding", "enc base32.Encoding"},
+		{"(&encoding)", "(&enc)"},
+
 		{"hash hash.Hash", "h hash.Hash"},
 		{"(&hash)", "(&h)"},
 
@@ -172,6 +187,9 @@ func init() {
 
 		{"interface net.Interface", "iface net.Interface"},
 		{"(&interface)", "(&iface)"},
+
+		{"error textproto.Error", "err textproto.Error"},
+		{"(&error)", "(&err)"},
 
 		{"error url.Error", "err url.Error"},
 		{"(&error)", "(&err)"},
