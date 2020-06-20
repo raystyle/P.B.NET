@@ -18,8 +18,7 @@ func TestExportGoRoot(t *testing.T) {
 package gosrc
 
 import (
-%s	"reflect"
-
+%s
 	"github.com/mattn/anko/env"
 )
 
@@ -114,6 +113,7 @@ func init() {
 		{"os/user", "OSUser"},
 		{"path", "Path"},
 		{"path/filepath", "PathFilepath"},
+		{"reflect", "Reflect"},
 		{"regexp", "Regexp"},
 		{"sort", "Sort"},
 		{"strconv", "Strconv"},
@@ -122,8 +122,8 @@ func init() {
 		{"sync/atomic", "SyncAtomic"},
 		{"time", "Time"},
 		{"unicode", "Unicode"},
-		{"unicode/utf8", "UnicodeUTF8"},
 		{"unicode/utf16", "UnicodeUTF16"},
+		{"unicode/utf8", "UnicodeUTF8"},
 	} {
 		_, _ = fmt.Fprintf(pkgBuf, `	"%s"`+"\n", item.name)
 		_, _ = fmt.Fprintf(initBuf, "\tinit%s()\n", item.init)
@@ -202,6 +202,9 @@ func init() {
 
 		{"user user.User", "usr user.User"},
 		{"(&user)", "(&usr)"},
+
+		{"type reflect.Type", "typ reflect.Type"},
+		{"(&type)", "(&typ)"},
 
 		{"regexp regexp.Regexp", "reg regexp.Regexp"},
 		{"(&regexp)", "(&reg)"},
