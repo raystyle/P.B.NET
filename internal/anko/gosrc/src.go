@@ -166,6 +166,7 @@ func init() {
 	initOSUser()
 	initPath()
 	initPathFilepath()
+	initReflect()
 	initRegexp()
 	initSort()
 	initStrconv()
@@ -174,8 +175,8 @@ func init() {
 	initSyncAtomic()
 	initTime()
 	initUnicode()
-	initUnicodeUTF8()
 	initUnicodeUTF16()
+	initUnicodeUTF8()
 }
 
 func initArchiveZip() {
@@ -3145,6 +3146,103 @@ func initPathFilepath() {
 	}
 }
 
+func initReflect() {
+	env.Packages["reflect"] = map[string]reflect.Value{
+		// define constants
+		"Array":         reflect.ValueOf(reflect.Array),
+		"Bool":          reflect.ValueOf(reflect.Bool),
+		"BothDir":       reflect.ValueOf(reflect.BothDir),
+		"Chan":          reflect.ValueOf(reflect.Chan),
+		"Complex128":    reflect.ValueOf(reflect.Complex128),
+		"Complex64":     reflect.ValueOf(reflect.Complex64),
+		"Float32":       reflect.ValueOf(reflect.Float32),
+		"Float64":       reflect.ValueOf(reflect.Float64),
+		"Func":          reflect.ValueOf(reflect.Func),
+		"Int":           reflect.ValueOf(reflect.Int),
+		"Int16":         reflect.ValueOf(reflect.Int16),
+		"Int32":         reflect.ValueOf(reflect.Int32),
+		"Int64":         reflect.ValueOf(reflect.Int64),
+		"Int8":          reflect.ValueOf(reflect.Int8),
+		"Interface":     reflect.ValueOf(reflect.Interface),
+		"Invalid":       reflect.ValueOf(reflect.Invalid),
+		"Map":           reflect.ValueOf(reflect.Map),
+		"Ptr":           reflect.ValueOf(reflect.Ptr),
+		"RecvDir":       reflect.ValueOf(reflect.RecvDir),
+		"SelectDefault": reflect.ValueOf(reflect.SelectDefault),
+		"SelectRecv":    reflect.ValueOf(reflect.SelectRecv),
+		"SelectSend":    reflect.ValueOf(reflect.SelectSend),
+		"SendDir":       reflect.ValueOf(reflect.SendDir),
+		"Slice":         reflect.ValueOf(reflect.Slice),
+		"String":        reflect.ValueOf(reflect.String),
+		"Struct":        reflect.ValueOf(reflect.Struct),
+		"Uint":          reflect.ValueOf(reflect.Uint),
+		"Uint16":        reflect.ValueOf(reflect.Uint16),
+		"Uint32":        reflect.ValueOf(reflect.Uint32),
+		"Uint64":        reflect.ValueOf(reflect.Uint64),
+		"Uint8":         reflect.ValueOf(reflect.Uint8),
+		"Uintptr":       reflect.ValueOf(reflect.Uintptr),
+		"UnsafePointer": reflect.ValueOf(reflect.UnsafePointer),
+
+		// define variables
+
+		// define functions
+		"Append":          reflect.ValueOf(reflect.Append),
+		"AppendSlice":     reflect.ValueOf(reflect.AppendSlice),
+		"ArrayOf":         reflect.ValueOf(reflect.ArrayOf),
+		"ChanOf":          reflect.ValueOf(reflect.ChanOf),
+		"Copy":            reflect.ValueOf(reflect.Copy),
+		"DeepEqual":       reflect.ValueOf(reflect.DeepEqual),
+		"FuncOf":          reflect.ValueOf(reflect.FuncOf),
+		"Indirect":        reflect.ValueOf(reflect.Indirect),
+		"MakeChan":        reflect.ValueOf(reflect.MakeChan),
+		"MakeFunc":        reflect.ValueOf(reflect.MakeFunc),
+		"MakeMap":         reflect.ValueOf(reflect.MakeMap),
+		"MakeMapWithSize": reflect.ValueOf(reflect.MakeMapWithSize),
+		"MakeSlice":       reflect.ValueOf(reflect.MakeSlice),
+		"MapOf":           reflect.ValueOf(reflect.MapOf),
+		"New":             reflect.ValueOf(reflect.New),
+		"NewAt":           reflect.ValueOf(reflect.NewAt),
+		"PtrTo":           reflect.ValueOf(reflect.PtrTo),
+		"Select":          reflect.ValueOf(reflect.Select),
+		"SliceOf":         reflect.ValueOf(reflect.SliceOf),
+		"StructOf":        reflect.ValueOf(reflect.StructOf),
+		"Swapper":         reflect.ValueOf(reflect.Swapper),
+		"TypeOf":          reflect.ValueOf(reflect.TypeOf),
+		"ValueOf":         reflect.ValueOf(reflect.ValueOf),
+		"Zero":            reflect.ValueOf(reflect.Zero),
+	}
+	var (
+		chanDir      reflect.ChanDir
+		kind         reflect.Kind
+		mapIter      reflect.MapIter
+		method       reflect.Method
+		selectCase   reflect.SelectCase
+		selectDir    reflect.SelectDir
+		sliceHeader  reflect.SliceHeader
+		stringHeader reflect.StringHeader
+		structField  reflect.StructField
+		structTag    reflect.StructTag
+		typ          reflect.Type
+		value        reflect.Value
+		valueError   reflect.ValueError
+	)
+	env.PackageTypes["reflect"] = map[string]reflect.Type{
+		"ChanDir":      reflect.TypeOf(&chanDir).Elem(),
+		"Kind":         reflect.TypeOf(&kind).Elem(),
+		"MapIter":      reflect.TypeOf(&mapIter).Elem(),
+		"Method":       reflect.TypeOf(&method).Elem(),
+		"SelectCase":   reflect.TypeOf(&selectCase).Elem(),
+		"SelectDir":    reflect.TypeOf(&selectDir).Elem(),
+		"SliceHeader":  reflect.TypeOf(&sliceHeader).Elem(),
+		"StringHeader": reflect.TypeOf(&stringHeader).Elem(),
+		"StructField":  reflect.TypeOf(&structField).Elem(),
+		"StructTag":    reflect.TypeOf(&structTag).Elem(),
+		"Type":         reflect.TypeOf(&typ).Elem(),
+		"Value":        reflect.TypeOf(&value).Elem(),
+		"ValueError":   reflect.TypeOf(&valueError).Elem(),
+	}
+}
+
 func initRegexp() {
 	env.Packages["regexp"] = map[string]reflect.Value{
 		// define constants
@@ -3791,6 +3889,23 @@ func initUnicode() {
 	}
 }
 
+func initUnicodeUTF16() {
+	env.Packages["unicode/utf16"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+
+		// define functions
+		"Decode":      reflect.ValueOf(utf16.Decode),
+		"DecodeRune":  reflect.ValueOf(utf16.DecodeRune),
+		"Encode":      reflect.ValueOf(utf16.Encode),
+		"EncodeRune":  reflect.ValueOf(utf16.EncodeRune),
+		"IsSurrogate": reflect.ValueOf(utf16.IsSurrogate),
+	}
+	var ()
+	env.PackageTypes["unicode/utf16"] = map[string]reflect.Type{}
+}
+
 func initUnicodeUTF8() {
 	env.Packages["unicode/utf8"] = map[string]reflect.Value{
 		// define constants
@@ -3819,21 +3934,4 @@ func initUnicodeUTF8() {
 	}
 	var ()
 	env.PackageTypes["unicode/utf8"] = map[string]reflect.Type{}
-}
-
-func initUnicodeUTF16() {
-	env.Packages["unicode/utf16"] = map[string]reflect.Value{
-		// define constants
-
-		// define variables
-
-		// define functions
-		"Decode":      reflect.ValueOf(utf16.Decode),
-		"DecodeRune":  reflect.ValueOf(utf16.DecodeRune),
-		"Encode":      reflect.ValueOf(utf16.Encode),
-		"EncodeRune":  reflect.ValueOf(utf16.EncodeRune),
-		"IsSurrogate": reflect.ValueOf(utf16.IsSurrogate),
-	}
-	var ()
-	env.PackageTypes["unicode/utf16"] = map[string]reflect.Type{}
 }
