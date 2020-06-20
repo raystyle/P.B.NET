@@ -14,8 +14,8 @@ import (
 )
 
 func TestExportGoRoot(t *testing.T) {
-	const template = `// Package gosrc generate by resource/code/anko/package.go, don't edit it.
-package gosrc
+	const template = `// Package goroot generate by script/code/anko/package.go, don't edit it.
+package goroot
 
 import (
 %s
@@ -246,14 +246,99 @@ func init() {
 	} {
 		src = strings.ReplaceAll(src, item.old, item.new)
 	}
+
+	// print and save code
 	fmt.Println(src)
-	const path = "../../../internal/anko/gosrc/src.go"
+	const path = "../../../internal/anko/goroot/bundle.go"
+	err = ioutil.WriteFile(path, []byte(src), 0600)
+	require.NoError(t, err)
+}
+
+func TestExportThirdParty(t *testing.T) {
+	const template = `// Package thirdparty generate by script/code/anko/package.go, don't edit it.
+package thirdparty
+
+import (
+	"reflect"
+
+%s	"github.com/mattn/anko/env"
+)
+
+func init() {
+%s}
+%s
+`
+	// get module directory
+	output, err := exec.Command("go", "env", "GOMODCACHE").CombinedOutput()
+	require.NoError(t, err)
+	goMod := strings.TrimSpace(string(output))
+
+	pkgBuf := new(bytes.Buffer)
+	initBuf := new(bytes.Buffer)
+	srcBuf := new(bytes.Buffer)
+
+	for _, item := range [...]*struct {
+		name string
+		path string
+		init string
+	}{
+		{
+			name: "github.com/kardianos/service",
+			path: "github.com/kardianos/service@v1.1.0",
+			init: "GithubComKardianosService",
+		},
+		{
+			name: "github.com/pelletier/go-toml",
+			path: "github.com/pelletier/go-toml@v1.8.1",
+			init: "GithubComPelletierGoTOML",
+		},
+		{
+			name: "github.com/vmihailenco/msgpack/v4",
+			path: "github.com/vmihailenco/msgpack/v4@v4.3.12",
+			init: "GithubComVmihailencoMsgpackV4",
+		},
+	} {
+		_, _ = fmt.Fprintf(pkgBuf, `	"%s"`+"\n", item.name)
+		_, _ = fmt.Fprintf(initBuf, "\tinit%s()\n", item.init)
+		src, err := exportDeclaration(goMod, item.path, item.init)
+		require.NoError(t, err)
+		srcBuf.WriteString(src)
+	}
+
+	// generate code
+	src := fmt.Sprintf(template, pkgBuf, initBuf, srcBuf)
+
+	// fix code
+	for _, item := range [...]*struct {
+		old string
+		new string
+	}{
+		{"interface service.Interface", "iface service.Interface"},
+		{"(&interface)", "(&iface)"},
+
+		{"service service.Service", "svc service.Service"},
+		{"(&service)", "(&svc)"},
+	} {
+		src = strings.ReplaceAll(src, item.old, item.new)
+	}
+
+	// delete code
+	for _, item := range []string{
+		`		"DecodeDatastoreKey": reflect.ValueOf(msgpack.DecodeDatastoreKey),` + "\n",
+		`		"EncodeDatastoreKey": reflect.ValueOf(msgpack.EncodeDatastoreKey),` + "\n",
+	} {
+		src = strings.ReplaceAll(src, item, "")
+	}
+
+	// print and save code
+	fmt.Println(src)
+	const path = "../../../internal/anko/thirdparty/bundle.go"
 	err = ioutil.WriteFile(path, []byte(src), 0600)
 	require.NoError(t, err)
 }
 
 func TestExportProject(t *testing.T) {
-	const template = `// Package project generate by resource/code/anko/package.go, don't edit it.
+	const template = `// Package project generate by script/code/anko/package.go, don't edit it.
 package project
 
 import (
@@ -311,8 +396,10 @@ func init() {
 	} {
 		src = strings.ReplaceAll(src, item.old, item.new)
 	}
+
+	// print and save code
 	fmt.Println(src)
-	const path = "../../../internal/anko/project/project.go"
+	const path = "../../../internal/anko/project/bundle.go"
 	err = ioutil.WriteFile(path, []byte(src), 0600)
 	require.NoError(t, err)
 }

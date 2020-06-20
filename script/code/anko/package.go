@@ -131,8 +131,11 @@ func exportDeclaration(root, path, init string) (string, error) {
 		}
 	}
 	// replace special path
-	if path[0] == '$' {
+	switch {
+	case path[0] == '$':
 		path = "project/" + path[1:]
+	case strings.Contains(path, "@"):
+		path = strings.Split(path, "@")[0]
 	}
 	c := sortStringMap(constants)
 	v := sortStringMap(variables)
