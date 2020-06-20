@@ -8,7 +8,10 @@ import (
 	"os/signal"
 
 	"project/internal/anko"
-	_ "project/internal/anko/gosrc"
+
+	_ "project/internal/anko/goroot"
+	_ "project/internal/anko/project"
+	_ "project/internal/anko/thirdparty"
 )
 
 func main() {

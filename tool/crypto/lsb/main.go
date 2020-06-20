@@ -54,7 +54,7 @@ func encryptData() {
 		plainData = []byte(data)
 	case binaryMode:
 		var err error
-		plainData, err = ioutil.ReadFile(data)
+		plainData, err = ioutil.ReadFile(data) // #nosec
 		system.CheckError(err)
 	default:
 		fmt.Println("select text or binary mode")
@@ -145,7 +145,7 @@ func readPNG() []byte {
 			path = "enc.png"
 		}
 	}
-	png, err := ioutil.ReadFile(path)
+	png, err := ioutil.ReadFile(path) // #nosec
 	system.CheckError(err)
 	return png
 }
