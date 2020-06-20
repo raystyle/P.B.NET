@@ -1,5 +1,3 @@
-// +build windows
-
 package goroot
 
 import (
@@ -9,10 +7,10 @@ import (
 )
 
 func init() {
-	initSyscallWindows()
+	initSyscall()
 }
 
-func initSyscallWindows() {
+func initSyscall() {
 	env.Packages["syscall"] = map[string]reflect.Value{
 		// define constants
 
