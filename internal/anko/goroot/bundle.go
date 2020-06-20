@@ -1,5 +1,5 @@
-// Package gosrc generate by resource/code/anko/package.go, don't edit it.
-package gosrc
+// Package goroot generate by script/code/anko/package.go, don't edit it.
+package goroot
 
 import (
 	"archive/zip"

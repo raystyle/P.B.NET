@@ -1,4 +1,4 @@
-package gosrc
+package goroot
 
 import (
 	"errors"

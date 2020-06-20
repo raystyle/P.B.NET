@@ -1,4 +1,4 @@
-// Package project generate by resource/code/anko/package.go, don't edit it.
+// Package project generate by script/code/anko/package.go, don't edit it.
 package project
 
 import (
