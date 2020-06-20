@@ -231,9 +231,6 @@ func (register *register) Register() error {
 				return nil
 			}
 			register.log(logger.Error, err)
-			if errors.Cause(err) != messages.ErrRegisterTimeout {
-				return err
-			}
 			if i != 2 {
 				select {
 				case <-sleeper.Sleep(register.sleepFixed, register.sleepRandom):
