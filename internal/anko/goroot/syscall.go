@@ -2,6 +2,7 @@ package goroot
 
 import (
 	"reflect"
+	"syscall"
 
 	"github.com/mattn/anko/env"
 )
@@ -17,6 +18,9 @@ func initSyscall() {
 		// define variables
 
 		// define functions
+		"ByteSliceFromString": reflect.ValueOf(syscall.ByteSliceFromString),
+		"BytePtrFromString":   reflect.ValueOf(syscall.BytePtrFromString),
+		"Syscall":             reflect.ValueOf(syscall.Syscall),
 	}
 	var ()
 	env.PackageTypes["syscall"] = map[string]reflect.Type{}
