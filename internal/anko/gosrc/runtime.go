@@ -1,4 +1,3 @@
-// Package gosrc generate by resource/code/anko/package.go, don't edit it.
 package gosrc
 
 import (
