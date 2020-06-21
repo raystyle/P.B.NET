@@ -13,23 +13,50 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestWriteFile(t *testing.T) {
-	_ = os.Mkdir("testdata", 0750)
+func TestOpenFile(t *testing.T) {
+	const (
+		flag = os.O_WRONLY | os.O_CREATE
+		perm = 0600
+	)
 
-	const name = "wf.dat"
+	t.Run("ok", func(t *testing.T) {
+		const name = "testdata/of.dat"
+
+		file, err := OpenFile(name, flag, perm)
+		require.NoError(t, err)
+
+		err = file.Close()
+		require.NoError(t, err)
+
+		err = os.Remove(name)
+		require.NoError(t, err)
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		file, err := OpenFile("testdata/<</file", flag, perm)
+		require.Error(t, err)
+		require.Nil(t, file)
+	})
+}
+
+func TestWriteFile(t *testing.T) {
+	err := os.MkdirAll("testdata", 0750)
+	require.NoError(t, err)
+
 	testdata := testsuite.Bytes()
 
 	t.Run("ok", func(t *testing.T) {
-		defer func() {
-			err := os.Remove(name)
-			require.NoError(t, err)
-		}()
+		const name = "testdata/wf.dat"
+
 		err := WriteFile(name, testdata)
+		require.NoError(t, err)
+
+		err = os.Remove(name)
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid path", func(t *testing.T) {
-		err := WriteFile("invalid//name", testdata)
+		err := WriteFile("testdata/<</file", testdata)
 		require.Error(t, err)
 	})
 }
@@ -123,30 +150,40 @@ func TestChangeCurrentDirectory(t *testing.T) {
 }
 
 func TestSetErrorLogger(t *testing.T) {
-	_ = os.Mkdir("testdata", 0750)
-
-	const name = "testdata/test.err"
-
-	file, err := SetErrorLogger(name)
+	err := os.MkdirAll("testdata", 0750)
 	require.NoError(t, err)
-	defer func() {
+
+	t.Run("ok", func(t *testing.T) {
+		const name = "testdata/test.err"
+
+		file, err := SetErrorLogger(name)
+		require.NoError(t, err)
+
+		log.Println("test log")
+
 		err = file.Close()
 		require.NoError(t, err)
 		err = os.Remove(name)
 		require.NoError(t, err)
-	}()
+	})
 
-	log.Println("test log")
-
-	f2, err := SetErrorLogger("invalid//name")
-	require.Error(t, err)
-	require.Nil(t, f2)
+	t.Run("failed", func(t *testing.T) {
+		file, err := SetErrorLogger("testdata/<</file")
+		require.Error(t, err)
+		require.Nil(t, file)
+	})
 }
 
 func TestCheckError(t *testing.T) {
-	patch := func(int) {}
-	pg := monkey.Patch(os.Exit, patch)
-	defer pg.Unpatch()
+	t.Run("not nil", func(t *testing.T) {
+		patch := func(int) {}
+		pg := monkey.Patch(os.Exit, patch)
+		defer pg.Unpatch()
 
-	CheckError(errors.New("test error"))
+		CheckError(errors.New("test error"))
+	})
+
+	t.Run("nil", func(t *testing.T) {
+		CheckError(nil)
+	})
 }

@@ -9,9 +9,21 @@ import (
 	"project/internal/logger"
 )
 
+// OpenFile is used to open file, if directory is not exists, it will create it.
+func OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
+	dir, _ := filepath.Split(name)
+	if dir != "" {
+		err := os.MkdirAll(dir, 0750)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return os.OpenFile(name, flag, perm) // #nosec
+}
+
 // WriteFile is used to write file and call synchronize.
 func WriteFile(filename string, data []byte) error {
-	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600) // #nosec
+	file, err := OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -65,7 +77,7 @@ func ChangeCurrentDirectory() error {
 // SetErrorLogger is used to log error before service program start.
 // If occur some error before start, you can get it.
 func SetErrorLogger(name string) (*os.File, error) {
-	file, err := os.OpenFile(name, os.O_CREATE|os.O_APPEND, 0600) // #nosec
+	file, err := OpenFile(name, os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, err
 	}
