@@ -52,71 +52,90 @@ func TestUnsafe(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	const src = `
+	t.Run("sizeOf and alignOf", func(t *testing.T) {
+		const src = `
+unsafe = import("unsafe")
+
+val = 256
+
+size = unsafe.Sizeof(val)
+if size != 8 {
+	return size
+}
+
+align = unsafe.Alignof(val)
+if align != 8 {
+	return align
+}
+
+return true
+`
+		testRun(t, src, false, true)
+	})
+
+	t.Run("convert to struct", func(t *testing.T) {
+		// convert to struct
+		// like these golang code
+		// p := (*testStruct)(unsafe.Pointer(&Int64))
+		const src = `
 unsafe = import("unsafe")
 reflect = import("reflect")
 
 val = 256
-
-// sizeOf
-println(unsafe.Sizeof(val))
-
-// AlignOf
-println(unsafe.Alignof(val))
-
-// convert to struct
-// p := (*testStruct)(unsafe.Pointer(&Int64))
-
 ss = make(struct {
 	A int32,
 	B int32
 })
-
 p = unsafe.Convert(&val, ss)
 
 pv = p.Interface()
-println(pv)
+println(pv.A, pv.B)
 
 // byte order
 if !(pv.A == 256 || pv.B == 256) {
-	println(val)
-	return false
+	return val
 }
 
-// cover
+// cover memory
 p.Set(reflect.ValueOf(ss))
 if val != 0 {
-	println(val)
-	return false
+	return val
 }
 
+return true
+`
+		testRun(t, src, false, true)
+	})
 
-// make [8]byte and test ConvertWithType
-//
-// p := (*[8]byte)(unsafe.Pointer(&Int64))
+	t.Run("convert to byte slice", func(t *testing.T) {
+		// make [8]byte and test ConvertWithType
+		// like these golang code
+		// p := (*[8]byte)(unsafe.Pointer(&Int64))
+		const src = `
+unsafe = import("unsafe")
+reflect = import("reflect")
 
 val = 256
 typ = unsafe.ArrayOf(*new(byte), 8)
 p = unsafe.ConvertWithType(&val, typ)
 
-aaa = p.Interface()
-println(aaa[1])
-// can't call aaa[1] = 1
+pv = p.Interface()
+println(pv[1])
+// can't call pv[1] = 1
 
-slice = unsafe.ByteArrayToSlice(p)
+bs = unsafe.ByteArrayToSlice(p)
+println(bs[:4], bs[4:])
 
-println(slice[:4], slice[4:])
-
-// cover
+// cover memory
 for i = 0; i < 8; i++ {
-	slice[i] = 0
+	bs[i] = 0
 }
 if val != 0 {
-	println(val)
-	return false
+	return val
 }
 
 return true
 `
-	testRun(t, src, false, true)
+		testRun(t, src, false, true)
+	})
 }
