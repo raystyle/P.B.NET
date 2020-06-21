@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/logger"
+	"project/internal/system"
 	"project/internal/xpanic"
 )
 
@@ -24,7 +25,7 @@ type dbLogger struct {
 }
 
 func newDatabaseLogger(ctx *Ctrl, dialect, path string, writer io.Writer) (*dbLogger, error) {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 0600) // #nosec
+	file, err := system.OpenFile(path, os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create %s logger", dialect)
 	}
@@ -65,7 +66,7 @@ type gormLogger struct {
 }
 
 func newGormLogger(ctx *Ctrl, path string, writer io.Writer) (*gormLogger, error) {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 0600) // #nosec
+	file, err := system.OpenFile(path, os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create gorm logger")
 	}
@@ -111,7 +112,7 @@ func newLogger(ctx *Ctrl, config *Config) (*gLogger, error) {
 	if err != nil {
 		return nil, err
 	}
-	file, err := os.OpenFile(cfg.File, os.O_CREATE|os.O_APPEND, 0600) // #nosec
+	file, err := system.OpenFile(cfg.File, os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, err
 	}

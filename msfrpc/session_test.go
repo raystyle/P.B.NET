@@ -21,6 +21,7 @@ import (
 
 	"project/internal/module/shellcode"
 	"project/internal/patch/monkey"
+	"project/internal/system"
 	"project/internal/testsuite"
 )
 
@@ -363,12 +364,11 @@ func testCreateShellSessionWithProgram(t *testing.T, msfrpc *MSFRPC, port string
 	payload := opts["PAYLOAD"].(string)
 	pResult, err := msfrpc.ModuleExecute(ctx, "payload", payload, payloadOpts)
 	require.NoError(t, err)
-	sc := []byte(pResult.Payload)
 
 	// save
 	name := strings.ReplaceAll(t.Name(), "/", "_")
-	file := "../temp/test/msfrpc_" + name + "." + payloadOpts.Format
-	err = ioutil.WriteFile(file, sc, 0600)
+	file := fmt.Sprintf("../temp/test/msfrpc/%s.%s", name, payloadOpts.Format)
+	err = system.WriteFile(file, []byte(pResult.Payload))
 	require.NoError(t, err)
 
 	// run
@@ -864,16 +864,14 @@ func TestMSFRPC_SessionCompatibleModules(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
+// if print output, Goland will crash(test), so we write to file.
 func testSessionPrintOutput(t *testing.T, buf *bytes.Buffer) {
-	_ = os.Mkdir("../temp", 0750)
-	_ = os.Mkdir("../temp/test", 0750)
-	name := strings.ReplaceAll(t.Name(), "/", "_")
-	file := "../temp/test/msfrpc_" + name + ".log"
-	// if print output, Goland will crash(test), so we write to file.
 	if !testsuite.InGoland {
 		fmt.Println(buf)
 	}
-	err := ioutil.WriteFile(file, buf.Bytes(), 0600)
+	name := strings.ReplaceAll(t.Name(), "/", "_")
+	file := fmt.Sprintf("../temp/test/msfrpc/%s.log", name)
+	err := system.WriteFile(file, buf.Bytes())
 	require.NoError(t, err)
 }
 
