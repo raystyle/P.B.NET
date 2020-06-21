@@ -29,15 +29,15 @@ func main() {
 	flag.StringVar(&configFile, "config", "config.toml", usage)
 	flag.Parse()
 
-	log.SetSource("build")
+	log.SetSource("install")
 	for _, step := range []func() bool{
 		printCurrentDirectory,
 		loadConfigFile,
 		listModule,
-		downloadAllDep,
+		downloadAllModules,
 		verifyModule,
 		downloadModule,
-		addPatchToGoRoot,
+		copyPatchToGoRoot,
 	} {
 		if !step() {
 			return
@@ -76,12 +76,11 @@ func loadConfigFile() bool {
 func listModule() bool {
 	log.Println(logger.Info, "list all modules about project")
 	output, code, err := exec.Run("go", "list", "-m", "all")
-	if err != nil {
-		log.Println(logger.Error, err)
-		return false
-	}
 	if code != 0 {
 		log.Println(logger.Error, output)
+		if err != nil {
+			log.Println(logger.Error, err)
+		}
 		return false
 	}
 	output = output[:len(output)-1] // remove the last "\n"
@@ -89,21 +88,20 @@ func listModule() bool {
 	return true
 }
 
-func downloadAllDep() bool {
+func downloadAllModules() bool {
 	if !downloadAll {
 		return true
 	}
-	log.Println(logger.Info, "download all module dependencies")
+	log.Println(logger.Info, "download all modules")
 	output, code, err := exec.Run("go", "mod", "download", "-x")
-	if err != nil {
-		log.Println(logger.Error, err)
-		return false
-	}
 	if code != 0 {
-		log.Println(logger.Info, output)
+		log.Println(logger.Error, output)
+		if err != nil {
+			log.Println(logger.Error, err)
+		}
 		return false
 	}
-	log.Println(logger.Info, "download all module dependencies successfully")
+	log.Println(logger.Info, "download all modules successfully")
 	return true
 }
 
@@ -125,19 +123,18 @@ func verifyModule() bool {
 func downloadModule() bool {
 	log.Println(logger.Info, "download module if it doesn't exist")
 	output, code, err := exec.Run("go", "build", "./...")
-	if err != nil {
-		log.Println(logger.Error, err)
-		return false
-	}
 	if code != 0 {
-		log.Println(logger.Info, output)
+		log.Println(logger.Error, output)
+		if err != nil {
+			log.Println(logger.Error, err)
+		}
 		return false
 	}
-	log.Println(logger.Info, "download all modules successfully")
+	log.Println(logger.Info, "all modules downloaded")
 	return true
 }
 
-func addPatchToGoRoot() bool {
+func copyPatchToGoRoot() bool {
 	for _, val := range [...]*struct {
 		src  string // patch file in project/patch
 		dst  string // relative file path about go root
@@ -152,20 +149,20 @@ func addPatchToGoRoot() bool {
 		latest := fmt.Sprintf("%s/src/%s", cfg.GoRootLatest, val.dst)
 		err := copyFileToGoRoot(val.src, latest)
 		if err != nil {
-			const format = "failed to add patch file to go latest root path about %s: %s"
+			const format = "failed to copy patch file %s to go latest root path: %s"
 			log.Printf(logger.Error, format, val.note, err)
 			return false
 		}
 		go1108 := fmt.Sprintf("%s/src/%s", cfg.GoRoot1108, val.dst)
 		err = copyFileToGoRoot(val.src, go1108)
 		if err != nil {
-			const format = "failed to add patch file to go 1.10.8 root path about %s: %s"
+			const format = "failed to copy patch file %s to go 1.10.8 root path: %s"
 			log.Printf(logger.Error, format, val.note, err)
 			return false
 		}
-		log.Printf(logger.Info, "add patch file %s successfully", val.src)
+		log.Printf(logger.Info, "copy patch file %s", val.src)
 	}
-	log.Println(logger.Info, "add all patch files to go root path successfully")
+	log.Println(logger.Info, "copy all patch files to go root path")
 	return true
 }
 

@@ -10,6 +10,7 @@ func Run(name string, arg ...string) (output string, code int, err error) {
 	out, err := cmd.CombinedOutput()
 	output = string(out)
 	if err != nil {
+		code = 1
 		return
 	}
 	code = cmd.ProcessState.ExitCode()
