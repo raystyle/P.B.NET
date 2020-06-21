@@ -182,6 +182,39 @@ func TestPool_Add(t *testing.T) {
 	testsuite.IsDestroyed(t, pool)
 }
 
+func TestPool_Delete(t *testing.T) {
+	pool := testGeneratePool(t)
+
+	t.Run("basic", func(t *testing.T) {
+		for _, tag := range testClientTags {
+			err := pool.Delete(tag)
+			require.NoError(t, err)
+		}
+		clients := pool.Clients()
+		require.Len(t, clients, testReserveClientNum)
+	})
+
+	t.Run("doesn't exist", func(t *testing.T) {
+		err := pool.Delete("foo")
+		require.EqualError(t, err, "proxy client foo doesn't exist")
+	})
+
+	t.Run("empty tag", func(t *testing.T) {
+		err := pool.Delete("")
+		require.EqualError(t, err, "empty proxy client tag")
+	})
+
+	t.Run("direct", func(t *testing.T) {
+		err := pool.Delete("direct")
+		require.EqualError(t, err, "direct is the reserve proxy client")
+	})
+
+	clients := pool.Clients()
+	require.Len(t, clients, testReserveClientNum)
+
+	testsuite.IsDestroyed(t, pool)
+}
+
 func TestPool_Get(t *testing.T) {
 	pool := testGeneratePool(t)
 
@@ -218,39 +251,6 @@ func TestPool_Get(t *testing.T) {
 
 	clients := pool.Clients()
 	require.Len(t, clients, testClientNum)
-
-	testsuite.IsDestroyed(t, pool)
-}
-
-func TestPool_Delete(t *testing.T) {
-	pool := testGeneratePool(t)
-
-	t.Run("basic", func(t *testing.T) {
-		for _, tag := range testClientTags {
-			err := pool.Delete(tag)
-			require.NoError(t, err)
-		}
-		clients := pool.Clients()
-		require.Len(t, clients, testReserveClientNum)
-	})
-
-	t.Run("doesn't exist", func(t *testing.T) {
-		err := pool.Delete("foo")
-		require.EqualError(t, err, "proxy client foo doesn't exist")
-	})
-
-	t.Run("empty tag", func(t *testing.T) {
-		err := pool.Delete("")
-		require.EqualError(t, err, "empty proxy client tag")
-	})
-
-	t.Run("direct", func(t *testing.T) {
-		err := pool.Delete("direct")
-		require.EqualError(t, err, "direct is the reserve proxy client")
-	})
-
-	clients := pool.Clients()
-	require.Len(t, clients, testReserveClientNum)
 
 	testsuite.IsDestroyed(t, pool)
 }

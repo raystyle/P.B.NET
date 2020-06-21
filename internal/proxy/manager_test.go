@@ -133,6 +133,40 @@ func TestManager_Add(t *testing.T) {
 	testsuite.IsDestroyed(t, manager)
 }
 
+func TestManager_Delete(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	manager := testGenerateManager(t)
+
+	t.Run("basic", func(t *testing.T) {
+		for _, tag := range testServerTags {
+			err := manager.Delete(tag)
+			require.NoError(t, err)
+		}
+		servers := manager.Servers()
+		require.Empty(t, servers)
+	})
+
+	t.Run("empty tag", func(t *testing.T) {
+		err := manager.Delete("")
+		require.EqualError(t, err, "empty proxy server tag")
+	})
+
+	t.Run("doesn't exist", func(t *testing.T) {
+		err := manager.Delete("foo")
+		require.EqualError(t, err, "proxy server foo doesn't exist")
+	})
+
+	err := manager.Close()
+	require.NoError(t, err)
+
+	servers := manager.Servers()
+	require.Empty(t, servers)
+
+	testsuite.IsDestroyed(t, manager)
+}
+
 func TestManager_Get(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -173,40 +207,6 @@ func TestManager_Get(t *testing.T) {
 	require.NoError(t, err)
 
 	servers = manager.Servers()
-	require.Empty(t, servers)
-
-	testsuite.IsDestroyed(t, manager)
-}
-
-func TestManager_Delete(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	manager := testGenerateManager(t)
-
-	t.Run("basic", func(t *testing.T) {
-		for _, tag := range testServerTags {
-			err := manager.Delete(tag)
-			require.NoError(t, err)
-		}
-		servers := manager.Servers()
-		require.Empty(t, servers)
-	})
-
-	t.Run("empty tag", func(t *testing.T) {
-		err := manager.Delete("")
-		require.EqualError(t, err, "empty proxy server tag")
-	})
-
-	t.Run("doesn't exist", func(t *testing.T) {
-		err := manager.Delete("foo")
-		require.EqualError(t, err, "proxy server foo doesn't exist")
-	})
-
-	err := manager.Close()
-	require.NoError(t, err)
-
-	servers := manager.Servers()
 	require.Empty(t, servers)
 
 	testsuite.IsDestroyed(t, manager)
