@@ -67,7 +67,7 @@ func testLSB(t *testing.T, name string) {
 	// look the different about two pictures
 	//
 	// fileName := fmt.Sprintf("testdata/%s_enc.png", name)
-	// err = ioutil.WriteFile(fileName, picEnc, 0600)
+	// err = system.WriteFile(fileName, picEnc)
 	// require.NoError(t, err)
 }
 

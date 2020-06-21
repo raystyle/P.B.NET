@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/system"
 )
 
 func TestExportGoRoot(t *testing.T) {
@@ -250,7 +251,7 @@ func init() {
 	// print and save code
 	fmt.Println(src)
 	const path = "../../../internal/anko/goroot/bundle.go"
-	err = ioutil.WriteFile(path, []byte(src), 0600)
+	err = system.WriteFile(path, []byte(src))
 	require.NoError(t, err)
 }
 
@@ -333,7 +334,7 @@ func init() {
 	// print and save code
 	fmt.Println(src)
 	const path = "../../../internal/anko/thirdparty/bundle.go"
-	err = ioutil.WriteFile(path, []byte(src), 0600)
+	err = system.WriteFile(path, []byte(src))
 	require.NoError(t, err)
 }
 
@@ -400,6 +401,6 @@ func init() {
 	// print and save code
 	fmt.Println(src)
 	const path = "../../../internal/anko/project/bundle.go"
-	err = ioutil.WriteFile(path, []byte(src), 0600)
+	err = system.WriteFile(path, []byte(src))
 	require.NoError(t, err)
 }
