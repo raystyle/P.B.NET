@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
-
-	"project/internal/logger"
 )
 
 // OpenFile is used to open file, if directory is not exists, it will create it.
@@ -72,18 +70,6 @@ func ChangeCurrentDirectory() error {
 	}
 	dir, _ := filepath.Split(path)
 	return os.Chdir(dir)
-}
-
-// SetErrorLogger is used to log error before service program start.
-// If occur some error before start, you can get it.
-func SetErrorLogger(name string) (*os.File, error) {
-	file, err := OpenFile(name, os.O_CREATE|os.O_APPEND, 0600)
-	if err != nil {
-		return nil, err
-	}
-	mLogger := logger.NewMultiLogger(logger.Error, os.Stdout, file)
-	logger.HijackLogWriter(logger.Error, "init", mLogger, 0)
-	return file, nil
 }
 
 // CheckError is used to check error is nil, if not print error and

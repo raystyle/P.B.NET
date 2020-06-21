@@ -6,9 +6,12 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"project/internal/system"
 )
 
 // Level is the log level.
@@ -240,27 +243,6 @@ func (lg *MultiLogger) Close() error {
 	return nil
 }
 
-// prefixWriter is used to print with a prefix.
-type prefixWriter struct {
-	writer io.Writer
-	prefix []byte
-}
-
-func (p *prefixWriter) Write(b []byte) (n int, err error) {
-	n = len(b)
-	_, err = p.writer.Write(append(p.prefix, b...))
-	return
-}
-
-// NewWriterWithPrefix is used to print prefix before each log.
-// It used to test role.
-func NewWriterWithPrefix(w io.Writer, prefix string) io.Writer {
-	return &prefixWriter{
-		writer: w,
-		prefix: []byte(fmt.Sprintf("[%s] ", prefix)),
-	}
-}
-
 type wrapWriter struct {
 	level  Level
 	src    string
@@ -293,7 +275,19 @@ func HijackLogWriter(lv Level, src string, logger Logger, flag int) {
 	log.SetOutput(w)
 }
 
-// Conn is used to print connection information.
+// SetErrorLogger is used to log error before service program start.
+// If occur some error before start, you can get it.
+func SetErrorLogger(name string) (*os.File, error) {
+	file, err := system.OpenFile(name, os.O_CREATE|os.O_APPEND, 0600)
+	if err != nil {
+		return nil, err
+	}
+	mLogger := NewMultiLogger(Error, os.Stdout, file)
+	HijackLogWriter(Error, "init", mLogger, 0)
+	return file, nil
+}
+
+// Conn is used to print connection information to a *bytes.Buffer.
 //
 // local:  tcp 127.0.0.1:1234
 // remote: tcp 127.0.0.1:1235
@@ -303,4 +297,25 @@ func Conn(conn net.Conn) *bytes.Buffer {
 		conn.LocalAddr().Network(), conn.LocalAddr(),
 		conn.RemoteAddr().Network(), conn.RemoteAddr())
 	return buf
+}
+
+// prefixWriter is used to print with a prefix.
+type prefixWriter struct {
+	writer io.Writer
+	prefix []byte
+}
+
+func (p *prefixWriter) Write(b []byte) (n int, err error) {
+	n = len(b)
+	_, err = p.writer.Write(append(p.prefix, b...))
+	return
+}
+
+// NewWriterWithPrefix is used to print prefix before each log.
+// It used to test role.
+func NewWriterWithPrefix(w io.Writer, prefix string) io.Writer {
+	return &prefixWriter{
+		writer: w,
+		prefix: []byte(fmt.Sprintf("[%s] ", prefix)),
+	}
 }

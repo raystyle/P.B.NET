@@ -2,7 +2,6 @@ package system
 
 import (
 	"errors"
-	"log"
 	"os"
 	"syscall"
 	"testing"
@@ -146,31 +145,6 @@ func TestChangeCurrentDirectory(t *testing.T) {
 
 		err = ChangeCurrentDirectory()
 		monkey.IsMonkeyError(t, err)
-	})
-}
-
-func TestSetErrorLogger(t *testing.T) {
-	err := os.MkdirAll("testdata", 0750)
-	require.NoError(t, err)
-
-	t.Run("ok", func(t *testing.T) {
-		const name = "testdata/test.err"
-
-		file, err := SetErrorLogger(name)
-		require.NoError(t, err)
-
-		log.Println("test log")
-
-		err = file.Close()
-		require.NoError(t, err)
-		err = os.Remove(name)
-		require.NoError(t, err)
-	})
-
-	t.Run("failed", func(t *testing.T) {
-		file, err := SetErrorLogger("testdata/<</file")
-		require.Error(t, err)
-		require.Nil(t, file)
 	})
 }
 
