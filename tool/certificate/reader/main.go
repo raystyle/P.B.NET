@@ -8,6 +8,7 @@ import (
 
 	"project/internal/crypto/cert"
 	"project/internal/crypto/cert/certpool"
+	"project/internal/system"
 )
 
 func main() {
@@ -39,7 +40,7 @@ func main() {
 	log.Println("------------------------------------------------")
 	log.Println("the number of the system CA certificates:", l)
 	// write pem
-	err = ioutil.WriteFile("system.pem", buf.Bytes(), 0600)
+	err = system.WriteFile("system.pem", buf.Bytes())
 	checkError(err)
 	// test certificates
 	pemData, err := ioutil.ReadFile("system.pem")

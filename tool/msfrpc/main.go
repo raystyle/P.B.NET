@@ -89,7 +89,7 @@ func main() {
 			log.Fatalln(err)
 		}
 	}
-	logFile, err := system.SetErrorLogger("msfrpc.err")
+	logFile, err := logger.SetErrorLogger("msfrpc.err")
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -182,7 +182,7 @@ func newProgram(config *config) (*program, error) {
 	if err != nil {
 		return nil, err
 	}
-	logFile, err := os.OpenFile(logCfg.File, os.O_CREATE|os.O_APPEND, 0600) // #nosec
+	logFile, err := system.OpenFile(logCfg.File, os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, err
 	}

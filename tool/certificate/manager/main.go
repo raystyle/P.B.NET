@@ -40,12 +40,12 @@ func main() {
 
 func initialize() {
 	// check data file is exists
-	_, err := os.OpenFile(certmgr.CertFilePath, os.O_RDONLY, 0600)
+	_, err := system.OpenFile(certmgr.CertFilePath, os.O_RDONLY, 0600)
 	if err == nil {
 		fmt.Printf("%s has already exists\n", certmgr.CertFilePath)
 		os.Exit(0)
 	}
-	_, err = os.OpenFile(certmgr.HashFilePath, os.O_RDONLY, 0600)
+	_, err = system.OpenFile(certmgr.HashFilePath, os.O_RDONLY, 0600)
 	if err == nil {
 		fmt.Printf("%s has already exists\n", certmgr.HashFilePath)
 		os.Exit(0)
@@ -89,7 +89,6 @@ func initialize() {
 	err = pool.AddPrivateClientPair(clientCert.Encode())
 	checkError(err, true)
 
-	_ = os.Mkdir("key", 0750)
 	err = certmgr.SaveCtrlCertPool(pool, password)
 	checkError(err, true)
 	fmt.Println("initialize certificate manager successfully")

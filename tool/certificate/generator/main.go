@@ -7,6 +7,7 @@ import (
 
 	"project/internal/crypto/cert"
 	"project/internal/patch/toml"
+	"project/internal/system"
 )
 
 func main() {
@@ -29,9 +30,9 @@ func main() {
 		ca, err := cert.GenerateCA(opts)
 		checkError(err)
 		caCert, caKey := ca.EncodeToPEM()
-		err = ioutil.WriteFile("ca.crt", caCert, 0600)
+		err = system.WriteFile("ca.crt", caCert)
 		checkError(err)
-		err = ioutil.WriteFile("ca.key", caKey, 0600)
+		err = system.WriteFile("ca.key", caKey)
 		checkError(err)
 	case gen:
 		// load CA certificate
@@ -48,9 +49,9 @@ func main() {
 		kp, err := cert.Generate(caCert, caKey, opts)
 		checkError(err)
 		crt, key := kp.EncodeToPEM()
-		err = ioutil.WriteFile("server.crt", crt, 0600)
+		err = system.WriteFile("server.crt", crt)
 		checkError(err)
-		err = ioutil.WriteFile("server.key", key, 0600)
+		err = system.WriteFile("server.key", key)
 		checkError(err)
 	}
 }
