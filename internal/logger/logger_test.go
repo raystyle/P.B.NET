@@ -109,9 +109,6 @@ func TestHijackLogWriter(t *testing.T) {
 }
 
 func TestSetErrorLogger(t *testing.T) {
-	err := os.MkdirAll("testdata", 0750)
-	require.NoError(t, err)
-
 	t.Run("ok", func(t *testing.T) {
 		const name = "testdata/test.err"
 

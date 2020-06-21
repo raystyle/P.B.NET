@@ -39,9 +39,6 @@ func TestOpenFile(t *testing.T) {
 }
 
 func TestWriteFile(t *testing.T) {
-	err := os.MkdirAll("testdata", 0750)
-	require.NoError(t, err)
-
 	testdata := testsuite.Bytes()
 
 	t.Run("ok", func(t *testing.T) {
