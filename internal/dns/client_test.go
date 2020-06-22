@@ -814,7 +814,95 @@ func TestClient_Servers_Parallel(t *testing.T) {
 }
 
 func TestClient_Cache_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	const domain = "test.com"
+
+	ipv4 := []string{"1.1.1.1", "1.0.0.1"}
+	ipv6 := []string{"240c::1111", "240c::1001"}
+
+	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
+
+	t.Run("part", func(t *testing.T) {
+		client := NewClient(certPool, proxyPool)
+
+		query1 := func() {
+			client.queryCache(domain, TypeIPv4)
+		}
+		query2 := func() {
+			client.queryCache(domain, TypeIPv6)
+		}
+		update1 := func() {
+			client.updateCache(domain, TypeIPv4, ipv4)
+		}
+		update2 := func() {
+			client.updateCache(domain, TypeIPv6, ipv6)
+		}
+		enableCache := func() {
+			time.Sleep(time.Duration(3+random.Int(5)) * time.Millisecond)
+			client.EnableCache()
+		}
+		disableCache := func() {
+			time.Sleep(time.Duration(3+random.Int(5)) * time.Millisecond)
+			client.DisableCache()
+		}
+		flushCache := func() {
+			client.FlushCache()
+		}
+		cleanup := func() {
+			client.FlushCache()
+		}
+		fns := []func(){
+			query1, query2, update1, update2,
+			enableCache, disableCache, flushCache,
+		}
+		testsuite.RunParallel(100, nil, cleanup, fns...)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var client *Client
+
+		init := func() {
+			client = NewClient(certPool, proxyPool)
+		}
+		query1 := func() {
+			client.queryCache(domain, TypeIPv4)
+		}
+		query2 := func() {
+			client.queryCache(domain, TypeIPv6)
+		}
+		update1 := func() {
+			client.updateCache(domain, TypeIPv4, ipv4)
+		}
+		update2 := func() {
+			client.updateCache(domain, TypeIPv6, ipv6)
+		}
+		enableCache := func() {
+			time.Sleep(time.Duration(3+random.Int(5)) * time.Millisecond)
+			client.EnableCache()
+		}
+		disableCache := func() {
+			time.Sleep(time.Duration(3+random.Int(5)) * time.Millisecond)
+			client.DisableCache()
+		}
+		flushCache := func() {
+			client.FlushCache()
+		}
+		fns := []func(){
+			query1, query2, update1, update2,
+			enableCache, disableCache, flushCache,
+		}
+		testsuite.RunParallel(100, init, nil, fns...)
+
+		testsuite.IsDestroyed(t, client)
+	})
 }
 
 func TestClient_Resolve_Parallel(t *testing.T) {
