@@ -125,7 +125,7 @@
   method  = "dot"
   address = "[2606:4700::6810:f9f9]:853"
 
-# if no IP SANS need set Server Name(domain) manully
+# if no IP SANS need set Server Name(domain) manually
 [dot_ipv4_google_domain]
   method  = "dot"
   address = "dns.google:853|8.8.8.8,8.8.4.4"
