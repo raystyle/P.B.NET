@@ -16,28 +16,64 @@ import (
 	"project/internal/testsuite/testproxy"
 )
 
-func TestClient_Add_Delete(t *testing.T) {
+func TestClient_Add(t *testing.T) {
 	client := NewClient(nil, nil)
 
-	// add DNS server with unknown method
-	err := client.Add("foo tag", &Server{Method: "foo method"})
-	require.Error(t, err)
-	t.Log(err)
+	t.Run("ok", func(t *testing.T) {
+		err := client.Add("ok", &Server{
+			Method:  MethodUDP,
+			Address: "1.1.1.1:53",
+		})
+		require.NoError(t, err)
+	})
 
-	// add exist DNS server
-	const tag = "test"
-	err = client.Add(tag, &Server{Method: MethodUDP})
-	require.NoError(t, err)
-	err = client.Add(tag, &Server{Method: MethodUDP})
-	require.Error(t, err)
+	t.Run("unknown method", func(t *testing.T) {
+		err := client.Add("foo tag", &Server{
+			Method: "foo method",
+		})
+		require.Error(t, err)
+		t.Log(err)
+	})
 
-	// delete DNS server
-	err = client.Delete(tag)
-	require.NoError(t, err)
+	t.Run("exist", func(t *testing.T) {
+		const tag = "two"
 
-	// delete doesn't exist DNS server
-	err = client.Delete(tag)
-	require.Error(t, err)
+		server := &Server{
+			Method:  MethodUDP,
+			Address: "1.1.1.1:53",
+		}
+		err := client.Add(tag, server)
+		require.NoError(t, err)
+		err = client.Add(tag, server)
+		require.Error(t, err)
+		t.Log(err)
+	})
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestClient_Delete(t *testing.T) {
+	client := NewClient(nil, nil)
+
+	t.Run("ok", func(t *testing.T) {
+		const tag = "test"
+
+		server := &Server{
+			Method:  MethodUDP,
+			Address: "1.1.1.1:53",
+		}
+		err := client.Add(tag, server)
+		require.NoError(t, err)
+
+		err = client.Delete(tag)
+		require.NoError(t, err)
+	})
+
+	t.Run("doesn't exists", func(t *testing.T) {
+		err := client.Delete("foo tag")
+		require.Error(t, err)
+		t.Log(err)
+	})
 
 	testsuite.IsDestroyed(t, client)
 }
@@ -78,7 +114,7 @@ func TestClient_Resolve(t *testing.T) {
 	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
 
-	t.Run("print DNS servers", func(t *testing.T) {
+	t.Run("print dns servers", func(t *testing.T) {
 		for tag, server := range client.Servers() {
 			t.Log(tag, server.Address)
 		}
@@ -777,6 +813,10 @@ func TestClient_Servers_Parallel(t *testing.T) {
 	})
 }
 
+func TestClient_Cache_Parallel(t *testing.T) {
+
+}
+
 func TestClient_Resolve_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -952,14 +992,16 @@ func TestClient_Parallel(t *testing.T) {
 			servers := client.Servers()
 			require.NotEmpty(t, servers)
 		}
-		udp := func() {
-			resolve(ModeCustom, MethodUDP, "udp")
+		getCacheExpireTime := func() {
+			client.GetCacheExpireTime()
 		}
-		tcp := func() {
-			resolve(ModeCustom, MethodTCP, "tcp")
-		}
-		system := func() {
-			resolve(ModeSystem, MethodUDP, "system")
+		setCacheExpireTime := func() {
+			const expire = 2 * time.Minute
+
+			err := client.SetCacheExpireTime(expire)
+			require.NoError(t, err)
+			e := client.GetCacheExpireTime()
+			require.Equal(t, expire, e)
 		}
 		enableCache := func() {
 			time.Sleep(time.Duration(3+random.Int(5)) * time.Millisecond)
@@ -972,16 +1014,14 @@ func TestClient_Parallel(t *testing.T) {
 		flushCache := func() {
 			client.FlushCache()
 		}
-		getCacheExpireTime := func() {
-			client.GetCacheExpireTime()
+		udp := func() {
+			resolve(ModeCustom, MethodUDP, "udp")
 		}
-		setCacheExpireTime := func() {
-			const expire = 2 * time.Minute
-
-			err := client.SetCacheExpireTime(expire)
-			require.NoError(t, err)
-			e := client.GetCacheExpireTime()
-			require.Equal(t, expire, e)
+		tcp := func() {
+			resolve(ModeCustom, MethodTCP, "tcp")
+		}
+		system := func() {
+			resolve(ModeSystem, MethodUDP, "system")
 		}
 		cleanup := func() {
 			err := client.Delete(tag3)
@@ -1002,7 +1042,90 @@ func TestClient_Parallel(t *testing.T) {
 	})
 
 	t.Run("whole", func(t *testing.T) {
+		const domain = "dns.cloudflare.com"
 
+		var client *Client
+
+		resolve := func(mode, method, log string) {
+			opts := Options{
+				Mode:   mode,
+				Method: method,
+			}
+			result, err := client.Resolve(domain, &opts)
+			require.NoError(t, err)
+			require.NotEmpty(t, result)
+			t.Log(log+":", result)
+		}
+
+		init := func() {
+			client = NewClient(certPool, proxyPool)
+			testAddAllDNSServers(t, client)
+
+			err := client.Add(tag1, server1)
+			require.NoError(t, err)
+			err = client.Add(tag2, server2)
+			require.NoError(t, err)
+		}
+		add1 := func() {
+			err := client.Add(tag3, server3)
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := client.Add(tag4, server4)
+			require.NoError(t, err)
+		}
+		delete1 := func() {
+			err := client.Delete(tag1)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := client.Delete(tag2)
+			require.NoError(t, err)
+		}
+		servers := func() {
+			servers := client.Servers()
+			require.NotEmpty(t, servers)
+		}
+		getCacheExpireTime := func() {
+			client.GetCacheExpireTime()
+		}
+		setCacheExpireTime := func() {
+			const expire = 2 * time.Minute
+
+			err := client.SetCacheExpireTime(expire)
+			require.NoError(t, err)
+			e := client.GetCacheExpireTime()
+			require.Equal(t, expire, e)
+		}
+		enableCache := func() {
+			time.Sleep(time.Duration(3+random.Int(5)) * time.Millisecond)
+			client.EnableCache()
+		}
+		disableCache := func() {
+			time.Sleep(time.Duration(3+random.Int(5)) * time.Millisecond)
+			client.DisableCache()
+		}
+		flushCache := func() {
+			client.FlushCache()
+		}
+		udp := func() {
+			resolve(ModeCustom, MethodUDP, "udp")
+		}
+		tcp := func() {
+			resolve(ModeCustom, MethodTCP, "tcp")
+		}
+		system := func() {
+			resolve(ModeSystem, MethodUDP, "system")
+		}
+		fns := []func(){
+			add1, add2, delete1, delete2, servers,
+			udp, tcp, system,
+			enableCache, disableCache, flushCache,
+			getCacheExpireTime, setCacheExpireTime,
+		}
+		testsuite.RunParallel(2, init, nil, fns...)
+
+		testsuite.IsDestroyed(t, client)
 	})
 }
 

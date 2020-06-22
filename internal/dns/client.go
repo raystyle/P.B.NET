@@ -425,7 +425,7 @@ func (c *Client) systemResolve(ctx context.Context, domain string, opts *Options
 	}
 }
 
-// TestServers is used to test all DNS servers.
+// TestServers is used to test all dns servers.
 func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	l := len(c.servers)
 	if l == 0 {
@@ -483,7 +483,7 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 	return result, nil
 }
 
-// TestOption is used to test Options.
+// TestOption is used to test single options.
 func (c *Client) TestOption(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	if opts.SkipTest {
 		return nil, nil
