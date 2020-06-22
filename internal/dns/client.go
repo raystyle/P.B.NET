@@ -71,7 +71,7 @@ type Server struct {
 type Options struct {
 	Mode string `toml:"mode"`
 
-	// if ServerTag != "" ignore it
+	// if ServerTag != "" or use system mode, ignore it
 	Method string `toml:"method"`
 
 	// ipv4 or ipv6
@@ -117,9 +117,9 @@ type Options struct {
 
 // Clone is used to clone dns.Options.
 func (opts *Options) Clone() *Options {
-	optsC := *opts
-	optsC.Header = opts.Header.Clone()
-	return &optsC
+	optsCp := *opts
+	optsCp.Header = opts.Header.Clone()
+	return &optsCp
 }
 
 // Client is a DNS client that support various DNS server.
@@ -151,7 +151,7 @@ func NewClient(certPool *cert.Pool, proxyPool *proxy.Pool) *Client {
 
 // Add is used to add a DNS server.
 func (c *Client) Add(tag string, server *Server) error {
-	const format = "failed to add DNS server %s"
+	const format = "failed to add dns server %s"
 	return errors.WithMessagef(c.add(tag, server), format, tag)
 }
 
@@ -178,7 +178,7 @@ func (c *Client) Delete(tag string) error {
 		delete(c.servers, tag)
 		return nil
 	}
-	return errors.Errorf("DNS server %s doesn't exist", tag)
+	return errors.Errorf("dns server %s doesn't exist", tag)
 }
 
 // Servers is used to get all DNS Servers.
@@ -190,6 +190,46 @@ func (c *Client) Servers() map[string]*Server {
 		servers[tag] = server
 	}
 	return servers
+}
+
+// GetCacheExpireTime is used to get cache expire time.
+func (c *Client) GetCacheExpireTime() time.Duration {
+	c.cachesRWM.RLock()
+	defer c.cachesRWM.RUnlock()
+	expire := c.expire
+	return expire
+}
+
+// SetCacheExpireTime is used to set cache expire time.
+func (c *Client) SetCacheExpireTime(expire time.Duration) error {
+	if expire < 10*time.Second || expire > 10*time.Minute {
+		return ErrInvalidExpireTime
+	}
+	c.cachesRWM.Lock()
+	defer c.cachesRWM.Unlock()
+	c.expire = expire
+	return nil
+}
+
+func (c *Client) isEnableCache() bool {
+	return c.enableCache.Load().(bool)
+}
+
+// EnableCache is used to enable cache.
+func (c *Client) EnableCache() {
+	c.enableCache.Store(true)
+}
+
+// DisableCache is used to disable cache.
+func (c *Client) DisableCache() {
+	c.enableCache.Store(false)
+}
+
+// FlushCache is used to flush all cache.
+func (c *Client) FlushCache() {
+	c.cachesRWM.Lock()
+	defer c.cachesRWM.Unlock()
+	c.caches = make(map[string]*cache)
 }
 
 // Resolve is used to resolve domain name to IP address.
@@ -383,46 +423,6 @@ func (c *Client) systemResolve(ctx context.Context, domain string, opts *Options
 	default:
 		return nil, UnknownTypeError(opts.Type)
 	}
-}
-
-func (c *Client) isEnableCache() bool {
-	return c.enableCache.Load().(bool)
-}
-
-// EnableCache is used to enable cache.
-func (c *Client) EnableCache() {
-	c.enableCache.Store(true)
-}
-
-// DisableCache is used to disable cache.
-func (c *Client) DisableCache() {
-	c.enableCache.Store(false)
-}
-
-// GetCacheExpireTime is used to get cache expire time.
-func (c *Client) GetCacheExpireTime() time.Duration {
-	c.cachesRWM.RLock()
-	defer c.cachesRWM.RUnlock()
-	expire := c.expire
-	return expire
-}
-
-// SetCacheExpireTime is used to set cache expire time.
-func (c *Client) SetCacheExpireTime(expire time.Duration) error {
-	if expire < 10*time.Second || expire > 10*time.Minute {
-		return ErrInvalidExpireTime
-	}
-	c.cachesRWM.Lock()
-	defer c.cachesRWM.Unlock()
-	c.expire = expire
-	return nil
-}
-
-// FlushCache is used to flush all cache.
-func (c *Client) FlushCache() {
-	c.cachesRWM.Lock()
-	defer c.cachesRWM.Unlock()
-	c.caches = make(map[string]*cache)
 }
 
 // TestServers is used to test all DNS servers.

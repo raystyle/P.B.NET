@@ -9,27 +9,25 @@ import (
 
 func TestIsDomainName(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
-		testdata := []string{
+		for _, domain := range []string{
 			"test.com",
 			"Test-sub.com",
 			"test-sub2.com",
-		}
-		for i := 0; i < len(testdata); i++ {
-			require.True(t, IsDomainName(testdata[i]))
+		} {
+			require.True(t, IsDomainName(domain))
 		}
 	})
 
 	t.Run("invalid", func(t *testing.T) {
-		testdata := []string{
+		for _, domain := range []string{
 			"",
 			string([]byte{255, 254, 12, 35}),
 			"test-",
 			"Test.-",
 			"test..",
 			strings.Repeat("a", 64) + ".com",
-		}
-		for i := 0; i < len(testdata); i++ {
-			require.False(t, IsDomainName(testdata[i]))
+		} {
+			require.False(t, IsDomainName(domain))
 		}
 	})
 }

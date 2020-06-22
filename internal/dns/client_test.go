@@ -11,9 +11,36 @@ import (
 	"project/internal/nettool"
 	"project/internal/patch/monkey"
 	"project/internal/patch/toml"
+	"project/internal/random"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testproxy"
 )
+
+func TestClient_Add_Delete(t *testing.T) {
+	client := NewClient(nil, nil)
+
+	// add DNS server with unknown method
+	err := client.Add("foo tag", &Server{Method: "foo method"})
+	require.Error(t, err)
+	t.Log(err)
+
+	// add exist DNS server
+	const tag = "test"
+	err = client.Add(tag, &Server{Method: MethodUDP})
+	require.NoError(t, err)
+	err = client.Add(tag, &Server{Method: MethodUDP})
+	require.Error(t, err)
+
+	// delete DNS server
+	err = client.Delete(tag)
+	require.NoError(t, err)
+
+	// delete doesn't exist DNS server
+	err = client.Delete(tag)
+	require.Error(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
 
 func testAddDNSServers(t *testing.T, client *Client, filename string) {
 	servers := make(map[string]*Server)
@@ -308,32 +335,6 @@ func TestClient_NoResult(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
-func TestClient_Add_Delete(t *testing.T) {
-	client := NewClient(nil, nil)
-
-	// add DNS server with unknown method
-	err := client.Add("foo tag", &Server{Method: "foo method"})
-	require.Error(t, err)
-	t.Log(err)
-
-	// add exist DNS server
-	const tag = "test"
-	err = client.Add(tag, &Server{Method: MethodUDP})
-	require.NoError(t, err)
-	err = client.Add(tag, &Server{Method: MethodUDP})
-	require.Error(t, err)
-
-	// delete DNS server
-	err = client.Delete(tag)
-	require.NoError(t, err)
-
-	// delete doesn't exist DNS server
-	err = client.Delete(tag)
-	require.Error(t, err)
-
-	testsuite.IsDestroyed(t, client)
-}
-
 func TestClient_TestServers(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -571,11 +572,11 @@ func TestClient_Add_Parallel(t *testing.T) {
 
 	server1 := &Server{
 		Method:  MethodUDP,
-		Address: "127.0.0.1:1080",
+		Address: "127.0.0.1:53",
 	}
 	server2 := &Server{
-		Method:  MethodUDP,
-		Address: "127.0.0.1:1081",
+		Method:  MethodDoT,
+		Address: "127.0.0.1:853",
 	}
 
 	t.Run("part", func(t *testing.T) {
@@ -649,11 +650,11 @@ func TestClient_Delete_Parallel(t *testing.T) {
 
 	server1 := &Server{
 		Method:  MethodUDP,
-		Address: "127.0.0.1:1080",
+		Address: "127.0.0.1:53",
 	}
 	server2 := &Server{
-		Method:  MethodUDP,
-		Address: "127.0.0.1:1081",
+		Method:  MethodDoT,
+		Address: "127.0.0.1:853",
 	}
 
 	t.Run("part", func(t *testing.T) {
@@ -722,11 +723,11 @@ func TestClient_Servers_Parallel(t *testing.T) {
 
 	server1 := &Server{
 		Method:  MethodUDP,
-		Address: "127.0.0.1:1080",
+		Address: "127.0.0.1:53",
 	}
 	server2 := &Server{
-		Method:  MethodUDP,
-		Address: "127.0.0.1:1081",
+		Method:  MethodDoT,
+		Address: "127.0.0.1:853",
 	}
 
 	t.Run("part", func(t *testing.T) {
@@ -776,145 +777,6 @@ func TestClient_Servers_Parallel(t *testing.T) {
 	})
 }
 
-func TestClient_queryCache_Parallel(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	const domain = "test.com"
-
-	ipv4 := []string{"1.1.1.1", "1.0.0.1"}
-	ipv6 := []string{"240c::1111", "240c::1001"}
-
-	t.Run("part", func(t *testing.T) {
-		client := NewClient(nil, nil)
-
-		init := func() {
-			// must query first for create cache structure
-			// update cache will not create it if domain is not exist.
-			cache := client.queryCache(domain, TypeIPv4)
-			require.Empty(t, cache)
-			cache = client.queryCache(domain, TypeIPv6)
-			require.Empty(t, cache)
-
-			client.updateCache(domain, TypeIPv4, ipv4)
-			client.updateCache(domain, TypeIPv6, ipv6)
-		}
-		ipv4 := func() {
-			cache := client.queryCache(domain, TypeIPv4)
-			require.Equal(t, ipv4, cache)
-		}
-		ipv6 := func() {
-			cache := client.queryCache(domain, TypeIPv6)
-			require.Equal(t, ipv6, cache)
-		}
-		cleanup := func() {
-			client.FlushCache()
-		}
-		testsuite.RunParallel(100, init, cleanup, ipv4, ipv6)
-
-		testsuite.IsDestroyed(t, client)
-	})
-
-	t.Run("whole", func(t *testing.T) {
-		var client *Client
-
-		init := func() {
-			client = NewClient(nil, nil)
-
-			// must query first for create cache structure
-			// update cache will not create it if domain is not exist.
-			cache := client.queryCache(domain, TypeIPv4)
-			require.Empty(t, cache)
-			cache = client.queryCache(domain, TypeIPv6)
-			require.Empty(t, cache)
-
-			client.updateCache(domain, TypeIPv4, ipv4)
-			client.updateCache(domain, TypeIPv6, ipv6)
-		}
-		ipv4 := func() {
-			cache := client.queryCache(domain, TypeIPv4)
-			require.Equal(t, ipv4, cache)
-		}
-		ipv6 := func() {
-			cache := client.queryCache(domain, TypeIPv6)
-			require.Equal(t, ipv6, cache)
-		}
-		testsuite.RunParallel(100, init, nil, ipv4, ipv6)
-
-		testsuite.IsDestroyed(t, client)
-	})
-}
-
-func TestClient_updateCache_Parallel(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	const domain = "test.com"
-
-	ipv4 := []string{"1.1.1.1", "1.0.0.1"}
-	ipv6 := []string{"240c::1111", "240c::1001"}
-
-	t.Run("part", func(t *testing.T) {
-		client := NewClient(nil, nil)
-
-		init := func() {
-			// must query first for create cache structure
-			// update cache will not create it if domain is not exist.
-			cache := client.queryCache(domain, TypeIPv4)
-			require.Empty(t, cache)
-			cache = client.queryCache(domain, TypeIPv6)
-			require.Empty(t, cache)
-		}
-		updateIPv4 := func() {
-			client.updateCache(domain, TypeIPv4, ipv4)
-		}
-		updateIPv6 := func() {
-			client.updateCache(domain, TypeIPv6, ipv6)
-		}
-		cleanup := func() {
-			cache := client.queryCache(domain, TypeIPv4)
-			require.Equal(t, ipv4, cache)
-			cache = client.queryCache(domain, TypeIPv6)
-			require.Equal(t, ipv6, cache)
-
-			client.FlushCache()
-		}
-		testsuite.RunParallel(100, init, cleanup, updateIPv4, updateIPv6)
-
-		testsuite.IsDestroyed(t, client)
-	})
-
-	t.Run("whole", func(t *testing.T) {
-		var client *Client
-
-		init := func() {
-			client = NewClient(nil, nil)
-
-			// must query first for create cache structure
-			// update cache will not create it if domain is not exist.
-			cache := client.queryCache(domain, TypeIPv4)
-			require.Empty(t, cache)
-			cache = client.queryCache(domain, TypeIPv6)
-			require.Empty(t, cache)
-		}
-		updateIPv4 := func() {
-			client.updateCache(domain, TypeIPv4, ipv4)
-		}
-		updateIPv6 := func() {
-			client.updateCache(domain, TypeIPv6, ipv6)
-		}
-		cleanup := func() {
-			cache := client.queryCache(domain, TypeIPv4)
-			require.Equal(t, ipv4, cache)
-			cache = client.queryCache(domain, TypeIPv6)
-			require.Equal(t, ipv6, cache)
-		}
-		testsuite.RunParallel(100, init, cleanup, updateIPv4, updateIPv6)
-
-		testsuite.IsDestroyed(t, client)
-	})
-}
-
 func TestClient_Resolve_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -926,61 +788,88 @@ func TestClient_Resolve_Parallel(t *testing.T) {
 	}()
 
 	t.Run("part", func(t *testing.T) {
+		const domain = "api.cloudflare.com"
+
 		client := NewClient(certPool, proxyPool)
 		testAddAllDNSServers(t, client)
+		client.DisableCache()
+
+		resolve := func(mode, method, log string) {
+			opts := Options{
+				Mode:   mode,
+				Method: method,
+			}
+			result, err := client.Resolve(domain, &opts)
+			require.NoError(t, err)
+			require.NotEmpty(t, result)
+			t.Log(log+":", result)
+		}
 
 		udp := func() {
-
+			resolve(ModeCustom, MethodUDP, "udp")
 		}
 		tcp := func() {
-
+			resolve(ModeCustom, MethodTCP, "tcp")
 		}
 		dot := func() {
-
+			resolve(ModeCustom, MethodDoT, "dot")
 		}
 		doh := func() {
-
+			resolve(ModeCustom, MethodDoH, "doh")
 		}
 		system := func() {
-
+			resolve(ModeSystem, MethodUDP, "system")
 		}
-		resolves := []func(){
+		fns := []func(){
 			udp, tcp, dot, doh,
 			system,
 		}
-		testsuite.RunParallel(10, nil, nil, resolves...)
+		testsuite.RunParallel(2, nil, nil, fns...)
 
 		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("whole", func(t *testing.T) {
+		const domain = "dns.cloudflare.com"
+
 		var client *Client
+
+		resolve := func(mode, method, log string) {
+			opts := Options{
+				Mode:   mode,
+				Method: method,
+			}
+			result, err := client.Resolve(domain, &opts)
+			require.NoError(t, err)
+			require.NotEmpty(t, result)
+			t.Log(log+":", result)
+		}
 
 		init := func() {
 			client = NewClient(certPool, proxyPool)
 			testAddAllDNSServers(t, client)
+			client.DisableCache()
 		}
 		udp := func() {
-
+			resolve(ModeCustom, MethodUDP, "udp")
 		}
 		tcp := func() {
-
+			resolve(ModeCustom, MethodTCP, "tcp")
 		}
 		dot := func() {
-
+			resolve(ModeCustom, MethodDoT, "dot")
 		}
 		doh := func() {
-
+			resolve(ModeCustom, MethodDoH, "doh")
 		}
 		system := func() {
-
+			resolve(ModeSystem, MethodUDP, "system")
 		}
-		resolves := []func(){
+		fns := []func(){
 			udp, tcp, dot, doh,
 			system,
 		}
-
-		testsuite.RunParallel(10, init, nil, resolves...)
+		testsuite.RunParallel(2, init, nil, fns...)
 
 		testsuite.IsDestroyed(t, client)
 	})
@@ -990,144 +879,130 @@ func TestClient_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
+
 	const (
 		tag1 = "test-01"
 		tag2 = "test-02"
+		tag3 = "test-03"
+		tag4 = "test-04"
 	)
 
-	t.Run("Add", func(t *testing.T) {
-		var client *Client
+	server1 := &Server{
+		Method:  MethodUDP,
+		Address: "127.0.0.1:53",
+	}
+	server2 := &Server{
+		Method:  MethodDoT,
+		Address: "127.0.0.1:853",
+	}
+	server3 := &Server{
+		Method:  MethodUDP,
+		Address: "127.0.0.2:53",
+	}
+	server4 := &Server{
+		Method:  MethodDoT,
+		Address: "127.0.0.2:853",
+	}
+
+	t.Run("part", func(t *testing.T) {
+		const domain = "api.cloudflare.com"
+
+		client := NewClient(certPool, proxyPool)
+		testAddAllDNSServers(t, client)
+
+		resolve := func(mode, method, log string) {
+			opts := Options{
+				Mode:   mode,
+				Method: method,
+			}
+			result, err := client.Resolve(domain, &opts)
+			require.NoError(t, err)
+			require.NotEmpty(t, result)
+			t.Log(log+":", result)
+		}
 
 		init := func() {
-			client = NewClient(nil, nil)
+			err := client.Add(tag1, server1)
+			require.NoError(t, err)
+			err = client.Add(tag2, server2)
+			require.NoError(t, err)
 		}
 		add1 := func() {
-			err := client.Add(tag1, &Server{
-				Method:  MethodUDP,
-				Address: "127.0.0.1:1080",
-			})
+			err := client.Add(tag3, server3)
 			require.NoError(t, err)
 		}
 		add2 := func() {
-			err := client.Add(tag2, &Server{
-				Method:  MethodUDP,
-				Address: "127.0.0.1:1081",
-			})
-			require.NoError(t, err)
-		}
-
-		testsuite.RunParallel(100, init, nil, add1, add2)
-
-		testsuite.IsDestroyed(t, client)
-	})
-
-	t.Run("Delete", func(t *testing.T) {
-		var client *Client
-
-		init := func() {
-			client = NewClient(nil, nil)
-
-			err := client.Add(tag1, &Server{
-				Method:  MethodUDP,
-				Address: "127.0.0.1:1080",
-			})
-			require.NoError(t, err)
-			err = client.Add(tag2, &Server{
-				Method:  MethodUDP,
-				Address: "127.0.0.1:1081",
-			})
+			err := client.Add(tag4, server4)
 			require.NoError(t, err)
 		}
 		delete1 := func() {
 			err := client.Delete(tag1)
 			require.NoError(t, err)
-
 		}
 		delete2 := func() {
 			err := client.Delete(tag2)
 			require.NoError(t, err)
 		}
-		testsuite.RunParallel(100, init, nil, delete1, delete2)
-
-		servers := client.Servers()
-		require.Empty(t, servers)
-
-		testsuite.IsDestroyed(t, client)
-	})
-
-	t.Run("Get", func(t *testing.T) {
-		var client *Client
-
-		init := func() {
-			client = NewClient(nil, nil)
-
-			err := client.Add(tag1, &Server{
-				Method:  MethodUDP,
-				Address: "127.0.0.1:1080",
-			})
-			require.NoError(t, err)
-			err = client.Add(tag2, &Server{
-				Method:  MethodUDP,
-				Address: "127.0.0.1:1081",
-			})
-			require.NoError(t, err)
-		}
-		get1 := func() {
+		servers := func() {
 			servers := client.Servers()
-			require.Len(t, servers, 2)
+			require.NotEmpty(t, servers)
 		}
-		get2 := func() {
-			servers := client.Servers()
-			require.Len(t, servers, 2)
+		udp := func() {
+			resolve(ModeCustom, MethodUDP, "udp")
 		}
-		testsuite.RunParallel(100, init, nil, get1, get2)
-
-		testsuite.IsDestroyed(t, client)
-	})
-
-	t.Run("mixed", func(t *testing.T) {
-		var client *Client
-
-		init := func() {
-			client = NewClient(nil, nil)
+		tcp := func() {
+			resolve(ModeCustom, MethodTCP, "tcp")
 		}
-		add := func() {
-			err := client.Add(tag1, &Server{
-				Method:  MethodUDP,
-				Address: "127.0.0.1:1080",
-			})
-			require.NoError(t, err)
+		system := func() {
+			resolve(ModeSystem, MethodUDP, "system")
 		}
-		get := func() {
-			_ = client.Servers()
+		enableCache := func() {
+			time.Sleep(time.Duration(3+random.Int(5)) * time.Millisecond)
+			client.EnableCache()
 		}
-		del := func() {
-			_ = client.Delete(tag1)
+		disableCache := func() {
+			time.Sleep(time.Duration(3+random.Int(5)) * time.Millisecond)
+			client.DisableCache()
 		}
-		testsuite.RunParallel(100, init, nil, add, get, del)
-
-		testsuite.IsDestroyed(t, client)
-	})
-
-	t.Run("cache", func(t *testing.T) {
-		var client *Client
-
-		init := func() {
-			client = NewClient(nil, nil)
-		}
-		get := func() {
-			client.GetCacheExpireTime()
-		}
-		set := func() {
-			err := client.SetCacheExpireTime(time.Minute)
-			require.NoError(t, err)
-		}
-		flush := func() {
+		flushCache := func() {
 			client.FlushCache()
 		}
-		testsuite.RunParallel(100, init, nil, get, set, flush)
+		getCacheExpireTime := func() {
+			client.GetCacheExpireTime()
+		}
+		setCacheExpireTime := func() {
+			const expire = 2 * time.Minute
+
+			err := client.SetCacheExpireTime(expire)
+			require.NoError(t, err)
+			e := client.GetCacheExpireTime()
+			require.Equal(t, expire, e)
+		}
+		cleanup := func() {
+			err := client.Delete(tag3)
+			require.NoError(t, err)
+			err = client.Delete(tag4)
+			require.NoError(t, err)
+			client.FlushCache()
+		}
+		fns := []func(){
+			add1, add2, delete1, delete2, servers,
+			udp, tcp, system,
+			enableCache, disableCache, flushCache,
+			getCacheExpireTime, setCacheExpireTime,
+		}
+		testsuite.RunParallel(2, init, cleanup, fns...)
 
 		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+
 	})
 }
 
