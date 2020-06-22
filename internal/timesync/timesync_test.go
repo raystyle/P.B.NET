@@ -16,6 +16,83 @@ import (
 	"project/internal/testsuite/testdns"
 )
 
+func TestSyncer_Add(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	syncer := New(nil, nil, nil, nil)
+
+	t.Run("ok", func(t *testing.T) {
+		err := syncer.Add("test-http", &Client{
+			Mode: ModeHTTP,
+		})
+		require.NoError(t, err)
+		err = syncer.Add("test-ntp", &Client{
+			Mode: ModeNTP,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("unknown mode", func(t *testing.T) {
+		err := syncer.Add("foo mode", &Client{
+			Mode: "foo mode",
+		})
+		require.Error(t, err)
+		t.Log(err)
+	})
+
+	t.Run("invalid config", func(t *testing.T) {
+		err := syncer.Add("invalid config", &Client{
+			Mode:   ModeNTP,
+			Config: string([]byte{1, 2, 3, 4}),
+		})
+		require.Error(t, err)
+		t.Log(err)
+	})
+
+	t.Run("exist", func(t *testing.T) {
+		const tag = "exist"
+
+		client := &Client{
+			Mode: ModeNTP,
+		}
+		err := syncer.Add(tag, client)
+		require.NoError(t, err)
+		err = syncer.Add(tag, client)
+		require.Error(t, err)
+	})
+
+	testsuite.IsDestroyed(t, syncer)
+}
+
+func TestSyncer_Delete(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	syncer := New(nil, nil, nil, nil)
+
+	t.Run("ok", func(t *testing.T) {
+		const tag = "test"
+
+		client := &Client{
+			Mode: ModeNTP,
+		}
+		err := syncer.Add(tag, client)
+		require.NoError(t, err)
+
+		err = syncer.Delete(tag)
+		require.NoError(t, err)
+	})
+
+	t.Run("doesn't exist", func(t *testing.T) {
+		err := syncer.Delete("foo tag")
+		require.Error(t, err)
+		t.Log(err)
+	})
+
+	testsuite.IsDestroyed(t, syncer)
+}
+
 func testAddHTTP(t *testing.T, syncer *Syncer) {
 	data, err := ioutil.ReadFile("testdata/http.toml")
 	require.NoError(t, err)
@@ -159,7 +236,7 @@ func TestSyncer_Start(t *testing.T) {
 	testsuite.IsDestroyed(t, syncer)
 }
 
-func TestSyncer_Start_Stop(t *testing.T) {
+func TestSyncer_Stop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -209,51 +286,6 @@ func TestSyncer_StartWalker(t *testing.T) {
 	now := syncer.Now()
 	time.Sleep(2 * time.Second)
 	require.False(t, syncer.Now().Equal(now))
-
-	syncer.Stop()
-
-	testsuite.IsDestroyed(t, syncer)
-}
-
-func TestSyncer_Add_Delete(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() {
-		err := proxyMgr.Close()
-		require.NoError(t, err)
-	}()
-	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
-	testAddClients(t, syncer)
-
-	t.Run("unknown mode", func(t *testing.T) {
-		err := syncer.Add("foo mode", &Client{Mode: "foo mode"})
-		require.Error(t, err)
-	})
-
-	t.Run("invalid config", func(t *testing.T) {
-		err := syncer.Add("invalid config", &Client{
-			Mode:   ModeNTP,
-			Config: string([]byte{1, 2, 3, 4}),
-		})
-		require.Error(t, err)
-	})
-
-	t.Run("exist", func(t *testing.T) {
-		err := syncer.Add("ntp", &Client{
-			Mode: ModeNTP,
-		})
-		require.Error(t, err)
-	})
-
-	t.Run("delete", func(t *testing.T) {
-		err := syncer.Delete("http")
-		require.NoError(t, err)
-
-		err = syncer.Delete("http")
-		require.Error(t, err)
-	})
 
 	syncer.Stop()
 

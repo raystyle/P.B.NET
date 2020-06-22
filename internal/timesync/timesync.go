@@ -31,7 +31,7 @@ const (
 // errors
 var (
 	ErrNoClients        = fmt.Errorf("no time syncer clients")
-	ErrAllClientsFailed = fmt.Errorf("all time syncer clients failed to query")
+	ErrAllClientsFailed = fmt.Errorf("all time syncer clients failed to query time")
 )
 
 // Client contains mode and config.
@@ -339,7 +339,7 @@ func (syncer *Syncer) Test(ctx context.Context) error {
 			}()
 			_, _, err = client.Query()
 			if err != nil {
-				err = errors.WithMessagef(err, "failed to test client %s", tag)
+				err = errors.WithMessagef(err, "failed to test syncer client %s", tag)
 			}
 		}(tag, client)
 	}
