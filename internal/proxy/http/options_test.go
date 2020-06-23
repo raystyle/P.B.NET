@@ -131,7 +131,9 @@ func TestHTTPSClientOptions(t *testing.T) {
 }
 
 func TestCheckNetwork(t *testing.T) {
-	for _, network := range []string{"tcp", "tcp4", "tcp6"} {
+	for _, network := range []string{
+		"tcp", "tcp4", "tcp6",
+	} {
 		err := CheckNetwork(network)
 		require.NoError(t, err)
 	}

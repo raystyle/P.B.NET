@@ -462,7 +462,9 @@ func TestParseCertificates(t *testing.T) {
 }
 
 func TestParsePrivateKey(t *testing.T) {
-	for _, file := range []string{"pkcs1.key", "pkcs8.key", "ecp.key"} {
+	for _, file := range []string{
+		"pkcs1.key", "pkcs8.key", "ecp.key",
+	} {
 		keyPEMBlock, err := ioutil.ReadFile("testdata/" + file)
 		require.NoError(t, err)
 		_, err = ParsePrivateKey(keyPEMBlock)

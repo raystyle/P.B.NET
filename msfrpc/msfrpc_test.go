@@ -39,7 +39,8 @@ func TestMain(m *testing.M) {
 	err = msfrpc.AuthLogin()
 	testsuite.CheckErrorInTestMain(err)
 	// check leaks
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	for _, check := range []func(context.Context, *MSFRPC) bool{
 		testMainCheckSession,
 		testMainCheckJob,
