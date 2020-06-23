@@ -35,10 +35,14 @@
   queue_size      = 512   # worker chan buffer size
   expire_time     = "3m"  # send GUID expired
 
-[web]
-  dir       = "web"
-  address   = "localhost:1657"
+[webserver]
+  directory = "web"
   cert_file = "ca/cert.pem"
   key_file  = "ca/key.pem"
-  username  = "pbnet" # super user, password = sha256(sha256("pbnet"))
-  password  = "d6b3ced503b70f7894bd30f36001de4af84a8c2af898f06e29bca95f2dcf5100"
+  network   = "tcp4"
+  address   = "localhost:1657"
+  username  = "admin"
+  password  = "bcrypt"
+
+[webserver.cert]
+  dns_names = ["localhost"]

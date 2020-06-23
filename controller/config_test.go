@@ -57,8 +57,8 @@ func testGenerateConfig() *Config {
 	cfg.WebServer.CertOpts.IPAddresses = []string{"127.0.0.1", "::1"}
 	cfg.WebServer.Network = "tcp"
 	cfg.WebServer.Address = "localhost:1657"
-	cfg.WebServer.Username = "pbnet" // # super user, password = "pbnet"
-	cfg.WebServer.Password = "$2a$12$zWgjYi0aAq.958UtUyDi5.QDmq4LOWsvv7I9ulvf1rHzd9/dWWmTi"
+	cfg.WebServer.Username = "admin" // # super user, password = "admin"
+	cfg.WebServer.Password = "$2a$12$2iBq5Rmluv0obRiTN34wDO02o92B/P3mldeXlZJx3ZqDN45wdvZvS"
 
 	cfg.Test.SkipTestClientDNS = true
 	cfg.Test.SkipSynchronizeTime = true
@@ -132,7 +132,7 @@ func TestConfig(t *testing.T) {
 		{expected: []string{"localhost"}, actual: cfg.WebServer.CertOpts.DNSNames},
 		{expected: "tcp4", actual: cfg.WebServer.Network},
 		{expected: "localhost:1657", actual: cfg.WebServer.Address},
-		{expected: "pbnet", actual: cfg.WebServer.Username},
+		{expected: "admin", actual: cfg.WebServer.Username},
 		{expected: "bcrypt", actual: cfg.WebServer.Password},
 	} {
 		require.Equal(t, testdata.expected, testdata.actual)

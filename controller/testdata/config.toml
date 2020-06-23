@@ -48,7 +48,7 @@
   key_file  = "ca/key.pem"
   network   = "tcp4"
   address   = "localhost:1657"
-  username  = "pbnet"
+  username  = "admin"
   password  = "bcrypt"
 
   [webserver.cert]
