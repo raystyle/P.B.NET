@@ -25,27 +25,25 @@ import (
 
 func TestIsDomainName(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
-		testdata := []string{
+		for _, domain := range []string{
 			"test.com",
 			"Test-sub.com",
 			"test-sub2.com",
-		}
-		for i := 0; i < len(testdata); i++ {
-			require.True(t, isDomainName(testdata[i]))
+		} {
+			require.True(t, isDomainName(domain))
 		}
 	})
 
 	t.Run("invalid", func(t *testing.T) {
-		testdata := []string{
+		for _, domain := range []string{
 			"",
 			string([]byte{255, 254, 12, 35}),
 			"test-",
 			"Test.-",
 			"test..",
 			strings.Repeat("a", 64) + ".com",
-		}
-		for i := 0; i < len(testdata); i++ {
-			require.False(t, isDomainName(testdata[i]))
+		} {
+			require.False(t, isDomainName(domain))
 		}
 	})
 }
@@ -598,7 +596,7 @@ func TestOptions(t *testing.T) {
 		{expected: []string{"127.0.0.1", "::1"}, actual: opts.IPAddresses},
 		{expected: notBefore, actual: opts.NotBefore},
 		{expected: notAfter, actual: opts.NotAfter},
-		{expected: "P.B.NET", actual: opts.Subject.CommonName},
+		{expected: "name", actual: opts.Subject.CommonName},
 		{expected: "test", actual: opts.Subject.SerialNumber},
 		{expected: []string{"test1"}, actual: opts.Subject.Country},
 		{expected: []string{"test2"}, actual: opts.Subject.Organization},

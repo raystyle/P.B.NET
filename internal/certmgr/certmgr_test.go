@@ -18,7 +18,7 @@ import (
 	"project/internal/system"
 )
 
-var testPassword = []byte("pbnet")
+var testPassword = []byte("admin")
 
 func testGenerateCertPool(t *testing.T) *cert.Pool {
 	// load system certificates

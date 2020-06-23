@@ -454,7 +454,7 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 			opts.ServerTag = tag
 			result, err := c.ResolveContext(ctx, domain, opts)
 			if err != nil {
-				err = errors.WithMessagef(err, "failed to test server %s", tag)
+				err = errors.WithMessagef(err, "failed to test dns server %s", tag)
 				return
 			}
 			resultsMu.Lock()
@@ -496,7 +496,7 @@ func (c *Client) TestOption(ctx context.Context, domain string, opts *Options) (
 	}
 	result, err := c.ResolveContext(ctx, domain, opts)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to test option")
+		return nil, errors.WithMessage(err, "failed to test query option")
 	}
 	return result, nil
 }

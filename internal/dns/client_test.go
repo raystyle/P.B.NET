@@ -69,7 +69,7 @@ func TestClient_Delete(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("doesn't exists", func(t *testing.T) {
+	t.Run("doesn't exist", func(t *testing.T) {
 		err := client.Delete("foo tag")
 		require.Error(t, err)
 		t.Log(err)
