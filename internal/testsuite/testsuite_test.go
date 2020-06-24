@@ -383,6 +383,54 @@ func TestCheckOptions(t *testing.T) {
 	})
 }
 
+func TestRunMultiTimes(t *testing.T) {
+	gm := MarkGoroutines(t)
+	defer gm.Compare()
+
+	test := 0
+	m := sync.Mutex{}
+
+	f1 := func() {
+		m.Lock()
+		defer m.Unlock()
+
+		test++
+		fmt.Println("f1:", test)
+	}
+	f2 := func() {
+		m.Lock()
+		defer m.Unlock()
+
+		test += 2
+		fmt.Println("f2:", test)
+	}
+	f3 := func() {
+		m.Lock()
+		defer m.Unlock()
+
+		test += 3
+		fmt.Println("f3:", test)
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		RunMultiTimes(5, f1, f2, f3)
+
+		require.Equal(t, (1+2+3)*5, test)
+	})
+
+	t.Run("no functions", func(t *testing.T) {
+		RunMultiTimes(1)
+	})
+
+	t.Run("invalid times", func(t *testing.T) {
+		test = 0
+
+		RunMultiTimes(-1, f3)
+
+		require.Equal(t, 3*100, test)
+	})
+}
+
 func TestRunParallel(t *testing.T) {
 	gm := MarkGoroutines(t)
 	defer gm.Compare()
@@ -399,27 +447,30 @@ func TestRunParallel(t *testing.T) {
 		defer m.Unlock()
 
 		test++
-		fmt.Println(test)
+		fmt.Println("f1:", test)
 	}
 	f2 := func() {
 		m.Lock()
 		defer m.Unlock()
 
-		test++
-		fmt.Println(test)
+		test += 2
+		fmt.Println("f2:", test)
 	}
 	f3 := func() {
 		m.Lock()
 		defer m.Unlock()
 
-		test++
+		test += 3
+		fmt.Println("f3:", test)
 	}
 	cleanup := func() {
 		fmt.Println("cleanup")
 	}
 
 	t.Run("ok", func(t *testing.T) {
-		RunParallel(5, init, cleanup, f1, f2)
+		RunParallel(5, init, cleanup, f1, f2, f3)
+
+		require.Equal(t, 1+2+3, test)
 	})
 
 	t.Run("no functions", func(t *testing.T) {
@@ -427,7 +478,11 @@ func TestRunParallel(t *testing.T) {
 	})
 
 	t.Run("invalid times", func(t *testing.T) {
+		test = 0
+
 		RunParallel(-1, nil, nil, f3)
+
+		require.Equal(t, 3*100, test)
 	})
 }
 

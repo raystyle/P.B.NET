@@ -227,6 +227,28 @@ func walkOptions(father string, typ reflect.Type, value reflect.Value) string {
 	return ""
 }
 
+// RunMultiTimes is used to call functions with n times in the same time.
+func RunMultiTimes(times int, fns ...func()) {
+	l := len(fns)
+	if l == 0 {
+		return
+	}
+	if times < 1 || times > 1000 {
+		times = 100
+	}
+	wg := sync.WaitGroup{}
+	for i := 0; i < l; i++ {
+		for j := 0; j < times; j++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				fns[i]()
+			}(i)
+		}
+	}
+	wg.Wait()
+}
+
 // RunParallel is used to call functions with go func().
 // object with Add(), Get() ... need it for test with race.
 func RunParallel(times int, init, cleanup func(), fns ...func()) {
