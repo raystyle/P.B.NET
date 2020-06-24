@@ -173,9 +173,9 @@ func TestGenerateECDSA(t *testing.T) {
 	})
 }
 
-func TestGenerateEd25519(t *testing.T) {
+func TestGenerateED25519(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		pri, pub, err := generateEd25519()
+		pri, pub, err := generateED25519()
 		require.NoError(t, err)
 		require.NotNil(t, pub)
 		require.NotNil(t, pri)
@@ -188,7 +188,7 @@ func TestGenerateEd25519(t *testing.T) {
 		pg := monkey.Patch(ed25519.GenerateKey, patch)
 		defer pg.Unpatch()
 
-		pri, pub, err := generateEd25519()
+		pri, pub, err := generateED25519()
 		monkey.IsMonkeyError(t, err)
 		require.Nil(t, pub)
 		require.Nil(t, pri)

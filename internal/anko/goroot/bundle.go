@@ -109,7 +109,7 @@ func init() {
 	initCryptoDES()
 	initCryptoDSA()
 	initCryptoECDSA()
-	initCryptoEd25519()
+	initCryptoED25519()
 	initCryptoElliptic()
 	initCryptoHMAC()
 	initCryptoMD5()
@@ -700,7 +700,7 @@ func initCryptoECDSA() {
 	}
 }
 
-func initCryptoEd25519() {
+func initCryptoED25519() {
 	env.Packages["crypto/ed25519"] = map[string]reflect.Value{
 		// define constants
 		"PrivateKeySize": reflect.ValueOf(ed25519.PrivateKeySize),

@@ -57,7 +57,7 @@ func init() {
 		{"crypto/des", "CryptoDES"},
 		{"crypto/dsa", "CryptoDSA"},
 		{"crypto/ecdsa", "CryptoECDSA"},
-		{"crypto/ed25519", "CryptoEd25519"},
+		{"crypto/ed25519", "CryptoED25519"},
 		{"crypto/elliptic", "CryptoElliptic"},
 		{"crypto/hmac", "CryptoHMAC"},
 		{"crypto/md5", "CryptoMD5"},
