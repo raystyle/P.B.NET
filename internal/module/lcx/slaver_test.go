@@ -52,12 +52,13 @@ func TestSlaver(t *testing.T) {
 	require.NoError(t, err)
 
 	// user dial local listener
-	for i := 0; i < 3; i++ {
-		lConn, err := net.Dial("tcp", listener.testLocalAddress())
+	address := listener.testLocalAddress()
+	testsuite.RunMultiTimes(100, func() {
+		lConn, err := net.Dial("tcp", address)
 		require.NoError(t, err)
 
 		testsuite.ProxyConn(t, lConn)
-	}
+	})
 
 	time.Sleep(2 * time.Second)
 

@@ -49,12 +49,12 @@ func TestTranner(t *testing.T) {
 
 	// test connect test http server
 	address := tranner.testAddress()
-	for i := 0; i < 3; i++ {
-		conn, err := net.Dial("tcp", address)
+	testsuite.RunMultiTimes(5, func() {
+		lConn, err := net.Dial("tcp", address)
 		require.NoError(t, err)
 
-		testsuite.ProxyConn(t, conn)
-	}
+		testsuite.ProxyConn(t, lConn)
+	})
 
 	t.Log(tranner.Name())
 	t.Log(tranner.Info())

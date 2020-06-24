@@ -298,6 +298,19 @@ func (c *tConn) serve() {
 		}
 	}()
 
+	var ok bool
+	defer func() {
+		if ok {
+			buf := new(bytes.Buffer)
+			_, _ = fmt.Fprintln(buf, "connection closed")
+			_, _ = logger.Conn(c.local).WriteTo(buf)
+			_, _ = fmt.Fprint(buf, "\n", c.tranner.Status())
+			c.tranner.log(logger.Info, buf)
+		} else {
+			c.tranner.log(logger.Info, c.tranner.Status())
+		}
+	}()
+
 	if !c.tranner.trackConn(c, true) {
 		return
 	}
@@ -344,6 +357,7 @@ func (c *tConn) serve() {
 		_, _ = io.Copy(c.local, remote)
 	}()
 	_, _ = io.Copy(remote, c.local)
+	ok = true
 }
 
 func (c *tConn) Close() error {

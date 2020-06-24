@@ -29,6 +29,7 @@ type Slaver struct {
 	logSrc  string
 	dialer  net.Dialer
 	sleeper *random.Sleeper
+	online  bool
 	stopped bool
 	conns   map[*sConn]struct{}
 	rwm     sync.RWMutex
@@ -182,7 +183,10 @@ func (s *Slaver) serve() {
 	// dial loop
 	for {
 		if s.full() {
-			s.log(logger.Warning, "full connection")
+			if s.online {
+				s.log(logger.Warning, "full connection")
+				s.online = false
+			}
 			select {
 			case <-s.sleeper.Sleep(1, 3):
 			case <-s.ctx.Done():
@@ -195,7 +199,10 @@ func (s *Slaver) serve() {
 		}
 		conn, err := s.connectToListener()
 		if err != nil {
-			s.log(logger.Error, err)
+			if s.online {
+				s.log(logger.Error, err)
+				s.online = false
+			}
 			select {
 			case <-s.sleeper.Sleep(1, 10):
 			case <-s.ctx.Done():
@@ -204,6 +211,7 @@ func (s *Slaver) serve() {
 			continue
 		}
 		s.newConn(conn).Serve()
+		s.online = true
 	}
 }
 
@@ -294,6 +302,15 @@ func (c *sConn) serve(done chan<- struct{}) {
 		}
 	}()
 
+	var ok bool
+	defer func() {
+		if ok {
+			c.slaver.log(logger.Info, c.slaver.Status(), "connection closed")
+		} else {
+			c.slaver.log(logger.Info, c.slaver.Status())
+		}
+	}()
+
 	if !c.slaver.trackConn(c, true) {
 		return
 	}
@@ -317,13 +334,10 @@ func (c *sConn) serve(done chan<- struct{}) {
 		}
 	}()
 
-	// log
-	buf := new(bytes.Buffer)
-	_, _ = fmt.Fprintln(buf, "connect listener and target")
-	_, _ = logger.Conn(c.local).WriteTo(buf)
-	_, _ = fmt.Fprint(buf, "\n", c.slaver.Status())
-	c.slaver.log(logger.Info, buf)
+	// print current status
+	c.slaver.log(logger.Info, c.slaver.Status())
 
+	// start another goroutine to copy
 	c.slaver.wg.Add(1)
 	go c.serveRemote(done, remote)
 
@@ -353,6 +367,7 @@ func (c *sConn) serve(done chan<- struct{}) {
 	_ = remote.SetWriteDeadline(time.Time{})
 
 	_, _ = io.Copy(remote, c.local)
+	ok = true
 }
 
 func (c *sConn) serveRemote(done chan<- struct{}, remote net.Conn) {

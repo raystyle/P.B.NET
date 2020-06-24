@@ -260,7 +260,7 @@ func (l *Listener) serve(iListener, lListener net.Listener) {
 		if remote == nil {
 			return
 		}
-		// log
+		// log remote connection
 		buf := new(bytes.Buffer)
 		_, _ = fmt.Fprintln(buf, "income slave connection")
 		_, _ = logger.Conn(remote).WriteTo(buf)
@@ -272,6 +272,13 @@ func (l *Listener) serve(iListener, lListener net.Listener) {
 			_ = remote.Close()
 			return
 		}
+		// log local connection
+		buf.Reset()
+		_, _ = fmt.Fprintln(buf, "income user connection")
+		_, _ = logger.Conn(local).WriteTo(buf)
+		_, _ = fmt.Fprint(buf, "\n", l.Status())
+		l.log(logger.Info, buf)
+		// copy
 		l.newConn(remote, local).Serve()
 	}
 }
@@ -329,8 +336,8 @@ func (l *Listener) trackConn(conn *lConn, add bool) bool {
 
 type lConn struct {
 	listener *Listener
-	remote   net.Conn
-	local    net.Conn
+	remote   net.Conn // slave connection
+	local    net.Conn // user income connection
 }
 
 func (c *lConn) log(lv logger.Level, log ...interface{}) {
@@ -366,17 +373,18 @@ func (c *lConn) serve() {
 		}
 	}()
 
+	defer func() {
+		buf := new(bytes.Buffer)
+		_, _ = fmt.Fprintln(buf, "connection closed")
+		_, _ = logger.Conn(c.local).WriteTo(buf)
+		_, _ = fmt.Fprint(buf, "\n", c.listener.Status())
+		c.listener.log(logger.Info, buf)
+	}()
+
 	if !c.listener.trackConn(c, true) {
 		return
 	}
 	defer c.listener.trackConn(c, false)
-
-	// log
-	buf := new(bytes.Buffer)
-	_, _ = fmt.Fprintln(buf, "income user connection")
-	_, _ = logger.Conn(c.local).WriteTo(buf)
-	_, _ = fmt.Fprint(buf, "\n", c.listener.Status())
-	c.listener.log(logger.Info, buf)
 
 	// reset deadline
 	_ = c.remote.SetDeadline(time.Time{})
