@@ -42,30 +42,35 @@ func TestListener(t *testing.T) {
 	require.NoError(t, err)
 
 	// mock slaver and started copy
-	var address string
+	var targetAddress string
 	switch {
 	case testsuite.IPv4Enabled:
-		address = "127.0.0.1:" + testsuite.HTTPServerPort
+		targetAddress = "127.0.0.1:" + testsuite.HTTPServerPort
 	case testsuite.IPv6Enabled:
-		address = "[::1]:" + testsuite.HTTPServerPort
+		targetAddress = "[::1]:" + testsuite.HTTPServerPort
 	}
-	hConn, err := net.Dial("tcp", address)
-	require.NoError(t, err)
-	// must close
-	defer func() { _ = hConn.Close() }()
+
+	// slaver connect the listener
 	iConn, err := net.Dial("tcp", listener.testIncomeAddress())
 	require.NoError(t, err)
-	// not close
+	defer func() { _ = iConn.Close() }() // must close
+	// slaver connect the target
+	tConn, err := net.Dial("tcp", targetAddress)
+	require.NoError(t, err)
+	defer func() { _ = tConn.Close() }() // must close
+	// start copy
 	go func() {
-		_, _ = io.Copy(hConn, iConn)
+		_, _ = io.Copy(tConn, iConn)
 	}()
 	go func() {
-		_, _ = io.Copy(iConn, hConn)
+		_, _ = io.Copy(iConn, tConn)
 	}()
 	// user dial local listener
 	lConn, err := net.Dial("tcp", listener.testLocalAddress())
 	require.NoError(t, err)
 	testsuite.ProxyConn(t, lConn)
+
+	time.Sleep(2 * time.Second)
 
 	t.Log(listener.Name())
 	t.Log(listener.Info())

@@ -49,7 +49,7 @@ func TestTranner(t *testing.T) {
 
 	// test connect test http server
 	address := tranner.testAddress()
-	testsuite.RunMultiTimes(5, func() {
+	testsuite.RunMultiTimes(100, func() {
 		lConn, err := net.Dial("tcp", address)
 		require.NoError(t, err)
 

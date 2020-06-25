@@ -16,10 +16,10 @@ import (
 	"project/internal/xpanic"
 )
 
-// Listener is used to accept slave's connection and user's connection.
+// Listener is used to accept slaver's connection and user's connection.
 type Listener struct {
-	iNetwork string // slave connected Listener
-	iAddress string // slave connected Listener
+	iNetwork string // slaver connected Listener
+	iAddress string // slaver connected Listener
 	logger   logger.Logger
 	opts     *Options
 
@@ -336,7 +336,7 @@ func (l *Listener) trackConn(conn *lConn, add bool) bool {
 
 type lConn struct {
 	listener *Listener
-	remote   net.Conn // slave connection
+	remote   net.Conn // slaver income connection
 	local    net.Conn // user income connection
 }
 

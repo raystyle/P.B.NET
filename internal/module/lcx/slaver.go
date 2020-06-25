@@ -200,7 +200,7 @@ func (s *Slaver) serve() {
 		conn, err := s.connectToListener()
 		if err != nil {
 			if s.online {
-				s.log(logger.Error, err)
+				s.log(logger.Error, "failed to connect listener:", err)
 				s.online = false
 			}
 			select {
