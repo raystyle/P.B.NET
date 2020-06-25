@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"sync"
 	"sync/atomic"
@@ -192,13 +193,13 @@ func (global *global) closeWaitLoadKey() {
 
 // LoadKey is used to load session key and certificate pool.
 func (global *global) LoadKey(
-	sessionKey, sessionKeyPassword []byte,
-	certData, rawHash, certPassword []byte,
+	sessionKeyFile, sessionKeyPassword []byte,
+	certFile, rawHash, certPassword []byte,
 ) error {
 	defer func() {
-		security.CoverBytes(sessionKey)
+		security.CoverBytes(sessionKeyFile)
 		security.CoverBytes(sessionKeyPassword)
-		security.CoverBytes(certData)
+		security.CoverBytes(certFile)
 		security.CoverBytes(certPassword)
 	}()
 	global.objectsRWM.Lock()
@@ -206,17 +207,20 @@ func (global *global) LoadKey(
 	if global.IsLoadKey() {
 		return errors.New("already load session key")
 	}
-	key, err := loadSessionKey(sessionKey, sessionKeyPassword)
+	keys, err := LoadSessionKey(sessionKeyFile, sessionKeyPassword)
 	if err != nil {
 		return errors.WithMessage(err, "failed to load session key")
 	}
 	// ed25519
-	pri := key[0]
-	defer security.CoverBytes(pri)
-	pub, _ := ed25519.ImportPublicKey(pri[32:])
+	privateKey := keys[0]
+	defer security.CoverBytes(privateKey)
+	pub, err := ed25519.ImportPublicKey(privateKey[32:])
+	if err != nil {
+		panic(fmt.Sprintf("gloabl internal error: %s", err))
+	}
 	global.objects[objPublicKey] = pub
 	// calculate key exchange public key
-	kexPublicKey, err := curve25519.ScalarBaseMult(pri[:curve25519.ScalarSize])
+	kexPublicKey, err := curve25519.ScalarBaseMult(privateKey[:curve25519.ScalarSize])
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -224,13 +228,16 @@ func (global *global) LoadKey(
 	// hide private key
 	memory := security.NewMemory()
 	defer memory.Flush()
-	global.objects[objPrivateKey] = security.NewBytes(pri)
-	security.CoverBytes(pri)
+	global.objects[objPrivateKey] = security.NewBytes(privateKey)
+	security.CoverBytes(privateKey)
 	// aes crypto about broadcast
-	cbc, _ := aes.NewCBC(key[1], key[2])
+	cbc, err := aes.NewCBC(keys[1], keys[2])
+	if err != nil {
+		panic(fmt.Sprintf("gloabl internal error: %s", err))
+	}
 	global.objects[objBroadcastKey] = cbc
 	// load certificate pool
-	err = certmgr.LoadCtrlCertPool(global.CertPool, certData, rawHash, certPassword)
+	err = certmgr.LoadCtrlCertPool(global.CertPool, certFile, rawHash, certPassword)
 	if err != nil {
 		return errors.WithStack(err)
 	}

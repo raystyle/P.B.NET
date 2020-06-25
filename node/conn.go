@@ -1015,13 +1015,12 @@ func (c *conn) Query(guid, data []byte) {
 	_, _ = c.send(protocol.BeaconQuery, data)
 }
 
-func (c *conn) Close() error {
-	var err error
+func (c *conn) Close() (err error) {
 	c.closeOnce.Do(func() {
 		atomic.StoreInt32(&c.inClose, 1)
 		err = c.Conn.Close()
 		close(c.stopSignal)
 		protocol.DestroySlots(c.slots)
 	})
-	return err
+	return
 }

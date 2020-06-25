@@ -234,7 +234,7 @@ func initializeController(t testing.TB) {
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, cfg)
 		// set controller keys
-		err = ctrl.LoadKeyFromFile([]byte("pbnet"), []byte("pbnet"))
+		err = ctrl.LoadKeyFromFile([]byte("admin"), []byte("cert"))
 		require.NoError(t, err)
 		go func() {
 			err := ctrl.Main()
