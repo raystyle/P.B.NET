@@ -115,16 +115,16 @@ func encryptSessionKey(keys [3][]byte, password []byte) ([]byte, error) {
 
 // LoadSessionKey is used to decrypt session key file and
 // return session key (private key, aes key, aes iv).
-func LoadSessionKey(data, password []byte) ([3][]byte, error) {
+func LoadSessionKey(sessionKey, password []byte) ([3][]byte, error) {
 	var keys [3][]byte
-	if len(data) < sha256.Size+aes.BlockSize {
+	if len(sessionKey) < sha256.Size+aes.BlockSize {
 		return keys, errors.New("invalid session key size")
 	}
 	memory := security.NewMemory()
 	defer memory.Flush()
 	// decrypt session key file
 	aesKey, aesIV := calculateAESKeyFromPassword(password)
-	fileDec, err := aes.CBCDecrypt(data[sha256.Size:], aesKey, aesIV)
+	fileDec, err := aes.CBCDecrypt(sessionKey[sha256.Size:], aesKey, aesIV)
 	if err != nil {
 		return keys, errors.WithStack(err)
 	}
@@ -138,7 +138,7 @@ func LoadSessionKey(data, password []byte) ([3][]byte, error) {
 	file := buf.Bytes()
 	// compare file hash
 	fileHash := sha256.Sum256(file)
-	if subtle.ConstantTimeCompare(data[:sha256.Size], fileHash[:]) != 1 {
+	if subtle.ConstantTimeCompare(sessionKey[:sha256.Size], fileHash[:]) != 1 {
 		return keys, errors.New("incorrect password")
 	}
 	// ed25519 private key
@@ -158,4 +158,13 @@ func LoadSessionKey(data, password []byte) ([3][]byte, error) {
 	keys[1] = aesKey
 	keys[2] = aesIV
 	return keys, nil
+}
+
+// ResetPassword is used to use new password to encrypt session key.
+func ResetPassword(sessionKey, old, new []byte) ([]byte, error) {
+	keys, err := LoadSessionKey(sessionKey, old)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to load session key")
+	}
+	return encryptSessionKey(keys, new)
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGenerateAndLoadSessionKey(t *testing.T) {
+func TestSessionKey(t *testing.T) {
 	keys, err := generateSessionKey()
 	require.NoError(t, err)
 
@@ -20,4 +20,21 @@ func TestGenerateAndLoadSessionKey(t *testing.T) {
 
 	const format = "\nprivate key: %X\nAES Key: %X\nAES IV: %X"
 	t.Logf(format, keys[0], keys[1], keys[2])
+}
+
+func TestResetPassword(t *testing.T) {
+	oldPwd := []byte("old")
+	newPwd := []byte("new")
+
+	keyFile, err := GenerateSessionKey(oldPwd)
+	require.NoError(t, err)
+	keys1, err := LoadSessionKey(keyFile, oldPwd)
+	require.NoError(t, err)
+
+	keyFile, err = ResetPassword(keyFile, oldPwd, newPwd)
+	require.NoError(t, err)
+	keys2, err := LoadSessionKey(keyFile, newPwd)
+	require.NoError(t, err)
+
+	require.Equal(t, keys1, keys2)
 }
