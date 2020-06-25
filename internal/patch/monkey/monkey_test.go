@@ -10,16 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIsMonkeyError(t *testing.T) {
-	pg := Patch(net.Dial, func(string, string) (net.Conn, error) {
-		return nil, Error
-	})
-	defer pg.Unpatch()
-
-	_, err := net.Dial("", "")
-	IsMonkeyError(t, err)
-}
-
 func ExamplePatch() {
 	patch := func(a ...interface{}) (n int, err error) {
 		s := make([]interface{}, len(a))
@@ -37,7 +27,7 @@ func ExamplePatch() {
 	// what the *bleep*?
 }
 
-// private structure in other package, and it appeared in a interface
+// private structure in other package, and it appeared in a interface.
 type private struct {
 	str string
 }
@@ -46,18 +36,44 @@ func (p *private) Get(s string) string {
 	return p.str + s + "foo"
 }
 
+type fooInterface interface {
+	Get(string) string
+}
+
 func ExamplePatchInstanceMethod() {
-	pri := &private{str: "pri"}
+	var iface fooInterface
+	iface = &private{str: "foo"}
+
 	patch := func(interface{}, string) string {
 		return "monkey"
 	}
-	pg := PatchInstanceMethod(pri, "Get", patch)
+	pg := PatchInstanceMethod(iface, "Get", patch)
 	defer pg.Unpatch()
 
-	fmt.Println(pri.Get("foo"))
+	fmt.Println(iface.Get("foo"))
 
 	// output:
 	// monkey
+}
+
+func TestIsMonkeyError(t *testing.T) {
+	pg := Patch(net.Dial, func(string, string) (net.Conn, error) {
+		return nil, Error
+	})
+	defer pg.Unpatch()
+
+	_, err := net.Dial("", "")
+	IsMonkeyError(t, err)
+}
+
+func TestIsExistMonkeyError(t *testing.T) {
+	pg := Patch(net.Dial, func(string, string) (net.Conn, error) {
+		return nil, fmt.Errorf("failed to dial foo: %s", Error)
+	})
+	defer pg.Unpatch()
+
+	_, err := net.Dial("", "")
+	IsExistMonkeyError(t, err)
 }
 
 // copy from internal/testsuite/testsuite.go

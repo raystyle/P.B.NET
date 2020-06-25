@@ -26,6 +26,11 @@ func IsMonkeyError(t testing.TB, err error) {
 	require.EqualError(t, err, Error.Error())
 }
 
+// IsExistMonkeyError is used to confirm err is include Error.
+func IsExistMonkeyError(t testing.TB, err error) {
+	require.Contains(t, err.Error(), Error.Error())
+}
+
 // Patch is a wrapper about monkey.Patch.
 func Patch(target, replacement interface{}) *PatchGuard {
 	return monkey.Patch(target, replacement)
