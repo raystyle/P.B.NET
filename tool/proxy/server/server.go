@@ -63,12 +63,11 @@ func (server *Server) Main() error {
 }
 
 // Exit is used to close proxy server.
-func (server *Server) Exit() error {
-	var err error
+func (server *Server) Exit() (err error) {
 	server.exitOnce.Do(func() {
 		err = server.server.Close()
 	})
-	return err
+	return
 }
 
 // Address is used to get proxy server address.

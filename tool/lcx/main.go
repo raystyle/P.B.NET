@@ -71,8 +71,8 @@ func main() {
 
 func printHelp() {
 	const help = `
- tran:   lcx -m tran -d-addr "192.168.1.2:3389" -l-addr ":8990"
- listen: lcx -m listen -i-addr "1.1.1.1:81" -l-addr "127.0.0.1:8989"
+ tran:   lcx -m tran -d-addr "192.168.1.2:3389" -l-addr "0.0.0.0:8990"
+ listen: lcx -m listen -i-addr "0.0.0.0:81" -l-addr "127.0.0.1:8989"
  slave:  lcx -m slave -i-addr "1.1.1.1:81" -d-addr "192.168.1.2:3389"
 
 `

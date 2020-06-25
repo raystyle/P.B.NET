@@ -114,10 +114,9 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 }
 
 // Close is used to close the connection.
-func (c *Conn) Close() error {
-	var err error
+func (c *Conn) Close() (err error) {
 	c.closeOnce.Do(func() {
 		err = c.Conn.Close()
 	})
-	return err
+	return
 }

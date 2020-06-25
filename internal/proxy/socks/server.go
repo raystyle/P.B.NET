@@ -45,9 +45,10 @@ type Server struct {
 	inShutdown int32
 	rwm        sync.RWMutex
 
-	ctx     context.Context
-	cancel  context.CancelFunc
-	counter xsync.Counter
+	closeOnce sync.Once
+	ctx       context.Context
+	cancel    context.CancelFunc
+	counter   xsync.Counter
 }
 
 // NewSocks5Server is used to create a socks5 server.
@@ -291,10 +292,12 @@ func (s *Server) Info() string {
 }
 
 // Close is used to close socks server.
-func (s *Server) Close() error {
-	err := s.close()
-	s.counter.Wait()
-	return err
+func (s *Server) Close() (err error) {
+	s.closeOnce.Do(func() {
+		err = s.close()
+		s.counter.Wait()
+	})
+	return
 }
 
 func (s *Server) close() error {

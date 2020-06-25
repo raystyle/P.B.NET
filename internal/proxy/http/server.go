@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -37,6 +38,8 @@ type Server struct {
 	// listener addresses
 	addresses    map[*net.Addr]struct{}
 	addressesRWM sync.RWMutex
+
+	closeOnce sync.Once
 }
 
 // NewHTTPServer is used to create a HTTP proxy server.
@@ -235,10 +238,12 @@ func (s *Server) Info() string {
 }
 
 // Close is used to close HTTP proxy server.
-func (s *Server) Close() error {
-	err := s.server.Close()
-	s.handler.Close()
-	return err
+func (s *Server) Close() (err error) {
+	s.closeOnce.Do(func() {
+		err = s.server.Close()
+		s.handler.Close()
+	})
+	return
 }
 
 var (
@@ -437,6 +442,7 @@ func (h *handler) handleCommonRequest(w http.ResponseWriter, r *http.Request) {
 	for k, v := range resp.Header {
 		w.Header().Set(k, v[0])
 	}
+	defer func() { _, _ = io.Copy(ioutil.Discard, resp.Body) }()
 	// write status and body
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)

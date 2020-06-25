@@ -88,12 +88,11 @@ func (client *Client) Main() error {
 }
 
 // Exit is used to close front proxy server.
-func (client *Client) Exit() error {
-	var err error
+func (client *Client) Exit() (err error) {
 	client.exitOnce.Do(func() {
 		err = client.server.Close()
 	})
-	return err
+	return
 }
 
 // Address is used to get proxy server address.
