@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/testsuite"
 )
 
 func generateBytes() []byte {
@@ -170,6 +172,82 @@ func TestCBC(t *testing.T) {
 		k, v := cbc.KeyIV()
 		require.Equal(t, key128, k)
 		require.Equal(t, iv, v)
+	})
+}
+
+func TestCBC_Parallel(t *testing.T) {
+	key := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 11, 12, 13, 14, 15, 16}
+	iv := []byte{11, 12, 13, 14, 15, 16, 17, 18, 19, 10, 111, 112, 113, 114, 115, 116}
+
+	data := bytes.Repeat([]byte{1, 2, 3, 4}, 10)
+
+	t.Run("part", func(t *testing.T) {
+		cbc, err := NewCBC(key, iv)
+		require.NoError(t, err)
+
+		enc := func() {
+			_, err := cbc.Encrypt(data)
+			require.NoError(t, err)
+		}
+		dec := func() {
+			cipherData, err := cbc.Encrypt(data)
+			require.NoError(t, err)
+			plainData, err := cbc.Decrypt(cipherData)
+			require.NoError(t, err)
+			require.Equal(t, data, plainData)
+		}
+		keyIV := func() {
+			k, i := cbc.KeyIV()
+			require.Equal(t, key, k)
+			require.Equal(t, iv, i)
+		}
+		testsuite.RunParallel(100, nil, nil, enc, dec, keyIV)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var cbc *CBC
+
+		init := func() {
+			var err error
+			cbc, err = NewCBC(key, iv)
+			require.NoError(t, err)
+		}
+		enc := func() {
+			_, err := cbc.Encrypt(data)
+			require.NoError(t, err)
+		}
+		dec := func() {
+			cipherData, err := cbc.Encrypt(data)
+			require.NoError(t, err)
+			plainData, err := cbc.Decrypt(cipherData)
+			require.NoError(t, err)
+			require.Equal(t, data, plainData)
+		}
+		keyIV := func() {
+			k, i := cbc.KeyIV()
+			require.Equal(t, key, k)
+			require.Equal(t, iv, i)
+		}
+		testsuite.RunParallel(100, init, nil, enc, dec, keyIV)
+	})
+
+	t.Run("multi", func(t *testing.T) {
+		cbc, err := NewCBC(key, iv)
+		require.NoError(t, err)
+
+		testsuite.RunMultiTimes(100, func() {
+			cipherData, err := cbc.Encrypt(data)
+			require.NoError(t, err)
+			plainData, err := cbc.Decrypt(cipherData)
+			require.NoError(t, err)
+			require.Equal(t, data, plainData)
+
+			k, i := cbc.KeyIV()
+			require.Equal(t, key, k)
+			require.Equal(t, iv, i)
+		})
+
+		testsuite.IsDestroyed(t, cbc)
 	})
 }
 
