@@ -4,15 +4,13 @@ package certpool
 
 import (
 	"crypto/x509"
-	"errors"
+	"fmt"
 	"sync"
 	"syscall"
 	"unsafe"
 )
 
 var (
-	errSystemCert = errors.New("no system certificates")
-
 	systemCerts   []*x509.Certificate
 	systemCertsMu sync.Mutex
 )
@@ -24,18 +22,18 @@ func System() (*x509.CertPool, error) {
 	var certs []*x509.Certificate
 	systemCertsMu.Lock()
 	defer systemCertsMu.Unlock()
-	if errSystemCert == nil {
-		certs = make([]*x509.Certificate, len(systemCerts))
+	l := len(systemCerts)
+	if l != 0 {
+		certs = make([]*x509.Certificate, l)
 		copy(certs, systemCerts)
 	} else {
-		c, err := loadSystemCert()
+		c, err := loadSystemCerts()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to load system certificate pool: %s", err)
 		}
+		certs = make([]*x509.Certificate, len(c))
+		copy(certs, c)
 		systemCerts = c
-		errSystemCert = nil
-		certs = make([]*x509.Certificate, len(systemCerts))
-		copy(certs, systemCerts)
 	}
 	// must new pool
 	pool := x509.NewCertPool()
@@ -45,11 +43,11 @@ func System() (*x509.CertPool, error) {
 	return pool, nil
 }
 
-func loadSystemCert() ([]*x509.Certificate, error) {
+func loadSystemCerts() ([]*x509.Certificate, error) {
 	var certs [][]byte
 	names := []string{"ROOT", "CA"}
 	for i := 0; i < len(names); i++ {
-		raw, err := LoadSystemCertWithName(names[i])
+		raw, err := LoadSystemCertsWithName(names[i])
 		if err != nil {
 			return nil, err
 		}
@@ -65,9 +63,9 @@ func loadSystemCert() ([]*x509.Certificate, error) {
 	return pool, nil
 }
 
-// LoadSystemCertWithName is used to load system certificate pool.
+// LoadSystemCertsWithName is used to load system certificates by name.
 // Usually name is "ROOT" or "CA".
-func LoadSystemCertWithName(name string) ([][]byte, error) {
+func LoadSystemCertsWithName(name string) ([][]byte, error) {
 	n, err := syscall.UTF16PtrFromString(name)
 	if err != nil {
 		return nil, err

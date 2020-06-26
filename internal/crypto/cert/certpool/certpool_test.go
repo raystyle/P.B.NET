@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSystemCertPool(t *testing.T) {
+func TestSystem(t *testing.T) {
 	wg := sync.WaitGroup{}
-	wg.Add(5)
 	for i := 0; i < 5; i++ {
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
