@@ -2,6 +2,7 @@ package ed25519
 
 import (
 	"errors"
+	"fmt"
 	"io"
 
 	"golang.org/x/crypto/ed25519"
@@ -19,8 +20,8 @@ const (
 
 // errors.
 var (
-	ErrInvalidPrivateKey = errors.New("invalid private key size")
-	ErrInvalidPublicKey  = errors.New("invalid public key size")
+	ErrInvalidPrivateKey = errors.New("invalid ed25519 private key size")
+	ErrInvalidPublicKey  = errors.New("invalid ed25519 public key size")
 )
 
 // PublicKey is the ed25519 public key.
@@ -41,7 +42,7 @@ func GenerateKey() (PrivateKey, error) {
 	seed := make([]byte, SeedSize)
 	_, err := io.ReadFull(rand.Reader, seed)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate ed25519 private key: %s", err)
 	}
 	return NewKeyFromSeed(seed), nil
 }

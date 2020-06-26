@@ -23,10 +23,10 @@ const (
 
 // errors.
 var (
-	ErrInvalidIVSize      = errors.New("invalid iv size")
-	ErrInvalidCipherData  = errors.New("invalid cipher data")
+	ErrInvalidIVSize      = errors.New("invalid aes iv size")
+	ErrInvalidCipherData  = errors.New("invalid aes cipher data")
 	ErrEmptyData          = errors.New("empty data")
-	ErrInvalidPaddingSize = errors.New("invalid padding size")
+	ErrInvalidPaddingSize = errors.New("invalid aes padding size")
 )
 
 // CBC is a AES CBC PKCS#5 encrypter.
@@ -67,10 +67,10 @@ func (c *CBC) Encrypt(plainData []byte) ([]byte, error) {
 	for i := 0; i < paddingSize; i++ {
 		plain[plainDataSize+i] = padding
 	}
-
+	// get iv
 	iv := c.iv.Get()
 	defer c.iv.Put(iv)
-
+	// encrypt
 	encrypter := cipher.NewCBCEncrypter(c.block, iv)
 	cipherData := make([]byte, totalSize)
 	encrypter.CryptBlocks(cipherData, plain)
@@ -89,10 +89,10 @@ func (c *CBC) Decrypt(cipherData []byte) ([]byte, error) {
 	if cipherDataSize%BlockSize != 0 {
 		return nil, ErrInvalidCipherData
 	}
-
+	// get iv
 	iv := c.iv.Get()
 	defer c.iv.Put(iv)
-
+	// decrypt
 	decrypter := cipher.NewCBCDecrypter(c.block, iv)
 	plainData := make([]byte, cipherDataSize)
 	decrypter.CryptBlocks(plainData, cipherData)
@@ -107,11 +107,12 @@ func (c *CBC) Decrypt(cipherData []byte) ([]byte, error) {
 
 // KeyIV is used to get AES Key and IV.
 func (c *CBC) KeyIV() ([]byte, []byte) {
+	// get key and iv
 	key := c.key.Get()
 	defer c.key.Put(key)
 	iv := c.iv.Get()
 	defer c.iv.Put(iv)
-
+	// copy it, usually cover it after use.
 	keyCp := make([]byte, len(key))
 	ivCp := make([]byte, IVSize)
 	copy(keyCp, key)

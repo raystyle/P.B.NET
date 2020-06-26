@@ -9,14 +9,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"project/internal/crypto/rand"
 	"project/internal/random"

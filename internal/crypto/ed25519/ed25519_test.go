@@ -47,7 +47,7 @@ func TestED25519(t *testing.T) {
 		defer pg.Unpatch()
 
 		_, err := GenerateKey()
-		monkey.IsMonkeyError(t, err)
+		monkey.IsExistMonkeyError(t, err)
 	})
 }
 
