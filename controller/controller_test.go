@@ -76,8 +76,8 @@ func testInitializeController(t testing.TB) {
 			testInsertZone(t)
 		}
 		testsuite.IsDestroyed(t, cfg)
-		// set controller keys
-		err = ctrl.LoadKeyFromFile([]byte("admin"), []byte("cert"))
+		// load core data
+		err = ctrl.LoadCoreDataFromFile([]byte("admin"), []byte("cert"))
 		require.NoError(t, err)
 		go func() {
 			err := ctrl.Main()

@@ -33,10 +33,10 @@ type global struct {
 	objects    map[uint32]interface{}
 	objectsRWM sync.RWMutex
 
-	// about load session key and certificate pool.
-	loadKey     int32
-	waitLoadKey chan struct{}
-	closeOnce   sync.Once
+	// about load core data.
+	isLoadCoreData   int32
+	waitLoadCoreData chan struct{}
+	closeOnce        sync.Once
 
 	context context.Context
 	cancel  context.CancelFunc
@@ -57,12 +57,12 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		return nil, err
 	}
 	global := global{
-		CertPool:    certPool,
-		ProxyPool:   proxyPool,
-		DNSClient:   dnsClient,
-		TimeSyncer:  timeSyncer,
-		objects:     make(map[uint32]interface{}),
-		waitLoadKey: make(chan struct{}),
+		CertPool:         certPool,
+		ProxyPool:        proxyPool,
+		DNSClient:        dnsClient,
+		TimeSyncer:       timeSyncer,
+		objects:          make(map[uint32]interface{}),
+		waitLoadCoreData: make(chan struct{}),
 	}
 	global.context, global.cancel = context.WithCancel(context.Background())
 	return &global, nil
@@ -180,34 +180,32 @@ func (global *global) Now() time.Time {
 	return global.TimeSyncer.Now()
 }
 
-// IsLoadKey is used to check is load session key and certificate pool.
-func (global *global) IsLoadKey() bool {
-	return atomic.LoadInt32(&global.loadKey) != 0
+// IsLoadCoreData is used to check is load core data.
+func (global *global) IsLoadCoreData() bool {
+	return atomic.LoadInt32(&global.isLoadCoreData) != 0
 }
 
 func (global *global) closeWaitLoadKey() {
 	global.closeOnce.Do(func() {
-		close(global.waitLoadKey)
+		close(global.waitLoadCoreData)
 	})
 }
 
-// LoadKey is used to load session key and certificate pool.
-func (global *global) LoadKey(
-	sessionKeyFile, sessionKeyPassword []byte,
-	certFile, rawHash, certPassword []byte,
-) error {
+// LoadCoreData is used to load session key and certificate pool.
+// All parameters will be covered after call this function.
+func (global *global) LoadCoreData(sessionKey, sessionKeyPwd, certPool, certPoolPwd []byte) error {
 	defer func() {
-		security.CoverBytes(sessionKeyFile)
-		security.CoverBytes(sessionKeyPassword)
-		security.CoverBytes(certFile)
-		security.CoverBytes(certPassword)
+		security.CoverBytes(sessionKey)
+		security.CoverBytes(sessionKeyPwd)
+		security.CoverBytes(certPool)
+		security.CoverBytes(certPoolPwd)
 	}()
 	global.objectsRWM.Lock()
 	defer global.objectsRWM.Unlock()
-	if global.IsLoadKey() {
-		return errors.New("already load session key")
+	if global.IsLoadCoreData() {
+		return errors.New("already load core data")
 	}
-	keys, err := LoadSessionKey(sessionKeyFile, sessionKeyPassword)
+	keys, err := LoadSessionKey(sessionKey, sessionKeyPwd)
 	if err != nil {
 		return errors.WithMessage(err, "failed to load session key")
 	}
@@ -237,19 +235,19 @@ func (global *global) LoadKey(
 	}
 	global.objects[objBroadcastKey] = cbc
 	// load certificate pool
-	err = certmgr.LoadCtrlCertPool(global.CertPool, certFile, rawHash, certPassword)
+	err = certmgr.LoadCtrlCertPool(global.CertPool, certPool, certPoolPwd)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
+	atomic.StoreInt32(&global.isLoadCoreData, 1)
 	global.closeWaitLoadKey()
-	atomic.StoreInt32(&global.loadKey, 1)
 	return nil
 }
 
-// WaitLoadSessionKey is used to wait load session key.
-func (global *global) WaitLoadSessionKey() bool {
-	<-global.waitLoadKey
-	return global.IsLoadKey()
+// WaitLoadCoreData is used to wait load core data.
+func (global *global) WaitLoadCoreData() bool {
+	<-global.waitLoadCoreData
+	return global.IsLoadCoreData()
 }
 
 // Sign is used to verify controller(handshake) and sign message.
@@ -270,7 +268,7 @@ func (global *global) Verify(message, signature []byte) bool {
 	return ed25519.Verify(pub, message, signature)
 }
 
-// KeyExchange is use to calculate session key.
+// KeyExchange is use to calculate session key about role.
 func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
@@ -309,17 +307,22 @@ func (global *global) KeyExchangePublicKey() []byte {
 
 // Encrypt is used to encrypt controller broadcast message.
 func (global *global) Encrypt(data []byte) ([]byte, error) {
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
-	cbc := global.objects[objBroadcastKey].(*aes.CBC)
+	cbc := func() *aes.CBC {
+		global.objectsRWM.RLock()
+		defer global.objectsRWM.RUnlock()
+		return global.objects[objBroadcastKey].(*aes.CBC)
+	}()
 	return cbc.Encrypt(data)
 }
 
 // BroadcastKey is used to get broadcast key.
 func (global *global) BroadcastKey() []byte {
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
-	key, iv := global.objects[objBroadcastKey].(*aes.CBC).KeyIV()
+	cbc := func() *aes.CBC {
+		global.objectsRWM.RLock()
+		defer global.objectsRWM.RUnlock()
+		return global.objects[objBroadcastKey].(*aes.CBC)
+	}()
+	key, iv := cbc.KeyIV()
 	return append(key, iv...)
 }
 

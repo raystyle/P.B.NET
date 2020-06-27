@@ -153,8 +153,8 @@ func (ctrl *Ctrl) Main() error {
 	address := ctrl.webServer.Address()
 	ctrl.logger.Printf(logger.Info, src, "web server: https://%s/", address)
 	ctrl.logger.Print(logger.Info, src, "controller is running")
-	// wait to load controller keys
-	if !ctrl.global.WaitLoadSessionKey() {
+	// wait to load controller core data
+	if !ctrl.global.WaitLoadCoreData() {
 		return nil
 	}
 	ctrl.logger.Print(logger.Info, src, "load session key successfully")
@@ -215,24 +215,18 @@ func (ctrl *Ctrl) Exit(err error) {
 	})
 }
 
-// LoadKeyFromFile is used to load session key and certificate pool from file.
-func (ctrl *Ctrl) LoadKeyFromFile(sessionKeyPassword, certPassword []byte) error {
-	sessionKey, err := ioutil.ReadFile(SessionKeyFile)
+// LoadCoreDataFromFile is used to load session key and certificate pool from file.
+// It used to test, usually load core data from web server.
+func (ctrl *Ctrl) LoadCoreDataFromFile(sessionKeyPwd, certPoolPwd []byte) error {
+	sessionKey, err := ioutil.ReadFile(SessionKeyFilePath)
 	if err != nil {
 		return err
 	}
-	certData, err := ioutil.ReadFile(certmgr.CertFilePath)
+	certPool, err := ioutil.ReadFile(certmgr.CertPoolFilePath)
 	if err != nil {
 		return err
 	}
-	rawHash, err := ioutil.ReadFile(certmgr.HashFilePath)
-	if err != nil {
-		return err
-	}
-	return ctrl.global.LoadKey(
-		sessionKey, sessionKeyPassword,
-		certData, rawHash, certPassword,
-	)
+	return ctrl.global.LoadCoreData(sessionKey, sessionKeyPwd, certPool, certPoolPwd)
 }
 
 // GetCertPool is used to get certificate pool.
