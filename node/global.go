@@ -114,10 +114,10 @@ const (
 	objCtrlBroadcastKey
 
 	// after key exchange (aes crypto)
-	objCtrlSessionKey
+	objSessionKey
 
 	// after key exchange, key is session key
-	objSessionKey
+	objSessionKeyData
 
 	// global.configure() time
 	objStartupTime
@@ -239,9 +239,9 @@ func (global *global) configure(cfg *Config) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	global.objects[objCtrlSessionKey] = cbc
+	global.objects[objSessionKey] = cbc
 	// for HMAC-SHA256
-	global.objects[objSessionKey] = security.NewBytes(sessionKey)
+	global.objects[objSessionKeyData] = security.NewBytes(sessionKey)
 	return nil
 }
 
@@ -346,17 +346,21 @@ func (global *global) KeyExchangePublicKey() []byte {
 
 // Encrypt is used to encrypt send message.
 func (global *global) Encrypt(data []byte) ([]byte, error) {
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
-	cbc := global.objects[objCtrlSessionKey].(*aes.CBC)
+	cbc := func() *aes.CBC {
+		global.objectsRWM.RLock()
+		defer global.objectsRWM.RUnlock()
+		return global.objects[objSessionKey].(*aes.CBC)
+	}()
 	return cbc.Encrypt(data)
 }
 
 // Decrypt is used to decrypt controller send message.
 func (global *global) Decrypt(data []byte) ([]byte, error) {
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
-	cbc := global.objects[objCtrlSessionKey].(*aes.CBC)
+	cbc := func() *aes.CBC {
+		global.objectsRWM.RLock()
+		defer global.objectsRWM.RUnlock()
+		return global.objects[objSessionKey].(*aes.CBC)
+	}()
 	return cbc.Decrypt(data)
 }
 
@@ -364,7 +368,7 @@ func (global *global) Decrypt(data []byte) ([]byte, error) {
 func (global *global) SessionKey() *security.Bytes {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	return global.objects[objSessionKey].(*security.Bytes)
+	return global.objects[objSessionKeyData].(*security.Bytes)
 }
 
 // CtrlPublicKey is used to get Controller public key.
@@ -381,9 +385,11 @@ func (global *global) CtrlVerify(message, signature []byte) bool {
 
 // CtrlDecrypt is used to decrypt controller broadcast message.
 func (global *global) CtrlDecrypt(data []byte) ([]byte, error) {
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
-	cbc := global.objects[objCtrlBroadcastKey].(*aes.CBC)
+	cbc := func() *aes.CBC {
+		global.objectsRWM.RLock()
+		defer global.objectsRWM.RUnlock()
+		return global.objects[objCtrlBroadcastKey].(*aes.CBC)
+	}()
 	return cbc.Decrypt(data)
 }
 
