@@ -22,35 +22,33 @@ import (
 	"project/internal/system"
 )
 
-const (
-	certFileBackup = certmgr.CertFilePath + ".bak"
-	certHashBackup = certmgr.HashFilePath + ".bak"
-)
+const backupFilePath = certmgr.CertPoolFilePath + ".bak"
 
 func main() {
-	var init bool
+	var (
+		init  bool
+		reset bool
+	)
 	flag.BoolVar(&init, "init", false, "initialize certificate manager")
+	flag.BoolVar(&reset, "reset", false, "reset certificate manager password")
 	flag.Parse()
-	if init {
+	switch {
+	case init:
 		initialize()
-		return
+	case reset:
+		resetPassword()
+	default:
+		manage()
 	}
-	manage()
 }
 
 func initialize() {
 	// check data file is exists
-	_, err := system.OpenFile(certmgr.CertFilePath, os.O_RDONLY, 0600)
+	_, err := system.OpenFile(certmgr.CertPoolFilePath, os.O_RDONLY, 0600)
 	if err == nil {
-		fmt.Printf("%s has already exists\n", certmgr.CertFilePath)
-		os.Exit(0)
+		fmt.Printf("%s has already exists\n", certmgr.CertPoolFilePath)
+		os.Exit(1)
 	}
-	_, err = system.OpenFile(certmgr.HashFilePath, os.O_RDONLY, 0600)
-	if err == nil {
-		fmt.Printf("%s has already exists\n", certmgr.HashFilePath)
-		os.Exit(0)
-	}
-
 	// input password
 	fmt.Print("password: ")
 	password, err := terminal.ReadPassword(int(syscall.Stdin))
@@ -66,32 +64,62 @@ func initialize() {
 			break
 		}
 	}
-
 	// load system certificates
 	pool, err := cert.NewPoolWithSystemCerts()
 	checkError(err, true)
-
 	// create Root CA certificate
 	rootCA, err := cert.GenerateCA(nil)
 	checkError(err, true)
 	err = pool.AddPrivateRootCAPair(rootCA.Encode())
 	checkError(err, true)
-
 	// create Client CA certificate
 	clientCA, err := cert.GenerateCA(nil)
 	checkError(err, true)
 	err = pool.AddPrivateClientCAPair(clientCA.Encode())
 	checkError(err, true)
-
 	// generate a client certificate and use client CA sign it
 	clientCert, err := cert.Generate(clientCA.Certificate, clientCA.PrivateKey, nil)
 	checkError(err, true)
 	err = pool.AddPrivateClientPair(clientCert.Encode())
 	checkError(err, true)
-
+	// save certificate pool
 	err = certmgr.SaveCtrlCertPool(pool, password)
 	checkError(err, true)
 	fmt.Println("initialize certificate manager successfully")
+}
+
+func resetPassword() {
+	// input old password
+	fmt.Print("input old password: ")
+	oldPwd, err := terminal.ReadPassword(int(syscall.Stdin))
+	checkError(err, true)
+	fmt.Println()
+	defer security.CoverBytes(oldPwd)
+	// input new password
+	fmt.Print("input new password: ")
+	newPwd1, err := terminal.ReadPassword(int(syscall.Stdin))
+	checkError(err, true)
+	fmt.Println()
+	defer security.CoverBytes(newPwd1)
+	fmt.Print("retype: ")
+	newPwd2, err := terminal.ReadPassword(int(syscall.Stdin))
+	checkError(err, true)
+	fmt.Println()
+	defer security.CoverBytes(newPwd2)
+	if !bytes.Equal(newPwd1, newPwd2) {
+		fmt.Println("different password")
+		os.Exit(1)
+	}
+	// load certificate pool
+	certPool, err := ioutil.ReadFile(certmgr.CertPoolFilePath)
+	checkError(err, true)
+	pool := cert.NewPool()
+	err = certmgr.LoadCtrlCertPool(pool, certPool, oldPwd)
+	checkError(err, true)
+	// save certificate pool
+	err = certmgr.SaveCtrlCertPool(pool, newPwd1)
+	checkError(err, true)
+	fmt.Println("reset certificate manager password successfully")
 }
 
 func manage() {
@@ -111,22 +139,14 @@ func manage() {
 }
 
 func createBackup() {
-	// certificate
-	data, err := ioutil.ReadFile(certmgr.CertFilePath)
+	data, err := ioutil.ReadFile(certmgr.CertPoolFilePath)
 	checkError(err, true)
-	err = system.WriteFile(certFileBackup, data)
-	checkError(err, true)
-	// hash
-	data, err = ioutil.ReadFile(certmgr.HashFilePath)
-	checkError(err, true)
-	err = system.WriteFile(certHashBackup, data)
+	err = system.WriteFile(backupFilePath, data)
 	checkError(err, true)
 }
 
 func deleteBackup() {
-	err := os.Remove(certFileBackup)
-	checkError(err, true)
-	err = os.Remove(certHashBackup)
+	err := os.Remove(backupFilePath)
 	checkError(err, true)
 }
 
@@ -271,17 +291,15 @@ func (m *manager) Manage() {
 }
 
 func (m *manager) reload() {
-	// load certificate data
-	certData, err := ioutil.ReadFile(certmgr.CertFilePath)
-	checkError(err, true)
-	rawHash, err := ioutil.ReadFile(certmgr.HashFilePath)
+	// read certificate pool file
+	certPool, err := ioutil.ReadFile(certmgr.CertPoolFilePath)
 	checkError(err, true)
 	// get password
 	password := m.password.Get()
 	defer m.password.Put(password)
-	// load
+	// load certificate
 	pool := cert.NewPool()
-	err = certmgr.LoadCtrlCertPool(pool, certData, rawHash, password)
+	err = certmgr.LoadCtrlCertPool(pool, certPool, password)
 	checkError(err, true)
 	m.pool = pool
 }
