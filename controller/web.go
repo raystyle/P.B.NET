@@ -265,6 +265,8 @@ type webTrustNode struct {
 }
 
 func (wh *webHandler) handleTrustNode(w hRW, r *hR, _ hP) {
+	defer func() { _, _ = io.Copy(ioutil.Discard, r.Body) }()
+
 	tn := webTrustNode{}
 	err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&tn)
 	if err != nil {
@@ -283,6 +285,8 @@ func (wh *webHandler) handleTrustNode(w hRW, r *hR, _ hP) {
 // ---------------------------------------confirm trust node---------------------------------------
 
 func (wh *webHandler) handleConfirmTrustNode(w hRW, r *hR, _ hP) {
+	defer func() { _, _ = io.Copy(ioutil.Discard, r.Body) }()
+
 	ctn := new(ReplyNodeRegister)
 	err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(ctn)
 	if err != nil {
@@ -303,6 +307,8 @@ type webConnectNode struct {
 }
 
 func (wh *webHandler) handleConnectNode(w hRW, r *hR, _ hP) {
+	defer func() { _, _ = io.Copy(ioutil.Discard, r.Body) }()
+
 	cn := webConnectNode{}
 	err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&cn)
 	if err != nil {
@@ -328,6 +334,8 @@ type webShellCode struct {
 }
 
 func (wh *webHandler) handleShellCode(w hRW, r *hR, _ hP) {
+	defer func() { _, _ = io.Copy(ioutil.Discard, r.Body) }()
+
 	sc := webShellCode{}
 	err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&sc)
 	if err != nil {
@@ -352,6 +360,8 @@ type webSingleShellResponse struct {
 }
 
 func (wh *webHandler) handleSingleShell(w hRW, r *hR, _ hP) {
+	defer func() { _, _ = io.Copy(ioutil.Discard, r.Body) }()
+
 	sr := webSingleShellRequest{}
 	err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&sr)
 	if err != nil {
