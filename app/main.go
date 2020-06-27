@@ -106,15 +106,15 @@ func loadConfig() *controller.Config {
 }
 
 func generateSessionKey(password []byte) error {
-	_, err := os.Stat(controller.SessionKeyFile)
+	_, err := os.Stat(controller.SessionKeyFilePath)
 	if !os.IsNotExist(err) {
-		return errors.Errorf("file: %s already exist", controller.SessionKeyFile)
+		return errors.Errorf("file %s already exists\n", controller.SessionKeyFilePath)
 	}
 	key, err := controller.GenerateSessionKey(password)
 	if err != nil {
-		return nil
+		return err
 	}
-	return system.WriteFile(controller.SessionKeyFile, key)
+	return system.WriteFile(controller.SessionKeyFilePath, key)
 }
 
 func createService() service.Service {

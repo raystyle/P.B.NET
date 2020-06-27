@@ -44,9 +44,9 @@ func main() {
 
 func initialize() {
 	// check data file is exists
-	_, err := system.OpenFile(certmgr.CertPoolFilePath, os.O_RDONLY, 0600)
-	if err == nil {
-		fmt.Printf("%s has already exists\n", certmgr.CertPoolFilePath)
+	_, err := os.Stat(certmgr.CertPoolFilePath)
+	if !os.IsNotExist(err) {
+		fmt.Printf("file %s already exists\n", certmgr.CertPoolFilePath)
 		os.Exit(1)
 	}
 	// input password
