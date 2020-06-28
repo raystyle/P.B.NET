@@ -49,6 +49,7 @@ func convert(point *interface{}, typ interface{}) reflect.Value {
 	return convertWithType(point, reflect.TypeOf(typ))
 }
 
+//go:nocheckptr
 func convertWithType(point *interface{}, typ reflect.Type) reflect.Value {
 	ptr := reflect.ValueOf(point).Elem().InterfaceData()[1]
 	return reflect.NewAt(typ, unsafe.Pointer(ptr)).Elem() // #nosec
