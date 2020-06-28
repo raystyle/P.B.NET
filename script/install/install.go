@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"project/internal/logger"
 	"project/internal/patch/toml"
@@ -23,9 +24,9 @@ var (
 )
 
 func main() {
-	usage := "run go mod download to download dependencies about all modules"
+	usage := "run \"go mod download\" to download dependencies about all modules"
 	flag.BoolVar(&downloadAll, "download-all", false, usage)
-	usage = "config file path"
+	usage = "configuration file path"
 	flag.StringVar(&configFile, "config", "config.toml", usage)
 	flag.Parse()
 
@@ -33,11 +34,11 @@ func main() {
 	for _, step := range []func() bool{
 		printCurrentDirectory,
 		loadConfigFile,
+		installPatchFiles,
 		listModule,
 		downloadAllModules,
 		verifyModule,
 		downloadModule,
-		copyPatchToGoRoot,
 	} {
 		if !step() {
 			return
@@ -73,6 +74,46 @@ func loadConfigFile() bool {
 	return true
 }
 
+func installPatchFiles() bool {
+	for _, val := range [...]*struct {
+		src  string // patch file in project/patch
+		dst  string // relative file path about go root
+		note string // error information
+	}{
+		{
+			src:  "patch/crypto/x509/cert_pool_patch.gop",
+			dst:  "crypto/x509/cert_pool_patch.go",
+			note: "crypto/x509/cert_pool.go",
+		},
+	} {
+		latest := fmt.Sprintf("%s/src/%s", cfg.GoRootLatest, val.dst)
+		err := copyFileToGoRoot(val.src, latest)
+		if err != nil {
+			const format = "failed to install patch file %s to go latest root path: %s"
+			log.Printf(logger.Error, format, val.note, err)
+			return false
+		}
+		go1108 := fmt.Sprintf("%s/src/%s", cfg.GoRoot1108, val.dst)
+		err = copyFileToGoRoot(val.src, go1108)
+		if err != nil {
+			const format = "failed to install patch file %s to go 1.10.8 root path: %s"
+			log.Printf(logger.Error, format, val.note, err)
+			return false
+		}
+		log.Printf(logger.Info, "install patch file %s", val.src)
+	}
+	log.Println(logger.Info, "install all patch files to go root path")
+	return true
+}
+
+func copyFileToGoRoot(src, dst string) error {
+	data, err := ioutil.ReadFile(src) // #nosec
+	if err != nil {
+		return err
+	}
+	return system.WriteFile(dst, data)
+}
+
 func listModule() bool {
 	log.Println(logger.Info, "list all modules about project")
 	output, code, err := exec.Run("go", "list", "-m", "all")
@@ -84,7 +125,11 @@ func listModule() bool {
 		return false
 	}
 	output = output[:len(output)-1] // remove the last "\n"
-	log.Println(logger.Info, output)
+	modules := strings.Split(output, "\n")
+	modules = modules[1:] // remove the first module "project"
+	for i := 0; i < len(modules); i++ {
+		log.Println(logger.Info, modules[i])
+	}
 	return true
 }
 
@@ -132,44 +177,4 @@ func downloadModule() bool {
 	}
 	log.Println(logger.Info, "all modules downloaded")
 	return true
-}
-
-func copyPatchToGoRoot() bool {
-	for _, val := range [...]*struct {
-		src  string // patch file in project/patch
-		dst  string // relative file path about go root
-		note string // error information
-	}{
-		{
-			src:  "patch/crypto/x509/cert_pool_patch.gop",
-			dst:  "crypto/x509/cert_pool_patch.go",
-			note: "crypto/x509/cert_pool.go",
-		},
-	} {
-		latest := fmt.Sprintf("%s/src/%s", cfg.GoRootLatest, val.dst)
-		err := copyFileToGoRoot(val.src, latest)
-		if err != nil {
-			const format = "failed to copy patch file %s to go latest root path: %s"
-			log.Printf(logger.Error, format, val.note, err)
-			return false
-		}
-		go1108 := fmt.Sprintf("%s/src/%s", cfg.GoRoot1108, val.dst)
-		err = copyFileToGoRoot(val.src, go1108)
-		if err != nil {
-			const format = "failed to copy patch file %s to go 1.10.8 root path: %s"
-			log.Printf(logger.Error, format, val.note, err)
-			return false
-		}
-		log.Printf(logger.Info, "copy patch file %s", val.src)
-	}
-	log.Println(logger.Info, "copy all patch files to go root path")
-	return true
-}
-
-func copyFileToGoRoot(src, dst string) error {
-	data, err := ioutil.ReadFile(src) // #nosec
-	if err != nil {
-		return err
-	}
-	return system.WriteFile(dst, data)
 }
