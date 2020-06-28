@@ -566,3 +566,84 @@ func (mc *MockImage) Bounds() image.Rectangle {
 func (mc *MockImage) At(x, y int) color.Color {
 	return mc.pixel[x][y]
 }
+
+// MockModule implemented module.Module.
+type MockModule struct {
+	started   bool
+	startedMu sync.Mutex
+
+	mu sync.Mutex // for operation
+	wg sync.WaitGroup
+}
+
+// Start is used to start mock module.
+func (m *MockModule) Start() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.start()
+}
+
+func (m *MockModule) start() error {
+	m.startedMu.Lock()
+	defer m.startedMu.Unlock()
+	if m.started {
+		return errors.New("already started")
+	}
+	m.started = true
+	return nil
+}
+
+// Stop is used to stop mock module.
+func (m *MockModule) Stop() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.stop()
+	m.wg.Wait()
+}
+
+func (m *MockModule) stop() {
+	m.startedMu.Lock()
+	defer m.startedMu.Unlock()
+	if m.started {
+		m.started = false
+	}
+}
+
+// Restart is used to restart mock module.
+func (m *MockModule) Restart() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.stop()
+	m.wg.Wait()
+	return m.start()
+}
+
+// Name is used to get the name of the mock module.
+func (m *MockModule) Name() string {
+	return "mock module"
+}
+
+// Info is used to get the information about the mock module.
+func (m *MockModule) Info() string {
+	m.startedMu.Lock()
+	defer m.startedMu.Unlock()
+	if m.started {
+		return "mock module started info"
+	}
+	return "mock module stopped info"
+}
+
+// Status is used to get the status about the mock module.
+func (m *MockModule) Status() string {
+	m.startedMu.Lock()
+	defer m.startedMu.Unlock()
+	if m.started {
+		return "mock module started status"
+	}
+	return "mock module stopped status"
+}
+
+// NewMockModule is used to create a mock module.
+func NewMockModule() *MockModule {
+	return new(MockModule)
+}

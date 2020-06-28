@@ -405,3 +405,65 @@ func TestMockImage(t *testing.T) {
 		require.Equal(t, expected, a)
 	})
 }
+
+func TestMockModule(t *testing.T) {
+	mod := NewMockModule()
+
+	t.Run("Start", func(t *testing.T) {
+		err := mod.Start()
+		require.NoError(t, err)
+
+		err = mod.Start()
+		require.Error(t, err)
+
+		mod.stop()
+	})
+
+	t.Run("Stop", func(t *testing.T) {
+		err := mod.Start()
+		require.NoError(t, err)
+
+		mod.Stop()
+		mod.Stop()
+	})
+
+	t.Run("Restart", func(t *testing.T) {
+		err := mod.Restart()
+		require.NoError(t, err)
+
+		mod.Stop()
+
+		err = mod.Restart()
+		require.NoError(t, err)
+		err = mod.Restart()
+		require.NoError(t, err)
+
+		mod.Stop()
+	})
+
+	t.Run("Name", func(t *testing.T) {
+		t.Log(mod.Name())
+	})
+
+	t.Run("Info", func(t *testing.T) {
+		t.Log(mod.Info())
+
+		err := mod.Start()
+		require.NoError(t, err)
+		t.Log(mod.Info())
+
+		mod.Stop()
+	})
+
+	t.Run("Status", func(t *testing.T) {
+		t.Log(mod.Status())
+
+		err := mod.Start()
+		require.NoError(t, err)
+		t.Log(mod.Status())
+
+		mod.Stop()
+	})
+
+	IsDestroyed(t, mod)
+}
