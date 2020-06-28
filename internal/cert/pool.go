@@ -9,7 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/crypto/cert/certpool"
+	"project/internal/cert/certpool"
 	"project/internal/security"
 )
 

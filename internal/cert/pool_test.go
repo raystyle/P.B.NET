@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/cert/certpool"
+	"project/internal/cert/certpool"
 	"project/internal/patch/monkey"
 	"project/internal/security"
 	"project/internal/testsuite"
