@@ -345,7 +345,10 @@ func do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(ioutil.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 	return ioutil.ReadAll(io.LimitReader(resp.Body, length))
 }
 

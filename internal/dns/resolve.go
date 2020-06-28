@@ -245,7 +245,10 @@ func dialDoH(ctx context.Context, server string, question []byte, opts *Options)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(ioutil.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	maxBodySize := opts.MaxBodySize
 	if maxBodySize < 1 {

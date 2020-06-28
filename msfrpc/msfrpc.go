@@ -18,6 +18,7 @@ import (
 	"project/internal/logger"
 	"project/internal/option"
 	"project/internal/patch/msgpack"
+	"project/internal/xsync"
 )
 
 // MSFRPC is used to connect metasploit RPC service.
@@ -43,7 +44,7 @@ type MSFRPC struct {
 	// key = meterpreter session id
 	meterpreters map[uint64]*Meterpreter
 	// io resource counter
-	ioResWG sync.WaitGroup
+	counter xsync.Counter
 
 	inShutdown int32
 	rwm        sync.RWMutex
@@ -191,7 +192,10 @@ func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, repla
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(ioutil.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 	// read response body
 	switch resp.StatusCode {
 	case http.StatusOK:
@@ -227,7 +231,6 @@ func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, repla
 	default:
 		err = errors.New(resp.Status)
 	}
-	_, _ = io.Copy(ioutil.Discard, resp.Body)
 	return err
 }
 
@@ -258,7 +261,7 @@ func (msf *MSFRPC) shuttingDown() bool {
 }
 
 func (msf *MSFRPC) addIOResourceCount(delta int) {
-	msf.ioResWG.Add(delta)
+	msf.counter.Add(delta)
 }
 
 func (msf *MSFRPC) trackConsole(console *Console, add bool) bool {
@@ -340,7 +343,7 @@ func (msf *MSFRPC) Close() error {
 		return err
 	}
 	msf.close()
-	msf.ioResWG.Wait()
+	msf.counter.Wait()
 	return nil
 }
 
@@ -351,7 +354,7 @@ func (msf *MSFRPC) Kill() {
 		msf.log(logger.Warning, "appear error when kill:", err)
 	}
 	msf.close()
-	msf.ioResWG.Wait()
+	msf.counter.Wait()
 }
 
 func (msf *MSFRPC) close() {

@@ -3,6 +3,7 @@ package msfrpc
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"sync"
@@ -20,6 +21,7 @@ import (
 	"project/internal/patch/json"
 	"project/internal/virtualconn"
 	"project/internal/xpanic"
+	"project/internal/xreflect"
 )
 
 const minRequestBodySize = 1 << 20 // 1MB
@@ -281,7 +283,15 @@ func (wh *webHandler) log(lv logger.Level, log ...interface{}) {
 }
 
 func (wh *webHandler) readRequest(r *hR, req interface{}) error {
-	return json.NewDecoder(io.LimitReader(r.Body, wh.maxBodySize)).Decode(req)
+	err := json.NewDecoder(io.LimitReader(r.Body, wh.maxBodySize)).Decode(req)
+	if err != nil {
+		name := xreflect.GetStructureName(req)
+		buf := httptool.PrintRequest(r)
+		wh.logf(logger.Error, "failed to read request about%s\n%s", name, buf)
+		_, _ = io.Copy(ioutil.Discard, r.Body)
+		return err
+	}
+	return nil
 }
 
 func (wh *webHandler) writeResponse(w hRW, resp interface{}) {

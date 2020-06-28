@@ -117,7 +117,7 @@ func printBody(w io.Writer, r *http.Request) (int, error) {
 
 // PrintRequest is used to print *http.Request to a buffer.
 func PrintRequest(r *http.Request) *bytes.Buffer {
-	buf := new(bytes.Buffer)
+	buf := bytes.NewBuffer(make([]byte, 0, 128))
 	_, _ = FprintRequest(buf, r)
 	return buf
 }
