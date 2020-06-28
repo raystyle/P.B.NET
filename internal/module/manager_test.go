@@ -5,19 +5,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/logger"
-	"project/internal/module/lcx"
 	"project/internal/testsuite"
 )
-
-func testGenerateModule(t *testing.T) Module {
-	dstNetwork := "tcp"
-	dstAddress := "127.0.0.1:1234"
-	opts := lcx.Options{LocalAddress: "127.0.0.1:0"}
-	tranner, err := lcx.NewTranner("test", dstNetwork, dstAddress, logger.Test, &opts)
-	require.NoError(t, err)
-	return tranner
-}
 
 func TestManager_Add(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
@@ -26,7 +15,8 @@ func TestManager_Add(t *testing.T) {
 	manager := NewManager()
 
 	t.Run("ok", func(t *testing.T) {
-		module := testGenerateModule(t)
+		module := testsuite.NewMockModule()
+
 		err := manager.Add("test", module)
 		require.NoError(t, err)
 	})
@@ -38,7 +28,9 @@ func TestManager_Add(t *testing.T) {
 
 	t.Run("already exists", func(t *testing.T) {
 		const tag = "test1"
-		module := testGenerateModule(t)
+
+		module := testsuite.NewMockModule()
+
 		err := manager.Add(tag, module)
 		require.NoError(t, err)
 		err = manager.Add(tag, module)
@@ -65,7 +57,9 @@ func TestManager_Delete(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		const tag = "test"
-		module := testGenerateModule(t)
+
+		module := testsuite.NewMockModule()
+
 		err := manager.Add(tag, module)
 		require.NoError(t, err)
 		err = manager.Delete(tag)
@@ -95,12 +89,14 @@ func TestManager_Get(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		const tag = "test"
-		module := testGenerateModule(t)
+
+		module := testsuite.NewMockModule()
+
 		err := manager.Add(tag, module)
 		require.NoError(t, err)
-		m, err := manager.Get(tag)
+		mod, err := manager.Get(tag)
 		require.NoError(t, err)
-		require.NotNil(t, m)
+		require.NotNil(t, mod)
 	})
 
 	t.Run("with empty tag", func(t *testing.T) {
@@ -128,7 +124,9 @@ func TestManager_Start(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		const tag = "test"
-		module := testGenerateModule(t)
+
+		module := testsuite.NewMockModule()
+
 		err := manager.Add(tag, module)
 		require.NoError(t, err)
 		err = manager.Start(tag)
@@ -153,7 +151,9 @@ func TestManager_Stop(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		const tag = "test"
-		module := testGenerateModule(t)
+
+		module := testsuite.NewMockModule()
+
 		err := manager.Add(tag, module)
 		require.NoError(t, err)
 		err = manager.Stop(tag)
@@ -178,7 +178,9 @@ func TestManager_Restart(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		const tag = "test"
-		module := testGenerateModule(t)
+
+		module := testsuite.NewMockModule()
+
 		err := manager.Add(tag, module)
 		require.NoError(t, err)
 		err = manager.Restart(tag)
@@ -203,7 +205,9 @@ func TestManager_Info(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		const tag = "test"
-		module := testGenerateModule(t)
+
+		module := testsuite.NewMockModule()
+
 		err := manager.Add(tag, module)
 		require.NoError(t, err)
 		info, err := manager.Info(tag)
@@ -230,7 +234,9 @@ func TestManager_Status(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		const tag = "test"
-		module := testGenerateModule(t)
+
+		module := testsuite.NewMockModule()
+
 		err := manager.Add(tag, module)
 		require.NoError(t, err)
 		status, err := manager.Status(tag)
@@ -258,7 +264,7 @@ func TestManager_Modules(t *testing.T) {
 	modules := manager.Modules()
 	require.Empty(t, modules)
 
-	module := testGenerateModule(t)
+	module := testsuite.NewMockModule()
 	err := manager.Add("tag", module)
 	require.NoError(t, err)
 	require.Len(t, manager.Modules(), 1)
@@ -280,7 +286,7 @@ func TestManager_Parallel(t *testing.T) {
 	const deleteTag = "delete"
 
 	manager := NewManager()
-	module := testGenerateModule(t)
+	module := testsuite.NewMockModule()
 
 	init := func() {
 		err := manager.Add(deleteTag, module)

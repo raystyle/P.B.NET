@@ -41,8 +41,7 @@ type fooInterface interface {
 }
 
 func ExamplePatchInstanceMethod() {
-	var iface fooInterface
-	iface = &private{str: "foo"}
+	var iface fooInterface = &private{str: "foo"}
 
 	patch := func(interface{}, string) string {
 		return "monkey"
