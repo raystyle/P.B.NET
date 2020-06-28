@@ -11,6 +11,7 @@ import (
 
 	"project/internal/dns"
 	"project/internal/patch/monkey"
+	"project/internal/random"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testcert"
 	"project/internal/testsuite/testdns"
@@ -58,17 +59,6 @@ func TestHTTP_Query(t *testing.T) {
 
 		testsuite.IsDestroyed(t, HTTP)
 	})
-}
-
-func TestHTTP_Query_Failed(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() {
-		err := proxyMgr.Close()
-		require.NoError(t, err)
-	}()
 
 	newHTTP := func(t *testing.T) *HTTP {
 		HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
@@ -138,10 +128,12 @@ func TestHTTP_Query_Failed(t *testing.T) {
 	})
 }
 
-func TestGetDate(t *testing.T) {
+func TestHTTP_GetDate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	// make a part of HTTP
+	HTTP := &HTTP{rand: random.NewRand()}
 	client := &http.Client{Transport: new(http.Transport)}
 	defer client.CloseIdleConnections()
 
@@ -150,7 +142,7 @@ func TestGetDate(t *testing.T) {
 
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
-		now, err := getDate(req, client)
+		now, err := HTTP.getDate(req, client)
 		require.NoError(t, err)
 
 		t.Log(now.Local())
@@ -161,7 +153,7 @@ func TestGetDate(t *testing.T) {
 
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
-		now, err := getDate(req, client)
+		now, err := HTTP.getDate(req, client)
 		require.NoError(t, err)
 
 		t.Log(now.Local())
@@ -173,7 +165,7 @@ func TestGetDate(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
 
-		_, err = getDate(req, client)
+		_, err = HTTP.getDate(req, client)
 		require.Error(t, err)
 	})
 
@@ -188,7 +180,7 @@ func TestGetDate(t *testing.T) {
 		pg := monkey.Patch(http.ParseTime, patch)
 		defer pg.Unpatch()
 
-		_, err = getDate(req, client)
+		_, err = HTTP.getDate(req, client)
 		monkey.IsMonkeyError(t, err)
 	})
 
@@ -203,9 +195,36 @@ func TestGetDate(t *testing.T) {
 		pg := monkey.Patch(time.Since, patch)
 		defer pg.Unpatch()
 
-		_, err = getDate(req, client)
+		_, err = HTTP.getDate(req, client)
 		require.NoError(t, err)
 	})
+}
+
+func TestHTTP_Query_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
+
+	HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
+	data, err := ioutil.ReadFile("testdata/http.toml")
+	require.NoError(t, err)
+	err = HTTP.Import(data)
+	require.NoError(t, err)
+
+	testsuite.RunMultiTimes(3, func() {
+		now, optsErr, err := HTTP.Query()
+		require.NoError(t, err)
+		require.False(t, optsErr)
+
+		t.Log("now:", now.Local())
+	})
+
+	testsuite.IsDestroyed(t, HTTP)
 }
 
 func TestHTTPOptions(t *testing.T) {

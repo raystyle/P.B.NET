@@ -29,6 +29,7 @@ type HTTP struct {
 	certPool  *cert.Pool
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
+	rand      *random.Rand
 
 	Request   option.HTTPRequest   `toml:"request"   check:"-"`
 	Transport option.HTTPTransport `toml:"transport" check:"-"`
@@ -49,6 +50,7 @@ func NewHTTP(
 		certPool:  certPool,
 		proxyPool: proxyPool,
 		dnsClient: dnsClient,
+		rand:      random.NewRand(),
 	}
 }
 
@@ -60,11 +62,9 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 		optsErr = true
 		return
 	}
-
 	hostname := req.URL.Hostname()
 
 	// http transport
-	h.Transport.TLSClientConfig.CertPool = h.certPool
 	tr, err := h.Transport.Apply()
 	if err != nil {
 		optsErr = true
@@ -119,7 +119,7 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 		if req.Host == "" && req.URL.Scheme == "http" {
 			req.Host = req.URL.Host
 		}
-		now, err = getDate(req, client)
+		now, err = h.getDate(req, client)
 		if err == nil {
 			break
 		}
@@ -132,13 +132,16 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 }
 
 // getDate is used to get date from http response header.
-func getDate(req *http.Request, client *http.Client) (time.Time, error) {
+func (h *HTTP) getDate(req *http.Request, client *http.Client) (time.Time, error) {
 	t := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
 		return time.Time{}, err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(ioutil.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 	interval := time.Since(t)
 	// TCP: 3 RTT, TLS 4 RTT(most), Request 1 RTT, Response(this) 1 RTT
 	rtt := time.Duration(3 + 1 + 1)
@@ -157,14 +160,20 @@ func getDate(req *http.Request, client *http.Client) (time.Time, error) {
 	now = now.Add(delta)
 	// <security> read limit
 	t = time.Now()
-	n := int64(4<<20 + random.Int(4<<20)) // 4-8 MB
+	n := int64(4<<20 + h.rand.Int(4<<20)) // 4-8 MB
 	_, _ = io.CopyN(ioutil.Discard, resp.Body, n)
 	return now.Add(time.Since(t)), nil
 }
 
 // Import is for time syncer.
 func (h *HTTP) Import(b []byte) error {
-	return toml.Unmarshal(b, h)
+	err := toml.Unmarshal(b, h)
+	if err != nil {
+		return err
+	}
+	// set certificate pool
+	h.Transport.TLSClientConfig.CertPool = h.certPool
+	return nil
 }
 
 // Export is for time syncer.
