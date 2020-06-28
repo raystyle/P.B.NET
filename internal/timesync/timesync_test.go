@@ -470,7 +470,138 @@ func TestSyncer_synchronizePanic(t *testing.T) {
 	testsuite.IsDestroyed(t, syncer)
 }
 
+func TestSyncer_Add_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
+
+	const (
+		tag1 = "http"
+		tag2 = "ntp"
+	)
+	client1 := &Client{
+		Mode: ModeHTTP,
+	}
+	client2 := &Client{
+		Mode: ModeNTP,
+	}
+
+	t.Run("part", func(t *testing.T) {
+		syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+
+		add1 := func() {
+			err := syncer.Add(tag1, client1)
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := syncer.Add(tag2, client2)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			clients := syncer.Clients()
+			require.Len(t, clients, 2)
+
+			err := syncer.Delete(tag1)
+			require.NoError(t, err)
+			err = syncer.Delete(tag2)
+			require.NoError(t, err)
+
+			clients = syncer.Clients()
+			require.Empty(t, clients)
+
+			// reset Client.client
+			client1.client = nil
+			client2.client = nil
+		}
+		testsuite.RunParallel(100, nil, cleanup, add1, add2)
+
+		testsuite.IsDestroyed(t, syncer)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var syncer *Syncer
+
+		init := func() {
+			syncer = New(certPool, proxyPool, dnsClient, logger.Test)
+		}
+		add1 := func() {
+			err := syncer.Add(tag1, client1)
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := syncer.Add(tag2, client2)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			clients := syncer.Clients()
+			require.Len(t, clients, 2)
+
+			err := syncer.Delete(tag1)
+			require.NoError(t, err)
+			err = syncer.Delete(tag2)
+			require.NoError(t, err)
+
+			clients = syncer.Clients()
+			require.Empty(t, clients)
+
+			// reset Client.client
+			client1.client = nil
+			client2.client = nil
+		}
+		testsuite.RunParallel(100, init, cleanup, add1, add2)
+
+		testsuite.IsDestroyed(t, syncer)
+	})
+}
+
+func TestSyncer_Delete_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
+	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+	testsuite.IsDestroyed(t, syncer)
+}
+
+func TestSyncer_Clients_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
+	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+	testsuite.IsDestroyed(t, syncer)
+}
+
+func TestSyncer_Synchronize_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
+	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+	testsuite.IsDestroyed(t, syncer)
+}
+
 func TestSyncer_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	const (
 		tag1 = "test-01"
 		tag2 = "test-02"
