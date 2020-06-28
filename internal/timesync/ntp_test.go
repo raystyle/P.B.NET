@@ -23,32 +23,23 @@ func TestNTP_Query(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	NTP := NewNTP(context.Background(), proxyPool, dnsClient)
+	t.Run("ok", func(t *testing.T) {
+		NTP := NewNTP(context.Background(), proxyPool, dnsClient)
 
-	data, err := ioutil.ReadFile("testdata/ntp.toml")
-	require.NoError(t, err)
-	err = NTP.Import(data)
-	require.NoError(t, err)
-
-	// simple query
-	now, optsErr, err := NTP.Query()
-	require.NoError(t, err)
-	require.False(t, optsErr)
-
-	t.Log("now(NTP):", now.Local())
-
-	testsuite.IsDestroyed(t, NTP)
-}
-
-func TestNTP_Query_Failed(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	dnsClient, proxyPool, proxyMgr, _ := testdns.DNSClient(t)
-	defer func() {
-		err := proxyMgr.Close()
+		data, err := ioutil.ReadFile("testdata/ntp.toml")
 		require.NoError(t, err)
-	}()
+		err = NTP.Import(data)
+		require.NoError(t, err)
+
+		// simple query
+		now, optsErr, err := NTP.Query()
+		require.NoError(t, err)
+		require.False(t, optsErr)
+
+		t.Log("now(NTP):", now.Local())
+
+		testsuite.IsDestroyed(t, NTP)
+	})
 
 	t.Run("invalid network", func(t *testing.T) {
 		NTP := NewNTP(context.Background(), proxyPool, dnsClient)
@@ -98,6 +89,33 @@ func TestNTP_Query_Failed(t *testing.T) {
 
 		testsuite.IsDestroyed(t, NTP)
 	})
+}
+
+func TestNTP_Query_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	dnsClient, proxyPool, proxyMgr, _ := testdns.DNSClient(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
+
+	NTP := NewNTP(context.Background(), proxyPool, dnsClient)
+	data, err := ioutil.ReadFile("testdata/ntp.toml")
+	require.NoError(t, err)
+	err = NTP.Import(data)
+	require.NoError(t, err)
+
+	testsuite.RunMultiTimes(3, func() {
+		now, optsErr, err := NTP.Query()
+		require.NoError(t, err)
+		require.False(t, optsErr)
+
+		t.Log("now:", now.Local())
+	})
+
+	testsuite.IsDestroyed(t, NTP)
 }
 
 func TestNTPOptions(t *testing.T) {
