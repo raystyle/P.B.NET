@@ -17,7 +17,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/cert/certpool"
+	"project/internal/cert/certpool"
 )
 
 // HTTPServerPort is the test HTTP server port,

@@ -6,8 +6,8 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/cert"
 	"project/internal/crypto/aes"
-	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/patch/msgpack"
 	"project/internal/proxy"

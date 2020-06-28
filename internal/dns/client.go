@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/idna"
 
-	"project/internal/crypto/cert"
+	"project/internal/cert"
 	"project/internal/nettool"
 	"project/internal/option"
 	"project/internal/proxy"

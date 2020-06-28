@@ -8,7 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/crypto/cert"
+	"project/internal/cert"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"

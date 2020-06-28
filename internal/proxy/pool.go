@@ -5,7 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/crypto/cert"
+	"project/internal/cert"
 	"project/internal/patch/toml"
 	"project/internal/proxy/direct"
 	"project/internal/proxy/http"

@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/cert"
-	"project/internal/crypto/cert/certpool"
+	"project/internal/cert"
+	"project/internal/cert/certpool"
 )
 
 // certificates from system.

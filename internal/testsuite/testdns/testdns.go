@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/cert"
+	"project/internal/cert"
 	"project/internal/dns"
 	"project/internal/proxy"
 	"project/internal/testsuite"

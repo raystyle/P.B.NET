@@ -6,7 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/crypto/cert"
+	"project/internal/cert"
 	"project/internal/logger"
 	"project/internal/nettool"
 	"project/internal/patch/toml"

@@ -11,7 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/crypto/cert"
+	"project/internal/cert"
 	"project/internal/dns"
 	"project/internal/nettool"
 	"project/internal/option"

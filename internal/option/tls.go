@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 
-	"project/internal/crypto/cert"
+	"project/internal/cert"
 	"project/internal/security"
 )
 
