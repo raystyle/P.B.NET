@@ -3,7 +3,7 @@ package server
 import (
 	"sync"
 
-	"project/internal/crypto/cert"
+	"project/internal/cert"
 	"project/internal/logger"
 	"project/internal/proxy"
 )

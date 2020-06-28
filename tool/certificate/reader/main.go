@@ -6,8 +6,8 @@ import (
 	"io/ioutil"
 	"log"
 
-	"project/internal/crypto/cert"
-	"project/internal/crypto/cert/certpool"
+	"project/internal/cert"
+	"project/internal/cert/certpool"
 	"project/internal/system"
 )
 

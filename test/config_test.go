@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
-	"project/internal/crypto/cert"
+	"project/internal/cert"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/option"

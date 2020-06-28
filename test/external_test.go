@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/cert"
+	"project/internal/cert"
 	"project/internal/guid"
 	"project/internal/patch/toml"
 	"project/internal/security"

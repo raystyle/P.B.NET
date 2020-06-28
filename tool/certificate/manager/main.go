@@ -15,8 +15,8 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
-	"project/internal/certmgr"
-	"project/internal/crypto/cert"
+	"project/internal/cert"
+	"project/internal/cert/certmgr"
 	"project/internal/module/shell"
 	"project/internal/security"
 	"project/internal/system"

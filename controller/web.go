@@ -18,7 +18,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"project/internal/bootstrap"
-	"project/internal/crypto/cert"
+	"project/internal/cert"
 	"project/internal/crypto/rand"
 	"project/internal/guid"
 	"project/internal/logger"

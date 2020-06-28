@@ -7,8 +7,8 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/cert"
 	"project/internal/crypto/aes"
-	"project/internal/crypto/cert"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"

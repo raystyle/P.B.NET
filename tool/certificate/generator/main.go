@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 
-	"project/internal/crypto/cert"
+	"project/internal/cert"
 	"project/internal/patch/toml"
 	"project/internal/system"
 )

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"project/internal/certmgr"
+	"project/internal/cert"
+	"project/internal/cert/certmgr"
 	"project/internal/crypto/aes"
-	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/option"

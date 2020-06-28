@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/certmgr"
-	"project/internal/crypto/cert/certpool"
+	"project/internal/cert/certmgr"
+	"project/internal/cert/certpool"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"

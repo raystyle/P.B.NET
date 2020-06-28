@@ -10,9 +10,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/certmgr"
+	"project/internal/cert"
+	"project/internal/cert/certmgr"
 	"project/internal/crypto/aes"
-	"project/internal/crypto/cert"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"

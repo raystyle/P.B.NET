@@ -12,8 +12,8 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
-	"project/internal/certmgr"
-	"project/internal/crypto/cert"
+	"project/internal/cert"
+	"project/internal/cert/certmgr"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
