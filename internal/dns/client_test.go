@@ -813,6 +813,60 @@ func TestClient_Servers_Parallel(t *testing.T) {
 	})
 }
 
+func TestClient_CacheExpireTime_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
+
+	t.Run("part", func(t *testing.T) {
+		client := NewClient(certPool, proxyPool)
+
+		get := func() {
+			_ = client.GetCacheExpireTime()
+		}
+		set := func() {
+			const expire = 3 * time.Minute
+
+			err := client.SetCacheExpireTime(expire)
+			require.NoError(t, err)
+
+			e := client.GetCacheExpireTime()
+			require.Equal(t, expire, e)
+		}
+		testsuite.RunParallel(100, nil, nil, get, get, set, set)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var client *Client
+
+		init := func() {
+			client = NewClient(certPool, proxyPool)
+		}
+		get := func() {
+			_ = client.GetCacheExpireTime()
+		}
+		set := func() {
+			const expire = 3 * time.Minute
+
+			err := client.SetCacheExpireTime(expire)
+			require.NoError(t, err)
+
+			e := client.GetCacheExpireTime()
+			require.Equal(t, expire, e)
+		}
+		testsuite.RunParallel(100, init, nil, get, get, set, set)
+
+		testsuite.IsDestroyed(t, client)
+	})
+}
+
 func TestClient_Cache_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
