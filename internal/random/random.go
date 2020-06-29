@@ -245,7 +245,7 @@ func (s *Sleeper) calculateDuration(fixed, random uint) time.Duration {
 	return total
 }
 
-// Stop is used to stop timer.
+// Stop is used to stop sleeper.
 func (s *Sleeper) Stop() {
 	s.timer.Stop()
 }

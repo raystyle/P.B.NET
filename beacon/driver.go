@@ -32,7 +32,7 @@ type driver struct {
 	nodeListenersIndex uint64
 	nodeListenersRWM   sync.RWMutex
 
-	// about random.Sleep() in query
+	// about Sleeper.Sleep() in query
 	sleepFixed  atomic.Value
 	sleepRandom atomic.Value
 
