@@ -142,7 +142,7 @@ func createTimeSyncer(
 	if err != nil {
 		return nil, errors.Wrap(err, errorMsg)
 	}
-	syncer := timesync.New(certPool, proxyPool, dnsClient, logger)
+	syncer := timesync.NewSyncer(certPool, proxyPool, dnsClient, logger)
 	for tag, client := range clients {
 		err = syncer.Add("builtin_"+tag, client)
 		if err != nil {

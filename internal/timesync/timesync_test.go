@@ -20,7 +20,7 @@ func TestSyncer_Add(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	syncer := New(nil, nil, nil, nil)
+	syncer := NewSyncer(nil, nil, nil, nil)
 
 	t.Run("ok", func(t *testing.T) {
 		err := syncer.Add("test-http", &Client{
@@ -69,7 +69,7 @@ func TestSyncer_Delete(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	syncer := New(nil, nil, nil, nil)
+	syncer := NewSyncer(nil, nil, nil, nil)
 
 	t.Run("ok", func(t *testing.T) {
 		const tag = "test"
@@ -127,7 +127,7 @@ func TestSyncer(t *testing.T) {
 		err := proxyMgr.Close()
 		require.NoError(t, err)
 	}()
-	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 	testAddClients(t, syncer)
 
 	t.Run("default sync interval", func(t *testing.T) {
@@ -179,7 +179,7 @@ func TestSyncer_Start(t *testing.T) {
 		err := proxyMgr.Close()
 		require.NoError(t, err)
 	}()
-	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 	t.Run("set random sleep", func(t *testing.T) {
 		err := syncer.SetSleep(0, 0)
@@ -245,7 +245,7 @@ func TestSyncer_Stop(t *testing.T) {
 		err := proxyMgr.Close()
 		require.NoError(t, err)
 	}()
-	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 	// set random sleep
 	err := syncer.SetSleep(0, 0)
@@ -280,7 +280,7 @@ func TestSyncer_StartWalker(t *testing.T) {
 		err := proxyMgr.Close()
 		require.NoError(t, err)
 	}()
-	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 	syncer.StartWalker()
 	now := syncer.Now()
@@ -301,7 +301,7 @@ func TestSyncer_Test(t *testing.T) {
 		err := proxyMgr.Close()
 		require.NoError(t, err)
 	}()
-	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 	ctx := context.Background()
 
@@ -372,7 +372,7 @@ func TestSyncer_synchronizeLoop(t *testing.T) {
 		err := proxyMgr.Close()
 		require.NoError(t, err)
 	}()
-	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 	// force set synchronize interval
 	syncer.sleepFixed = 0
@@ -403,7 +403,7 @@ func TestSyncer_workerPanic(t *testing.T) {
 		err := proxyMgr.Close()
 		require.NoError(t, err)
 	}()
-	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 	patch := func(time.Duration) *time.Ticker {
 		panic(monkey.Panic)
@@ -429,7 +429,7 @@ func TestSyncer_synchronizeLoopPanic(t *testing.T) {
 		err := proxyMgr.Close()
 		require.NoError(t, err)
 	}()
-	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 	patch := func() *random.Rand {
 		panic(monkey.Panic)
@@ -455,7 +455,7 @@ func TestSyncer_synchronizePanic(t *testing.T) {
 		err := proxyMgr.Close()
 		require.NoError(t, err)
 	}()
-	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 	// add reachable
 	testAddHTTP(t, syncer)
@@ -492,7 +492,7 @@ func TestSyncer_Add_Parallel(t *testing.T) {
 	}
 
 	t.Run("part", func(t *testing.T) {
-		syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+		syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 		add1 := func() {
 			err := syncer.Add(tag1, client1)
@@ -527,7 +527,7 @@ func TestSyncer_Add_Parallel(t *testing.T) {
 		var syncer *Syncer
 
 		init := func() {
-			syncer = New(certPool, proxyPool, dnsClient, logger.Test)
+			syncer = NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 		}
 		add1 := func() {
 			err := syncer.Add(tag1, client1)
@@ -581,7 +581,7 @@ func TestSyncer_Delete_Parallel(t *testing.T) {
 	}
 
 	t.Run("part", func(t *testing.T) {
-		syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+		syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 		init := func() {
 			err := syncer.Add(tag1, client1)
@@ -610,7 +610,7 @@ func TestSyncer_Delete_Parallel(t *testing.T) {
 		var syncer *Syncer
 
 		init := func() {
-			syncer = New(certPool, proxyPool, dnsClient, logger.Test)
+			syncer = NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 			err := syncer.Add(tag1, client1)
 			require.NoError(t, err)
@@ -657,7 +657,7 @@ func TestSyncer_Clients_Parallel(t *testing.T) {
 	}
 
 	t.Run("part", func(t *testing.T) {
-		syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+		syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 		err := syncer.Add(tag1, client1)
 		require.NoError(t, err)
@@ -677,7 +677,7 @@ func TestSyncer_Clients_Parallel(t *testing.T) {
 		var syncer *Syncer
 
 		init := func() {
-			syncer = New(certPool, proxyPool, dnsClient, logger.Test)
+			syncer = NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 			err := syncer.Add(tag1, client1)
 			require.NoError(t, err)
@@ -714,7 +714,7 @@ func TestSyncer_SyncInterval_Parallel(t *testing.T) {
 	}()
 
 	t.Run("part", func(t *testing.T) {
-		syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+		syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 		get := func() {
 			_ = syncer.GetSyncInterval()
@@ -737,7 +737,7 @@ func TestSyncer_SyncInterval_Parallel(t *testing.T) {
 		var syncer *Syncer
 
 		init := func() {
-			syncer = New(certPool, proxyPool, dnsClient, logger.Test)
+			syncer = NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 		}
 		get := func() {
 			_ = syncer.GetSyncInterval()
@@ -768,7 +768,7 @@ func TestSyncer_Synchronize_Parallel(t *testing.T) {
 	}()
 
 	t.Run("part", func(t *testing.T) {
-		syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+		syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 		testAddClients(t, syncer)
 		err := syncer.Start()
@@ -790,7 +790,7 @@ func TestSyncer_Synchronize_Parallel(t *testing.T) {
 		var syncer *Syncer
 
 		init := func() {
-			syncer = New(certPool, proxyPool, dnsClient, logger.Test)
+			syncer = NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 			testAddClients(t, syncer)
 			err := syncer.Start()
@@ -814,144 +814,31 @@ func TestSyncer_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	const (
-		tag1 = "test-01"
-		tag2 = "test-02"
-	)
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
-	t.Run("Add", func(t *testing.T) {
-		syncer := New(nil, nil, nil, logger.Test)
+	// const (
+	// 	tag1 = "http"
+	// 	tag2 = "ntp"
+	// )
+	// client1 := &Client{
+	// 	Mode: ModeHTTP,
+	// }
+	// client2 := &Client{
+	// 	Mode: ModeNTP,
+	// }
 
-		add1 := func() {
-			err := syncer.Add(tag1, &Client{
-				Mode:     ModeNTP,
-				SkipTest: true,
-			})
-			require.NoError(t, err)
-		}
-		add2 := func() {
-			err := syncer.Add(tag2, &Client{
-				Mode:     ModeNTP,
-				SkipTest: true,
-			})
-			require.NoError(t, err)
-		}
-		cleanup := func() {
-			clients := syncer.Clients()
-			require.Len(t, clients, 2)
-
-			err := syncer.Delete(tag1)
-			require.NoError(t, err)
-			err = syncer.Delete(tag2)
-			require.NoError(t, err)
-		}
-		testsuite.RunParallel(100, nil, cleanup, add1, add2)
-
-		syncer.Stop()
+	t.Run("part", func(t *testing.T) {
+		syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 		testsuite.IsDestroyed(t, syncer)
 	})
 
-	t.Run("Delete", func(t *testing.T) {
-		syncer := New(nil, nil, nil, logger.Test)
+	t.Run("whole", func(t *testing.T) {
 
-		init := func() {
-			err := syncer.Add(tag1, &Client{
-				Mode:     ModeNTP,
-				SkipTest: true,
-			})
-			require.NoError(t, err)
-			err = syncer.Add(tag2, &Client{
-				Mode:     ModeNTP,
-				SkipTest: true,
-			})
-			require.NoError(t, err)
-		}
-		delete1 := func() {
-			err := syncer.Delete(tag1)
-			require.NoError(t, err)
-		}
-		delete2 := func() {
-			err := syncer.Delete(tag2)
-			require.NoError(t, err)
-		}
-		cleanup := func() {
-			clients := syncer.Clients()
-			require.Empty(t, clients)
-		}
-		testsuite.RunParallel(100, init, cleanup, delete1, delete2)
-
-		syncer.Stop()
-
-		testsuite.IsDestroyed(t, syncer)
-	})
-
-	t.Run("Clients", func(t *testing.T) {
-		syncer := New(nil, nil, nil, logger.Test)
-
-		init := func() {
-			err := syncer.Add(tag1, &Client{
-				Mode:     ModeNTP,
-				SkipTest: true,
-			})
-			require.NoError(t, err)
-			err = syncer.Add(tag2, &Client{
-				Mode:     ModeNTP,
-				SkipTest: true,
-			})
-			require.NoError(t, err)
-		}
-		clients := func() {
-			clients := syncer.Clients()
-			require.Len(t, clients, 2)
-		}
-		cleanup := func() {
-			err := syncer.Delete(tag1)
-			require.NoError(t, err)
-			err = syncer.Delete(tag2)
-			require.NoError(t, err)
-
-			clients := syncer.Clients()
-			require.Empty(t, clients)
-		}
-		testsuite.RunParallel(100, init, cleanup, clients, clients)
-
-		syncer.Stop()
-
-		testsuite.IsDestroyed(t, syncer)
-	})
-
-	t.Run("mixed", func(t *testing.T) {
-		syncer := New(nil, nil, nil, logger.Test)
-
-		add := func() {
-			err := syncer.Add(tag1, &Client{
-				Mode:     ModeNTP,
-				SkipTest: true,
-			})
-			require.NoError(t, err)
-		}
-		del := func() {
-			_ = syncer.Delete(tag1)
-		}
-		clients := func() {
-			_ = syncer.Clients()
-		}
-		set := func() {
-			err := syncer.SetSyncInterval(time.Minute)
-			require.NoError(t, err)
-		}
-		get := func() {
-			_ = syncer.GetSyncInterval()
-		}
-		cleanup := func() {
-			_ = syncer.Delete(tag1)
-		}
-		testsuite.RunParallel(100, nil, cleanup, add, del, clients, set, get)
-
-		syncer.Stop()
-
-		testsuite.IsDestroyed(t, syncer)
 	})
 }
 

@@ -74,17 +74,17 @@ type Syncer struct {
 	wg     sync.WaitGroup
 }
 
-// New is used to create a time syncer.
-func New(certPool *cert.Pool, proxyPool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
+// NewSyncer is used to create a time syncer, call SetSleep() and SetSyncInterval() after.
+func NewSyncer(cp *cert.Pool, pp *proxy.Pool, dc *dns.Client, lg logger.Logger) *Syncer {
 	syncer := Syncer{
-		certPool:    certPool,
-		proxyPool:   proxyPool,
-		dnsClient:   client,
-		logger:      logger,
-		clients:     make(map[string]*Client),
+		certPool:    cp,
+		proxyPool:   pp,
+		dnsClient:   dc,
+		logger:      lg,
 		sleepFixed:  defaultSleepFixed,
 		sleepRandom: defaultSleepRandom,
 		interval:    defaultSyncInterval,
+		clients:     make(map[string]*Client),
 		now:         time.Now(),
 	}
 	syncer.ctx, syncer.cancel = context.WithCancel(context.Background())

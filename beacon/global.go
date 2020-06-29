@@ -73,7 +73,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		return nil, err
 	}
 	// time syncer
-	timeSyncer := timesync.New(certPool, proxyPool, dnsClient, logger)
+	timeSyncer := timesync.NewSyncer(certPool, proxyPool, dnsClient, logger)
 	for tag, client := range cfg.TimeSyncerClients {
 		memory.Padding()
 		err = timeSyncer.Add(tag, client)
