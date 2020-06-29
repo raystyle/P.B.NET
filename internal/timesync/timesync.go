@@ -56,11 +56,11 @@ type Syncer struct {
 	dnsClient *dns.Client
 	logger    logger.Logger
 
-	// about random.Sleep() in Start()
+	// about Sleeper.Sleep() in Start()
 	sleepFixed  uint
 	sleepRandom uint
 
-	// synchronize interval
+	// interval about synchronize time
 	interval time.Duration
 	// key = tag
 	clients map[string]*Client
@@ -75,12 +75,7 @@ type Syncer struct {
 }
 
 // New is used to create a time syncer.
-func New(
-	certPool *cert.Pool,
-	proxyPool *proxy.Pool,
-	client *dns.Client,
-	logger logger.Logger,
-) *Syncer {
+func New(certPool *cert.Pool, proxyPool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
 	syncer := Syncer{
 		certPool:    certPool,
 		proxyPool:   proxyPool,
@@ -155,13 +150,6 @@ func (syncer *Syncer) Clients() map[string]*Client {
 	return clients
 }
 
-// Now is used to get current time.
-func (syncer *Syncer) Now() time.Time {
-	syncer.nowRWM.RLock()
-	defer syncer.nowRWM.RUnlock()
-	return syncer.now
-}
-
 // GetSyncInterval is used to get synchronize time interval.
 func (syncer *Syncer) GetSyncInterval() time.Duration {
 	syncer.rwm.RLock()
@@ -178,6 +166,13 @@ func (syncer *Syncer) SetSyncInterval(interval time.Duration) error {
 	defer syncer.rwm.Unlock()
 	syncer.interval = interval
 	return nil
+}
+
+// Now is used to get current time.
+func (syncer *Syncer) Now() time.Time {
+	syncer.nowRWM.RLock()
+	defer syncer.nowRWM.RUnlock()
+	return syncer.now
 }
 
 func (syncer *Syncer) log(lv logger.Level, log ...interface{}) {
@@ -209,7 +204,7 @@ func (syncer *Syncer) Start() error {
 				return syncer.ctx.Err()
 			}
 		default:
-			return err
+			return errors.WithMessage(err, "failed to start time syncer")
 		}
 	}
 }
