@@ -27,12 +27,27 @@ func TestClient_Add(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("empty tag", func(t *testing.T) {
+		err := client.add("", nil)
+		require.EqualError(t, err, "empty tag")
+	})
+
+	t.Run("empty method", func(t *testing.T) {
+		err := client.add("foo", new(Server))
+		require.EqualError(t, err, "empty method")
+	})
+
+	t.Run("empty address", func(t *testing.T) {
+		err := client.add("foo", &Server{Method: MethodUDP})
+		require.EqualError(t, err, "empty address")
+	})
+
 	t.Run("unknown method", func(t *testing.T) {
-		err := client.Add("foo tag", &Server{
-			Method: "foo method",
+		err := client.add("foo", &Server{
+			Method:  "foo method",
+			Address: "1.1.1.1",
 		})
-		require.Error(t, err)
-		t.Log(err)
+		require.EqualError(t, err, "unknown method: foo method")
 	})
 
 	t.Run("exist", func(t *testing.T) {
@@ -42,11 +57,10 @@ func TestClient_Add(t *testing.T) {
 			Method:  MethodUDP,
 			Address: "1.1.1.1:53",
 		}
-		err := client.Add(tag, server)
+		err := client.add(tag, server)
 		require.NoError(t, err)
-		err = client.Add(tag, server)
-		require.Error(t, err)
-		t.Log(err)
+		err = client.add(tag, server)
+		require.EqualError(t, err, "already exists")
 	})
 
 	testsuite.IsDestroyed(t, client)

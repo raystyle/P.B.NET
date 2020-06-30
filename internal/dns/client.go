@@ -156,6 +156,15 @@ func (c *Client) Add(tag string, server *Server) error {
 }
 
 func (c *Client) add(tag string, server *Server) error {
+	if tag == "" {
+		return errors.New("empty tag")
+	}
+	if server.Method == "" {
+		return errors.New("empty method")
+	}
+	if server.Address == "" {
+		return errors.New("empty address")
+	}
 	switch server.Method {
 	case MethodUDP, MethodTCP, MethodDoT, MethodDoH:
 	default:
@@ -483,7 +492,7 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 	return result, nil
 }
 
-// TestOption is used to test single options.
+// TestOption is used to test single resolve options.
 func (c *Client) TestOption(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	if opts.SkipTest {
 		return nil, nil
@@ -496,7 +505,7 @@ func (c *Client) TestOption(ctx context.Context, domain string, opts *Options) (
 	}
 	result, err := c.ResolveContext(ctx, domain, opts)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to test query option")
+		return nil, errors.WithMessage(err, "failed to test resolve option")
 	}
 	return result, nil
 }
