@@ -50,16 +50,16 @@ func (p *Pool) Add(client *Client) error {
 
 func (p *Pool) add(client *Client) error {
 	if client.Tag == "" {
-		return errors.New("empty proxy client tag")
+		return errors.New("empty tag")
 	}
 	if client.Tag == ModeDirect {
-		return errors.New("direct is the reserve proxy client tag")
+		return errors.New("direct is the reserve tag")
 	}
 	if client.Mode == "" {
-		return errors.New("empty proxy client mode")
+		return errors.New("empty mode")
 	}
 	if client.Mode != ModeChain && client.Mode != ModeBalance && client.Address == "" {
-		return errors.New("empty proxy client address")
+		return errors.New("empty address")
 	}
 	var err error
 	switch client.Mode {

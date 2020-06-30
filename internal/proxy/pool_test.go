@@ -53,33 +53,33 @@ func testGeneratePool(t *testing.T) *Pool {
 func TestPool_Add(t *testing.T) {
 	pool := testGeneratePool(t)
 
-	t.Run("with empty tag", func(t *testing.T) {
+	t.Run("empty tag", func(t *testing.T) {
 		err := pool.add(new(Client))
-		require.EqualError(t, err, "empty proxy client tag")
+		require.EqualError(t, err, "empty tag")
 	})
 
-	t.Run("with reserve tag", func(t *testing.T) {
+	t.Run("reserve tag", func(t *testing.T) {
 		client := &Client{Tag: "direct"}
 		err := pool.add(client)
-		require.EqualError(t, err, "direct is the reserve proxy client tag")
+		require.EqualError(t, err, "direct is the reserve tag")
 	})
 
-	t.Run("with empty mode", func(t *testing.T) {
+	t.Run("empty mode", func(t *testing.T) {
 		client := &Client{Tag: "foo"}
 		err := pool.add(client)
-		require.EqualError(t, err, "empty proxy client mode")
+		require.EqualError(t, err, "empty mode")
 	})
 
-	t.Run("with empty address", func(t *testing.T) {
+	t.Run("empty address", func(t *testing.T) {
 		client := &Client{
 			Tag:  "foo",
 			Mode: ModeSocks5,
 		}
 		err := pool.add(client)
-		require.EqualError(t, err, "empty proxy client address")
+		require.EqualError(t, err, "empty address")
 	})
 
-	t.Run("with unknown mode", func(t *testing.T) {
+	t.Run("unknown mode", func(t *testing.T) {
 		client := &Client{
 			Tag:     "foo",
 			Mode:    "foo mode",
@@ -108,6 +108,7 @@ func TestPool_Add(t *testing.T) {
 		err := pool.Add(&Client{
 			Tag:     "invalid socks5",
 			Mode:    ModeSocks5,
+			Address: "127.0.0.1:1080",
 			Options: "socks4 = foo",
 		})
 		require.Error(t, err)
@@ -117,6 +118,7 @@ func TestPool_Add(t *testing.T) {
 		err := pool.Add(&Client{
 			Tag:     "invalid socks5",
 			Mode:    ModeSocks5,
+			Address: "127.0.0.1:1080",
 			Network: "foo network",
 		})
 		require.Error(t, err)
@@ -126,6 +128,7 @@ func TestPool_Add(t *testing.T) {
 		err := pool.Add(&Client{
 			Tag:     "invalid http",
 			Mode:    ModeHTTP,
+			Address: "127.0.0.1:8080",
 			Options: "https = foo",
 		})
 		require.Error(t, err)
@@ -135,6 +138,7 @@ func TestPool_Add(t *testing.T) {
 		err := pool.Add(&Client{
 			Tag:     "invalid http",
 			Mode:    ModeHTTP,
+			Address: "127.0.0.1:8080",
 			Network: "foo network",
 		})
 		require.Error(t, err)

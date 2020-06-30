@@ -51,10 +51,10 @@ func (m *Manager) Add(server *Server) error {
 
 func (m *Manager) add(server *Server) error {
 	if server.Tag == "" {
-		return errors.New("empty proxy server tag")
+		return errors.New("empty tag")
 	}
 	if server.Mode == "" {
-		return errors.New("empty proxy server mode")
+		return errors.New("empty mode")
 	}
 	var err error
 	switch server.Mode {
