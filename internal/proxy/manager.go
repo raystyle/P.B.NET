@@ -53,6 +53,9 @@ func (m *Manager) add(server *Server) error {
 	if server.Tag == "" {
 		return errors.New("empty proxy server tag")
 	}
+	if server.Mode == "" {
+		return errors.New("empty proxy server mode")
+	}
 	var err error
 	switch server.Mode {
 	case ModeSocks5, ModeSocks4a, ModeSocks4:

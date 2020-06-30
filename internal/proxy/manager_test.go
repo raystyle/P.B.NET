@@ -59,6 +59,11 @@ func TestManager_Add(t *testing.T) {
 		require.EqualError(t, err, "empty proxy server tag")
 	})
 
+	t.Run("with empty mode", func(t *testing.T) {
+		err := manager.add(&Server{Tag: "foo"})
+		require.EqualError(t, err, "empty proxy server mode")
+	})
+
 	t.Run("with unknown mode", func(t *testing.T) {
 		err := manager.add(&Server{
 			Tag:  "foo",

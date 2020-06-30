@@ -59,15 +59,31 @@ func TestPool_Add(t *testing.T) {
 	})
 
 	t.Run("with reserve tag", func(t *testing.T) {
-		client := &Client{Tag: ModeDirect}
+		client := &Client{Tag: "direct"}
 		err := pool.add(client)
 		require.EqualError(t, err, "direct is the reserve proxy client tag")
 	})
 
-	t.Run("with unknown mode", func(t *testing.T) {
+	t.Run("with empty mode", func(t *testing.T) {
+		client := &Client{Tag: "foo"}
+		err := pool.add(client)
+		require.EqualError(t, err, "empty proxy client mode")
+	})
+
+	t.Run("with empty address", func(t *testing.T) {
 		client := &Client{
 			Tag:  "foo",
-			Mode: "foo mode",
+			Mode: ModeSocks5,
+		}
+		err := pool.add(client)
+		require.EqualError(t, err, "empty proxy client address")
+	})
+
+	t.Run("with unknown mode", func(t *testing.T) {
+		client := &Client{
+			Tag:     "foo",
+			Mode:    "foo mode",
+			Address: "foo address",
 		}
 		err := pool.add(client)
 		require.EqualError(t, err, "unknown mode: foo mode")

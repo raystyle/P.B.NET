@@ -27,7 +27,7 @@ func NewPool(certPool *cert.Pool) *Pool {
 		certPool: certPool,
 		clients:  make(map[string]*Client),
 	}
-	// add direct
+	// add direct proxy client(reserved)
 	dc := &Client{
 		Tag:    ModeDirect,
 		Mode:   ModeDirect,
@@ -54,6 +54,12 @@ func (p *Pool) add(client *Client) error {
 	}
 	if client.Tag == ModeDirect {
 		return errors.New("direct is the reserve proxy client tag")
+	}
+	if client.Mode == "" {
+		return errors.New("empty proxy client mode")
+	}
+	if client.Mode != ModeChain && client.Mode != ModeBalance && client.Address == "" {
+		return errors.New("empty proxy client address")
 	}
 	var err error
 	switch client.Mode {
