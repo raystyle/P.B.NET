@@ -27,6 +27,11 @@ func TestClient_Add(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("failed", func(t *testing.T) {
+		err := client.Add("", nil)
+		require.Error(t, err)
+	})
+
 	t.Run("empty tag", func(t *testing.T) {
 		err := client.add("", nil)
 		require.EqualError(t, err, "empty tag")
@@ -381,6 +386,50 @@ func TestClient_NoResult(t *testing.T) {
 	result, err := client.Resolve("test", opts)
 	require.Error(t, err)
 	require.Empty(t, result)
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestOptions_Clone(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
+
+	client := NewClient(certPool, proxyPool)
+	testAddAllDNSServers(t, client)
+	client.DisableCache()
+
+	const domain = "cloudflare.com"
+
+	dotOpts1 := &Options{
+		Method: MethodDoT,
+	}
+	dotOpts2 := &Options{
+		Method: MethodDoT,
+	}
+	dohOpts1 := &Options{
+		Method: MethodDoT,
+	}
+	dohOpts2 := &Options{
+		Method: MethodDoT,
+	}
+	dot := func() {
+		_, err := client.Resolve(domain, dotOpts1)
+		require.NoError(t, err)
+	}
+	doh := func() {
+		_, err := client.Resolve(domain, dohOpts1)
+		require.NoError(t, err)
+	}
+	testsuite.RunMultiTimes(1, dot, dot, doh, doh)
+
+	require.Equal(t, dotOpts2, dotOpts1)
+	require.Equal(t, dohOpts2, dohOpts1)
 
 	testsuite.IsDestroyed(t, client)
 }

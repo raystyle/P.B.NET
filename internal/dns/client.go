@@ -86,7 +86,7 @@ type Options struct {
 	// ServerTag used to select DNS server
 	ServerTag string `toml:"server_tag"`
 
-	// network is useless for DoH
+	// Network is useless for DoH
 	Network string `toml:"network"`
 
 	// about DoT <warning> only DoT, if you want to set about DoH
@@ -151,8 +151,12 @@ func NewClient(certPool *cert.Pool, proxyPool *proxy.Pool) *Client {
 
 // Add is used to add a DNS server.
 func (c *Client) Add(tag string, server *Server) error {
-	const format = "failed to add dns server %s"
-	return errors.WithMessagef(c.add(tag, server), format, tag)
+	err := c.add(tag, server)
+	if err != nil {
+		const format = "failed to add dns server %s"
+		return errors.WithMessagef(err, format, tag)
+	}
+	return nil
 }
 
 func (c *Client) add(tag string, server *Server) error {
@@ -249,10 +253,18 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 
 // ResolveContext is used to resolve domain name with context.
 func (c *Client) ResolveContext(ctx context.Context, domain string, opts *Options) ([]string, error) {
+	result, err := c.resolveContext(ctx, domain, opts)
+	if err != nil {
+		return nil, errors.WithMessagef(err, "failed to resolve domain name %s", domain)
+	}
+	return result, nil
+}
+
+func (c *Client) resolveContext(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
-	// is IP address
+	// check is IP address
 	if ip := net.ParseIP(domain); ip != nil {
 		return []string{ip.String()}, nil
 	}
