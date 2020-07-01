@@ -16,6 +16,18 @@ import (
 	"project/internal/testsuite/testdns"
 )
 
+func testLoadHTTPClientConfig(t *testing.T) string {
+	cfg, err := ioutil.ReadFile("testdata/http.toml")
+	require.NoError(t, err)
+	return string(cfg)
+}
+
+func testLoadNTPClientConfig(t *testing.T) string {
+	cfg, err := ioutil.ReadFile("testdata/ntp.toml")
+	require.NoError(t, err)
+	return string(cfg)
+}
+
 func TestSyncer_Add(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -24,25 +36,52 @@ func TestSyncer_Add(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		err := syncer.Add("test-http", &Client{
-			Mode: ModeHTTP,
+			Mode:   ModeHTTP,
+			Config: testLoadHTTPClientConfig(t),
 		})
 		require.NoError(t, err)
 		err = syncer.Add("test-ntp", &Client{
-			Mode: ModeNTP,
+			Mode:   ModeNTP,
+			Config: testLoadNTPClientConfig(t),
 		})
 		require.NoError(t, err)
 	})
 
-	t.Run("unknown mode", func(t *testing.T) {
-		err := syncer.Add("foo mode", &Client{
-			Mode: "foo mode",
+	t.Run("failed", func(t *testing.T) {
+		err := syncer.Add("failed", &Client{
+			Mode: ModeHTTP,
 		})
-		require.Error(t, err)
-		t.Log(err)
+		errStr := "failed to add time syncer client \"failed\": empty config"
+		require.EqualError(t, err, errStr)
+	})
+
+	t.Run("empty tag", func(t *testing.T) {
+		err := syncer.add("", nil)
+		require.EqualError(t, err, "empty tag")
+	})
+
+	t.Run("empty mode", func(t *testing.T) {
+		err := syncer.add("foo", new(Client))
+		require.EqualError(t, err, "empty mode")
+	})
+
+	t.Run("empty config", func(t *testing.T) {
+		err := syncer.add("foo", &Client{
+			Mode: ModeHTTP,
+		})
+		require.EqualError(t, err, "empty config")
+	})
+
+	t.Run("unknown mode", func(t *testing.T) {
+		err := syncer.add("foo mode", &Client{
+			Mode:   "foo mode",
+			Config: "foo config",
+		})
+		require.EqualError(t, err, "unknown mode: \"foo mode\"")
 	})
 
 	t.Run("invalid config", func(t *testing.T) {
-		err := syncer.Add("invalid config", &Client{
+		err := syncer.add("invalid config", &Client{
 			Mode:   ModeNTP,
 			Config: string([]byte{1, 2, 3, 4}),
 		})
@@ -54,12 +93,13 @@ func TestSyncer_Add(t *testing.T) {
 		const tag = "exist"
 
 		client := &Client{
-			Mode: ModeNTP,
+			Mode:   ModeNTP,
+			Config: testLoadNTPClientConfig(t),
 		}
-		err := syncer.Add(tag, client)
+		err := syncer.add(tag, client)
 		require.NoError(t, err)
-		err = syncer.Add(tag, client)
-		require.Error(t, err)
+		err = syncer.add(tag, client)
+		require.EqualError(t, err, "already exists")
 	})
 
 	testsuite.IsDestroyed(t, syncer)
@@ -75,7 +115,8 @@ func TestSyncer_Delete(t *testing.T) {
 		const tag = "test"
 
 		client := &Client{
-			Mode: ModeNTP,
+			Mode:   ModeNTP,
+			Config: testLoadNTPClientConfig(t),
 		}
 		err := syncer.Add(tag, client)
 		require.NoError(t, err)
@@ -86,36 +127,31 @@ func TestSyncer_Delete(t *testing.T) {
 
 	t.Run("doesn't exist", func(t *testing.T) {
 		err := syncer.Delete("foo tag")
-		require.Error(t, err)
-		t.Log(err)
+		require.EqualError(t, err, "time syncer client \"foo tag\" doesn't exist")
 	})
 
 	testsuite.IsDestroyed(t, syncer)
 }
 
-func testAddHTTP(t *testing.T, syncer *Syncer) {
-	data, err := ioutil.ReadFile("testdata/http.toml")
-	require.NoError(t, err)
-	err = syncer.Add("http", &Client{
+func testAddHTTPClient(t *testing.T, syncer *Syncer) {
+	err := syncer.Add("http", &Client{
 		Mode:   ModeHTTP,
-		Config: string(data),
+		Config: testLoadHTTPClientConfig(t),
 	})
 	require.NoError(t, err)
 }
 
-func testAddNTP(t *testing.T, syncer *Syncer) {
-	data, err := ioutil.ReadFile("testdata/ntp.toml")
-	require.NoError(t, err)
-	err = syncer.Add("ntp", &Client{
+func testAddNTPClient(t *testing.T, syncer *Syncer) {
+	err := syncer.Add("ntp", &Client{
 		Mode:   ModeNTP,
-		Config: string(data),
+		Config: testLoadNTPClientConfig(t),
 	})
 	require.NoError(t, err)
 }
 
-func testAddClients(t *testing.T, syncer *Syncer) {
-	testAddHTTP(t, syncer)
-	testAddNTP(t, syncer)
+func testAddAllClients(t *testing.T, syncer *Syncer) {
+	testAddHTTPClient(t, syncer)
+	testAddNTPClient(t, syncer)
 }
 
 func TestSyncer(t *testing.T) {
@@ -128,7 +164,7 @@ func TestSyncer(t *testing.T) {
 		require.NoError(t, err)
 	}()
 	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
-	testAddClients(t, syncer)
+	testAddAllClients(t, syncer)
 
 	t.Run("default sync interval", func(t *testing.T) {
 		interval := syncer.GetSyncInterval()
@@ -221,7 +257,7 @@ func TestSyncer_Start(t *testing.T) {
 			require.NoError(t, err)
 
 			// add reachable
-			testAddHTTP(t, syncer)
+			testAddHTTPClient(t, syncer)
 		}()
 
 		err := syncer.Add("unreachable", testUnreachableClient())
@@ -313,7 +349,7 @@ func TestSyncer_Test(t *testing.T) {
 
 	t.Run("passed", func(t *testing.T) {
 		// add reachable
-		testAddHTTP(t, syncer)
+		testAddHTTPClient(t, syncer)
 
 		// add skip
 		err := syncer.Add("skip", &Client{
@@ -336,7 +372,7 @@ func TestSyncer_Test(t *testing.T) {
 		err = syncer.Test(ctx)
 		require.Error(t, err)
 
-		testAddHTTP(t, syncer)
+		testAddHTTPClient(t, syncer)
 	})
 
 	t.Run("cancel", func(t *testing.T) {
@@ -380,7 +416,7 @@ func TestSyncer_synchronizeLoop(t *testing.T) {
 	syncer.interval = time.Second
 
 	// add reachable
-	testAddHTTP(t, syncer)
+	testAddHTTPClient(t, syncer)
 	err := syncer.Start()
 	require.NoError(t, err)
 
@@ -458,7 +494,7 @@ func TestSyncer_synchronizePanic(t *testing.T) {
 	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
 	// add reachable
-	testAddHTTP(t, syncer)
+	testAddHTTPClient(t, syncer)
 
 	// remove context
 	syncer.Clients()["http"].client.(*HTTP).ctx = nil
@@ -770,7 +806,7 @@ func TestSyncer_Synchronize_Parallel(t *testing.T) {
 	t.Run("part", func(t *testing.T) {
 		syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
-		testAddClients(t, syncer)
+		testAddAllClients(t, syncer)
 		err := syncer.Start()
 		require.NoError(t, err)
 
@@ -792,7 +828,7 @@ func TestSyncer_Synchronize_Parallel(t *testing.T) {
 		init := func() {
 			syncer = NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
-			testAddClients(t, syncer)
+			testAddAllClients(t, syncer)
 			err := syncer.Start()
 			require.NoError(t, err)
 		}
@@ -827,31 +863,29 @@ func TestSyncer_Parallel(t *testing.T) {
 		tag4 = "test-ntp-2"
 	)
 
-	httpClient, err := ioutil.ReadFile("testdata/http.toml")
-	require.NoError(t, err)
-	ntpClient, err := ioutil.ReadFile("testdata/ntp.toml")
-	require.NoError(t, err)
+	httpClient := testLoadHTTPClientConfig(t)
+	ntpClient := testLoadNTPClientConfig(t)
 	client1 := &Client{
 		Mode:   ModeHTTP,
-		Config: string(httpClient),
+		Config: httpClient,
 	}
 	client2 := &Client{
 		Mode:   ModeNTP,
-		Config: string(ntpClient),
+		Config: ntpClient,
 	}
 	client3 := &Client{
 		Mode:   ModeHTTP,
-		Config: string(httpClient),
+		Config: httpClient,
 	}
 	client4 := &Client{
 		Mode:   ModeNTP,
-		Config: string(ntpClient),
+		Config: ntpClient,
 	}
 
 	t.Run("without stop", func(t *testing.T) {
 		t.Run("part", func(t *testing.T) {
 			syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
-			testAddClients(t, syncer)
+			testAddAllClients(t, syncer)
 
 			init := func() {
 				err := syncer.Add(tag1, client1)

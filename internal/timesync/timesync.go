@@ -107,13 +107,31 @@ func (syncer *Syncer) SetSleep(fixed, random uint) error {
 
 // Add is used to add time syncer client.
 func (syncer *Syncer) Add(tag string, client *Client) error {
+	err := syncer.add(tag, client)
+	if err != nil {
+		const format = "failed to add time syncer client \"%s\""
+		return errors.WithMessagef(err, format, tag)
+	}
+	return nil
+}
+
+func (syncer *Syncer) add(tag string, client *Client) error {
+	if tag == "" {
+		return errors.New("empty tag")
+	}
+	if client.Mode == "" {
+		return errors.New("empty mode")
+	}
+	if client.Config == "" {
+		return errors.New("empty config")
+	}
 	switch client.Mode {
 	case ModeHTTP:
 		client.client = NewHTTP(syncer.ctx, syncer.certPool, syncer.proxyPool, syncer.dnsClient)
 	case ModeNTP:
 		client.client = NewNTP(syncer.ctx, syncer.proxyPool, syncer.dnsClient)
 	default:
-		return errors.Errorf("unknown mode: %s", client.Mode)
+		return errors.Errorf("unknown mode: \"%s\"", client.Mode)
 	}
 	err := client.client.Import([]byte(client.Config))
 	if err != nil {
@@ -125,7 +143,7 @@ func (syncer *Syncer) Add(tag string, client *Client) error {
 		syncer.clients[tag] = client
 		return nil
 	}
-	return fmt.Errorf("time syncer client: %s already exists", tag)
+	return errors.New("already exists")
 }
 
 // Delete is used to delete syncer client.
@@ -136,7 +154,7 @@ func (syncer *Syncer) Delete(tag string) error {
 		delete(syncer.clients, tag)
 		return nil
 	}
-	return fmt.Errorf("time syncer client: %s doesn't exist", tag)
+	return errors.Errorf("time syncer client \"%s\" doesn't exist", tag)
 }
 
 // Clients is used to get all time syncer clients.
@@ -294,9 +312,11 @@ func (syncer *Syncer) Synchronize() (err error) {
 		now, optsErr, err := client.Query()
 		if err != nil {
 			if optsErr {
-				return errors.WithMessagef(err, "client %s with invalid config", tag)
+				const format = "client \"%s\" include invalid config"
+				return errors.WithMessagef(err, format, tag)
 			}
-			err = errors.WithMessagef(err, "client %s failed to synchronize time", tag)
+			const format = "client \"%s\" failed to synchronize time"
+			err = errors.WithMessagef(err, format, tag)
 			syncer.log(logger.Warning, err)
 		} else {
 			syncer.updateTime(now)
@@ -334,7 +354,8 @@ func (syncer *Syncer) Test(ctx context.Context) error {
 			}()
 			_, _, err = client.Query()
 			if err != nil {
-				err = errors.WithMessagef(err, "failed to test syncer client %s", tag)
+				const format = "failed to test syncer client \"%s\""
+				err = errors.WithMessagef(err, format, tag)
 			}
 		}(tag, client)
 	}
