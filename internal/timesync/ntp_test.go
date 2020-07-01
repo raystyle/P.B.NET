@@ -91,6 +91,56 @@ func TestNTP_Query(t *testing.T) {
 	})
 }
 
+func TestNTP_Import(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	dnsClient, proxyPool, proxyMgr, _ := testdns.DNSClient(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
+	ctx := context.Background()
+
+	t.Run("ok", func(t *testing.T) {
+		NTP := NewNTP(ctx, proxyPool, dnsClient)
+
+		data, err := ioutil.ReadFile("testdata/ntp.toml")
+		require.NoError(t, err)
+		err = NTP.Import(data)
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, NTP)
+	})
+
+	t.Run("invalid config data", func(t *testing.T) {
+		NTP := NewNTP(ctx, proxyPool, dnsClient)
+
+		err := NTP.Import([]byte{1})
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, NTP)
+	})
+
+	t.Run("empty address", func(t *testing.T) {
+		NTP := NewNTP(ctx, proxyPool, dnsClient)
+
+		err := NTP.Import(nil)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, NTP)
+	})
+
+	t.Run("invalid address", func(t *testing.T) {
+		NTP := NewNTP(ctx, proxyPool, dnsClient)
+
+		err := NTP.Import([]byte(`address = "1.1.1.1"`))
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, NTP)
+	})
+}
+
 func TestNTP_Query_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

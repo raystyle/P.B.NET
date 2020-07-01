@@ -28,11 +28,11 @@ type NTP struct {
 }
 
 // NewNTP is used to create a NTP client.
-func NewNTP(ctx context.Context, pool *proxy.Pool, client *dns.Client) *NTP {
+func NewNTP(ctx context.Context, proxyPool *proxy.Pool, dnsClient *dns.Client) *NTP {
 	return &NTP{
 		ctx:       ctx,
-		proxyPool: pool,
-		dnsClient: client,
+		proxyPool: proxyPool,
+		dnsClient: dnsClient,
 	}
 }
 
@@ -80,7 +80,6 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 	result, err := n.dnsClient.ResolveContext(n.ctx, host, &n.DNSOpts)
 	if err != nil {
 		optsErr = true
-		err = errors.WithMessage(err, "failed to resolve domain name")
 		return
 	}
 
@@ -101,15 +100,26 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 	return
 }
 
-// Import is for time syncer.
-func (n *NTP) Import(b []byte) error {
-	return toml.Unmarshal(b, n)
+// Import is used to import configuration from toml and check.
+func (n *NTP) Import(cfg []byte) error {
+	err := toml.Unmarshal(cfg, n)
+	if err != nil {
+		return err
+	}
+	if n.Address == "" {
+		return errors.New("empty address")
+	}
+	_, _, err = net.SplitHostPort(n.Address)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
-// Export is for time syncer.
+// Export is used to export current configuration to toml.
 func (n *NTP) Export() []byte {
-	b, _ := toml.Marshal(n)
-	return b
+	cfg, _ := toml.Marshal(n)
+	return cfg
 }
 
 // TestNTP is used to create a NTP client to test toml config.
