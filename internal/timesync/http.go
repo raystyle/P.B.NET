@@ -39,17 +39,12 @@ type HTTP struct {
 }
 
 // NewHTTP is used to create a HTTP client.
-func NewHTTP(
-	ctx context.Context,
-	certPool *cert.Pool,
-	proxyPool *proxy.Pool,
-	dnsClient *dns.Client,
-) *HTTP {
+func NewHTTP(ctx context.Context, cp *cert.Pool, pp *proxy.Pool, dc *dns.Client) *HTTP {
 	return &HTTP{
 		ctx:       ctx,
-		certPool:  certPool,
-		proxyPool: proxyPool,
-		dnsClient: dnsClient,
+		certPool:  cp,
+		proxyPool: pp,
+		dnsClient: dc,
 		rand:      random.NewRand(),
 	}
 }
@@ -86,7 +81,6 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 	result, err := h.dnsClient.ResolveContext(h.ctx, hostname, &h.DNSOpts)
 	if err != nil {
 		optsErr = true
-		err = errors.WithMessage(err, "failed to resolve domain name")
 		return
 	}
 
@@ -165,9 +159,17 @@ func (h *HTTP) getDate(req *http.Request, client *http.Client) (time.Time, error
 	return now.Add(time.Since(t)), nil
 }
 
-// Import is for time syncer.
-func (h *HTTP) Import(b []byte) error {
-	err := toml.Unmarshal(b, h)
+// Import is used to import configuration from toml and check.
+func (h *HTTP) Import(cfg []byte) error {
+	err := toml.Unmarshal(cfg, h)
+	if err != nil {
+		return err
+	}
+	_, err = h.Request.Apply()
+	if err != nil {
+		return err
+	}
+	_, err = h.Transport.Apply()
 	if err != nil {
 		return err
 	}
@@ -176,10 +178,10 @@ func (h *HTTP) Import(b []byte) error {
 	return nil
 }
 
-// Export is for time syncer.
+// Export is used to export current configuration to toml.
 func (h *HTTP) Export() []byte {
-	b, _ := toml.Marshal(h)
-	return b
+	cfg, _ := toml.Marshal(h)
+	return cfg
 }
 
 // TestHTTP is used to create a HTTP client to test toml config.

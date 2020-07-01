@@ -27,9 +27,10 @@ func TestHTTP_Query(t *testing.T) {
 		err := proxyMgr.Close()
 		require.NoError(t, err)
 	}()
+	ctx := context.Background()
 
 	t.Run("https", func(t *testing.T) {
-		HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
+		HTTP := NewHTTP(ctx, certPool, proxyPool, dnsClient)
 
 		data, err := ioutil.ReadFile("testdata/http.toml")
 		require.NoError(t, err)
@@ -46,7 +47,7 @@ func TestHTTP_Query(t *testing.T) {
 	})
 
 	t.Run("http with proxy", func(t *testing.T) {
-		HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
+		HTTP := NewHTTP(ctx, certPool, proxyPool, dnsClient)
 
 		HTTP.ProxyTag = testproxy.TagBalance
 		HTTP.Request.URL = "http://ds.vm3.test-ipv6.com/"
@@ -61,7 +62,7 @@ func TestHTTP_Query(t *testing.T) {
 	})
 
 	newHTTP := func(t *testing.T) *HTTP {
-		HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
+		HTTP := NewHTTP(ctx, certPool, proxyPool, dnsClient)
 		HTTP.Request.URL = "test.com"
 		HTTP.Transport.TLSClientConfig.CertPool = testcert.CertPool(t)
 		return HTTP
@@ -197,6 +198,64 @@ func TestHTTP_GetDate(t *testing.T) {
 
 		_, err = HTTP.getDate(req, client)
 		require.NoError(t, err)
+	})
+}
+
+func TestHTTP_Import(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
+	ctx := context.Background()
+
+	t.Run("ok", func(t *testing.T) {
+		HTTP := NewHTTP(ctx, certPool, proxyPool, dnsClient)
+
+		data, err := ioutil.ReadFile("testdata/http.toml")
+		require.NoError(t, err)
+		err = HTTP.Import(data)
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, HTTP)
+	})
+
+	t.Run("invalid config data", func(t *testing.T) {
+		HTTP := NewHTTP(ctx, certPool, proxyPool, dnsClient)
+
+		err := HTTP.Import([]byte{1})
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, HTTP)
+	})
+
+	t.Run("invalid request", func(t *testing.T) {
+		HTTP := NewHTTP(ctx, certPool, proxyPool, dnsClient)
+
+		err := HTTP.Import(nil)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, HTTP)
+	})
+
+	t.Run("invalid transport", func(t *testing.T) {
+		HTTP := NewHTTP(ctx, certPool, proxyPool, dnsClient)
+
+		cfg := []byte(`
+[request]
+  url = "http://test.com/"
+
+[transport]
+  [transport.tls_config]
+    root_ca = ["foo"]
+`)
+		err := HTTP.Import(cfg)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, HTTP)
 	})
 }
 
