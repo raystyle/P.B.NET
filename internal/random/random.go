@@ -13,14 +13,10 @@ import (
 	"project/internal/xpanic"
 )
 
-var (
-	gRand    *Rand
-	gSleeper *Sleeper
-)
+var gRand *Rand
 
 func init() {
 	gRand = NewRand()
-	gSleeper = NewSleeper()
 }
 
 // Rand is used to generate random data.
@@ -134,9 +130,9 @@ func (r *Rand) Cookie(n int) string {
 		// after space
 		ri := 33 + r.rand.Intn(90)
 		switch {
-		case ri > 47 && ri < 58: //  48-57 number
-		case ri > 64 && ri < 91: //  65-90 A-Z
-		case ri > 96 && ri < 123: // 97-122 a-z
+		case ri >= '0' && ri <= '9':
+		case ri >= 'A' && ri <= 'Z':
+		case ri >= 'a' && ri <= 'z':
 		default:
 			i--
 			continue
@@ -222,7 +218,8 @@ func NewSleeper() *Sleeper {
 
 // Sleep is used to sleep with fixed + random time.
 func (s *Sleeper) Sleep(fixed, random uint) <-chan time.Time {
-	s.timer.Reset(s.calculateDuration(fixed, random))
+	d := s.calculateDuration(fixed, random)
+	s.timer.Reset(d)
 	select {
 	case <-s.timer.C:
 	default:
@@ -245,12 +242,17 @@ func (s *Sleeper) calculateDuration(fixed, random uint) time.Duration {
 	return total
 }
 
-// Stop is used to stop sleeper.
+// Stop is used to stop timer in sleeper.
 func (s *Sleeper) Stop() {
 	s.timer.Stop()
 }
 
 // Sleep is used to sleep a random time.
-func Sleep(fixed, random uint) <-chan time.Time {
-	return gSleeper.Sleep(fixed, random)
+//
+// done, sleeper := random.Sleep(1, 1)
+// defer sleeper.Stop()
+// <-done
+func Sleep(fixed, random uint) (<-chan time.Time, *Sleeper) {
+	sleeper := NewSleeper()
+	return sleeper.Sleep(fixed, random), sleeper
 }

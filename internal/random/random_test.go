@@ -128,27 +128,30 @@ func BenchmarkRand_Bytes(b *testing.B) {
 }
 
 func TestSleeper(t *testing.T) {
-	// wait global sleeper
-	time.Sleep(100 * time.Millisecond)
-
 	t.Run("common", func(t *testing.T) {
-		<-Sleep(1, 2)
+		done, sleeper := Sleep(1, 2)
+		defer sleeper.Stop()
+		<-done
 	})
 
 	t.Run("zero", func(t *testing.T) {
-		<-Sleep(0, 0)
+		done, sleeper := Sleep(0, 0)
+		defer sleeper.Stop()
+		<-done
 	})
 
 	t.Run("not read", func(t *testing.T) {
-		Sleep(0, 0)
+		sleeper := NewSleeper()
+
+		sleeper.Sleep(0, 0)
 		time.Sleep(time.Second + 100*time.Millisecond)
-		Sleep(0, 0)
+		sleeper.Sleep(0, 0)
 	})
 
-	t.Run("max", func(t *testing.T) {
-		d := gSleeper.calculateDuration(3600, 3600)
+	t.Run("max duration", func(t *testing.T) {
+		sleeper := NewSleeper()
+
+		d := sleeper.calculateDuration(3600, 3600)
 		require.Equal(t, MaxSleepTime, d)
 	})
-
-	gSleeper.Stop()
 }
