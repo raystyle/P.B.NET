@@ -338,10 +338,10 @@ func (syncer *Syncer) Test(ctx context.Context) error {
 	if l == 0 {
 		return ErrNoClients
 	}
-	errChan := make(chan error, l)
+	errCh := make(chan error, l)
 	for tag, client := range syncer.clients {
 		if client.SkipTest {
-			errChan <- nil
+			errCh <- nil
 			continue
 		}
 		go func(tag string, client *Client) {
@@ -350,7 +350,7 @@ func (syncer *Syncer) Test(ctx context.Context) error {
 				if r := recover(); r != nil {
 					err = xpanic.Error(r, "Syncer.Test")
 				}
-				errChan <- err
+				errCh <- err
 			}()
 			_, _, err = client.Query()
 			if err != nil {
@@ -361,7 +361,7 @@ func (syncer *Syncer) Test(ctx context.Context) error {
 	}
 	for i := 0; i < l; i++ {
 		select {
-		case err := <-errChan:
+		case err := <-errCh:
 			if err != nil {
 				return err
 			}
@@ -369,7 +369,7 @@ func (syncer *Syncer) Test(ctx context.Context) error {
 			return ctx.Err()
 		}
 	}
-	close(errChan)
+	close(errCh)
 	return nil
 }
 

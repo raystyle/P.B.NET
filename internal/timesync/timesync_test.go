@@ -1029,6 +1029,8 @@ func TestSyncer_Parallel(t *testing.T) {
 				err = syncer.Delete(tag4)
 				require.NoError(t, err)
 
+				syncer.Stop()
+
 				// reset Client.client
 				client1.client = nil
 				client2.client = nil
@@ -1042,19 +1044,195 @@ func TestSyncer_Parallel(t *testing.T) {
 			}
 			testsuite.RunParallel(2, init, cleanup, fns...)
 
-			syncer.Stop()
-
 			testsuite.IsDestroyed(t, syncer)
 		})
 	})
 
 	t.Run("with stop", func(t *testing.T) {
 		t.Run("part", func(t *testing.T) {
+			syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
+			testAddAllClients(t, syncer)
 
+			init := func() {
+				err := syncer.Add(tag1, client1)
+				require.NoError(t, err)
+				err = syncer.Add(tag2, client2)
+				require.NoError(t, err)
+
+				err = syncer.Start()
+				require.NoError(t, err)
+			}
+			add1 := func() {
+				err := syncer.Add(tag3, client3)
+				require.NoError(t, err)
+			}
+			add2 := func() {
+				err := syncer.Add(tag4, client4)
+				require.NoError(t, err)
+			}
+			delete1 := func() {
+				err := syncer.Delete(tag1)
+				require.NoError(t, err)
+			}
+			delete2 := func() {
+				err := syncer.Delete(tag2)
+				require.NoError(t, err)
+			}
+			clients := func() {
+				clients := syncer.Clients()
+				require.NotEmpty(t, clients)
+			}
+			getSyncInterval := func() {
+				_ = syncer.GetSyncInterval()
+			}
+			setSyncInterval := func() {
+				const interval = 3 * time.Minute
+
+				err := syncer.SetSyncInterval(interval)
+				require.NoError(t, err)
+
+				i := syncer.GetSyncInterval()
+				require.Equal(t, interval, i)
+			}
+			now1 := func() {
+				done, sleeper := random.Sleep(2, 5)
+				defer sleeper.Stop()
+				<-done
+
+				t.Log("now1:", syncer.Now())
+			}
+			now2 := func() {
+				done, sleeper := random.Sleep(2, 5)
+				defer sleeper.Stop()
+				<-done
+
+				t.Log("now2:", syncer.Now())
+			}
+			synchronize := func() {
+				// maybe failed because syncer stopped.
+				_ = syncer.Synchronize()
+			}
+			stop := func() {
+				done, sleeper := random.Sleep(2, 5)
+				defer sleeper.Stop()
+				<-done
+
+				syncer.Stop()
+			}
+			cleanup := func() {
+				err := syncer.Delete(tag3)
+				require.NoError(t, err)
+				err = syncer.Delete(tag4)
+				require.NoError(t, err)
+
+				// reset Client.client
+				client1.client = nil
+				client2.client = nil
+				client3.client = nil
+				client4.client = nil
+			}
+			fns := []func(){
+				add1, add2, delete1, delete2, clients,
+				getSyncInterval, setSyncInterval,
+				now1, now2, synchronize, synchronize, stop,
+			}
+			testsuite.RunParallel(2, init, cleanup, fns...)
+
+			testsuite.IsDestroyed(t, syncer)
 		})
 
 		t.Run("whole", func(t *testing.T) {
+			var syncer *Syncer
 
+			init := func() {
+				syncer = NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
+				testAddAllClients(t, syncer)
+
+				err := syncer.Add(tag1, client1)
+				require.NoError(t, err)
+				err = syncer.Add(tag2, client2)
+				require.NoError(t, err)
+
+				err = syncer.Start()
+				require.NoError(t, err)
+			}
+			add1 := func() {
+				err := syncer.Add(tag3, client3)
+				require.NoError(t, err)
+			}
+			add2 := func() {
+				err := syncer.Add(tag4, client4)
+				require.NoError(t, err)
+			}
+			delete1 := func() {
+				err := syncer.Delete(tag1)
+				require.NoError(t, err)
+			}
+			delete2 := func() {
+				err := syncer.Delete(tag2)
+				require.NoError(t, err)
+			}
+			clients := func() {
+				clients := syncer.Clients()
+				require.NotEmpty(t, clients)
+			}
+			getSyncInterval := func() {
+				_ = syncer.GetSyncInterval()
+			}
+			setSyncInterval := func() {
+				const interval = 3 * time.Minute
+
+				err := syncer.SetSyncInterval(interval)
+				require.NoError(t, err)
+
+				i := syncer.GetSyncInterval()
+				require.Equal(t, interval, i)
+			}
+			now1 := func() {
+				done, sleeper := random.Sleep(2, 5)
+				defer sleeper.Stop()
+				<-done
+
+				t.Log("now1:", syncer.Now())
+			}
+			now2 := func() {
+				done, sleeper := random.Sleep(2, 5)
+				defer sleeper.Stop()
+				<-done
+
+				t.Log("now2:", syncer.Now())
+			}
+			synchronize := func() {
+				err := syncer.Synchronize()
+				require.NoError(t, err)
+			}
+			stop := func() {
+				done, sleeper := random.Sleep(2, 5)
+				defer sleeper.Stop()
+				<-done
+
+				syncer.Stop()
+			}
+			cleanup := func() {
+				err := syncer.Delete(tag3)
+				require.NoError(t, err)
+				err = syncer.Delete(tag4)
+				require.NoError(t, err)
+
+				// reset Client.client
+				client1.client = nil
+				client2.client = nil
+				client3.client = nil
+				client4.client = nil
+			}
+			fns := []func(){
+				add1, add2, delete1, delete2, clients,
+				getSyncInterval, setSyncInterval,
+				now1, now2, synchronize, synchronize, stop,
+			}
+			testsuite.RunParallel(2, init, cleanup, fns...)
+
+			testsuite.IsDestroyed(t, syncer)
 		})
 	})
 }
