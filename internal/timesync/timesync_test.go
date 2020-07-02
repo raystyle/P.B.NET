@@ -237,8 +237,10 @@ func TestSyncer_Start(t *testing.T) {
 		const tag = "invalid config"
 
 		err := syncer.Add(tag, &Client{
-			Mode:   ModeNTP,
-			Config: `network = "foo network"`,
+			Mode: ModeNTP,
+			Config: `
+network = "foo network"
+address = "1.1.1.1:123"`,
 		})
 		require.NoError(t, err)
 
@@ -354,6 +356,7 @@ func TestSyncer_Test(t *testing.T) {
 		// add skip
 		err := syncer.Add("skip", &Client{
 			Mode:     ModeNTP,
+			Config:   testLoadNTPClientConfig(t),
 			SkipTest: true,
 		})
 		require.NoError(t, err)
@@ -399,38 +402,7 @@ func TestSyncer_Test(t *testing.T) {
 	testsuite.IsDestroyed(t, syncer)
 }
 
-func TestSyncer_synchronizeLoop(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() {
-		err := proxyMgr.Close()
-		require.NoError(t, err)
-	}()
-	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
-
-	// force set synchronize interval
-	syncer.sleepFixed = 0
-	syncer.sleepRandom = 0
-	syncer.interval = time.Second
-
-	// add reachable
-	testAddHTTPClient(t, syncer)
-	err := syncer.Start()
-	require.NoError(t, err)
-
-	// wait failed to synchronize
-	err = syncer.Delete("http")
-	require.NoError(t, err)
-	time.Sleep(3 * time.Second)
-
-	syncer.Stop()
-
-	testsuite.IsDestroyed(t, syncer)
-}
-
-func TestSyncer_workerPanic(t *testing.T) {
+func TestSyncer_walkerPanic(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -456,7 +428,7 @@ func TestSyncer_workerPanic(t *testing.T) {
 	testsuite.IsDestroyed(t, syncer)
 }
 
-func TestSyncer_synchronizeLoopPanic(t *testing.T) {
+func TestSyncer_synchronizeLoop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -465,24 +437,50 @@ func TestSyncer_synchronizeLoopPanic(t *testing.T) {
 		err := proxyMgr.Close()
 		require.NoError(t, err)
 	}()
-	syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
-	patch := func() *random.Rand {
-		panic(monkey.Panic)
-	}
-	pg := monkey.Patch(random.NewRand, patch)
-	defer pg.Unpatch()
+	t.Run("failed to sync", func(t *testing.T) {
+		syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
 
-	syncer.wg.Add(1)
-	syncer.synchronizeLoop()
-	pg.Unpatch()
+		// force set synchronize interval
+		syncer.sleepFixed = 0
+		syncer.sleepRandom = 0
+		syncer.interval = time.Second
 
-	syncer.Stop()
+		// add reachable
+		testAddHTTPClient(t, syncer)
+		err := syncer.Start()
+		require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, syncer)
+		// wait failed to synchronize
+		err = syncer.Delete("http")
+		require.NoError(t, err)
+		time.Sleep(3 * time.Second)
+
+		syncer.Stop()
+
+		testsuite.IsDestroyed(t, syncer)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		syncer := NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
+
+		patch := func() *random.Rand {
+			panic(monkey.Panic)
+		}
+		pg := monkey.Patch(random.NewRand, patch)
+		defer pg.Unpatch()
+
+		syncer.wg.Add(1)
+		syncer.synchronizeLoop()
+		pg.Unpatch()
+
+		syncer.Stop()
+
+		testsuite.IsDestroyed(t, syncer)
+	})
 }
 
-func TestSyncer_synchronizePanic(t *testing.T) {
+func TestSyncer_Synchronize(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -521,10 +519,12 @@ func TestSyncer_Add_Parallel(t *testing.T) {
 		tag2 = "ntp"
 	)
 	client1 := &Client{
-		Mode: ModeHTTP,
+		Mode:   ModeHTTP,
+		Config: testLoadHTTPClientConfig(t),
 	}
 	client2 := &Client{
-		Mode: ModeNTP,
+		Mode:   ModeNTP,
+		Config: testLoadNTPClientConfig(t),
 	}
 
 	t.Run("part", func(t *testing.T) {
@@ -610,10 +610,12 @@ func TestSyncer_Delete_Parallel(t *testing.T) {
 		tag2 = "ntp"
 	)
 	client1 := &Client{
-		Mode: ModeHTTP,
+		Mode:   ModeHTTP,
+		Config: testLoadHTTPClientConfig(t),
 	}
 	client2 := &Client{
-		Mode: ModeNTP,
+		Mode:   ModeNTP,
+		Config: testLoadNTPClientConfig(t),
 	}
 
 	t.Run("part", func(t *testing.T) {
@@ -686,10 +688,12 @@ func TestSyncer_Clients_Parallel(t *testing.T) {
 		tag2 = "ntp"
 	)
 	client1 := &Client{
-		Mode: ModeHTTP,
+		Mode:   ModeHTTP,
+		Config: testLoadHTTPClientConfig(t),
 	}
 	client2 := &Client{
-		Mode: ModeNTP,
+		Mode:   ModeNTP,
+		Config: testLoadNTPClientConfig(t),
 	}
 
 	t.Run("part", func(t *testing.T) {
@@ -963,12 +967,95 @@ func TestSyncer_Parallel(t *testing.T) {
 		})
 
 		t.Run("whole", func(t *testing.T) {
+			var syncer *Syncer
 
+			init := func() {
+				syncer = NewSyncer(certPool, proxyPool, dnsClient, logger.Test)
+				testAddAllClients(t, syncer)
+
+				err := syncer.Add(tag1, client1)
+				require.NoError(t, err)
+				err = syncer.Add(tag2, client2)
+				require.NoError(t, err)
+
+				err = syncer.Start()
+				require.NoError(t, err)
+			}
+			add1 := func() {
+				err := syncer.Add(tag3, client3)
+				require.NoError(t, err)
+			}
+			add2 := func() {
+				err := syncer.Add(tag4, client4)
+				require.NoError(t, err)
+			}
+			delete1 := func() {
+				err := syncer.Delete(tag1)
+				require.NoError(t, err)
+			}
+			delete2 := func() {
+				err := syncer.Delete(tag2)
+				require.NoError(t, err)
+			}
+			clients := func() {
+				clients := syncer.Clients()
+				require.NotEmpty(t, clients)
+			}
+			getSyncInterval := func() {
+				_ = syncer.GetSyncInterval()
+			}
+			setSyncInterval := func() {
+				const interval = 3 * time.Minute
+
+				err := syncer.SetSyncInterval(interval)
+				require.NoError(t, err)
+
+				i := syncer.GetSyncInterval()
+				require.Equal(t, interval, i)
+			}
+			now1 := func() {
+				t.Log("now1:", syncer.Now())
+			}
+			now2 := func() {
+				t.Log("now2:", syncer.Now())
+			}
+			synchronize := func() {
+				err := syncer.Synchronize()
+				require.NoError(t, err)
+			}
+			cleanup := func() {
+				err := syncer.Delete(tag3)
+				require.NoError(t, err)
+				err = syncer.Delete(tag4)
+				require.NoError(t, err)
+
+				// reset Client.client
+				client1.client = nil
+				client2.client = nil
+				client3.client = nil
+				client4.client = nil
+			}
+			fns := []func(){
+				add1, add2, delete1, delete2, clients,
+				getSyncInterval, setSyncInterval,
+				now1, now2, synchronize, synchronize,
+			}
+			testsuite.RunParallel(2, init, cleanup, fns...)
+
+			syncer.Stop()
+
+			testsuite.IsDestroyed(t, syncer)
 		})
 	})
 
 	t.Run("with stop", func(t *testing.T) {
+		t.Run("part", func(t *testing.T) {
 
+		})
+
+		t.Run("whole", func(t *testing.T) {
+
+		})
 	})
 }
 
