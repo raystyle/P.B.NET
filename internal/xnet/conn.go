@@ -56,11 +56,11 @@ func (c *Conn) Write(b []byte) (int, error) {
 	return n, err
 }
 
-// +--------+---------+
-// |  size  | message |
-// +--------+---------+
-// | uint32 |   var   |
-// +--------+---------+
+// +--------------+---------+
+// | size(uint32) | message |
+// +--------------+---------+
+// |   4 bytes    |   var   |
+// +--------------+---------+
 const (
 	headerSize   = 4         // message size
 	MaxMsgLength = 256 << 10 // 256 KB
