@@ -57,6 +57,46 @@ func TestWriteFile(t *testing.T) {
 	})
 }
 
+func TestIsExist(t *testing.T) {
+	t.Run("exist", func(t *testing.T) {
+		exist, err := IsExist("testdata")
+		require.NoError(t, err)
+		require.True(t, exist)
+	})
+
+	t.Run("doesn't exist", func(t *testing.T) {
+		exist, err := IsExist("not")
+		require.NoError(t, err)
+		require.False(t, exist)
+	})
+
+	t.Run("invalid path", func(t *testing.T) {
+		exist, err := IsExist("testdata/<</file")
+		require.Error(t, err)
+		require.False(t, exist)
+	})
+}
+
+func TestIsNotExist(t *testing.T) {
+	t.Run("doesn't exist", func(t *testing.T) {
+		notExist, err := IsNotExist("not")
+		require.NoError(t, err)
+		require.True(t, notExist)
+	})
+
+	t.Run("exist", func(t *testing.T) {
+		notExist, err := IsNotExist("testdata")
+		require.NoError(t, err)
+		require.False(t, notExist)
+	})
+
+	t.Run("invalid path", func(t *testing.T) {
+		notExist, err := IsNotExist("testdata/<</file")
+		require.Error(t, err)
+		require.False(t, notExist)
+	})
+}
+
 func TestGetConnHandle(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		handle, err := GetConnHandle(os.Stdout)

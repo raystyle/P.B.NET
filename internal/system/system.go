@@ -35,6 +35,30 @@ func WriteFile(filename string, data []byte) error {
 	return err
 }
 
+// IsExist is used to check the target path or file is exist.
+func IsExist(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+// IsNotExist is used to check the target path or file is not exist.
+func IsNotExist(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return false, nil
+	}
+	if os.IsNotExist(err) {
+		return true, nil
+	}
+	return false, err
+}
+
 // GetConnHandle is used to get handle about raw connection.
 func GetConnHandle(conn syscall.Conn) (uintptr, error) {
 	rawConn, err := conn.SyscallConn()
