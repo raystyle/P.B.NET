@@ -143,7 +143,7 @@ func newWebServer(ctx *Ctrl, config *Config) (*webServer, error) {
 }
 
 func (web *webServer) Deploy() error {
-	errChan := make(chan error, 1)
+	errCh := make(chan error, 1)
 	web.wg.Add(1)
 	go func() {
 		defer func() {
@@ -153,12 +153,12 @@ func (web *webServer) Deploy() error {
 			}
 			web.wg.Done()
 		}()
-		errChan <- web.server.ServeTLS(web.listener, "", "")
+		errCh <- web.server.ServeTLS(web.listener, "", "")
 	}()
 	timer := time.NewTimer(time.Second)
 	defer timer.Stop()
 	select {
-	case err := <-errChan:
+	case err := <-errCh:
 		return errors.WithStack(err)
 	case <-timer.C:
 		return nil
