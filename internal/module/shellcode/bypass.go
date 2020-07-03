@@ -40,10 +40,10 @@ func bypass() {
 
 	rand := random.NewRand()
 	// must > n* (n in schedule)
-	bChan := make(chan []byte, 5120)
+	bc := make(chan []byte, 5120)
 	n := 8 + rand.Int(8)
 	for i := 0; i < n; i++ {
-		go schedule(ctx, bChan)
+		go schedule(ctx, bc)
 	}
 	timer := time.NewTimer(25 * time.Millisecond)
 	defer timer.Stop()
@@ -51,7 +51,7 @@ read:
 	for {
 		timer.Reset(25 * time.Millisecond)
 		select {
-		case b := <-bChan:
+		case b := <-bc:
 			b[0] = byte(rand.Int64())
 		case <-timer.C:
 			break read

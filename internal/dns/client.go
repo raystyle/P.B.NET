@@ -456,10 +456,10 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 	defer c.EnableCache()
 	results := make(map[string]struct{}) // remove duplicate result
 	resultsMu := sync.Mutex{}
-	errChan := make(chan error, l)
+	errCh := make(chan error, l)
 	for tag, server := range c.servers {
 		if server.SkipTest {
-			errChan <- nil
+			errCh <- nil
 			continue
 		}
 		go func(tag string) {
@@ -468,7 +468,7 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 				if r := recover(); r != nil {
 					err = xpanic.Error(r, "Client.TestServers")
 				}
-				errChan <- err
+				errCh <- err
 			}()
 			// set server tag to use DNS server that selected
 			opts := opts.Clone()
@@ -488,7 +488,7 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 	// get errors
 	for i := 0; i < l; i++ {
 		select {
-		case err := <-errChan:
+		case err := <-errCh:
 			if err != nil {
 				return nil, err
 			}
@@ -496,7 +496,7 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 			return nil, ctx.Err()
 		}
 	}
-	close(errChan)
+	close(errCh)
 	result := make([]string, 0, len(results)/l+2)
 	for ip := range results {
 		result = append(result, ip)

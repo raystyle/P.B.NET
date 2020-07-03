@@ -45,20 +45,20 @@ func setSysProcAttr() *syscall.SysProcAttr {
 var (
 	// consoleCtrlHandler is used to hook handle interrupt signal
 	consoleCtrlHandler uintptr
-	// signalChan is used to confirm that has receive the interrupt signal
-	signalChan chan struct{}
+	// signalCh is used to confirm that has receive the interrupt signal
+	signalCh chan struct{}
 
 	globalMu sync.Mutex
 )
 
 func init() {
 	consoleCtrlHandler = syscall.NewCallback(handleConsoleCtrl)
-	signalChan = make(chan struct{}, 1)
+	signalCh = make(chan struct{}, 1)
 }
 
 // always return true
 func handleConsoleCtrl(_ uintptr) uintptr {
-	signalChan <- struct{}{}
+	signalCh <- struct{}{}
 	return uintptr(1)
 }
 
@@ -118,7 +118,7 @@ func sendInterruptSignal(cmd *exec.Cmd) error {
 	timer := time.NewTimer(5 * time.Second)
 	defer timer.Stop()
 	select {
-	case <-signalChan:
+	case <-signalCh:
 	case <-timer.C:
 		return errors.New("failed to receive the interrupt signal")
 	}
