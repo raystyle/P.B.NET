@@ -283,14 +283,14 @@ func (cfg *Config) TimeSyncerClients(
 }
 
 func (cfg *Config) wait(ctx context.Context, beacon *Beacon, timeout time.Duration) error {
-	errChan := make(chan error, 1)
+	errCh := make(chan error, 1)
 	go func() {
 		var err error
 		defer func() {
 			if r := recover(); r != nil {
 				err = xpanic.Error(r, "Config.wait")
 			}
-			errChan <- err
+			errCh <- err
 		}()
 		err = beacon.Main()
 	}()
@@ -300,8 +300,8 @@ func (cfg *Config) wait(ctx context.Context, beacon *Beacon, timeout time.Durati
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
-	case err := <-errChan:
-		close(errChan)
+	case err := <-errCh:
+		close(errCh)
 		return err
 	case <-timer.C:
 		beacon.Exit(nil)

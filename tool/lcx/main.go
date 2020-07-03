@@ -85,9 +85,9 @@ func start(module module.Module) {
 	err := module.Start()
 	checkError(err)
 	// stop signal
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt)
-	<-signalChan
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt)
+	<-signalCh
 	module.Stop()
 }
 

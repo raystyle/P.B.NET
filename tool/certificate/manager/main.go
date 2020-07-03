@@ -248,11 +248,8 @@ type manager struct {
 func (m *manager) Manage() {
 	// interrupt input
 	go func() {
-		signalChan := make(chan os.Signal, 1)
-		signal.Notify(signalChan, os.Interrupt)
-		for {
-			<-signalChan
-		}
+		signalCh := make(chan os.Signal, 1)
+		signal.Notify(signalCh, os.Interrupt)
 	}()
 	m.reload()
 	m.prefix = prefixManager

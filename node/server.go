@@ -203,13 +203,13 @@ func (server *server) addListener(l *messages.Listener) (*xnet.Listener, error) 
 }
 
 func (server *server) deploy(tag string, listener *xnet.Listener) error {
-	errChan := make(chan error, 1)
+	errCh := make(chan error, 1)
 	server.wg.Add(1)
-	go server.serve(tag, listener, errChan)
+	go server.serve(tag, listener, errCh)
 	timer := time.NewTimer(time.Second)
 	defer timer.Stop()
 	select {
-	case err := <-errChan:
+	case err := <-errCh:
 		return errors.Errorf("failed to deploy listener %s: %s", tag, err)
 	case <-timer.C:
 		server.logf(logger.Info, "deploy listener %s %s", tag, listener)
@@ -217,15 +217,15 @@ func (server *server) deploy(tag string, listener *xnet.Listener) error {
 	}
 }
 
-func (server *server) serve(tag string, listener *xnet.Listener, errChan chan<- error) {
+func (server *server) serve(tag string, listener *xnet.Listener, errCh chan<- error) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error(r, "server.serve()")
 			server.log(logger.Fatal, err)
 		}
-		errChan <- err
-		close(errChan)
+		errCh <- err
+		close(errCh)
 		// delete
 		server.rwm.Lock()
 		defer server.rwm.Unlock()

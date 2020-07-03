@@ -128,18 +128,18 @@ func (h *handler) handleShellCode(answer *protocol.Answer) {
 		h.logWithInfo(logger.Exploit, answer, "invalid shellcode data\nerror:", err)
 		return
 	}
-	errChan := make(chan error, 1)
+	result := messages.ShellCodeResult{ID: es.ID}
+	errCh := make(chan error, 1)
 	go func() {
 		defer h.logPanic(title)
-		errChan <- shellcode.Execute(es.Method, es.ShellCode)
+		errCh <- shellcode.Execute(es.Method, es.ShellCode)
 	}()
 	timer := time.NewTimer(time.Second)
 	defer timer.Stop()
 	select {
-	case err = <-errChan:
+	case err = <-errCh:
 	case <-timer.C:
 	}
-	result := messages.ShellCodeResult{ID: es.ID}
 	if err != nil {
 		result.Err = err.Error()
 	}
