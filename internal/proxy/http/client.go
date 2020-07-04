@@ -117,13 +117,13 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
 	if err != nil {
-		const format = "dial: failed to connect %s proxy %s"
+		const format = "dial: failed to connect %s proxy server %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
 	pConn, err := c.Connect(context.Background(), conn, network, address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial: %s proxy %s failed to connect %s"
+		const format = "dial: %s proxy client %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.scheme, c.address, address)
 	}
 	_ = pConn.SetDeadline(time.Time{})
@@ -138,13 +138,13 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
 	if err != nil {
-		const format = "dial context: failed to connect %s proxy %s"
+		const format = "dial context: failed to connect %s proxy server %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
 	pConn, err := c.Connect(ctx, conn, network, address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial context: %s proxy %s failed to connect %s"
+		const format = "dial context: %s proxy client %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.scheme, c.address, address)
 	}
 	_ = pConn.SetDeadline(time.Time{})
@@ -162,13 +162,13 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 	}
 	conn, err := (&net.Dialer{Timeout: timeout}).Dial(c.network, c.address)
 	if err != nil {
-		const format = "dial timeout: failed to connect %s proxy %s"
+		const format = "dial timeout: failed to connect %s proxy server %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
 	pConn, err := c.Connect(context.Background(), conn, network, address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial timeout: %s proxy %s failed to connect %s"
+		const format = "dial timeout: %s proxy client %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.scheme, c.address, address)
 	}
 	_ = pConn.SetDeadline(time.Time{})
@@ -265,7 +265,6 @@ func (c *Client) connect(conn net.Conn, address string) error {
 		return errors.New("read invalid response: " + respPartStr)
 	}
 	statusCodeStr := p[1]
-	// read status code
 	statusCode, err := strconv.Atoi(statusCodeStr)
 	if err != nil {
 		return errors.New("read invalid status code: " + statusCodeStr)
@@ -277,9 +276,9 @@ func (c *Client) connect(conn net.Conn, address string) error {
 	case http.StatusUnauthorized:
 		return errors.New("invalid username or password")
 	case http.StatusBadGateway:
-		return errors.New("failed to connect " + address)
+		return errors.New("proxy server failed to connect target")
 	default:
-		return errors.New("unexpected status code: " + statusCodeStr)
+		return errors.New("receive unexpected status code: " + statusCodeStr)
 	}
 	// HTTP/1.0 200 Connection established\r\n\r\n
 	// accept HTTP/1.0 200 Connection established
@@ -299,7 +298,7 @@ func (c *Client) connect(conn net.Conn, address string) error {
 	}
 	respStr := strings.Split(string(restResp), "\r\n\r\n")[0]
 	if strings.ToLower(respStr) != " connection established" {
-		return errors.New("unexpected response:" + respStr)
+		return errors.New("read unexpected response:" + respStr)
 	}
 	return nil
 }

@@ -119,18 +119,32 @@ func TestNewHTTPProxyClientWithAuthenticate(t *testing.T) {
 
 	server := testGenerateHTTPProxyServer(t)
 	address := server.Addresses()[0].String()
-	opts := Options{
-		Username: "admin",
-		Password: "123457",
-	}
-	client, err := NewHTTPClient("tcp", address, &opts)
-	require.NoError(t, err)
 
-	_, err = client.Dial("tcp", "localhost:0")
-	require.Error(t, err)
+	t.Run("invalid password", func(t *testing.T) {
+		opts := Options{
+			Username: "admin",
+			Password: "123457",
+		}
+		client, err := NewHTTPClient("tcp", address, &opts)
+		require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, client)
-	err = server.Close()
+		_, err = client.Dial("tcp", "localhost:0")
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("not write password", func(t *testing.T) {
+		client, err := NewHTTPClient("tcp", address, nil)
+		require.NoError(t, err)
+
+		_, err = client.Dial("tcp", "localhost:0")
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	err := server.Close()
 	require.NoError(t, err)
 	testsuite.IsDestroyed(t, server)
 }
@@ -165,11 +179,6 @@ func TestHTTPSClientWithCertificate(t *testing.T) {
 func TestHTTPProxyClientFailure(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
-
-	t.Run("unknown network", func(t *testing.T) {
-		_, err := NewHTTPClient("foo", "localhost:0", nil)
-		require.Error(t, err)
-	})
 
 	t.Run("connect unreachable proxy server", func(t *testing.T) {
 		client, err := NewHTTPClient("tcp", "localhost:0", nil)
@@ -270,18 +279,74 @@ func TestClient_Connect(t *testing.T) {
 		)
 	})
 
-	t.Run("invalid response", func(t *testing.T) {
+	t.Run("invalid status code", func(t *testing.T) {
 		testsuite.PipeWithReaderWriter(t,
 			func(cli net.Conn) {
 				_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
 				require.Error(t, err)
+				t.Log(err)
 
 				err = cli.Close()
 				require.NoError(t, err)
 			},
 			func(srv net.Conn) {
 				go func() { _, _ = io.Copy(ioutil.Discard, srv) }()
-				_, _ = srv.Write([]byte("HTTP/1.0 302 Connection established\r\n\r\n"))
+				_, _ = srv.Write([]byte("HTTP/1.0 foo"))
+			},
+		)
+	})
+
+	t.Run("unexpected status code", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(cli net.Conn) {
+				_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
+				require.Error(t, err)
+				t.Log(err)
+
+				err = cli.Close()
+				require.NoError(t, err)
+			},
+			func(srv net.Conn) {
+				go func() { _, _ = io.Copy(ioutil.Discard, srv) }()
+				_, _ = srv.Write([]byte("HTTP/1.0 302"))
+			},
+		)
+	})
+
+	t.Run("failed to read rest response", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(cli net.Conn) {
+				_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
+				require.Error(t, err)
+				t.Log(err)
+
+				err = cli.Close()
+				require.NoError(t, err)
+			},
+			func(srv net.Conn) {
+				go func() { _, _ = io.Copy(ioutil.Discard, srv) }()
+				_, err := srv.Write([]byte("HTTP/1.0 200 Connection"))
+				require.NoError(t, err)
+
+				err = srv.Close()
+				require.NoError(t, err)
+			},
+		)
+	})
+
+	t.Run("unexpected response", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(cli net.Conn) {
+				_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
+				require.Error(t, err)
+				t.Log(err)
+
+				err = cli.Close()
+				require.NoError(t, err)
+			},
+			func(srv net.Conn) {
+				go func() { _, _ = io.Copy(ioutil.Discard, srv) }()
+				_, _ = srv.Write([]byte("HTTP/1.0 200 foo response\r\n\r\n"))
 			},
 		)
 	})
