@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/system"
+
+	"project/script/internal/config"
 )
 
 func TestExportGoRoot(t *testing.T) {
@@ -28,9 +29,9 @@ func init() {
 %s
 `
 	// get GOROOT
-	output, err := exec.Command("go", "env", "GOROOT").CombinedOutput()
+	goRoot, err := config.GoRoot()
 	require.NoError(t, err)
-	goRoot := filepath.Join(strings.TrimSpace(string(output)), "src")
+	goRoot = filepath.Join(goRoot, "src")
 
 	pkgBuf := new(bytes.Buffer)
 	initBuf := new(bytes.Buffer)
@@ -270,9 +271,8 @@ func init() {
 %s
 `
 	// get module directory
-	output, err := exec.Command("go", "env", "GOMODCACHE").CombinedOutput()
+	goMod, err := config.GoModCache()
 	require.NoError(t, err)
-	goMod := strings.TrimSpace(string(output))
 
 	pkgBuf := new(bytes.Buffer)
 	initBuf := new(bytes.Buffer)
