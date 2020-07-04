@@ -99,7 +99,8 @@ func newClient(network, address string, opts *Options, socks4, disableExt bool) 
 func (c *Client) Dial(network, address string) (net.Conn, error) {
 	err := CheckNetwork(network)
 	if err != nil {
-		return nil, err
+		const format = "dial: %s client %s connect %s with %s"
+		return nil, errors.Errorf(format, c.protocol, c.address, address, err)
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
 	if err != nil {
@@ -109,7 +110,7 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 	_, err = c.Connect(context.Background(), conn, network, address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial: %s server %s failed to connect %s"
+		const format = "dial: %s client %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.protocol, c.address, address)
 	}
 	_ = conn.SetDeadline(time.Time{})
@@ -120,7 +121,8 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	err := CheckNetwork(network)
 	if err != nil {
-		return nil, err
+		const format = "dial context: %s client %s connect %s with %s"
+		return nil, errors.Errorf(format, c.protocol, c.address, address, err)
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
 	if err != nil {
@@ -130,7 +132,7 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 	_, err = c.Connect(ctx, conn, network, address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial context: %s server %s failed to connect %s"
+		const format = "dial context: %s client %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.protocol, c.address, address)
 	}
 	_ = conn.SetDeadline(time.Time{})
@@ -141,7 +143,8 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 func (c *Client) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	err := CheckNetwork(network)
 	if err != nil {
-		return nil, err
+		const format = "dial timeout: %s client %s connect %s with %s"
+		return nil, errors.Errorf(format, c.protocol, c.address, address, err)
 	}
 	if timeout < 1 {
 		timeout = defaultDialTimeout
@@ -151,10 +154,12 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 		const format = "dial timeout: failed to connect %s server %s"
 		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
-	_, err = c.Connect(context.Background(), conn, network, address)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	_, err = c.Connect(ctx, conn, network, address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial timeout: %s server %s failed to connect %s"
+		const format = "dial timeout: %s client %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.protocol, c.address, address)
 	}
 	_ = conn.SetDeadline(time.Time{})

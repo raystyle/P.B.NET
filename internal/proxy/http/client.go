@@ -113,7 +113,8 @@ func newClient(network, address string, opts *Options, https bool) (*Client, err
 func (c *Client) Dial(network, address string) (net.Conn, error) {
 	err := CheckNetwork(network)
 	if err != nil {
-		return nil, err
+		const format = "dial: %s proxy client %s connect %s with %s"
+		return nil, errors.Errorf(format, c.scheme, c.address, address, err)
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
 	if err != nil {
@@ -134,7 +135,8 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	err := CheckNetwork(network)
 	if err != nil {
-		return nil, err
+		const format = "dial context: %s proxy client %s connect %s with %s"
+		return nil, errors.Errorf(format, c.scheme, c.address, address, err)
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
 	if err != nil {
@@ -155,7 +157,8 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 func (c *Client) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	err := CheckNetwork(network)
 	if err != nil {
-		return nil, err
+		const format = "dial timeout: %s proxy client %s connect %s with %s"
+		return nil, errors.Errorf(format, c.scheme, c.address, address, err)
 	}
 	if timeout < 1 {
 		timeout = defaultDialTimeout
@@ -165,7 +168,9 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 		const format = "dial timeout: failed to connect %s proxy server %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
-	pConn, err := c.Connect(context.Background(), conn, network, address)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	pConn, err := c.Connect(ctx, conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial timeout: %s proxy client %s failed to connect %s"
