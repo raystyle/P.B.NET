@@ -259,31 +259,19 @@ func (c *Client) connect(conn net.Conn, address string) error {
 		return errors.Wrap(err, "failed to write request")
 	}
 	// read protocol and status code
-	respPart := make([]byte, len("HTTP/1.0 200"))
-	_, err = io.ReadFull(conn, respPart)
+	partResp := make([]byte, len("HTTP/1.0 200"))
+	_, err = io.ReadFull(conn, partResp)
 	if err != nil {
 		return errors.Wrap(err, "failed to read response")
 	}
-	respPartStr := string(respPart)
-	p := strings.Split(respPartStr, " ")
-	if len(p) != 2 {
-		return errors.New("read invalid response: " + respPartStr)
+	partRespStr := string(partResp)
+	ps := strings.Split(partRespStr, " ")
+	if len(ps) != 2 {
+		return errors.New("read invalid response: " + partRespStr)
 	}
-	statusCodeStr := p[1]
-	statusCode, err := strconv.Atoi(statusCodeStr)
+	err = checkStatusCode(ps[1])
 	if err != nil {
-		return errors.New("read invalid status code: " + statusCodeStr)
-	}
-	switch statusCode {
-	case http.StatusOK:
-	case http.StatusProxyAuthRequired:
-		return errors.New("proxy server require authentication")
-	case http.StatusUnauthorized:
-		return errors.New("invalid username or password")
-	case http.StatusBadGateway:
-		return errors.New("proxy server failed to connect target")
-	default:
-		return errors.New("receive unexpected status code: " + statusCodeStr)
+		return err
 	}
 	// HTTP/1.0 200 Connection established\r\n\r\n
 	// accept HTTP/1.0 200 Connection established
@@ -306,6 +294,25 @@ func (c *Client) connect(conn net.Conn, address string) error {
 		return errors.New("read unexpected response:" + respStr)
 	}
 	return nil
+}
+
+func checkStatusCode(code string) error {
+	statusCode, err := strconv.Atoi(code)
+	if err != nil {
+		return errors.New("read invalid status code: " + code)
+	}
+	switch statusCode {
+	case http.StatusOK:
+		return nil
+	case http.StatusProxyAuthRequired:
+		return errors.New("proxy server require authentication")
+	case http.StatusUnauthorized:
+		return errors.New("invalid username or password")
+	case http.StatusBadGateway:
+		return errors.New("proxy server failed to connect target")
+	default:
+		return errors.New("receive unexpected status code: " + code)
+	}
 }
 
 // HTTP is used to set *http.Transport about proxy.
