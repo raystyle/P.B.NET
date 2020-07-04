@@ -972,33 +972,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	req, err := http.NewRequest(http.MethodConnect, URL, nil)
 	require.NoError(t, err)
 
-	t.Run("don't implemented http.Hijacker", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		server.handler.ServeHTTP(w, req)
-	})
-
-	t.Run("failed to hijack", func(t *testing.T) {
-		w := testsuite.NewMockResponseWriterWithHijackError()
-		server.handler.ServeHTTP(w, req)
-	})
-
-	t.Run("failed to response", func(t *testing.T) {
-		w := testsuite.NewMockResponseWriterWithWriteError()
-		server.handler.ServeHTTP(w, req)
-	})
-
-	t.Run("close hijacked connection error", func(t *testing.T) {
-		w := testsuite.NewMockResponseWriterWithCloseError()
-
-		conn, _, err := w.(http.Hijacker).Hijack()
-		require.NoError(t, err)
-		err = conn.Close()
-		testsuite.IsMockConnCloseError(t, err)
-
-		server.handler.ServeHTTP(w, req)
-	})
-
-	t.Run("close remote connection error", func(t *testing.T) {
+	t.Run("close remote conn with error", func(t *testing.T) {
 		opts := Options{DialContext: func(context.Context, string, string) (net.Conn, error) {
 			return testsuite.NewMockConnWithCloseError(), nil
 		}}
@@ -1019,6 +993,32 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, server)
+	})
+
+	t.Run("don't implemented http.Hijacker", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		server.handler.ServeHTTP(w, req)
+	})
+
+	t.Run("failed to hijack", func(t *testing.T) {
+		w := testsuite.NewMockResponseWriterWithHijackError()
+		server.handler.ServeHTTP(w, req)
+	})
+
+	t.Run("failed to response", func(t *testing.T) {
+		w := testsuite.NewMockResponseWriterWithWriteError()
+		server.handler.ServeHTTP(w, req)
+	})
+
+	t.Run("close hijacked conn with error", func(t *testing.T) {
+		w := testsuite.NewMockResponseWriterWithCloseError()
+
+		conn, _, err := w.(http.Hijacker).Hijack()
+		require.NoError(t, err)
+		err = conn.Close()
+		testsuite.IsMockConnCloseError(t, err)
+
+		server.handler.ServeHTTP(w, req)
 	})
 
 	t.Run("copy with panic", func(t *testing.T) {
@@ -1044,7 +1044,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		testsuite.IsDestroyed(t, server)
 	})
 
-	t.Run("close with panic", func(t *testing.T) {
+	t.Run("close hijacked conn with panic", func(t *testing.T) {
 		go func() {
 			w := testsuite.NewMockResponseWriterWithClosePanic()
 			server.handler.ServeHTTP(w, req)

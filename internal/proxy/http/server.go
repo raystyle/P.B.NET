@@ -354,7 +354,21 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func (h *handler) handleConnectRequest(w http.ResponseWriter, r *http.Request) {
-	const title = "handler.handleConnectRequest"
+	// dial target
+	ctx, cancel := context.WithTimeout(h.ctx, h.timeout)
+	defer cancel()
+	remote, err := h.dialContext(ctx, "tcp", r.URL.Host)
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		h.log(logger.Error, r, "failed to connect target", err)
+		return
+	}
+	defer func() {
+		err = remote.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			h.log(logger.Error, r, "failed to close remote connection:", err)
+		}
+	}()
 
 	// hijack client conn
 	hijacker, ok := w.(http.Hijacker)
@@ -363,7 +377,8 @@ func (h *handler) handleConnectRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	wc, _, err := hijacker.Hijack()
 	if err != nil {
-		h.log(logger.Error, r, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		h.log(logger.Error, r, "failed to hijack:", err)
 		return
 	}
 	defer func() {
@@ -373,26 +388,15 @@ func (h *handler) handleConnectRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// dial target
-	ctx, cancel := context.WithTimeout(h.ctx, h.timeout)
-	defer cancel()
-	remote, err := h.dialContext(ctx, "tcp", r.URL.Host)
-	if err != nil {
-		h.log(logger.Error, r, err)
-		return
-	}
-	defer func() {
-		err = remote.Close()
-		if err != nil && !nettool.IsNetClosingError(err) {
-			h.log(logger.Error, r, "failed to close remote connection:", err)
-		}
-	}()
+	// write connection established response
 	_, err = wc.Write(connectionEstablished)
 	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
 		h.log(logger.Error, r, "failed to write response:", err)
 		return
 	}
 
+	const title = "handler.handleConnectRequest"
 	// http.Server.Close() will not close hijacked conn
 	// so we need create a goroutine to close it if the
 	// handler.ctx is Done.
@@ -414,6 +418,10 @@ func (h *handler) handleConnectRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	// reset deadline
+	_ = remote.SetDeadline(time.Time{})
+	_ = wc.SetDeadline(time.Time{})
+
 	// start copy
 	h.counter.Add(1)
 	go func() {
@@ -429,21 +437,24 @@ func (h *handler) handleConnectRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) handleCommonRequest(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(h.ctx, h.timeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
 	defer cancel()
-	resp, err := h.transport.RoundTrip(r.Clone(ctx))
+	resp, err := h.transport.RoundTrip(r.WithContext(ctx))
 	if err != nil {
 		w.WriteHeader(http.StatusBadGateway)
 		h.log(logger.Error, r, err)
 		return
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(ioutil.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 	// copy header
+	header := w.Header()
 	for k, v := range resp.Header {
-		w.Header().Set(k, v[0])
+		header.Set(k, v[0])
 	}
-	defer func() { _, _ = io.Copy(ioutil.Discard, resp.Body) }()
-	// write status and body
+	// write status and copy body
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
 }
