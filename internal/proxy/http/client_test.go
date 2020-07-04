@@ -16,6 +16,25 @@ import (
 	"project/internal/testsuite/testtls"
 )
 
+func TestNewClient(t *testing.T) {
+	t.Run("unsupported network", func(t *testing.T) {
+		_, err := NewHTTPClient("foo network", "", nil)
+		require.Error(t, err)
+	})
+
+	t.Run("failed to apply tls config", func(t *testing.T) {
+		opts := Options{}
+		opts.TLSConfig.RootCAs = []string{"foo CA"}
+		_, err := NewHTTPSClient("tcp", "", &opts)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid address", func(t *testing.T) {
+		_, err := NewHTTPSClient("tcp", "", nil)
+		require.Error(t, err)
+	})
+}
+
 func TestHTTPProxyClient(t *testing.T) {
 	testsuite.InitHTTPServers(t)
 
@@ -94,7 +113,7 @@ func TestHTTPProxyClientWithoutPassword(t *testing.T) {
 	testsuite.ProxyClient(t, server, client)
 }
 
-func TestNewHTTPProxyClientWithUserInfo(t *testing.T) {
+func TestNewHTTPProxyClientWithAuthenticate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -207,25 +226,6 @@ func testFailedToHandleHTTPRequest(t testing.TB, client *Client) {
 	require.Equal(t, http.StatusBadGateway, resp.StatusCode)
 }
 
-func TestFailedToNewClient(t *testing.T) {
-	t.Run("unsupported network", func(t *testing.T) {
-		_, err := NewHTTPClient("foo network", "", nil)
-		require.Error(t, err)
-	})
-
-	t.Run("failed to apply tls config", func(t *testing.T) {
-		opts := Options{}
-		opts.TLSConfig.RootCAs = []string{"foo CA"}
-		_, err := NewHTTPSClient("tcp", "", &opts)
-		require.Error(t, err)
-	})
-
-	t.Run("invalid address", func(t *testing.T) {
-		_, err := NewHTTPSClient("tcp", "", nil)
-		require.Error(t, err)
-	})
-}
-
 func TestClient_Connect(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -242,6 +242,32 @@ func TestClient_Connect(t *testing.T) {
 
 		_, err = client.Connect(ctx, conn, network, "127.0.0.1:1")
 		require.Error(t, err)
+		t.Log(err)
+	})
+
+	t.Run("failed to read response", func(t *testing.T) {
+		conn := testsuite.NewMockConnWithReadError()
+
+		_, err = client.Connect(ctx, conn, network, "127.0.0.1:1")
+		require.Error(t, err)
+		t.Log(err)
+	})
+
+	t.Run("invalid part response", func(t *testing.T) {
+		testsuite.PipeWithReaderWriter(t,
+			func(cli net.Conn) {
+				_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
+				require.Error(t, err)
+				t.Log(err)
+
+				err = cli.Close()
+				require.NoError(t, err)
+			},
+			func(srv net.Conn) {
+				go func() { _, _ = io.Copy(ioutil.Discard, srv) }()
+				_, _ = srv.Write([]byte("HTTP/1.0x200"))
+			},
+		)
 	})
 
 	t.Run("invalid response", func(t *testing.T) {

@@ -972,6 +972,11 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	req, err := http.NewRequest(http.MethodConnect, URL, nil)
 	require.NoError(t, err)
 
+	t.Run("don't implemented http.Hijacker", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		server.handler.ServeHTTP(w, req)
+	})
+
 	t.Run("close remote conn with error", func(t *testing.T) {
 		opts := Options{DialContext: func(context.Context, string, string) (net.Conn, error) {
 			return testsuite.NewMockConnWithCloseError(), nil
@@ -993,11 +998,6 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, server)
-	})
-
-	t.Run("don't implemented http.Hijacker", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		server.handler.ServeHTTP(w, req)
 	})
 
 	t.Run("failed to hijack", func(t *testing.T) {

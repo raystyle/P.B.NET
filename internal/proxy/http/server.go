@@ -246,11 +246,6 @@ func (s *Server) Close() (err error) {
 	return
 }
 
-var (
-	connectionEstablished    = []byte("HTTP/1.0 200 Connection established\r\n\r\n")
-	connectionEstablishedLen = len(connectionEstablished)
-)
-
 type handler struct {
 	tag    string
 	logger logger.Logger
@@ -313,14 +308,15 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 	if len(h.username) == 0 && len(h.password) == 0 {
 		return true
 	}
-	failedToAuth := func() {
-		w.Header().Set("Proxy-Authenticate", "Basic")
-		w.WriteHeader(http.StatusProxyAuthRequired)
-	}
 	authInfo := strings.Split(r.Header.Get("Proxy-Authorization"), " ")
 	if len(authInfo) != 2 {
-		failedToAuth()
+		w.Header().Set("Proxy-Authenticate", "Basic")
+		w.WriteHeader(http.StatusProxyAuthRequired)
 		return false
+	}
+	failedToAuth := func() {
+		w.Header().Set("Proxy-Authenticate", "Basic")
+		w.WriteHeader(http.StatusUnauthorized)
 	}
 	authMethod := authInfo[0]
 	authBase64 := authInfo[1]
@@ -354,6 +350,12 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func (h *handler) handleConnectRequest(w http.ResponseWriter, r *http.Request) {
+	// check http.ResponseWriter is implemented http.Hijacker
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		return
+	}
+
 	// dial target
 	ctx, cancel := context.WithTimeout(h.ctx, h.timeout)
 	defer cancel()
@@ -371,10 +373,6 @@ func (h *handler) handleConnectRequest(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// hijack client conn
-	hijacker, ok := w.(http.Hijacker)
-	if !ok {
-		panic("http.ResponseWriter don't implemented http.Hijacker")
-	}
 	wc, _, err := hijacker.Hijack()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -389,7 +387,7 @@ func (h *handler) handleConnectRequest(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// write connection established response
-	_, err = wc.Write(connectionEstablished)
+	_, err = wc.Write([]byte("HTTP/1.0 200 Connection established\r\n\r\n"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadGateway)
 		h.log(logger.Error, r, "failed to write response:", err)

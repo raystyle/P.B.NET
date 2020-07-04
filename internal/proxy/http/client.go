@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -231,8 +232,11 @@ func (c *Client) connect(conn net.Conn, address string) error {
 	// Host: github.com:443
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(buf, "CONNECT %s HTTP/1.1\r\n", address)
-	// header
+	// set host
+	_, _ = fmt.Fprintf(buf, "Host: %s\r\n", address)
+	// set headers
 	header := c.header.Clone()
+	header.Del("Host") // prevent cover
 	header.Set("Proxy-Connection", "keep-alive")
 	header.Set("Connection", "keep-alive")
 	if c.basicAuth != "" {
@@ -242,35 +246,60 @@ func (c *Client) connect(conn net.Conn, address string) error {
 	for k, v := range header {
 		_, _ = fmt.Fprintf(buf, "%s: %s\r\n", k, v[0])
 	}
-	// host
-	_, _ = fmt.Fprintf(buf, "Host: %s\r\n", address)
-	// end
+	// end line
 	buf.WriteString("\r\n")
 	// write to connection
-	rAddr := conn.RemoteAddr().String()
 	_, err := buf.WriteTo(conn)
 	if err != nil {
-		return errors.Errorf("failed to write request to %s because %s", rAddr, err)
+		return errors.Wrap(err, "failed to write request")
 	}
-	// read response
-	resp := make([]byte, connectionEstablishedLen)
-	_, err = io.ReadAtLeast(conn, resp, connectionEstablishedLen)
+	// read protocol and status code
+	respPart := make([]byte, len("HTTP/1.0 200"))
+	_, err = io.ReadFull(conn, respPart)
 	if err != nil {
-		return errors.Errorf("failed to read response from %s because %s", rAddr, err)
+		return errors.Wrap(err, "failed to read response")
 	}
-	// check response
-	// HTTP/1.0 200 Connection established
-	const format = "%s proxy %s failed to connect to %s"
-	p := strings.Split(strings.ReplaceAll(string(resp), "\r\n", ""), " ")
-	if len(p) != 4 {
-		return errors.Errorf(format, c.scheme, c.address, address)
+	respPartStr := string(respPart)
+	p := strings.Split(respPartStr, " ")
+	if len(p) != 2 {
+		return errors.New("read invalid response: " + respPartStr)
 	}
+	statusCodeStr := p[1]
+	// read status code
+	statusCode, err := strconv.Atoi(statusCodeStr)
+	if err != nil {
+		return errors.New("read invalid status code: " + statusCodeStr)
+	}
+	switch statusCode {
+	case http.StatusOK:
+	case http.StatusProxyAuthRequired:
+		return errors.New("proxy server require authentication")
+	case http.StatusUnauthorized:
+		return errors.New("invalid username or password")
+	case http.StatusBadGateway:
+		return errors.New("failed to connect " + address)
+	default:
+		return errors.New("unexpected status code: " + statusCodeStr)
+	}
+	// HTTP/1.0 200 Connection established\r\n\r\n
 	// accept HTTP/1.0 200 Connection established
 	//        HTTP/1.1 200 Connection established
-	// skip prefix HTTP/1.0 and HTTP/1.1
-	if p[1] != "200" || strings.ToLower(p[2]) != "connection" ||
-		strings.ToLower(p[3]) != "established" {
-		return errors.Errorf(format, c.scheme, c.address, address)
+	// skip protocol version HTTP/1.0 and HTTP/1.1
+	restResp := make([]byte, 0, len(" Connection established\r\n\r\n"))
+	buffer := make([]byte, 1)
+	for {
+		n, err := conn.Read(buffer)
+		if err != nil {
+			return errors.Wrap(err, "failed to read rest response")
+		}
+		restResp = append(restResp, buffer[:n]...)
+		if bytes.Contains(restResp, []byte("\r\n\r\n")) {
+			break
+		}
+	}
+	respStr := strings.Split(string(restResp), "\r\n\r\n")[0]
+	if strings.ToLower(respStr) != " connection established" {
+		return errors.New("unexpected response:" + respStr)
 	}
 	return nil
 }
