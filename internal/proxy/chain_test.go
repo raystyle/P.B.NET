@@ -11,7 +11,19 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestChainSelect(t *testing.T) {
+func TestNewChain(t *testing.T) {
+	t.Run("empty tag", func(t *testing.T) {
+		_, err := NewChain("")
+		require.Errorf(t, err, "empty proxy chain tag")
+	})
+
+	t.Run("no proxy clients", func(t *testing.T) {
+		_, err := NewChain("chain-no-client")
+		require.Errorf(t, err, "proxy chain need at least one proxy client")
+	})
+}
+
+func TestChainSelectedClients(t *testing.T) {
 	testsuite.InitHTTPServers(t)
 
 	gm := testsuite.MarkGoroutines(t)
@@ -28,6 +40,7 @@ func TestChainSelect(t *testing.T) {
 	chain, err := NewChain("chain-select", clients...)
 	require.NoError(t, err)
 
+	// padding
 	_, _ = chain.Connect(context.Background(), nil, "", "")
 
 	testsuite.ProxyClient(t, &groups, chain)
@@ -59,7 +72,7 @@ func TestChainWithHTTPSTarget(t *testing.T) {
 	testsuite.IsDestroyed(t, &groups)
 }
 
-func TestChainRandom(t *testing.T) {
+func TestChainWithRandomClients(t *testing.T) {
 	testsuite.InitHTTPServers(t)
 
 	gm := testsuite.MarkGoroutines(t)
@@ -100,44 +113,74 @@ func TestChainWithMixClient(t *testing.T) {
 	defer gm.Compare()
 
 	groups := testGenerateProxyGroup(t)
+
 	// make a chain
 	fChain, err := NewChain("fChain", groups.Clients()...)
 	require.NoError(t, err)
-	fChainC := &Client{Tag: fChain.tag, Mode: ModeChain, client: fChain}
+	fChainC := &Client{
+		Tag:    fChain.tag,
+		Mode:   ModeChain,
+		client: fChain,
+	}
+
 	// make a balance that include chain
-	fBalance, err := NewBalance("fBalance", append(groups.Clients(), fChainC)...)
+	clients := append(groups.Clients(), fChainC)
+	fBalance, err := NewBalance("fBalance", clients...)
 	require.NoError(t, err)
-	fBalanceC := &Client{Tag: fBalance.tag, Mode: ModeBalance, client: fBalance}
+	fBalanceC := &Client{
+		Tag:    fBalance.tag,
+		Mode:   ModeBalance,
+		client: fBalance,
+	}
+
 	// create final chain
-	chain, err := NewChain("chain-mix", append(groups.Clients(), fChainC, fBalanceC)...)
+	clients = append(groups.Clients(), fChainC, fBalanceC)
+	chain, err := NewChain("chain-mix", clients...)
 	require.NoError(t, err)
 
 	testsuite.ProxyClient(t, &groups, chain)
+}
+
+func TestChain_connect(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	groups := testGenerateProxyGroup(t)
+
+	client := groups["https"].client
+	chain, err := NewChain("chain-target", client)
+	require.NoError(t, err)
+
+	testsuite.ProxyClientWithUnreachableTarget(t, &groups, chain)
 }
 
 func TestChainFailure(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	// no tag
-	_, err := NewChain("")
-	require.Errorf(t, err, "empty proxy chain tag")
-	// no proxy clients
-	_, err = NewChain("chain-no-client")
-	require.Errorf(t, err, "proxy chain need at least one proxy client")
-
-	// unreachable first proxy server
 	socks5Client, err := socks.NewSocks5Client("tcp", "localhost:0", nil)
 	require.NoError(t, err)
-	invalidClient := &Client{Mode: ModeSocks5, client: socks5Client}
-	chain, err := NewChain("chain-can't connect", invalidClient)
-	require.NoError(t, err)
-	testsuite.ProxyClientWithUnreachableProxyServer(t, chain)
+	invalidClient := &Client{
+		Mode:    ModeSocks5,
+		Address: "127.0.0.1:0",
+		client:  socks5Client,
+	}
+
+	t.Run("first proxy server failed", func(t *testing.T) {
+		chain, err := NewChain("chain-connect", invalidClient)
+		require.NoError(t, err)
+
+		testsuite.ProxyClientWithUnreachableProxyServer(t, chain)
+	})
 
 	// the first connect successfully but second failed
-	groups := testGenerateProxyGroup(t)
-	firstClient := groups["https"].client
-	chain, err = NewChain("chain-unreachable target", firstClient, invalidClient)
-	require.NoError(t, err)
-	testsuite.ProxyClientWithUnreachableTarget(t, &groups, chain)
+	t.Run("second proxy server failed", func(t *testing.T) {
+		groups := testGenerateProxyGroup(t)
+
+		firstClient := groups["https"].client
+		chain, err := NewChain("chain-unreachable", firstClient, invalidClient)
+		require.NoError(t, err)
+
+		testsuite.ProxyClientWithUnreachableTarget(t, &groups, chain)
+	})
 }

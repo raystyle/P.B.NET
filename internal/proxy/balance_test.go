@@ -10,6 +10,18 @@ import (
 	"project/internal/testsuite"
 )
 
+func TestNewBalance(t *testing.T) {
+	t.Run("empty tag", func(t *testing.T) {
+		_, err := NewBalance("")
+		require.Errorf(t, err, "empty proxy balance tag")
+	})
+
+	t.Run("no proxy clients", func(t *testing.T) {
+		_, err := NewBalance("chain-no-client")
+		require.Errorf(t, err, "proxy balance need at least one proxy client")
+	})
+}
+
 // example: a b c d
 //
 // 1. a compare b,c,d
@@ -67,6 +79,7 @@ func TestBalance(t *testing.T) {
 	balance, err := NewBalance("balance", groups.Clients()...)
 	require.NoError(t, err)
 
+	// padding
 	_, _ = balance.Connect(context.Background(), nil, "", "")
 
 	testsuite.ProxyClient(t, &groups, balance)
@@ -100,35 +113,11 @@ func TestBalanceFailure(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	// empty tag
-	_, err := NewBalance("")
-	require.Errorf(t, err, "empty balance tag")
-	// no proxy clients
-	_, err = NewBalance("chain-no-client")
-	require.Errorf(t, err, "balance need at least one proxy client")
-
 	groups := testGenerateProxyGroup(t)
 	balance, err := NewBalance("01", groups.Clients()...)
 	require.NoError(t, err)
 
 	testsuite.ProxyClientWithUnreachableTarget(t, &groups, balance)
-}
-
-func testGenerateBalanceInBalance(t *testing.T) (groups, *Balance) {
-	groups := testGenerateProxyGroup(t)
-	clients := make([]*Client, 3)
-	b1, err := NewBalance("balance-1", groups.Clients()...)
-	require.NoError(t, err)
-	clients[0] = &Client{Tag: b1.tag, Mode: ModeBalance, client: b1}
-	b2, err := NewBalance("balance-2", groups.Clients()...)
-	require.NoError(t, err)
-	clients[1] = &Client{Tag: b2.tag, Mode: ModeBalance, client: b2}
-	b3, err := NewBalance("balance-3", groups.Clients()...)
-	require.NoError(t, err)
-	clients[2] = &Client{Tag: b3.tag, Mode: ModeBalance, client: b3}
-	fb, err := NewBalance("final-balance", clients...)
-	require.NoError(t, err)
-	return groups, fb
 }
 
 func TestBalanceInBalance(t *testing.T) {
@@ -142,30 +131,4 @@ func TestBalanceInBalance(t *testing.T) {
 	fmt.Println(fb.GetAndSelectNext())
 
 	testsuite.ProxyClient(t, &groups, fb)
-}
-
-func TestPrintInfo(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	groups, fb := testGenerateBalanceInBalance(t)
-	defer func() {
-		err := groups.Close()
-		require.NoError(t, err)
-	}()
-	fmt.Println(fb.Info())
-
-	// create a chain
-	c1 := groups.Clients()[0]
-	c2 := &Client{Tag: fb.tag, Mode: ModeBalance, client: fb}
-	c3 := groups.Clients()[1]
-	chain, err := NewChain("chain-mix", c1, c2, c3)
-	require.NoError(t, err)
-	fmt.Println(chain.Info())
-
-	// create a balance with chain
-	cc := &Client{Tag: chain.tag, Mode: ModeChain, client: chain}
-	balance, err := NewBalance("balance-mix", c1, cc, c3)
-	require.NoError(t, err)
-	fmt.Println(balance.Info())
 }

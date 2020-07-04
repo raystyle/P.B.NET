@@ -1,14 +1,10 @@
 package proxy
 
 import (
-	"bufio"
 	"bytes"
 	"context"
-	"fmt"
 	"net"
 	"net/http"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -27,11 +23,11 @@ type Balance struct {
 // NewBalance is used to create a proxy client that with load balance.
 func NewBalance(tag string, clients ...*Client) (*Balance, error) {
 	if tag == "" {
-		return nil, errors.New("empty balance tag")
+		return nil, errors.New("empty proxy balance tag")
 	}
 	l := len(clients)
 	if l == 0 {
-		return nil, errors.New("balance need at least one proxy client")
+		return nil, errors.New("proxy balance need at least one proxy client")
 	}
 	// initialize flags
 	flags := make(map[*Client]bool)
@@ -43,6 +39,15 @@ func NewBalance(tag string, clients ...*Client) (*Balance, error) {
 		clients: clients,
 		flags:   flags,
 	}, nil
+}
+
+// GetAndSelectNext is used to provide chain, next.client will not be *Balance.
+func (b *Balance) GetAndSelectNext() *Client {
+	next := b.selectNextProxyClient()
+	if next.Mode == ModeBalance {
+		next = next.client.(*Balance).GetAndSelectNext()
+	}
+	return next
 }
 
 func (b *Balance) selectNextProxyClient() *Client {
@@ -62,37 +67,39 @@ func (b *Balance) selectNextProxyClient() *Client {
 	}
 }
 
-// GetAndSelectNext is used to provide chain.
-// next.client will not be *Balance
-func (b *Balance) GetAndSelectNext() *Client {
-	next := b.selectNextProxyClient()
-	if next.Mode == ModeBalance {
-		next = next.client.(*Balance).GetAndSelectNext()
-	}
-	return next
-}
-
 // Dial is used to connect to address through selected proxy client.
 func (b *Balance) Dial(network, address string) (net.Conn, error) {
 	conn, err := b.GetAndSelectNext().Dial(network, address)
-	return conn, errors.WithMessagef(err, "balance %s", b.tag)
+	if err != nil {
+		const format = "dial: balance %s failed to connect %s"
+		return nil, errors.WithMessagef(err, format, b.tag, address)
+	}
+	return conn, nil
 }
 
 // DialContext is used to connect to address through selected proxy client with context.
 func (b *Balance) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	conn, err := b.GetAndSelectNext().DialContext(ctx, network, address)
-	return conn, errors.WithMessagef(err, "balance %s", b.tag)
+	if err != nil {
+		const format = "dial context: balance %s failed to connect %s"
+		return nil, errors.WithMessagef(err, format, b.tag, address)
+	}
+	return conn, nil
 }
 
 // DialTimeout is used to connect to address through selected proxy client with timeout.
 func (b *Balance) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	conn, err := b.GetAndSelectNext().DialTimeout(network, address, timeout)
-	return conn, errors.WithMessagef(err, "balance %s", b.tag)
+	if err != nil {
+		const format = "dial timeout: balance %s failed to connect %s"
+		return nil, errors.WithMessagef(err, format, b.tag, address)
+	}
+	return conn, nil
 }
 
 // Connect is a padding function.
 func (b *Balance) Connect(context.Context, net.Conn, string, string) (net.Conn, error) {
-	return nil, errors.New("balance doesn't support connect")
+	return nil, errors.New("proxy balance doesn't support connect method")
 }
 
 // HTTP is used to set *http.Transport about proxy.
@@ -110,76 +117,11 @@ func (b *Balance) Server() (string, string) {
 	return "", ""
 }
 
-// Info is used to get the balance information,
-// it will print all proxy client information
+// Info is used to get the balance information, it will print all proxy client information.
 func (b *Balance) Info() string {
 	buf := new(bytes.Buffer)
 	buf.WriteString("balance: ")
 	buf.WriteString(b.tag)
-	printInfo(buf, b.clients)
+	printClientsInfo(buf, b.clients)
 	return buf.String()
-}
-
-// balance: general
-// 1. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
-// 2. http-c:    http://admin4:1234564@127.0.0.1:6319
-// 3. https-c:   https://admin5:1234565@127.0.0.1:6323
-// 4. socks5-c:  socks5  tcp 127.0.0.1:6320 auth: admin1:1234561
-// 5. socks4a-c: socks4a tcp 127.0.0.1:6322 user id: admin2
-//
-// if balance in balance, chain in balance or ...
-//
-// balance: final-balance
-// 1. balance-1:
-//     mode: balance
-//     1. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
-//     2. http-c:    http://admin4:1234564@127.0.0.1:6319
-//     3. https-c:   https://admin5:1234565@127.0.0.1:6323
-//     4. socks5-c:  socks5  tcp 127.0.0.1:6320 auth: admin1:1234561
-//     5. socks4a-c: socks4a tcp 127.0.0.1:6322 user id: admin2
-// 2. balance-2:
-//     mode: balance
-//     1. socks5-c:  socks5  tcp 127.0.0.1:6320 auth: admin1:1234561
-//     2. socks4a-c: socks4a tcp 127.0.0.1:6322 user id: admin2
-//     3. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
-//     4. http-c:    http://admin4:1234564@127.0.0.1:6319
-//     5. https-c:   https://admin5:1234565@127.0.0.1:6323
-// 3. balance-3:
-//     mode: balance
-//     1. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
-//     2. http-c:    http://admin4:1234564@127.0.0.1:6319
-//     3. https-c:   https://admin5:1234565@127.0.0.1:6323
-//     4. socks5-c:  socks5  tcp 127.0.0.1:6320 auth: admin1:1234561
-//     5. socks4a-c: socks4a tcp 127.0.0.1:6322 user id: admin2
-// 4. http-c:  http://admin4:1234564@127.0.0.1:6319
-// 5. https-c: https://admin5:1234565@127.0.0.1:6323
-func printInfo(buf *bytes.Buffer, clients []*Client) {
-	// get max tag length
-	var maxTagLen int
-	for _, client := range clients {
-		if client.Mode == ModeBalance || client.Mode == ModeChain {
-			continue
-		}
-		l := len(client.Tag)
-		if l > maxTagLen {
-			maxTagLen = l
-		}
-	}
-	l := strconv.Itoa(maxTagLen + 1) // add ":"
-	format := "\n%d. %-" + l + "s %s"
-	for i, client := range clients {
-		if client.Mode == ModeBalance || client.Mode == ModeChain {
-			info := new(bytes.Buffer)
-			_, _ = fmt.Fprintf(info, "\n     mode: %s", client.Mode)
-			scanner := bufio.NewScanner(strings.NewReader(client.Info()))
-			scanner.Scan() // skip mode + tag
-			for scanner.Scan() {
-				info.WriteString("\n     ") // 5 spaces
-				info.Write(scanner.Bytes())
-			}
-			_, _ = fmt.Fprintf(buf, "\n%d. %s %s", i+1, client.Tag+":", info)
-		} else {
-			_, _ = fmt.Fprintf(buf, format, i+1, client.Tag+":", client.Info())
-		}
-	}
 }
