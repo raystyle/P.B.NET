@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"fmt"
 	"io/ioutil"
 	"testing"
 	"time"
@@ -205,6 +206,53 @@ func testGenerateProxyGroup(t *testing.T) groups {
 		},
 	}
 	return groups
+}
+
+func testGenerateBalanceInBalance(t *testing.T) (groups, *Balance) {
+	groups := testGenerateProxyGroup(t)
+	clients := make([]*Client, 3)
+
+	b1, err := NewBalance("balance-1", groups.Clients()...)
+	require.NoError(t, err)
+	clients[0] = &Client{Tag: b1.tag, Mode: ModeBalance, client: b1}
+
+	b2, err := NewBalance("balance-2", groups.Clients()...)
+	require.NoError(t, err)
+	clients[1] = &Client{Tag: b2.tag, Mode: ModeBalance, client: b2}
+
+	b3, err := NewBalance("balance-3", groups.Clients()...)
+	require.NoError(t, err)
+	clients[2] = &Client{Tag: b3.tag, Mode: ModeBalance, client: b3}
+
+	fb, err := NewBalance("final-balance", clients...)
+	require.NoError(t, err)
+	return groups, fb
+}
+
+func TestPrintClientsInfo(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	groups, fb := testGenerateBalanceInBalance(t)
+	defer func() {
+		err := groups.Close()
+		require.NoError(t, err)
+	}()
+	fmt.Println(fb.Info())
+
+	// create a chain
+	c1 := groups.Clients()[0]
+	c2 := &Client{Tag: fb.tag, Mode: ModeBalance, client: fb}
+	c3 := groups.Clients()[1]
+	chain, err := NewChain("chain-mix", c1, c2, c3)
+	require.NoError(t, err)
+	fmt.Println(chain.Info())
+
+	// create a balance with chain
+	cc := &Client{Tag: chain.tag, Mode: ModeChain, client: chain}
+	balance, err := NewBalance("balance-mix", c1, cc, c3)
+	require.NoError(t, err)
+	fmt.Println(balance.Info())
 }
 
 func TestClientOptions(t *testing.T) {
