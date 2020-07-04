@@ -48,7 +48,9 @@ type frame uintptr
 
 // pc returns the program counter for this frame;
 // multiple frames may have the same PC value.
-func (f frame) pc() uintptr { return uintptr(f) - 1 }
+func (f frame) pc() uintptr {
+	return uintptr(f) - 1
+}
 
 // line returns the line number of source code of the
 // function for this Frame's pc.
@@ -67,8 +69,9 @@ func PrintPanic(panic interface{}, title string, skip int) *bytes.Buffer {
 	buf.WriteString(title)
 	buf.WriteString(":\n")
 	_, _ = fmt.Fprintln(buf, panic)
-	buf.WriteString("--------stack trace--------\n")
+	buf.WriteString("----------------stack trace----------------\n")
 	PrintStack(buf, skip) // skip about defer
+	buf.WriteString("\n-------------------------------------------")
 	return buf
 }
 
