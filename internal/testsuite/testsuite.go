@@ -80,10 +80,10 @@ func startPprofHTTPServer(server *http.Server, port int) bool {
 	if err != nil {
 		return false
 	}
-	go func() { _ = server.Serve(ipv4) }()
-	go func() { _ = server.Serve(ipv6) }()
-	// wait server serve
-	time.Sleep(50 * time.Millisecond)
+	RunGoroutines(
+		func() { _ = server.Serve(ipv4) },
+		func() { _ = server.Serve(ipv6) },
+	)
 	return true
 }
 
@@ -126,7 +126,7 @@ func DeferForPanic(t testing.TB) {
 // because no t *testing.T, so we need check it self.
 func CheckErrorInTestMain(err error) {
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("error occoured in TestMain:\n%s", err))
 	}
 }
 
@@ -147,7 +147,7 @@ func checkOptions(father string, v interface{}) (result string) {
 	defer func() {
 		if r := recover(); r != nil {
 			xpanic.Log(r, "checkOptions")
-			result = fmt.Sprint(father+typ.Name(), " appear panic")
+			result = fmt.Sprint(father+typ.Name(), " with panic occurred")
 		}
 	}()
 	if typ.Kind() == reflect.Ptr {
@@ -227,6 +227,26 @@ func walkOptions(father string, typ reflect.Type, value reflect.Value) string {
 	return ""
 }
 
+// RunGoroutines is used to make sure goroutine is running.
+// Because when you call "go" maybe this goroutine is not in running.
+// Usually use it with testsuite.MarkGoroutines().
+func RunGoroutines(fns ...func()) {
+	l := len(fns)
+	if l == 0 {
+		return
+	}
+	done := make(chan struct{}, l)
+	for i := 0; i < l; i++ {
+		go func(i int) {
+			done <- struct{}{}
+			fns[i]()
+		}(i)
+	}
+	for i := 0; i < l; i++ {
+		<-done
+	}
+}
+
 // RunMultiTimes is used to call functions with n times in the same time.
 func RunMultiTimes(times int, fns ...func()) {
 	l := len(fns)
@@ -285,14 +305,14 @@ func RunParallel(times int, init, cleanup func(), fns ...func()) {
 func RunHTTPServer(t testing.TB, network string, server *http.Server) string {
 	listener, err := net.Listen(network, server.Addr)
 	require.NoError(t, err)
-	// run
-	go func() {
+	// start serve
+	RunGoroutines(func() {
 		if server.TLSConfig != nil {
 			_ = server.ServeTLS(listener, "", "")
 		} else {
 			_ = server.Serve(listener)
 		}
-	}()
+	})
 	// get port
 	_, port, err := net.SplitHostPort(listener.Addr().String())
 	require.NoError(t, err)

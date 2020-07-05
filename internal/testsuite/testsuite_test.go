@@ -373,13 +373,34 @@ func TestCheckOptions(t *testing.T) {
 		})
 	})
 
-	t.Run("appear panic", func(t *testing.T) {
+	t.Run("panic occurred", func(t *testing.T) {
 		opts := struct {
 			P io.Writer
 		}{}
 		result := checkOptions("", opts)
 		require.NotZero(t, result)
 		t.Log("result:", result)
+	})
+}
+
+func TestRunGoroutines(t *testing.T) {
+	gm := MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("ok", func(t *testing.T) {
+		done := make(chan struct{})
+		RunGoroutines(func() {
+			close(done)
+		})
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("run goroutine timeout")
+		}
+	})
+
+	t.Run("no function", func(t *testing.T) {
+		RunGoroutines()
 	})
 }
 

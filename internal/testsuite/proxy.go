@@ -26,6 +26,9 @@ var (
 	HTTPSServerPort string
 )
 
+// TestHandlerData is the test http server handler returned data.
+var TestHandlerData = []byte("hello")
+
 var (
 	httpServer  http.Server
 	httpsServer http.Server
@@ -39,18 +42,18 @@ var (
 	initHTTPServerOnce sync.Once
 )
 
-// InitHTTPServers is used to create  http test server.
+// InitHTTPServers is used to create http test servers.
+// Must call it before testsuite.MarkGoroutines().
 func InitHTTPServers(t testing.TB) {
 	initHTTPServerOnce.Do(func() { initHTTPServers(t) })
 }
 
 func initHTTPServers(t testing.TB) {
 	// set handler
-	var data = []byte("hello")
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc("/t", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		_, _ = w.Write(data)
+		_, _ = w.Write(TestHandlerData)
 	})
 
 	// initialize HTTP server
@@ -100,8 +103,10 @@ func initHTTPServers(t testing.TB) {
 		_, HTTPSServerPort, err = net.SplitHostPort(l2.Addr().String())
 		require.NoError(t, err)
 
-		go func() { _ = httpServer.Serve(l1) }()
-		go func() { _ = httpsServer.ServeTLS(l2, "", "") }()
+		RunGoroutines(
+			func() { _ = httpServer.Serve(l1) },
+			func() { _ = httpsServer.ServeTLS(l2, "", "") },
+		)
 	}
 
 	if IPv6Enabled {
@@ -123,11 +128,11 @@ func initHTTPServers(t testing.TB) {
 			require.NoError(t, err)
 		}
 
-		go func() { _ = httpServer.Serve(l3) }()
-		go func() { _ = httpsServer.ServeTLS(l4, "", "") }()
+		RunGoroutines(
+			func() { _ = httpServer.Serve(l3) },
+			func() { _ = httpsServer.ServeTLS(l4, "", "") },
+		)
 	}
-	// wait go func()
-	time.Sleep(250 * time.Millisecond)
 
 	// print proxy server addresses
 	fmt.Printf("[debug] HTTP Server Port:  %s\n", HTTPServerPort)
@@ -164,9 +169,9 @@ func HTTPClient(t *testing.T, transport *http.Transport, hostname string) {
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
-		b, err := ioutil.ReadAll(resp.Body)
+		data, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Equal(t, "hello", string(b))
+		require.Equal(t, TestHandlerData, data)
 	}
 
 	t.Run("http target", func(t *testing.T) {
@@ -265,10 +270,10 @@ func ProxyConn(t testing.TB, conn net.Conn) {
 	}
 
 	// read body
-	hello := make([]byte, 5)
-	_, err := io.ReadFull(conn, hello)
+	body := make([]byte, len(TestHandlerData))
+	_, err := io.ReadFull(conn, body)
 	require.NoError(t, err)
-	require.Equal(t, "hello", string(hello))
+	require.Equal(t, TestHandlerData, body)
 }
 
 // for test proxy client
