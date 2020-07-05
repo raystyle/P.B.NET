@@ -56,10 +56,17 @@ func TestConn(t *testing.T) {
 	gm := MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, client := net.Pipe()
-	ConnSC(t, server, client, true)
-	server, client = net.Pipe()
-	ConnCS(t, client, server, true)
+	t.Run("net.Pipe", func(t *testing.T) {
+		server, client := net.Pipe()
+		ConnSC(t, server, client, true)
+		server, client = net.Pipe()
+		ConnCS(t, client, server, true)
+	})
+
+	t.Run("not close", func(t *testing.T) {
+		server, client := net.Pipe()
+		ConnSC(t, server, client, false)
+	})
 }
 
 func TestPipeWithReaderWriter(t *testing.T) {

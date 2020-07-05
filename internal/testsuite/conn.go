@@ -14,9 +14,8 @@ import (
 
 type dialer func() (net.Conn, error)
 
-// Handshaker is used to call connection Handshake().
-// Some server side connection must Handshake(),
-// otherwise Dial() will block.
+// Handshaker is used to call connection Handshake(). Some server side connection
+// like tls.Conn must call Handshake(), otherwise Dial() will block.
 type Handshaker interface {
 	Handshake() error
 }
