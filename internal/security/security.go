@@ -1,9 +1,11 @@
 package security
 
 import (
+	"context"
 	"reflect"
 	"runtime"
 	"sync"
+	"time"
 	"unsafe"
 
 	"project/internal/random"
@@ -92,7 +94,7 @@ type Bytes struct {
 	cache sync.Pool
 }
 
-// NewBytes is used to create Bytes.
+// NewBytes is used to create security Bytes.
 func NewBytes(b []byte) *Bytes {
 	l := len(b)
 	bytes := Bytes{
@@ -124,4 +126,43 @@ func (b *Bytes) Put(bytes []byte) {
 		bytes[i] = 0
 	}
 	b.cache.Put(&bytes)
+}
+
+// BogoWait is used to use bogo sort to wait time, If timeout, it will interrupt.
+func BogoWait(n int, timeout time.Duration) {
+	if n < 2 {
+		n = 2
+	}
+	if timeout < 1 || timeout > 5*time.Minute {
+		timeout = 10 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	rand := random.NewRand()
+	// generate random number
+	num := make([]int, n)
+	for i := 0; i < n; i++ {
+		num[i] = rand.Int(100000)
+	}
+swap:
+	for {
+		// check timeout
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		// swap
+		for i := 0; i < n; i++ {
+			j := rand.Int(n)
+			num[i], num[j] = num[j], num[i]
+		}
+		// check is sorted
+		for i := 1; i < n; i++ {
+			if num[i-1] > num[i] {
+				continue swap
+			}
+		}
+		return
+	}
 }

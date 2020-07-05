@@ -4,6 +4,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -72,5 +73,19 @@ func TestBytes(t *testing.T) {
 			}()
 		}
 		wg.Wait()
+	})
+}
+
+func TestBogoWait(t *testing.T) {
+	t.Run("common", func(t *testing.T) {
+		BogoWait(4, time.Minute)
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		BogoWait(1024, time.Second)
+	})
+
+	t.Run("invalid n or timeout", func(t *testing.T) {
+		BogoWait(0, time.Hour)
 	})
 }
