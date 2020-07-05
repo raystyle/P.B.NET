@@ -20,7 +20,7 @@ import (
 
 // about connection
 const (
-	MaxFrameSize = 2 << 20 // 2 MB
+	MaxFrameSize = 2 * 1024 * 1024
 	SendTimeout  = time.Minute
 	RecvTimeout  = 2 * SendTimeout // wait heartbeat send time
 	SlotSize     = 1024
@@ -100,23 +100,14 @@ func HandleConn(conn net.Conn, handler func([]byte)) {
 		l        int
 		err      error
 	)
-	flushAndWrite := func() {
-		// if Grow not NewBuffer
-		if bodySize == 0 {
-			leftover := data.Bytes()
-			if data.Cap() > maxBufSize {
-				data = bytes.NewBuffer(make([]byte, 0, bufSize))
-			} else {
-				data.Reset() // for set b.off = 0
-			}
-			data.Write(leftover)
-		}
-	}
 	for {
 		_ = conn.SetReadDeadline(time.Now().Add(heartbeatTimeout))
 		n, err = conn.Read(buffer)
 		if err != nil {
 			return
+		}
+		if n == 0 {
+			continue
 		}
 		data.Write(buffer[:n])
 		l = data.Len()
@@ -143,6 +134,15 @@ func HandleConn(conn net.Conn, handler func([]byte)) {
 			bodySize = 0
 			l = data.Len()
 		}
-		flushAndWrite()
+		// flush and write rest
+		if bodySize == 0 {
+			leftover := data.Bytes()
+			if data.Cap() > maxBufSize {
+				data = bytes.NewBuffer(make([]byte, 0, bufSize))
+			} else {
+				data.Reset()
+			}
+			data.Write(leftover)
+		}
 	}
 }
