@@ -7,10 +7,19 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/testsuite"
 )
+
+type notEqualWriter struct{}
+
+func (notEqualWriter) Write([]byte) (int, error) {
+	return 0, nil
+}
 
 func TestCopyBufferWithContext(t *testing.T) {
 	testdata := bytes.Repeat([]byte("hello"), 100)
+	ctx := context.Background()
 
 	t.Run("common", func(t *testing.T) {
 		readBuf := new(bytes.Buffer)
@@ -18,7 +27,7 @@ func TestCopyBufferWithContext(t *testing.T) {
 
 		readBuf.Write(testdata)
 
-		n, err := CopyWithContext(context.Background(), writeBuf, readBuf)
+		n, err := CopyWithContext(ctx, writeBuf, readBuf)
 		require.NoError(t, err)
 		require.Equal(t, int64(len(testdata)), n)
 
@@ -45,7 +54,7 @@ func TestCopyBufferWithContext(t *testing.T) {
 		readBuf.Write(testdata)
 
 		lr := io.LimitReader(readBuf, int64(len(testdata)))
-		n, err := CopyWithContext(context.Background(), writeBuf, lr)
+		n, err := CopyWithContext(ctx, writeBuf, lr)
 		require.NoError(t, err)
 		require.Equal(t, int64(len(testdata)), n)
 
@@ -62,20 +71,37 @@ func TestCopyBufferWithContext(t *testing.T) {
 			R: readBuf,
 			N: -1,
 		}
-		n, err := CopyWithContext(context.Background(), writeBuf, lr)
+		n, err := CopyWithContext(ctx, writeBuf, lr)
 		require.NoError(t, err)
 		require.Equal(t, int64(0), n)
 	})
 
 	t.Run("failed to read", func(t *testing.T) {
+		reader := testsuite.NewMockConnWithReadError()
+		writer := new(bytes.Buffer)
 
+		n, err := CopyWithContext(ctx, writer, reader)
+		require.Error(t, err)
+		require.Equal(t, int64(0), n)
 	})
 
 	t.Run("failed to write", func(t *testing.T) {
+		reader := new(bytes.Buffer)
+		reader.Write([]byte{1, 2, 3})
+		writer := testsuite.NewMockConnWithWriteError()
 
+		n, err := CopyWithContext(ctx, writer, reader)
+		require.Error(t, err)
+		require.Equal(t, int64(0), n)
 	})
 
 	t.Run("written not equal", func(t *testing.T) {
+		reader := new(bytes.Buffer)
+		reader.Write([]byte{1, 2, 3})
+		writer := new(notEqualWriter)
 
+		n, err := CopyWithContext(ctx, writer, reader)
+		require.Error(t, err)
+		require.Equal(t, int64(0), n)
 	})
 }
