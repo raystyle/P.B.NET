@@ -20,8 +20,7 @@ import (
 	"project/internal/cert/certpool"
 )
 
-// HTTPServerPort is the test HTTP server port,
-// some tests in internal/proxy need it.
+// HTTPServerPort is the test HTTP server port, some tests in internal/proxy need it.
 var (
 	HTTPServerPort  string
 	HTTPSServerPort string
@@ -501,54 +500,97 @@ func ProxyClientWithHTTPSTarget(t testing.TB, client proxyClient) {
 	require.NoError(t, err)
 }
 
-// ProxyClientWithUnreachableProxyServer is used to test proxy client that
-// can't connect proxy server.
-func ProxyClientWithUnreachableProxyServer(t testing.TB, client proxyClient) {
-	// unknown network
-	_, err := client.Dial("foo", "")
-	require.Error(t, err)
-	t.Log("Dial:\n", err)
-	_, err = client.DialContext(context.Background(), "foo", "")
-	require.Error(t, err)
-	t.Log("DialContext:\n", err)
-	_, err = client.DialTimeout("foo", "", time.Second)
-	require.Error(t, err)
-	t.Log("DialTimeout:\n", err)
-	_, err = client.Connect(context.Background(), nil, "foo", "")
-	require.Error(t, err)
-	t.Log("Connect:\n", err)
+// ProxyClientWithUnreachableProxyServer is used to test proxy client can't connect proxy server.
+func ProxyClientWithUnreachableProxyServer(t *testing.T, client proxyClient) {
+	ctx := context.Background()
 
-	// unreachable proxy server
-	_, err = client.Dial("tcp", "")
-	require.Error(t, err)
-	t.Log("Dial:\n", err)
-	_, err = client.DialContext(context.Background(), "tcp", "")
-	require.Error(t, err)
-	t.Log("DialContext:\n", err)
-	_, err = client.DialTimeout("tcp", "", time.Second)
-	require.Error(t, err)
-	t.Log("DialTimeout:\n", err)
+	t.Run("unknown network", func(t *testing.T) {
+		const (
+			network = "foo"
+			address = "127.0.0.1:1234"
+		)
+
+		t.Run("Dial", func(t *testing.T) {
+			_, err := client.Dial(network, address)
+			require.Error(t, err)
+			t.Log("Dial:\n", err)
+		})
+
+		t.Run("DialContext", func(t *testing.T) {
+			_, err := client.DialContext(ctx, network, address)
+			require.Error(t, err)
+			t.Log("DialContext:\n", err)
+		})
+
+		t.Run("DialTimeout", func(t *testing.T) {
+			_, err := client.DialTimeout(network, address, time.Second)
+			require.Error(t, err)
+			t.Log("DialTimeout:\n", err)
+		})
+
+		t.Run("Connect", func(t *testing.T) {
+			_, err := client.Connect(ctx, nil, network, address)
+			require.Error(t, err)
+			t.Log("Connect:\n", err)
+		})
+	})
+
+	t.Run("unreachable proxy server", func(t *testing.T) {
+		const (
+			network = "tcp"
+			address = "127.0.0.1:1234"
+		)
+
+		t.Run("Dial", func(t *testing.T) {
+			_, err := client.Dial(network, address)
+			require.Error(t, err)
+			t.Log("Dial:\n", err)
+		})
+
+		t.Run("DialContext", func(t *testing.T) {
+			_, err := client.DialContext(ctx, network, address)
+			require.Error(t, err)
+			t.Log("DialContext:\n", err)
+		})
+
+		t.Run("DialTimeout", func(t *testing.T) {
+			_, err := client.DialTimeout(network, address, time.Second)
+			require.Error(t, err)
+			t.Log("DialTimeout:\n", err)
+		})
+	})
 
 	IsDestroyed(t, client)
 }
 
-// ProxyClientWithUnreachableTarget is used to test proxy client that
-// connect unreachable target.
-func ProxyClientWithUnreachableTarget(t testing.TB, server io.Closer, client proxyClient) {
-	const unreachableTarget = "0.0.0.0:1"
-	_, err := client.Dial("tcp", unreachableTarget)
-	require.Error(t, err)
-	t.Log("Dial -> Connect:\n", err)
-	_, err = client.DialContext(context.Background(), "tcp", unreachableTarget)
-	require.Error(t, err)
-	t.Log("DialContext -> Connect:\n", err)
-	_, err = client.DialTimeout("tcp", unreachableTarget, time.Second)
-	require.Error(t, err)
-	t.Log("DialTimeout -> Connect:\n", err)
+// ProxyClientWithUnreachableTarget is used to test proxy client connect unreachable target.
+func ProxyClientWithUnreachableTarget(t *testing.T, server io.Closer, client proxyClient) {
+	const (
+		network = "tcp"
+		address = "0.0.0.0:1"
+	)
+
+	t.Run("Dial", func(t *testing.T) {
+		_, err := client.Dial(network, address)
+		require.Error(t, err)
+		t.Log("Dial -> Connect:\n", err)
+	})
+
+	t.Run("DialContext", func(t *testing.T) {
+		_, err := client.DialContext(context.Background(), network, address)
+		require.Error(t, err)
+		t.Log("DialContext -> Connect:\n", err)
+	})
+
+	t.Run("DialTimeout", func(t *testing.T) {
+		_, err := client.DialTimeout(network, address, time.Second)
+		require.Error(t, err)
+		t.Log("DialTimeout -> Connect:\n", err)
+	})
 
 	IsDestroyed(t, client)
 
-	err = server.Close()
+	err := server.Close()
 	require.NoError(t, err)
 	IsDestroyed(t, server)
 }
