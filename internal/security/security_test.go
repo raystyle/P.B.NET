@@ -76,16 +76,59 @@ func TestBytes(t *testing.T) {
 	})
 }
 
-func TestBogoWait(t *testing.T) {
+func BenchmarkBytes(b *testing.B) {
+	b.Run("32 bytes", func(b *testing.B) {
+		benchmarkBytes(b, 32)
+	})
+
+	b.Run("64 bytes", func(b *testing.B) {
+		benchmarkBytes(b, 64)
+	})
+
+	b.Run("128 bytes", func(b *testing.B) {
+		benchmarkBytes(b, 128)
+	})
+}
+
+func benchmarkBytes(b *testing.B, n int) {
+	sb := NewBytes(make([]byte, n))
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		data := sb.Get()
+		sb.Put(data)
+	}
+}
+
+func TestBogo(t *testing.T) {
 	t.Run("common", func(t *testing.T) {
-		BogoWait(4, time.Minute)
+		bogo := NewBogo(4, time.Minute, nil)
+		bogo.Wait()
+
+		require.True(t, bogo.Compare())
 	})
 
 	t.Run("timeout", func(t *testing.T) {
-		BogoWait(1024, time.Second)
+		bogo := NewBogo(1024, time.Second, nil)
+		bogo.Wait()
+
+		require.False(t, bogo.Compare())
 	})
 
 	t.Run("invalid n or timeout", func(t *testing.T) {
-		BogoWait(0, time.Hour)
+		bogo := NewBogo(0, time.Hour, nil)
+		bogo.Wait()
+
+		require.True(t, bogo.Compare())
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		bogo := NewBogo(1024, time.Second, nil)
+		bogo.Stop()
+		bogo.Wait()
+
+		require.False(t, bogo.Compare())
 	})
 }
