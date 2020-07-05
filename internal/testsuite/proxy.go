@@ -20,6 +20,27 @@ import (
 	"project/internal/cert/certpool"
 )
 
+// for test proxy client
+type proxyClient interface {
+	Dial(network, address string) (net.Conn, error)
+	DialContext(ctx context.Context, network, address string) (net.Conn, error)
+	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
+	Connect(ctx context.Context, conn net.Conn, network, address string) (net.Conn, error)
+	HTTP(t *http.Transport)
+	Timeout() time.Duration
+	Server() (network string, address string)
+	Info() string
+}
+
+// for test proxy server
+type proxyServer interface {
+	ListenAndServe(network, address string) error
+	Serve(listener net.Listener) error
+	Addresses() []net.Addr
+	Info() string
+	Close() error
+}
+
 // HTTPServerPort is the test HTTP server port, some tests in internal/proxy need it.
 var (
 	HTTPServerPort  string
@@ -137,6 +158,22 @@ func initHTTPServers(t testing.TB) {
 	// print proxy server addresses
 	fmt.Printf("[debug] HTTP Server Port:  %s\n", HTTPServerPort)
 	fmt.Printf("[debug] HTTPS Server Port: %s\n", HTTPSServerPort)
+}
+
+func waitProxyServerServe(server proxyServer, addressNum int) bool {
+	for i := 0; i < 300; i++ {
+		if len(server.Addresses()) == addressNum {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
+}
+
+// WaitProxyServerServe is used to wait proxy server until is serving.
+func WaitProxyServerServe(t *testing.T, server proxyServer, addressNum int) {
+	ok := waitProxyServerServe(server, addressNum)
+	require.True(t, ok, "wait proxy server serve timeout")
 }
 
 // HTTPClient is used to get target and compare result.
@@ -274,18 +311,6 @@ func ProxyConn(t testing.TB, conn net.Conn) {
 	_, err := io.ReadFull(conn, body)
 	require.NoError(t, err)
 	require.Equal(t, TestHandlerData, body)
-}
-
-// for test proxy client
-type proxyClient interface {
-	Dial(network, address string) (net.Conn, error)
-	DialContext(ctx context.Context, network, address string) (net.Conn, error)
-	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
-	Connect(ctx context.Context, conn net.Conn, network, address string) (net.Conn, error)
-	HTTP(t *http.Transport)
-	Timeout() time.Duration
-	Server() (network string, address string)
-	Info() string
 }
 
 // ProxyClient is used to test proxy client.
