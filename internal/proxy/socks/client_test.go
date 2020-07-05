@@ -3,7 +3,6 @@ package socks
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -109,7 +108,7 @@ func TestSocks5ClientWithoutPassword(t *testing.T) {
 		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
-	time.Sleep(250 * time.Millisecond)
+	testsuite.WaitProxyServerServe(t, server, 1)
 	address := server.Addresses()[0].String()
 	client, err := NewSocks5Client("tcp", address, nil)
 	require.NoError(t, err)
@@ -129,7 +128,7 @@ func TestSocks4aClientWithoutUserID(t *testing.T) {
 		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
-	time.Sleep(250 * time.Millisecond)
+	testsuite.WaitProxyServerServe(t, server, 1)
 	address := server.Addresses()[0].String()
 	client, err := NewSocks4aClient("tcp", address, nil)
 	require.NoError(t, err)

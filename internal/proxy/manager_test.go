@@ -5,7 +5,6 @@ import (
 	"net"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -258,8 +257,7 @@ func TestManager_Close(t *testing.T) {
 		err = server.Serve(listener)
 		require.NoError(t, err)
 	}()
-	// wait serve
-	time.Sleep(250 * time.Millisecond)
+	testsuite.WaitProxyServerServe(t, &server, 2)
 
 	t.Log("create at:", server.CreateAt())
 	t.Log("serve at:", server.ServeAt())

@@ -39,7 +39,7 @@ func testGenerateHTTPProxyServer(t *testing.T) *Server {
 		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
-	time.Sleep(250 * time.Millisecond)
+	testsuite.WaitProxyServerServe(t, server, 1)
 	return server
 }
 
@@ -59,7 +59,7 @@ func testGenerateHTTPSProxyServer(t *testing.T) (*Server, option.TLSConfig) {
 		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
-	time.Sleep(250 * time.Millisecond)
+	testsuite.WaitProxyServerServe(t, server, 2)
 	return server, clientCfg
 }
 
@@ -113,12 +113,12 @@ func TestHTTPProxyServerWithSecondaryProxy(t *testing.T) {
 
 	var (
 		secondary bool
-		mutex     sync.Mutex
+		mu        sync.Mutex
 	)
 	dialContext := func(ctx context.Context, network, address string) (net.Conn, error) {
-		mutex.Lock()
+		mu.Lock()
 		secondary = true
-		mutex.Unlock()
+		mu.Unlock()
 		return new(net.Dialer).DialContext(ctx, network, address)
 	}
 	opts := Options{
@@ -130,7 +130,7 @@ func TestHTTPProxyServerWithSecondaryProxy(t *testing.T) {
 		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
-	time.Sleep(250 * time.Millisecond)
+	testsuite.WaitProxyServerServe(t, server, 1)
 	address := server.Addresses()[0].String()
 
 	// make client
@@ -966,7 +966,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
-	time.Sleep(250 * time.Millisecond)
+	testsuite.WaitProxyServerServe(t, server, 1)
 
 	newReq := func() *http.Request {
 		URL := fmt.Sprintf("http://localhost:%s/", testsuite.HTTPServerPort)
@@ -990,7 +990,9 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			err := server.ListenAndServe(testNetwork, testAddress)
 			require.NoError(t, err)
 		}()
-		time.Sleep(250 * time.Millisecond)
+		testsuite.WaitProxyServerServe(t, server, 1)
+
+		// mock income CONNECT request
 		go func() {
 			w := testsuite.NewMockResponseWriter()
 			server.handler.ServeHTTP(w, newReq())
@@ -1034,7 +1036,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			err := server.ListenAndServe(testNetwork, testAddress)
 			require.NoError(t, err)
 		}()
-		time.Sleep(250 * time.Millisecond)
+		testsuite.WaitProxyServerServe(t, server, 1)
+
 		go func() {
 			w := testsuite.NewMockResponseWriter()
 			server.handler.ServeHTTP(w, newReq())

@@ -35,7 +35,7 @@ func testGenerateSocks5Server(t *testing.T) *Server {
 		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
-	time.Sleep(250 * time.Millisecond)
+	testsuite.WaitProxyServerServe(t, server, 1)
 	return server
 }
 
@@ -53,7 +53,7 @@ func testGenerateSocks4aServer(t *testing.T) *Server {
 		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
-	time.Sleep(250 * time.Millisecond)
+	testsuite.WaitProxyServerServe(t, server, 2)
 	return server
 }
 
@@ -67,7 +67,7 @@ func testGenerateSocks4Server(t *testing.T) *Server {
 		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
-	time.Sleep(250 * time.Millisecond)
+	testsuite.WaitProxyServerServe(t, server, 1)
 	return server
 }
 
@@ -154,7 +154,7 @@ func TestSocks5ServerWithSecondaryProxy(t *testing.T) {
 		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
-	time.Sleep(250 * time.Millisecond)
+	testsuite.WaitProxyServerServe(t, server, 1)
 	address := server.Addresses()[0].String()
 
 	// make client
@@ -249,7 +249,7 @@ func TestServer_Serve(t *testing.T) {
 			err := server.Serve(listener)
 			testsuite.IsMockListenerClosedError(t, err)
 		}()
-		time.Sleep(250 * time.Millisecond)
+		testsuite.WaitProxyServerServe(t, server, 1)
 
 		err = server.Close()
 		testsuite.IsMockListenerCloseError(t, err)

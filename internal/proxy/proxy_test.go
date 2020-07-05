@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -75,6 +74,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 		err := socks5Server.ListenAndServe(network, "127.0.1.1:0")
 		require.NoError(t, err)
 	}()
+	testsuite.WaitProxyServerServe(t, socks5Server, 1)
 
 	// add socks4a server
 	socks4aOpts := &socks.Options{
@@ -86,6 +86,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 		err := socks4aServer.ListenAndServe(network, "127.0.1.2:0")
 		require.NoError(t, err)
 	}()
+	testsuite.WaitProxyServerServe(t, socks4aServer, 1)
 
 	// add socks4 server
 	socks4Opts := &socks.Options{
@@ -97,6 +98,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 		err := socks4Server.ListenAndServe(network, "127.0.1.3:0")
 		require.NoError(t, err)
 	}()
+	testsuite.WaitProxyServerServe(t, socks4Server, 1)
 
 	// add http proxy server
 	httpOpts := &http.Options{
@@ -109,6 +111,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 		err := httpServer.ListenAndServe(network, "127.0.1.4:0")
 		require.NoError(t, err)
 	}()
+	testsuite.WaitProxyServerServe(t, httpServer, 1)
 
 	// add https proxy server
 	certPool := testcert.CertPool(t)
@@ -126,9 +129,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 		err := httpsServer.ListenAndServe(network, "127.0.1.5:0")
 		require.NoError(t, err)
 	}()
-
-	// wait Serve
-	time.Sleep(250 * time.Millisecond)
+	testsuite.WaitProxyServerServe(t, httpsServer, 1)
 
 	// add socks5 client
 	address := socks5Server.Addresses()[0].String()

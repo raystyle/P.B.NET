@@ -43,7 +43,7 @@ type client interface {
 
 type server interface {
 	ListenAndServe(network, address string) error
-	Serve(l net.Listener) error
+	Serve(listener net.Listener) error
 	Addresses() []net.Addr
 	Info() string
 	Close() error
