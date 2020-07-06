@@ -36,12 +36,10 @@ func copyWithContext(ctx context.Context, sc SameCtrl, src, dst string) error {
 		if err != nil {
 			return fmt.Errorf("failed to walk \"%s\": %s", srcAbs, err)
 		}
-		// check is root path, ane make dir if target path is not exists
+		// check is root path, and make dir if target path is not exists
 		// C:\test -> D:\test[exist]
-		if srcAbs == stats.srcAbs {
-			if stats.dstStat == nil {
-				return os.MkdirAll(stats.dstAbs, stats.srcStat.Mode().Perm())
-			}
+		if srcAbs == stats.srcAbs && stats.dstStat == nil {
+			return os.MkdirAll(stats.dstAbs, stats.srcStat.Mode().Perm())
 		}
 		// C:\test\a.exe -> a.exe
 		// C:\test\dir\a.exe -> dir\a.exe

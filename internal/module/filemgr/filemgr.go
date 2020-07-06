@@ -90,6 +90,7 @@ func checkSrcDstPath(src, dst string) (*srcDstStat, error) {
 	}, nil
 }
 
+// noticeSameFile is used to notice appear same name file.
 func noticeSameFile(sc SameCtrl, stats *srcDstStat) (bool, error) {
 	switch code := sc(SameFile, stats.srcAbs, stats.dstAbs); code {
 	case SameCtrlReplace:
@@ -103,6 +104,7 @@ func noticeSameFile(sc SameCtrl, stats *srcDstStat) (bool, error) {
 	}
 }
 
+// noticeSameFileDir is used to notice appear same name about src file and dst dir.
 func noticeSameFileDir(sc SameCtrl, stats *srcDstStat) error {
 	switch code := sc(SameFileDir, stats.srcAbs, stats.dstAbs); code {
 	case SameCtrlSkip:
@@ -114,6 +116,7 @@ func noticeSameFileDir(sc SameCtrl, stats *srcDstStat) error {
 	}
 }
 
+// noticeSameDirFile is used to notice appear same name about src dir and dst file.
 func noticeSameDirFile(sc SameCtrl, stats *srcDstStat) error {
 	switch code := sc(SameDirFile, stats.srcAbs, stats.dstAbs); code {
 	case SameCtrlSkip:
