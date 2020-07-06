@@ -3,16 +3,24 @@ package filemgr
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/system"
 	"project/internal/testsuite"
 )
 
 func testCreateFile(t *testing.T, name string) {
 	data := testsuite.Bytes()
-	err := ioutil.WriteFile(name, data, 0600)
+	err := system.WriteFile(name, data)
+	require.NoError(t, err)
+}
+
+func testCreateFile2(t *testing.T, name string) {
+	data := append(testsuite.Bytes(), testsuite.Bytes()...)
+	err := system.WriteFile(name, data)
 	require.NoError(t, err)
 }
 
@@ -24,14 +32,7 @@ func testCompareFile(t *testing.T, a, b string) {
 	require.NoError(t, err)
 	defer func() { _ = bFile.Close() }()
 
-	// compare data
-	aFileData, err := ioutil.ReadAll(aFile)
-	require.NoError(t, err)
-	bFileData, err := ioutil.ReadAll(bFile)
-	require.NoError(t, err)
-	require.Equal(t, aFileData, bFileData)
-
-	// compare
+	// compare stat
 	aStat, err := aFile.Stat()
 	require.NoError(t, err)
 	bStat, err := bFile.Stat()
@@ -41,62 +42,105 @@ func testCompareFile(t *testing.T, a, b string) {
 	require.Equal(t, aStat.Mode(), bStat.Mode())
 	require.Equal(t, aStat.IsDir(), bStat.IsDir())
 
-	// mod time is not equal about wall
-	const format = "2006-01-02 15:04:05"
-	am := aStat.ModTime().Format(format)
-	bm := bStat.ModTime().Format(format)
-	require.Equal(t, am, bm)
+	if !aStat.IsDir() {
+		// compare data
+		aFileData, err := ioutil.ReadAll(aFile)
+		require.NoError(t, err)
+		bFileData, err := ioutil.ReadAll(bFile)
+		require.NoError(t, err)
+		require.Equal(t, aFileData, bFileData)
+
+		// mod time is not equal about wall
+		// directory stat may be changed
+		const format = "2006-01-02 15:04:05"
+		am := aStat.ModTime().Format(format)
+		bm := bStat.ModTime().Format(format)
+		require.Equal(t, am, bm)
+	}
+}
+
+func testCompareDirectory(t *testing.T, a, b string) {
+	aFiles := make([]string, 0, 4)
+	bFiles := make([]string, 0, 4)
+	err := filepath.Walk(a, func(path string, info os.FileInfo, err error) error {
+		require.NoError(t, err)
+		if path != a {
+			aFiles = append(aFiles, path)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	err = filepath.Walk(b, func(path string, info os.FileInfo, err error) error {
+		require.NoError(t, err)
+		if path != b {
+			bFiles = append(bFiles, path)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	// compare file numbers
+	aFilesLen := len(aFiles)
+	bFilesLen := len(bFiles)
+	require.Equal(t, aFilesLen, bFilesLen)
+
+	// compare each file
+	for i := 0; i < aFilesLen; i++ {
+		testCompareFile(t, aFiles[i], bFiles[i])
+	}
 }
 
 func TestCopy(t *testing.T) {
 	t.Run("src is file", func(t *testing.T) {
 		const (
-			srcFile = "testdata/fef.dat"
-			dstDir  = "testdata/fef/"
-			dstFile = "testdata/fef/fef.dat"
+			src     = "testdata/file.dat"
+			dstFile = "testdata/file/file.dat"
+			dstDir  = "testdata/file/"
 		)
 
 		// create test file
-		testCreateFile(t, srcFile)
+		testCreateFile(t, src)
 		defer func() {
-			err := os.Remove(srcFile)
+			err := os.Remove(src)
 			require.NoError(t, err)
 		}()
 
-		t.Run("to exist file path", func(t *testing.T) {
-			// create destination directory
-			err := os.MkdirAll(dstDir, 0750)
-			require.NoError(t, err)
-			defer func() {
-				err = os.RemoveAll(dstDir)
-				require.NoError(t, err)
-			}()
-
+		t.Run("to file path", func(t *testing.T) {
 			t.Run("destination doesn't exist", func(t *testing.T) {
-				err = Copy(ReplaceAll, srcFile, dstFile)
+				defer func() {
+					err := os.RemoveAll(dstDir)
+					require.NoError(t, err)
+				}()
+
+				err := Copy(ReplaceAll, src, dstFile)
 				require.NoError(t, err)
 
-				testCompareFile(t, srcFile, dstFile)
+				testCompareFile(t, src, dstFile)
 			})
 
 			t.Run("destination exists", func(t *testing.T) {
+				defer func() {
+					err := os.RemoveAll(dstDir)
+					require.NoError(t, err)
+				}()
+
 				t.Run("file", func(t *testing.T) {
 					// create test file (exists)
 					testCreateFile(t, dstFile)
 					defer func() {
-						err = os.Remove(dstFile)
+						err := os.Remove(dstFile)
 						require.NoError(t, err)
 					}()
 
 					count := 0
-					err = Copy(func(typ uint8, src, dst string) uint8 {
+					err := Copy(func(typ uint8, src, dst string) uint8 {
 						require.Equal(t, SameFile, typ)
 						count++
 						return SameCtrlReplace
-					}, srcFile, dstFile)
+					}, src, dstFile)
 					require.NoError(t, err)
 
-					testCompareFile(t, srcFile, dstFile)
+					testCompareFile(t, src, dstFile)
 					require.Equal(t, 1, count)
 				})
 
@@ -114,46 +158,48 @@ func TestCopy(t *testing.T) {
 						require.Equal(t, SameFileDir, typ)
 						count++
 						return SameCtrlSkip
-					}, srcFile, dstFile)
+					}, src, dstFile)
 					require.NoError(t, err)
 				})
 			})
 		})
 
-		t.Run("to exist directory", func(t *testing.T) {
-			// create destination directory
-			err := os.MkdirAll(dstDir, 0750)
-			require.NoError(t, err)
-			defer func() {
-				err = os.RemoveAll(dstDir)
-				require.NoError(t, err)
-			}()
-
+		t.Run("to directory path", func(t *testing.T) {
 			t.Run("destination doesn't exist", func(t *testing.T) {
-				err = Copy(ReplaceAll, srcFile, dstDir)
+				defer func() {
+					err := os.RemoveAll(dstDir)
+					require.NoError(t, err)
+				}()
+
+				err := Copy(ReplaceAll, src, dstDir)
 				require.NoError(t, err)
 
-				testCompareFile(t, srcFile, dstFile)
+				testCompareFile(t, src, dstFile)
 			})
 
 			t.Run("destination exists", func(t *testing.T) {
+				defer func() {
+					err := os.RemoveAll(dstDir)
+					require.NoError(t, err)
+				}()
+
 				t.Run("file", func(t *testing.T) {
 					// create test file(exists)
 					testCreateFile(t, dstFile)
 					defer func() {
-						err = os.Remove(dstFile)
+						err := os.Remove(dstFile)
 						require.NoError(t, err)
 					}()
 
 					count := 0
-					err = Copy(func(typ uint8, src, dst string) uint8 {
+					err := Copy(func(typ uint8, src, dst string) uint8 {
 						require.Equal(t, SameFile, typ)
 						count++
 						return SameCtrlReplace
-					}, srcFile, dstDir)
+					}, src, dstDir)
 					require.NoError(t, err)
 
-					testCompareFile(t, srcFile, dstFile)
+					testCompareFile(t, src, dstFile)
 					require.Equal(t, 1, count)
 				})
 
@@ -171,48 +217,99 @@ func TestCopy(t *testing.T) {
 						require.Equal(t, SameFileDir, typ)
 						count++
 						return SameCtrlSkip
-					}, srcFile, dstDir)
+					}, src, dstDir)
 					require.NoError(t, err)
 				})
 			})
 		})
-
-		t.Run("to doesn't exist file path", func(t *testing.T) {
-			defer func() {
-				err := os.RemoveAll(dstDir)
-				require.NoError(t, err)
-			}()
-
-			err := Copy(ReplaceAll, srcFile, dstFile)
-			require.NoError(t, err)
-
-			testCompareFile(t, srcFile, dstFile)
-		})
-
-		t.Run("to doesn't exist directory", func(t *testing.T) {
-			defer func() {
-				err := os.RemoveAll(dstDir)
-				require.NoError(t, err)
-			}()
-
-			err := Copy(ReplaceAll, srcFile, dstDir)
-			require.NoError(t, err)
-
-			testCompareFile(t, srcFile, dstFile)
-		})
 	})
 
 	t.Run("src is directory", func(t *testing.T) {
-		t.Run("to exist directory", func(t *testing.T) {
+		const (
+			srcDir   = "testdata/dir"
+			srcFile1 = "file1.dat"
+			srcDir2  = "dir2"
+			srcFile2 = "dir2/file2.dat"
+			dstDir   = "testdata/dir-dir/"
+		)
 
-		})
+		// create test directory
+		err := os.MkdirAll(srcDir, 0750)
+		require.NoError(t, err)
+		defer func() {
+			err = os.RemoveAll(srcDir)
+			require.NoError(t, err)
+		}()
+		// create test file
+		testCreateFile(t, filepath.Join(srcDir, srcFile1))
+		// create dir2
+		err = os.MkdirAll(filepath.Join(srcDir, srcDir2), 0750)
+		require.NoError(t, err)
+		// create test file 2
+		testCreateFile2(t, filepath.Join(srcDir, srcFile2))
 
-		t.Run("to doesn't exist directory", func(t *testing.T) {
+		t.Run("to directory path", func(t *testing.T) {
+			// err = os.MkdirAll(dstDirMerge, 0750)
+			// require.NoError(t, err)
+			// defer func() {
+			// 	err = os.RemoveAll(dstDirMerge)
+			// 	require.NoError(t, err)
+			// }()
 
+			t.Run("destination doesn't exist", func(t *testing.T) {
+				defer func() {
+					err = os.RemoveAll(dstDir)
+					require.NoError(t, err)
+				}()
+
+				err := Copy(SkipAll, srcDir, dstDir)
+				require.NoError(t, err)
+			})
+
+			t.Run("destination exists", func(t *testing.T) {
+				t.Run("file", func(t *testing.T) {
+
+				})
+
+				t.Run("directory", func(t *testing.T) {
+
+				})
+			})
 		})
 
 		t.Run("to file path", func(t *testing.T) {
+			const dst = "testdata/dir-dir"
 
+			t.Run("destination doesn't exist", func(t *testing.T) {
+				defer func() {
+					err = os.RemoveAll(dst)
+					require.NoError(t, err)
+				}()
+
+				err := Copy(ReplaceAll, srcDir, dst)
+				require.NoError(t, err)
+
+				testCompareDirectory(t, srcDir, dst)
+			})
+
+			t.Run("destination exists", func(t *testing.T) {
+				defer func() {
+					err = os.RemoveAll(dst)
+					require.NoError(t, err)
+				}()
+
+				// create test file(exists)
+				testCreateFile(t, dst)
+				defer func() {
+					err := os.Remove(dst)
+					require.NoError(t, err)
+				}()
+
+				err := Copy(ReplaceAll, srcDir, dst)
+				require.Error(t, err)
+			})
 		})
+
+		// special
 	})
 }

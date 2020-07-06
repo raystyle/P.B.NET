@@ -66,6 +66,9 @@ func checkSrcDstPath(src, dst string) (*srcDstStat, error) {
 	if err != nil {
 		return nil, err
 	}
+	if srcAbs == dstAbs {
+		return nil, errors.New("source path as same as the destination path")
+	}
 	// check two path is valid
 	srcStat, err := os.Stat(srcAbs)
 	if err != nil {
