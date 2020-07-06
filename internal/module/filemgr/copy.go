@@ -29,7 +29,8 @@ func copyWithContext(ctx context.Context, sc SameCtrl, src, dst string) error {
 		return err
 	}
 	if stats.srcIsFile {
-		return copySingleFile(ctx, sc, stats)
+		stats.dst = dst
+		return copySrcFile(ctx, sc, stats)
 	}
 	// walk directory
 	return filepath.Walk(stats.srcAbs, func(srcAbs string, srcStat os.FileInfo, err error) error {
@@ -73,18 +74,19 @@ func copyWithContext(ctx context.Context, sc SameCtrl, src, dst string) error {
 	})
 }
 
+// copySrcFile is used to copy single file to a path.
+//
 // new path is a dir  and exist
 // new path is a file and exist
 // new path is a dir  and not exist
 // new path is a file and not exist
-func copySingleFile(ctx context.Context, sc SameCtrl, stats *srcDstStat) error {
+func copySrcFile(ctx context.Context, sc SameCtrl, stats *srcDstStat) error {
 	_, srcFileName := filepath.Split(stats.srcAbs)
 	var (
 		dstFileName string
 		dstStat     os.FileInfo
 	)
-	if stats.dstStat != nil {
-		// dst is exists
+	if stats.dstStat != nil { // dst is exists
 		// copyFile will handle the same file, dir
 		//
 		// copy "a.exe" -> "C:\ExistDir"
@@ -102,9 +104,8 @@ func copySingleFile(ctx context.Context, sc SameCtrl, stats *srcDstStat) error {
 			dstFileName = stats.dstAbs
 			dstStat = stats.dstStat
 		}
-	} else {
-		// dst is doesn't exists
-		last := stats.dstAbs[len(stats.dstAbs)-1]
+	} else { // dst is doesn't exists
+		last := stats.dst[len(stats.dst)-1]
 		if os.IsPathSeparator(last) { // is a directory path
 			err := os.MkdirAll(stats.dstAbs, 0750)
 			if err != nil {
@@ -130,7 +131,7 @@ func copySingleFile(ctx context.Context, sc SameCtrl, stats *srcDstStat) error {
 	return copyFile(ctx, sc, newStats)
 }
 
-// dst abs path is exist or not exist, two abs path are all file.
+// dst abs path doesn't have to exist, two abs path are all file.
 func copyFile(ctx context.Context, sc SameCtrl, stats *srcDstStat) error {
 	// check dst file is exist
 	if stats.dstStat != nil {

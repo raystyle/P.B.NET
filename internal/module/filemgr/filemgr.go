@@ -14,18 +14,18 @@ type SameCtrl func(typ uint8, src string, dst string) uint8
 
 // same type about SameCtrl
 const (
-	_           = iota
-	SameFile    // two same name file
-	SameFileDir // same src file name with dst directory
-	SameDirFile // same src directory name with dst file name
+	_           uint8 = iota
+	SameFile          // two same name file
+	SameFileDir       // same src file name with dst directory
+	SameDirFile       // same src directory name with dst file name
 )
 
 // control code about SameCtrl
 const (
-	_               = iota
-	SameCtrlReplace // replace same file
-	SameCtrlSkip    // skip same file
-	SameCtrlCancel  // cancel whole copy or move operation
+	_               uint8 = iota
+	SameCtrlReplace       // replace same file
+	SameCtrlSkip          // skip same file
+	SameCtrlCancel        // cancel whole copy or move operation
 )
 
 // ErrUserCanceled is an error about user cancel copy or move.
@@ -38,10 +38,11 @@ var ReplaceAll = func(uint8, string, string) uint8 { return SameCtrlReplace }
 var SkipAll = func(uint8, string, string) uint8 { return SameCtrlSkip }
 
 type srcDstStat struct {
-	srcAbs    string
+	dst       string // dstAbs will lost the last "/" or "\"
+	srcAbs    string // "E:\file.dat" "E:\file", last will not be "/ or "\"
 	dstAbs    string
 	srcStat   os.FileInfo
-	dstStat   os.FileInfo // file is exists
+	dstStat   os.FileInfo // check destination file or directory is exists
 	srcIsFile bool
 }
 
