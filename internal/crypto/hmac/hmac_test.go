@@ -5,9 +5,12 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
+	"errors"
 	"fmt"
 	"hash"
 	"testing"
+
+	"project/internal/testsuite"
 )
 
 type hmacTest struct {
@@ -16,7 +19,7 @@ type hmacTest struct {
 	in        []byte
 	out       string
 	size      int
-	blocksize int
+	blockSize int
 }
 
 var hmacTests = []hmacTest{
@@ -379,7 +382,8 @@ var hmacTests = []hmacTest{
 			0x78, 0x79, 0x7a, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f,
 		},
 		[]byte("Sample message for keylen=blocklen"),
-		"63c5daa5e651847ca897c95814ab830bededc7d25e83eef9195cd45857a37f448947858f5af50cc2b1b730ddf29671a9",
+		"63c5daa5e651847ca897c95814ab830bededc7d25e83eef9" +
+			"195cd45857a37f448947858f5af50cc2b1b730ddf29671a9",
 		sha512.Size384,
 		sha512.BlockSize,
 	},
@@ -394,7 +398,8 @@ var hmacTests = []hmacTest{
 			0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
 		},
 		[]byte("Sample message for keylen<blocklen"),
-		"6eb242bdbb582ca17bebfa481b1e23211464d2b7f8c20b9ff2201637b93646af5ae9ac316e98db45d9cae773675eeed0",
+		"6eb242bdbb582ca17bebfa481b1e23211464d2b7f8c20b9f" +
+			"f2201637b93646af5ae9ac316e98db45d9cae773675eeed0",
 		sha512.Size384,
 		sha512.BlockSize,
 	},
@@ -428,7 +433,8 @@ var hmacTests = []hmacTest{
 			0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7,
 		},
 		[]byte("Sample message for keylen=blocklen"),
-		"5b664436df69b0ca22551231a3f0a3d5b4f97991713cfa84bff4d0792eff96c27dccbbb6f79b65d548b40e8564cef594",
+		"5b664436df69b0ca22551231a3f0a3d5b4f97991713cfa84" +
+			"bff4d0792eff96c27dccbbb6f79b65d548b40e8564cef594",
 		sha512.Size384,
 		sha512.BlockSize,
 	},
@@ -516,14 +522,19 @@ var hmacTests = []hmacTest{
 	},
 }
 
+// justHash implements just the hash.Hash methods and nothing else
+type justHash struct {
+	hash.Hash
+}
+
 func TestHMAC(t *testing.T) {
 	for i, tt := range hmacTests {
 		h := New(tt.hash, tt.key)
 		if s := h.Size(); s != tt.size {
 			t.Errorf("Size: got %v, want %v", s, tt.size)
 		}
-		if b := h.BlockSize(); b != tt.blocksize {
-			t.Errorf("BlockSize: got %v, want %v", b, tt.blocksize)
+		if b := h.BlockSize(); b != tt.blockSize {
+			t.Errorf("BlockSize: got %v, want %v", b, tt.blockSize)
 		}
 		for j := 0; j < 4; j++ {
 			n, err := h.Write(tt.in)
@@ -552,9 +563,62 @@ func TestHMAC(t *testing.T) {
 	}
 }
 
-// justHash implements just the hash.Hash methods and nothing else
-type justHash struct {
+func TestHMAC_Sum(t *testing.T) {
+	defer testsuite.DeferForPanic(t)
+
+	h := New(sha256.New, []byte{2, 0, 0, 7}).(*hmac)
+
+	h.marshaled = true
+
+	h.Sum(nil)
+}
+
+type marshalAbleHash struct {
 	hash.Hash
+}
+
+func (*marshalAbleHash) MarshalBinary() ([]byte, error) {
+	return nil, errors.New("marshalAbleHash error")
+}
+
+func (*marshalAbleHash) UnmarshalBinary([]byte) error {
+	return errors.New("marshalAbleHash error")
+}
+
+func TestHMAC_Reset(t *testing.T) {
+	t.Run("inner marshalAble", func(t *testing.T) {
+		defer testsuite.DeferForPanic(t)
+
+		h := New(sha256.New, []byte{2, 0, 0, 7}).(*hmac)
+
+		h.marshaled = true
+
+		h.Reset()
+	})
+
+	t.Run("outer not marshal able", func(t *testing.T) {
+		h := New(sha256.New, []byte{2, 0, 0, 7}).(*hmac)
+
+		h.outer = justHash{h.outer}
+
+		h.Reset()
+	})
+
+	t.Run("inner marshal failed", func(t *testing.T) {
+		h := New(sha256.New, []byte{2, 0, 0, 7}).(*hmac)
+
+		h.inner = &marshalAbleHash{h.inner}
+
+		h.Reset()
+	})
+
+	t.Run("outer marshal failed", func(t *testing.T) {
+		h := New(sha256.New, []byte{2, 0, 0, 7}).(*hmac)
+
+		h.outer = &marshalAbleHash{h.outer}
+
+		h.Reset()
+	})
 }
 
 func TestEqual(t *testing.T) {
@@ -591,7 +655,6 @@ func BenchmarkHMACSHA256_1K(b *testing.B) {
 	}
 }
 
-// BenchmarkHMACSHA256_32-6   	  414898	      2796 ns/op	  11.45 MB/s	      96 B/op	       3 allocs/op
 func BenchmarkHMACSHA256_32(b *testing.B) {
 	b.ReportAllocs()
 
