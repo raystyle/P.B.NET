@@ -1,4 +1,4 @@
-package compress
+package filemgr
 
 import (
 	"testing"
@@ -8,7 +8,7 @@ import (
 
 func TestZipFileToDir(t *testing.T) {
 	const dir = "testdata/zip-file"
-	err := ZipFileToDir("testdata/gosec-master.zip", dir)
+	err := ZipFileToDir("testdata/file.zip", dir)
 	require.NoError(t, err)
 
 	// err = os.RemoveAll(dir)
