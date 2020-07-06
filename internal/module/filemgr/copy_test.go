@@ -230,7 +230,6 @@ func TestCopy(t *testing.T) {
 			srcFile1 = "file1.dat"
 			srcDir2  = "dir2"
 			srcFile2 = "dir2/file2.dat"
-			dstDir   = "testdata/dir-dir/"
 		)
 
 		// create test directory
@@ -249,31 +248,32 @@ func TestCopy(t *testing.T) {
 		testCreateFile2(t, filepath.Join(srcDir, srcFile2))
 
 		t.Run("to directory path", func(t *testing.T) {
-			// err = os.MkdirAll(dstDirMerge, 0750)
-			// require.NoError(t, err)
-			// defer func() {
-			// 	err = os.RemoveAll(dstDirMerge)
-			// 	require.NoError(t, err)
-			// }()
+			const dst = "testdata/dir-dir/"
 
 			t.Run("destination doesn't exist", func(t *testing.T) {
 				defer func() {
-					err = os.RemoveAll(dstDir)
+					err = os.RemoveAll(dst)
 					require.NoError(t, err)
 				}()
 
-				err := Copy(SkipAll, srcDir, dstDir)
+				err = Copy(ReplaceAll, srcDir, dst)
 				require.NoError(t, err)
+
+				testCompareDirectory(t, srcDir, dst)
 			})
 
 			t.Run("destination exists", func(t *testing.T) {
-				t.Run("file", func(t *testing.T) {
+				err := os.MkdirAll(dst, 0750)
+				require.NoError(t, err)
+				defer func() {
+					err := os.RemoveAll(dst)
+					require.NoError(t, err)
+				}()
 
-				})
+				err = Copy(ReplaceAll, srcDir, dst)
+				require.NoError(t, err)
 
-				t.Run("directory", func(t *testing.T) {
-
-				})
+				testCompareDirectory(t, srcDir, dst)
 			})
 		})
 
@@ -282,7 +282,7 @@ func TestCopy(t *testing.T) {
 
 			t.Run("destination doesn't exist", func(t *testing.T) {
 				defer func() {
-					err = os.RemoveAll(dst)
+					err := os.RemoveAll(dst)
 					require.NoError(t, err)
 				}()
 
@@ -293,23 +293,82 @@ func TestCopy(t *testing.T) {
 			})
 
 			t.Run("destination exists", func(t *testing.T) {
-				defer func() {
-					err = os.RemoveAll(dst)
-					require.NoError(t, err)
-				}()
+				t.Run("file", func(t *testing.T) {
+					defer func() {
+						err := os.RemoveAll(dst)
+						require.NoError(t, err)
+					}()
 
-				// create test file(exists)
-				testCreateFile(t, dst)
-				defer func() {
-					err := os.Remove(dst)
-					require.NoError(t, err)
-				}()
+					// create test file(exists)
+					testCreateFile(t, dst)
+					defer func() {
+						err := os.Remove(dst)
+						require.NoError(t, err)
+					}()
 
-				err := Copy(ReplaceAll, srcDir, dst)
-				require.Error(t, err)
+					err := Copy(ReplaceAll, srcDir, dst)
+					require.Error(t, err)
+				})
+
+				t.Run("directory", func(t *testing.T) {
+					err := os.MkdirAll(dst, 0750)
+					require.NoError(t, err)
+					defer func() {
+						err := os.RemoveAll(dst)
+						require.NoError(t, err)
+					}()
+
+					err = Copy(ReplaceAll, srcDir, dst)
+					require.NoError(t, err)
+
+					testCompareDirectory(t, srcDir, dst)
+				})
 			})
 		})
 
-		// special
+		t.Run("sub file exist in dst directory", func(t *testing.T) {
+			const dst = "testdata/dir-dir/"
+
+			t.Run("file to directory", func(t *testing.T) {
+				defer func() {
+					err := os.RemoveAll(dst)
+					require.NoError(t, err)
+				}()
+
+				// create exists same name directory
+				path := filepath.Join(dst, srcFile1)
+				err := os.MkdirAll(path, 0750)
+				require.NoError(t, err)
+				defer func() {
+					err := os.Remove(path)
+					require.NoError(t, err)
+				}()
+
+				err = Copy(SkipAll, srcDir, dst)
+				require.NoError(t, err)
+			})
+
+			// C:\test\dir2[dir] exists in D:\test\dir2[file]
+			// need skip all files in C:\test\dir2
+			// like skip C:\test\dir2\file2.dat
+			t.Run("directory to file", func(t *testing.T) {
+				defer func() {
+					err := os.RemoveAll(dst)
+					require.NoError(t, err)
+				}()
+
+				// create exists same name file
+				path := filepath.Join(dst, srcDir2)
+				testCreateFile(t, path)
+				defer func() {
+					err := os.Remove(path)
+					require.NoError(t, err)
+				}()
+
+				err := Copy(SkipAll, srcDir, dst)
+				require.NoError(t, err)
+			})
+		})
 	})
+
 }

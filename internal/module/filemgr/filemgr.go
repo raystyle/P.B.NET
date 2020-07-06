@@ -46,6 +46,17 @@ type srcDstStat struct {
 	srcIsFile bool
 }
 
+// stat is used to get file stat, if err is NotExist, it will return nil error and os.FileInfo.
+func stat(name string) (os.FileInfo, error) {
+	stat, err := os.Stat(name)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+	return stat, nil
+}
+
 // src path [file], dst path [file] --valid
 // src path [file], dst path [dir]  --valid
 // src path [dir],  dst path [dir]  --valid
@@ -74,11 +85,9 @@ func checkSrcDstPath(src, dst string) (*srcDstStat, error) {
 	if err != nil {
 		return nil, err
 	}
-	dstStat, err := os.Stat(dstAbs)
+	dstStat, err := stat(dstAbs)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, err
-		}
+		return nil, err
 	}
 	srcIsDir := srcStat.IsDir()
 	if srcIsDir && dstStat != nil && !dstStat.IsDir() {

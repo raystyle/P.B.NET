@@ -28,19 +28,44 @@ func copyWithContext(ctx context.Context, sc SameCtrl, src, dst string) error {
 	if err != nil {
 		return err
 	}
+	// copy file to a path
 	if stats.srcIsFile {
 		stats.dst = dst
 		return copySrcFile(ctx, sc, stats)
 	}
 	// walk directory
+
+	// copy C:\test -> D:\test2
+	// -- copy C:\test\file.dat -> C:\test2\file.dat
+
+	// skippedDirs is used to store skipped directories
+	var skippedDirs []string
+
+	// start walk
 	return filepath.Walk(stats.srcAbs, func(srcAbs string, srcStat os.FileInfo, err error) error {
+		// check is canceled
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		// check walk error
 		if err != nil {
 			return fmt.Errorf("failed to walk \"%s\": %s", srcAbs, err)
 		}
-		// check is root path, and make dir if target path is not exists
+		// check is root path, and make directory if target path is not exists
 		// C:\test -> D:\test[exist]
-		if srcAbs == stats.srcAbs && stats.dstStat == nil {
-			return os.MkdirAll(stats.dstAbs, stats.srcStat.Mode().Perm())
+		if srcAbs == stats.srcAbs {
+			if stats.dstStat == nil {
+				return os.MkdirAll(stats.dstAbs, stats.srcStat.Mode().Perm())
+			}
+			return nil
+		}
+		// skip file in skipped directories
+		for i := 0; i < len(skippedDirs); i++ {
+			if strings.Contains(srcAbs, skippedDirs[i]) {
+				return nil
+			}
 		}
 		// C:\test\a.exe -> a.exe
 		// C:\test\dir\a.exe -> dir\a.exe
@@ -48,11 +73,9 @@ func copyWithContext(ctx context.Context, sc SameCtrl, src, dst string) error {
 		// remove the first "\" or "/"
 		relativePath = string([]rune(relativePath)[1:])
 		dstAbs := filepath.Join(stats.dstAbs, relativePath)
-		dstStat, err := os.Stat(dstAbs)
+		dstStat, err := stat(dstAbs)
 		if err != nil {
-			if !os.IsNotExist(err) {
-				return err
-			}
+			return err
 		}
 		newStats := &srcDstStat{
 			srcAbs:  srcAbs,
@@ -65,7 +88,11 @@ func copyWithContext(ctx context.Context, sc SameCtrl, src, dst string) error {
 				return os.MkdirAll(dstAbs, srcStat.Mode().Perm())
 			}
 			if !dstStat.IsDir() {
-				return noticeSameDirFile(sc, newStats)
+				err := noticeSameDirFile(sc, newStats)
+				if err != nil {
+					return err
+				}
+				skippedDirs = append(skippedDirs, srcAbs)
 			}
 			return nil
 		}
@@ -93,11 +120,9 @@ func copySrcFile(ctx context.Context, sc SameCtrl, stats *srcDstStat) error {
 		// "a.exe" -> "C:\ExistDir\a.exe"
 		if stats.dstStat.IsDir() {
 			dstFileName = filepath.Join(stats.dstAbs, srcFileName)
-			stat, err := os.Stat(dstFileName)
+			stat, err := stat(dstFileName)
 			if err != nil {
-				if !os.IsNotExist(err) {
-					return err
-				}
+				return err
 			}
 			dstStat = stat
 		} else {
@@ -159,8 +184,8 @@ func copyFile(ctx context.Context, sc SameCtrl, stats *srcDstStat) error {
 	if err != nil {
 		// if canceled, remove the last file that not finish copy.
 		if err == context.Canceled {
-			fmt.Println("[debug] remove dst file:", stats.dstAbs)
-			// _ = os.Remove(stats.dstAbs)
+			_ = dstFile.Close()
+			_ = os.Remove(stats.dstAbs)
 		}
 		return err
 	}
