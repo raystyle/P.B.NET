@@ -79,7 +79,7 @@ func checkSrcDstPath(src, dst string) (*srcDstStat, error) {
 		return nil, err
 	}
 	if srcAbs == dstAbs {
-		return nil, errors.New("source path as same as the destination path")
+		return nil, errors.New("src path as same as the dst path")
 	}
 	// check two path is valid
 	srcStat, err := os.Stat(srcAbs)
@@ -105,53 +105,57 @@ func checkSrcDstPath(src, dst string) (*srcDstStat, error) {
 }
 
 // noticeSameFile is used to notice appear same name file.
-func noticeSameFile(sc ErrCtrl, stats *srcDstStat) (bool, error) {
+func noticeSameFile(sc ErrCtrl, stats *srcDstStat) (replace bool, err error) {
 	switch code := sc(ErrCtrlSameFile, nil, stats.srcAbs, stats.dstAbs); code {
 	case ErrCtrlOpReplace:
-		return true, nil
+		replace = true
 	case ErrCtrlOpSkip:
-		return false, nil
 	case ErrCtrlOpCancel:
-		return false, ErrUserCanceled
+		err = ErrUserCanceled
 	default:
-		return false, fmt.Errorf("unknown same file operation code: %d", code)
+		err = fmt.Errorf("unknown same file operation code: %d", code)
 	}
+	return
 }
 
 // noticeSameFileDir is used to notice appear same name about src file and dst dir.
-func noticeSameFileDir(sc ErrCtrl, stats *srcDstStat) error {
+func noticeSameFileDir(sc ErrCtrl, stats *srcDstStat) (retry bool, err error) {
 	switch code := sc(ErrCtrlSameFileDir, nil, stats.srcAbs, stats.dstAbs); code {
+	case ErrCtrlOpRetry:
+		retry = true
 	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
-		return nil
 	case ErrCtrlOpCancel:
-		return ErrUserCanceled
+		err = ErrUserCanceled
 	default:
-		return fmt.Errorf("unknown same file dir operation code: %d", code)
+		err = fmt.Errorf("unknown same file dir operation code: %d", code)
 	}
+	return
 }
 
 // noticeSameDirFile is used to notice appear same name about src dir and dst file.
-func noticeSameDirFile(sc ErrCtrl, stats *srcDstStat) error {
+func noticeSameDirFile(sc ErrCtrl, stats *srcDstStat) (retry bool, err error) {
 	switch code := sc(ErrCtrlSameDirFile, nil, stats.srcAbs, stats.dstAbs); code {
+	case ErrCtrlOpRetry:
+		retry = true
 	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
-		return nil
 	case ErrCtrlOpCancel:
-		return ErrUserCanceled
+		err = ErrUserCanceled
 	default:
-		return fmt.Errorf("unknown same dir file operation code: %d", code)
+		err = fmt.Errorf("unknown same dir file operation code: %d", code)
 	}
+	return
 }
 
 // noticeFailedToCopy is used to notice appear some error about copy or move.
-func noticeFailedToCopy(sc ErrCtrl, stats *srcDstStat, err error) (bool, error) {
-	switch code := sc(ErrCtrlCopyFailed, err, stats.srcAbs, stats.dstAbs); code {
+func noticeFailedToCopy(sc ErrCtrl, stats *srcDstStat, e error) (retry bool, err error) {
+	switch code := sc(ErrCtrlCopyFailed, e, stats.srcAbs, stats.dstAbs); code {
 	case ErrCtrlOpRetry:
-		return true, nil
+		retry = true
 	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
-		return false, nil
 	case ErrCtrlOpCancel:
-		return false, ErrUserCanceled
+		err = ErrUserCanceled
 	default:
-		return false, fmt.Errorf("unknown failed to copy operation code: %d", code)
+		err = fmt.Errorf("unknown failed to copy operation code: %d", code)
 	}
+	return
 }
