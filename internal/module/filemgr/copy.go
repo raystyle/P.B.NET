@@ -13,17 +13,17 @@ import (
 // Copy is used to copy file or directory from source path to destination path,
 // if the target file is exist, will call exist function and replace it if replace
 // function return true.
-func Copy(sc SameCtrl, src, dst string) error {
+func Copy(sc ErrCtrl, src, dst string) error {
 	return copyWithContext(context.Background(), sc, src, dst)
 }
 
 // CopyWithContext is used to copy file or directory from source path to destination
 // path with context.
-func CopyWithContext(ctx context.Context, sc SameCtrl, src, dst string) error {
+func CopyWithContext(ctx context.Context, sc ErrCtrl, src, dst string) error {
 	return copyWithContext(ctx, sc, src, dst)
 }
 
-func copyWithContext(ctx context.Context, sc SameCtrl, src, dst string) error {
+func copyWithContext(ctx context.Context, sc ErrCtrl, src, dst string) error {
 	stats, err := checkSrcDstPath(src, dst)
 	if err != nil {
 		return err
@@ -107,7 +107,7 @@ func copyWithContext(ctx context.Context, sc SameCtrl, src, dst string) error {
 // new path is a file and exist
 // new path is a dir  and not exist
 // new path is a file and not exist
-func copySrcFile(ctx context.Context, sc SameCtrl, stats *srcDstStat) error {
+func copySrcFile(ctx context.Context, sc ErrCtrl, stats *srcDstStat) error {
 	_, srcFileName := filepath.Split(stats.srcAbs)
 	var (
 		dstFileName string
@@ -157,7 +157,7 @@ func copySrcFile(ctx context.Context, sc SameCtrl, stats *srcDstStat) error {
 }
 
 // dst abs path doesn't have to exist, two abs path are all file.
-func copyFile(ctx context.Context, sc SameCtrl, stats *srcDstStat) error {
+func copyFile(ctx context.Context, sc ErrCtrl, stats *srcDstStat) (err error) {
 	// check dst file is exist
 	if stats.dstStat != nil {
 		if stats.dstStat.IsDir() {
@@ -168,18 +168,33 @@ func copyFile(ctx context.Context, sc SameCtrl, stats *srcDstStat) error {
 			return err
 		}
 	}
-	// copy file
+	// check copy file error, and maybe retry copy file.
+	defer func() {
+		if err != nil && err != context.Canceled {
+			var retry bool
+			retry, err = noticeFailedToCopy(sc, stats, err)
+			if err != nil {
+				return
+			}
+			if retry {
+				err = copyFile(ctx, sc, stats)
+			}
+		}
+	}()
+	// src file
 	srcFile, err := os.Open(stats.srcAbs)
 	if err != nil {
-		return err
+		return
 	}
 	defer func() { _ = srcFile.Close() }()
+	// dst file
 	perm := stats.srcStat.Mode().Perm()
 	dstFile, err := os.OpenFile(stats.dstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
-		return err
+		return
 	}
 	defer func() { _ = dstFile.Close() }()
+	// copy
 	_, err = xio.CopyWithContext(ctx, dstFile, srcFile)
 	if err != nil {
 		// if canceled, remove the last file that not finish copy.
@@ -187,9 +202,10 @@ func copyFile(ctx context.Context, sc SameCtrl, stats *srcDstStat) error {
 			_ = dstFile.Close()
 			_ = os.Remove(stats.dstAbs)
 		}
-		return err
+		return
 	}
 	// set the modification time about the dst file
-	t := stats.srcStat.ModTime()
-	return os.Chtimes(stats.dstAbs, t, t)
+	modTime := stats.srcStat.ModTime()
+	err = os.Chtimes(stats.dstAbs, modTime, modTime)
+	return
 }

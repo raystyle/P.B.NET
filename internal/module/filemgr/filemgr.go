@@ -7,35 +7,36 @@ import (
 	"path/filepath"
 )
 
-// SameCtrl is used to tell Move or Copy function how to control the same file, directory.
-// If replace function return 0, Move or Copy will replace it.
-// src and dst is the absolute file path.
-type SameCtrl func(typ uint8, src string, dst string) uint8
+// ErrCtrl is used to tell Move or Copy function how to control the same file,
+// directory, or copy, move error. src and dst is the absolute file path.
+type ErrCtrl func(typ uint8, err error, src string, dst string) uint8
 
-// same type about SameCtrl
+// errors about ErrCtrl
 const (
-	_           uint8 = iota
-	SameFile          // two same name file
-	SameFileDir       // same src file name with dst directory
-	SameDirFile       // same src directory name with dst file name
+	_                  uint8 = iota
+	ErrCtrlSameFile          // two same name file
+	ErrCtrlSameFileDir       // same src file name with dst directory
+	ErrCtrlSameDirFile       // same src directory name with dst file name
+	ErrCtrlCopyFailed        // appear error when copy file
 )
 
-// control code about SameCtrl
+// operation code about ErrCtrl
 const (
-	_               uint8 = iota
-	SameCtrlReplace       // replace same file
-	SameCtrlSkip          // skip same file
-	SameCtrlCancel        // cancel whole copy or move operation
+	_                uint8 = iota
+	ErrCtrlOpReplace       // replace same name file
+	ErrCtrlOpSkip          // skip same name file, directory or copy
+	ErrCtrlOpRetry         // try to copy or move again
+	ErrCtrlOpCancel        // cancel whole copy or move operation
 )
 
 // ErrUserCanceled is an error about user cancel copy or move.
 var ErrUserCanceled = errors.New("user canceled")
 
 // ReplaceAll is used to replace all src file to dst file.
-var ReplaceAll = func(uint8, string, string) uint8 { return SameCtrlReplace }
+var ReplaceAll = func(uint8, error, string, string) uint8 { return ErrCtrlOpReplace }
 
 // SkipAll is used to skip all existed file or other error.
-var SkipAll = func(uint8, string, string) uint8 { return SameCtrlSkip }
+var SkipAll = func(uint8, error, string, string) uint8 { return ErrCtrlOpSkip }
 
 type srcDstStat struct {
 	dst       string // dstAbs will lost the last "/" or "\"
@@ -104,39 +105,53 @@ func checkSrcDstPath(src, dst string) (*srcDstStat, error) {
 }
 
 // noticeSameFile is used to notice appear same name file.
-func noticeSameFile(sc SameCtrl, stats *srcDstStat) (bool, error) {
-	switch code := sc(SameFile, stats.srcAbs, stats.dstAbs); code {
-	case SameCtrlReplace:
+func noticeSameFile(sc ErrCtrl, stats *srcDstStat) (bool, error) {
+	switch code := sc(ErrCtrlSameFile, nil, stats.srcAbs, stats.dstAbs); code {
+	case ErrCtrlOpReplace:
 		return true, nil
-	case SameCtrlSkip:
+	case ErrCtrlOpSkip:
 		return false, nil
-	case SameCtrlCancel:
+	case ErrCtrlOpCancel:
 		return false, ErrUserCanceled
 	default:
-		return false, fmt.Errorf("unknown same file control code: %d", code)
+		return false, fmt.Errorf("unknown same file operation code: %d", code)
 	}
 }
 
 // noticeSameFileDir is used to notice appear same name about src file and dst dir.
-func noticeSameFileDir(sc SameCtrl, stats *srcDstStat) error {
-	switch code := sc(SameFileDir, stats.srcAbs, stats.dstAbs); code {
-	case SameCtrlSkip:
+func noticeSameFileDir(sc ErrCtrl, stats *srcDstStat) error {
+	switch code := sc(ErrCtrlSameFileDir, nil, stats.srcAbs, stats.dstAbs); code {
+	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
 		return nil
-	case SameCtrlCancel:
+	case ErrCtrlOpCancel:
 		return ErrUserCanceled
 	default:
-		return fmt.Errorf("unknown same file dir control code: %d", code)
+		return fmt.Errorf("unknown same file dir operation code: %d", code)
 	}
 }
 
 // noticeSameDirFile is used to notice appear same name about src dir and dst file.
-func noticeSameDirFile(sc SameCtrl, stats *srcDstStat) error {
-	switch code := sc(SameDirFile, stats.srcAbs, stats.dstAbs); code {
-	case SameCtrlSkip:
+func noticeSameDirFile(sc ErrCtrl, stats *srcDstStat) error {
+	switch code := sc(ErrCtrlSameDirFile, nil, stats.srcAbs, stats.dstAbs); code {
+	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
 		return nil
-	case SameCtrlCancel:
+	case ErrCtrlOpCancel:
 		return ErrUserCanceled
 	default:
-		return fmt.Errorf("unknown same dir file control code: %d", code)
+		return fmt.Errorf("unknown same dir file operation code: %d", code)
+	}
+}
+
+// noticeFailedToCopy is used to notice appear some error about copy or move.
+func noticeFailedToCopy(sc ErrCtrl, stats *srcDstStat, err error) (bool, error) {
+	switch code := sc(ErrCtrlCopyFailed, err, stats.srcAbs, stats.dstAbs); code {
+	case ErrCtrlOpRetry:
+		return true, nil
+	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
+		return false, nil
+	case ErrCtrlOpCancel:
+		return false, ErrUserCanceled
+	default:
+		return false, fmt.Errorf("unknown failed to copy operation code: %d", code)
 	}
 }

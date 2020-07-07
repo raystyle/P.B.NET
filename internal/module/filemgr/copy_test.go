@@ -134,10 +134,10 @@ func TestCopy(t *testing.T) {
 					}()
 
 					count := 0
-					err := Copy(func(typ uint8, src, dst string) uint8 {
-						require.Equal(t, SameFile, typ)
+					err := Copy(func(typ uint8, err error, src, dst string) uint8 {
+						require.Equal(t, ErrCtrlSameFile, typ)
 						count++
-						return SameCtrlReplace
+						return ErrCtrlOpReplace
 					}, src, dstFile)
 					require.NoError(t, err)
 
@@ -154,12 +154,7 @@ func TestCopy(t *testing.T) {
 						require.NoError(t, err)
 					}()
 
-					count := 0
-					err = Copy(func(typ uint8, src, dst string) uint8 {
-						require.Equal(t, SameFileDir, typ)
-						count++
-						return SameCtrlSkip
-					}, src, dstFile)
+					err = Copy(ReplaceAll, src, dstFile)
 					require.NoError(t, err)
 				})
 			})
@@ -193,10 +188,10 @@ func TestCopy(t *testing.T) {
 					}()
 
 					count := 0
-					err := Copy(func(typ uint8, src, dst string) uint8 {
-						require.Equal(t, SameFile, typ)
+					err := Copy(func(typ uint8, err error, src, dst string) uint8 {
+						require.Equal(t, ErrCtrlSameFile, typ)
 						count++
-						return SameCtrlReplace
+						return ErrCtrlOpReplace
 					}, src, dstDir)
 					require.NoError(t, err)
 
@@ -214,12 +209,14 @@ func TestCopy(t *testing.T) {
 					}()
 
 					count := 0
-					err = Copy(func(typ uint8, src, dst string) uint8 {
-						require.Equal(t, SameFileDir, typ)
+					err = Copy(func(typ uint8, err error, src, dst string) uint8 {
+						require.Equal(t, ErrCtrlSameFileDir, typ)
 						count++
-						return SameCtrlSkip
+						return ErrCtrlOpSkip
 					}, src, dstDir)
 					require.NoError(t, err)
+
+					require.Equal(t, 1, count)
 				})
 			})
 		})
@@ -345,8 +342,15 @@ func TestCopy(t *testing.T) {
 					require.NoError(t, err)
 				}()
 
-				err = Copy(SkipAll, srcDir, dstDir)
+				count := 0
+				err = Copy(func(typ uint8, err error, src string, dst string) uint8 {
+					require.Equal(t, ErrCtrlSameFileDir, typ)
+					count++
+					return ErrCtrlOpSkip
+				}, srcDir, dstDir)
 				require.NoError(t, err)
+
+				require.Equal(t, 1, count)
 			})
 
 			// C:\test\dir2[dir] exists in D:\test\dir2[file]
@@ -366,8 +370,15 @@ func TestCopy(t *testing.T) {
 					require.NoError(t, err)
 				}()
 
-				err := Copy(SkipAll, srcDir, dstDir)
+				count := 0
+				err := Copy(func(typ uint8, err error, src string, dst string) uint8 {
+					require.Equal(t, ErrCtrlSameDirFile, typ)
+					count++
+					return ErrCtrlOpSkip
+				}, srcDir, dstDir)
 				require.NoError(t, err)
+
+				require.Equal(t, 1, count)
 			})
 		})
 	})
@@ -389,7 +400,7 @@ func TestCopy(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			err := CopyWithContext(ctx, ReplaceAll, src, dst)
+			err := CopyWithContext(ctx, SkipAll, src, dst)
 			require.Equal(t, context.Canceled, err)
 
 			exist, err := system.IsExist(dir)
@@ -426,12 +437,16 @@ func TestCopy(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			err = CopyWithContext(ctx, ReplaceAll, srcDir, dstDir)
+			err = CopyWithContext(ctx, SkipAll, srcDir, dstDir)
 			require.Equal(t, context.Canceled, err)
 
 			exist, err := system.IsNotExist(dstDir)
 			require.NoError(t, err)
 			require.True(t, exist)
 		})
+	})
+
+	t.Run("retry", func(t *testing.T) {
+
 	})
 }
