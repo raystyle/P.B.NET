@@ -2,6 +2,7 @@ package filemgr
 
 import (
 	"context"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -9,8 +10,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/monkey"
 	"project/internal/system"
 	"project/internal/testsuite"
+	"project/internal/xio"
 )
 
 func testCreateFile(t *testing.T, name string) {
@@ -446,7 +449,90 @@ func TestCopy(t *testing.T) {
 		})
 	})
 
-	t.Run("retry", func(t *testing.T) {
+	t.Run("noticeFailedToCopy", func(t *testing.T) {
+		const (
+			src = "testdata/file.dat"
+			dst = "testdata/file/file.dat"
+			dir = "testdata/file"
+		)
 
+		// create test file
+		testCreateFile(t, src)
+		defer func() {
+			err := os.RemoveAll(src)
+			require.NoError(t, err)
+		}()
+
+		t.Run("retry", func(t *testing.T) {
+			defer func() {
+				err := os.RemoveAll(dir)
+				require.NoError(t, err)
+			}()
+
+			patch := func(context.Context, io.Writer, io.Reader) (int64, error) {
+				return 0, monkey.Error
+			}
+			pg := monkey.Patch(xio.CopyWithContext, patch)
+			defer pg.Unpatch()
+
+			count := 0
+			err := Copy(func(typ uint8, err error, src string, dst string) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}, src, dst)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			defer func() {
+				err := os.RemoveAll(dir)
+				require.NoError(t, err)
+			}()
+
+			patch := func(context.Context, io.Writer, io.Reader) (int64, error) {
+				return 0, monkey.Error
+			}
+			pg := monkey.Patch(xio.CopyWithContext, patch)
+			defer pg.Unpatch()
+
+			count := 0
+			err := Copy(func(typ uint8, err error, src string, dst string) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpSkip
+			}, src, dst)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+		})
+
+		t.Run("user canceled", func(t *testing.T) {
+			defer func() {
+				err := os.RemoveAll(dir)
+				require.NoError(t, err)
+			}()
+
+			patch := func(context.Context, io.Writer, io.Reader) (int64, error) {
+				return 0, monkey.Error
+			}
+			pg := monkey.Patch(xio.CopyWithContext, patch)
+			defer pg.Unpatch()
+
+			count := 0
+			err := Copy(func(typ uint8, err error, src string, dst string) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpCancel
+			}, src, dst)
+			require.Equal(t, ErrUserCanceled, err)
+
+			require.Equal(t, 1, count)
+		})
 	})
 }
