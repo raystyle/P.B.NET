@@ -1,6 +1,7 @@
 package filemgr
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -248,95 +249,95 @@ func TestCopy(t *testing.T) {
 		testCreateFile2(t, filepath.Join(srcDir, srcFile2))
 
 		t.Run("to directory path", func(t *testing.T) {
-			const dst = "testdata/dir-dir/"
+			const dstDir = "testdata/dir-dir/"
 
 			t.Run("destination doesn't exist", func(t *testing.T) {
 				defer func() {
-					err = os.RemoveAll(dst)
+					err = os.RemoveAll(dstDir)
 					require.NoError(t, err)
 				}()
 
-				err = Copy(ReplaceAll, srcDir, dst)
+				err = Copy(ReplaceAll, srcDir, dstDir)
 				require.NoError(t, err)
 
-				testCompareDirectory(t, srcDir, dst)
+				testCompareDirectory(t, srcDir, dstDir)
 			})
 
 			t.Run("destination exists", func(t *testing.T) {
-				err := os.MkdirAll(dst, 0750)
+				err := os.MkdirAll(dstDir, 0750)
 				require.NoError(t, err)
 				defer func() {
-					err := os.RemoveAll(dst)
+					err := os.RemoveAll(dstDir)
 					require.NoError(t, err)
 				}()
 
-				err = Copy(ReplaceAll, srcDir, dst)
+				err = Copy(ReplaceAll, srcDir, dstDir)
 				require.NoError(t, err)
 
-				testCompareDirectory(t, srcDir, dst)
+				testCompareDirectory(t, srcDir, dstDir)
 			})
 		})
 
 		t.Run("to file path", func(t *testing.T) {
-			const dst = "testdata/dir-dir"
+			const dstDir = "testdata/dir-dir"
 
 			t.Run("destination doesn't exist", func(t *testing.T) {
 				defer func() {
-					err := os.RemoveAll(dst)
+					err := os.RemoveAll(dstDir)
 					require.NoError(t, err)
 				}()
 
-				err := Copy(ReplaceAll, srcDir, dst)
+				err := Copy(ReplaceAll, srcDir, dstDir)
 				require.NoError(t, err)
 
-				testCompareDirectory(t, srcDir, dst)
+				testCompareDirectory(t, srcDir, dstDir)
 			})
 
 			t.Run("destination exists", func(t *testing.T) {
 				t.Run("file", func(t *testing.T) {
 					defer func() {
-						err := os.RemoveAll(dst)
+						err := os.RemoveAll(dstDir)
 						require.NoError(t, err)
 					}()
 
 					// create test file(exists)
-					testCreateFile(t, dst)
+					testCreateFile(t, dstDir)
 					defer func() {
-						err := os.Remove(dst)
+						err := os.Remove(dstDir)
 						require.NoError(t, err)
 					}()
 
-					err := Copy(ReplaceAll, srcDir, dst)
+					err := Copy(ReplaceAll, srcDir, dstDir)
 					require.Error(t, err)
 				})
 
 				t.Run("directory", func(t *testing.T) {
-					err := os.MkdirAll(dst, 0750)
+					err := os.MkdirAll(dstDir, 0750)
 					require.NoError(t, err)
 					defer func() {
-						err := os.RemoveAll(dst)
+						err := os.RemoveAll(dstDir)
 						require.NoError(t, err)
 					}()
 
-					err = Copy(ReplaceAll, srcDir, dst)
+					err = Copy(ReplaceAll, srcDir, dstDir)
 					require.NoError(t, err)
 
-					testCompareDirectory(t, srcDir, dst)
+					testCompareDirectory(t, srcDir, dstDir)
 				})
 			})
 		})
 
 		t.Run("sub file exist in dst directory", func(t *testing.T) {
-			const dst = "testdata/dir-dir/"
+			const dstDir = "testdata/dir-dir/"
 
 			t.Run("file to directory", func(t *testing.T) {
 				defer func() {
-					err := os.RemoveAll(dst)
+					err := os.RemoveAll(dstDir)
 					require.NoError(t, err)
 				}()
 
 				// create exists same name directory
-				path := filepath.Join(dst, srcFile1)
+				path := filepath.Join(dstDir, srcFile1)
 				err := os.MkdirAll(path, 0750)
 				require.NoError(t, err)
 				defer func() {
@@ -344,7 +345,7 @@ func TestCopy(t *testing.T) {
 					require.NoError(t, err)
 				}()
 
-				err = Copy(SkipAll, srcDir, dst)
+				err = Copy(SkipAll, srcDir, dstDir)
 				require.NoError(t, err)
 			})
 
@@ -353,22 +354,84 @@ func TestCopy(t *testing.T) {
 			// like skip C:\test\dir2\file2.dat
 			t.Run("directory to file", func(t *testing.T) {
 				defer func() {
-					err := os.RemoveAll(dst)
+					err := os.RemoveAll(dstDir)
 					require.NoError(t, err)
 				}()
 
 				// create exists same name file
-				path := filepath.Join(dst, srcDir2)
+				path := filepath.Join(dstDir, srcDir2)
 				testCreateFile(t, path)
 				defer func() {
 					err := os.Remove(path)
 					require.NoError(t, err)
 				}()
 
-				err := Copy(SkipAll, srcDir, dst)
+				err := Copy(SkipAll, srcDir, dstDir)
 				require.NoError(t, err)
 			})
 		})
 	})
 
+	t.Run("with context", func(t *testing.T) {
+		t.Run("copy file", func(t *testing.T) {
+			const (
+				src = "testdata/file.dat"
+				dst = "testdata/file/file.dat"
+				dir = "testdata/file"
+			)
+
+			// create test file
+			testCreateFile(t, src)
+			defer func() {
+				err := os.Remove(src)
+				require.NoError(t, err)
+			}()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			err := CopyWithContext(ctx, ReplaceAll, src, dst)
+			require.Equal(t, context.Canceled, err)
+
+			exist, err := system.IsExist(dir)
+			require.NoError(t, err)
+			require.True(t, exist)
+
+			err = os.RemoveAll(dir)
+			require.NoError(t, err)
+		})
+
+		t.Run("copy directory", func(t *testing.T) {
+			const (
+				srcDir   = "testdata/dir"
+				srcFile1 = "file1.dat"
+				srcDir2  = "dir2"
+				srcFile2 = "dir2/file2.dat"
+				dstDir   = "testdata/dir-dir/"
+			)
+
+			// create test directory
+			err := os.MkdirAll(srcDir, 0750)
+			require.NoError(t, err)
+			defer func() {
+				err = os.RemoveAll(srcDir)
+				require.NoError(t, err)
+			}()
+			// create test file
+			testCreateFile(t, filepath.Join(srcDir, srcFile1))
+			// create dir2
+			err = os.MkdirAll(filepath.Join(srcDir, srcDir2), 0750)
+			require.NoError(t, err)
+			// create test file 2
+			testCreateFile2(t, filepath.Join(srcDir, srcFile2))
+
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			err = CopyWithContext(ctx, ReplaceAll, srcDir, dstDir)
+			require.Equal(t, context.Canceled, err)
+
+			exist, err := system.IsNotExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
+		})
+	})
 }
