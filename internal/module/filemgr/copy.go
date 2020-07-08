@@ -228,3 +228,6 @@ func retryCopyFile(ctx context.Context, ec ErrCtrl, stats *srcDstStat) error {
 	}
 	return copyFile(ctx, ec, stats)
 }
+
+type copyTask struct {
+}

@@ -7,43 +7,44 @@ import (
 	"sync/atomic"
 
 	"github.com/looplab/fsm"
+	"github.com/pkg/errors"
 )
 
-// CopyTask is a task that contains all information about copy.
-type CopyTask struct {
-	ec    ErrCtrl
-	stats *srcDstStat
-	fsm   *fsm.FSM
+const (
+	taskTypeCopy       = "copy"
+	taskTypeMove       = "move"
+	taskTypeCompress   = "compress"
+	taskTypeDecompress = "decompress"
+)
+
+type taskConfig struct {
+	callbacks fsm.Callbacks
+	collect   func(ctx context.Context) error
+	process   func(ctx context.Context, checkPaused func()) error
+	progress  func() float32
+	detail    func() string
+}
+
+// Task is a task that contains all information about special task.
+type Task struct {
+	typ string
+	cfg *taskConfig
+	fsm *fsm.FSM
 
 	// about pause task and control
-	paused    *int32        // 0 = processing, 1 = paused, 2 = canceled
-	pausedCh  chan struct{} // prevent paused chan block
-	completed bool          // prevent cancel twice
+	paused   *int32        // 0 = processing, 1 = paused, 2 = canceled
+	pausedCh chan struct{} // prevent paused chan block
+	finished bool          // prevent cancel twice
+	mu       sync.Mutex
 
-	mu         sync.Mutex
 	startOnce  sync.Once
 	cancelOnce sync.Once
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
 
-// NewCopyTask is used to create a copy task, ctx can cancel task.
-func NewCopyTask(ctx context.Context, ec ErrCtrl, src, dst string) (*CopyTask, error) {
-	return NewCopyTaskWithCallBacks(ctx, ec, nil, src, dst)
-}
-
-// NewCopyTaskWithCallBacks is used to create a copy task with callbacks, ctx can cancel task.
-func NewCopyTaskWithCallBacks(
-	ctx context.Context,
-	ec ErrCtrl,
-	callbacks fsm.Callbacks,
-	src string,
-	dst string,
-) (*CopyTask, error) {
-	stats, err := checkSrcDstPath(src, dst)
-	if err != nil {
-		return nil, err
-	}
+// newTask is used to create a task with callbacks, ctx can cancel task.
+func newTask(ctx context.Context, typ string, cfg *taskConfig) (*Task, error) {
 	// initial FSM
 	cancelEvent := fsm.EventDesc{
 		Name: EventCancel,
@@ -58,96 +59,170 @@ func NewCopyTaskWithCallBacks(
 		{EventComplete, []string{StateProcess}, StateComplete},
 		cancelEvent,
 	}
-	FSM := fsm.NewFSM(StateReady, events, callbacks)
-
-	ct := CopyTask{
-		ec:       ec,
-		stats:    stats,
+	FSM := fsm.NewFSM(StateReady, events, cfg.callbacks)
+	// create task
+	task := Task{
+		typ:      typ,
+		cfg:      cfg,
 		fsm:      FSM,
 		paused:   new(int32),
 		pausedCh: make(chan struct{}, 1),
 	}
-	ct.ctx, ct.cancel = context.WithCancel(ctx)
-	return &ct, nil
+	task.ctx, task.cancel = context.WithCancel(ctx)
+	return &task, nil
 }
 
-// Start is used to start this copy task.
-func (ct *CopyTask) Start() (err error) {
-	ct.startOnce.Do(func() {
-		err = ct.start()
-
+// Start is used to start current task.
+func (task *Task) Start() (err error) {
+	task.startOnce.Do(func() {
+		if !task.start() {
+			err = errors.New("task canceled")
+			return
+		}
+		err = task.collect()
+		if err != nil {
+			return
+		}
+		if !task.checkProcess() {
+			err = errors.New("task canceled")
+			return
+		}
+		err = task.process()
 	})
 	return
 }
 
-func (ct *CopyTask) start() error {
+func (task *Task) start() bool {
+	task.mu.Lock()
+	defer task.mu.Unlock()
+	if task.finished {
+		return false
+	}
+	err := task.fsm.Event(EventStart)
+	if err != nil {
+		panic(fmt.Sprintf("filemgr: internal error: %s", err))
+	}
+	return true
+}
 
+func (task *Task) collect() error {
+	err := task.cfg.collect(task.ctx)
+	if err != nil {
+		return errors.WithMessage(err, "failed to collect")
+	}
 	return nil
 }
 
-func (ct *CopyTask) collect() {
-
+func (task *Task) checkProcess() bool {
+	task.mu.Lock()
+	defer task.mu.Unlock()
+	if task.finished {
+		return false
+	}
+	err := task.fsm.Event(EventProcess)
+	if err != nil {
+		panic(fmt.Sprintf("filemgr: internal error: %s", err))
+	}
+	return true
 }
 
-func (ct *CopyTask) process() {
-
-	ct.mu.Lock()
-	defer ct.mu.Unlock()
-	ct.completed = true
+func (task *Task) process() error {
+	err := task.cfg.process(task.ctx, task.checkPaused)
+	if err != nil {
+		return err
+	}
+	task.mu.Lock()
+	defer task.mu.Unlock()
+	if task.finished {
+		return errors.New("task canceled")
+	}
+	task.finished = true
+	err = task.fsm.Event(EventComplete)
+	if err != nil {
+		panic(fmt.Sprintf("filemgr: internal error: %s", err))
+	}
+	return nil
 }
 
-// io copy loop will call it each copy.
-func (ct *CopyTask) checkPaused() {
-	if atomic.LoadInt32(ct.paused) == 1 {
-		select {
-		case <-ct.pausedCh:
-		case <-ct.ctx.Done():
-		}
+// checkPaused is used to check current task is paused in process function.
+func (task *Task) checkPaused() {
+	if atomic.LoadInt32(task.paused) != 1 {
+		return
+	}
+	select {
+	case <-task.pausedCh:
+	case <-task.ctx.Done():
 	}
 }
 
 // Pause is used to pause current progress(collect or process).
-func (ct *CopyTask) Pause() error {
-	if atomic.CompareAndSwapInt32(ct.paused, 0, 1) {
-		return ct.fsm.Event(EventPause)
+func (task *Task) Pause() error {
+	if !atomic.CompareAndSwapInt32(task.paused, 0, 1) {
+		return nil
 	}
-	return nil
+	task.mu.Lock()
+	defer task.mu.Unlock()
+	if task.finished {
+		return nil
+	}
+	return task.fsm.Event(EventPause)
 }
 
 // Continue is used to continue current task.
-func (ct *CopyTask) Continue() error {
-	if atomic.CompareAndSwapInt32(ct.paused, 1, 0) {
-		ct.mu.Lock()
-		defer ct.mu.Unlock()
-		if ct.completed {
-			return nil
-		}
-		select {
-		case ct.pausedCh <- struct{}{}:
-			return ct.fsm.Event(EventContinue)
-		default:
-		}
+func (task *Task) Continue() error {
+	if !atomic.CompareAndSwapInt32(task.paused, 1, 0) {
+		return nil
 	}
-	return nil
+	task.mu.Lock()
+	defer task.mu.Unlock()
+	if task.finished {
+		return nil
+	}
+	select {
+	case task.pausedCh <- struct{}{}:
+		return task.fsm.Event(EventContinue)
+	default:
+		return nil
+	}
 }
 
-// Cancel is used to cancel current copy task.
-func (ct *CopyTask) Cancel() {
-	ct.cancelOnce.Do(func() {
-		atomic.StoreInt32(ct.paused, 2)
+// Cancel is used to cancel current task.
+func (task *Task) Cancel() {
+	task.cancelOnce.Do(func() {
+		atomic.StoreInt32(task.paused, 2)
 
-		ct.mu.Lock()
-		defer ct.mu.Unlock()
-		if ct.completed {
+		task.mu.Lock()
+		defer task.mu.Unlock()
+		if task.finished {
 			return
 		}
-		close(ct.pausedCh)
-		ct.cancel()
-		ct.completed = true
+		close(task.pausedCh)
+		task.cancel()
+		task.finished = true
 
-		err := ct.fsm.Event(EventCancel)
+		err := task.fsm.Event(EventCancel)
 		if err != nil {
 			panic(fmt.Sprintf("filemgr: internal error: %s", err))
 		}
 	})
+}
+
+// Type is used to get the type of current task.
+func (task *Task) Type() string {
+	return task.typ
+}
+
+// State is used to get the state about current task.
+func (task *Task) State() string {
+	return task.fsm.Current()
+}
+
+// Progress is used to get the progress about current task.
+func (task *Task) Progress() float32 {
+	return task.cfg.progress()
+}
+
+// Detail is used to get the detail about current task.
+func (task *Task) Detail() string {
+	return task.cfg.detail()
 }
