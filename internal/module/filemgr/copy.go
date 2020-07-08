@@ -13,17 +13,17 @@ import (
 // Copy is used to copy file or directory from source path to destination path,
 // if the target file is exist, will call exist function and replace it if replace
 // function return true.
-func Copy(sc ErrCtrl, src, dst string) error {
-	return copyWithContext(context.Background(), sc, src, dst)
+func Copy(ec ErrCtrl, src, dst string) error {
+	return copyWithContext(context.Background(), ec, src, dst)
 }
 
 // CopyWithContext is used to copy file or directory from source path to destination
 // path with context.
-func CopyWithContext(ctx context.Context, sc ErrCtrl, src, dst string) error {
-	return copyWithContext(ctx, sc, src, dst)
+func CopyWithContext(ctx context.Context, ec ErrCtrl, src, dst string) error {
+	return copyWithContext(ctx, ec, src, dst)
 }
 
-func copyWithContext(ctx context.Context, sc ErrCtrl, src, dst string) error {
+func copyWithContext(ctx context.Context, ec ErrCtrl, src, dst string) error {
 	stats, err := checkSrcDstPath(src, dst)
 	if err != nil {
 		return err
@@ -31,9 +31,9 @@ func copyWithContext(ctx context.Context, sc ErrCtrl, src, dst string) error {
 	// copy file to a path
 	if stats.srcIsFile {
 		stats.dst = dst
-		return copySrcFile(ctx, sc, stats)
+		return copySrcFile(ctx, ec, stats)
 	}
-	return copySrcDir(ctx, sc, stats)
+	return copySrcDir(ctx, ec, stats)
 }
 
 // copySrcFile is used to copy single file to a path.
@@ -42,7 +42,7 @@ func copyWithContext(ctx context.Context, sc ErrCtrl, src, dst string) error {
 // new path is a file and exist
 // new path is a dir  and not exist
 // new path is a file and not exist
-func copySrcFile(ctx context.Context, sc ErrCtrl, stats *srcDstStat) error {
+func copySrcFile(ctx context.Context, ec ErrCtrl, stats *srcDstStat) error {
 	_, srcFileName := filepath.Split(stats.srcAbs)
 	var (
 		dstFileName string
@@ -88,12 +88,12 @@ func copySrcFile(ctx context.Context, sc ErrCtrl, stats *srcDstStat) error {
 		dstStat:   dstStat,
 		srcIsFile: true,
 	}
-	return copyFile(ctx, sc, newStats)
+	return copyFile(ctx, ec, newStats)
 }
 
 // copy C:\test -> D:\test2
 // -- copy C:\test\file.dat -> C:\test2\file.dat
-func copySrcDir(ctx context.Context, sc ErrCtrl, stats *srcDstStat) error {
+func copySrcDir(ctx context.Context, ec ErrCtrl, stats *srcDstStat) error {
 	var skippedDirs []string // used to store skipped directories
 	walkFunc := func(srcAbs string, srcStat os.FileInfo, err error) error {
 		// check is canceled
@@ -142,7 +142,7 @@ func copySrcDir(ctx context.Context, sc ErrCtrl, stats *srcDstStat) error {
 				return os.MkdirAll(dstAbs, srcStat.Mode().Perm())
 			}
 			if !dstStat.IsDir() {
-				retry, err := noticeSameDirFile(sc, newStats)
+				retry, err := noticeSameDirFile(ec, newStats)
 				if retry {
 					goto retry
 				}
@@ -154,23 +154,23 @@ func copySrcDir(ctx context.Context, sc ErrCtrl, stats *srcDstStat) error {
 			return nil
 		}
 		newStats.srcIsFile = true
-		return copyFile(ctx, sc, newStats)
+		return copyFile(ctx, ec, newStats)
 	}
 	return filepath.Walk(stats.srcAbs, walkFunc)
 }
 
 // dst abs path doesn't have to exist, two abs path are all file.
-func copyFile(ctx context.Context, sc ErrCtrl, stats *srcDstStat) (err error) {
+func copyFile(ctx context.Context, ec ErrCtrl, stats *srcDstStat) (err error) {
 	// check dst file is exist
 	if stats.dstStat != nil {
 		if stats.dstStat.IsDir() {
-			retry, err := noticeSameFileDir(sc, stats)
+			retry, err := noticeSameFileDir(ec, stats)
 			if retry {
-				return retryCopyFile(ctx, sc, stats)
+				return retryCopyFile(ctx, ec, stats)
 			}
 			return err
 		}
-		replace, err := noticeSameFile(sc, stats)
+		replace, err := noticeSameFile(ec, stats)
 		if !replace {
 			return err
 		}
@@ -179,9 +179,9 @@ func copyFile(ctx context.Context, sc ErrCtrl, stats *srcDstStat) (err error) {
 	defer func() {
 		if err != nil && err != context.Canceled {
 			var retry bool
-			retry, err = noticeFailedToCopy(sc, stats, err)
+			retry, err = noticeFailedToCopy(ec, stats, err)
 			if retry {
-				err = retryCopyFile(ctx, sc, stats)
+				err = retryCopyFile(ctx, ec, stats)
 			}
 		}
 	}()
@@ -216,7 +216,7 @@ func copyFile(ctx context.Context, sc ErrCtrl, stats *srcDstStat) (err error) {
 }
 
 // retryCopyFile will update src and dst file stat.
-func retryCopyFile(ctx context.Context, sc ErrCtrl, stats *srcDstStat) error {
+func retryCopyFile(ctx context.Context, ec ErrCtrl, stats *srcDstStat) error {
 	var err error
 	stats.srcStat, err = os.Stat(stats.srcAbs)
 	if err != nil {
@@ -226,5 +226,5 @@ func retryCopyFile(ctx context.Context, sc ErrCtrl, stats *srcDstStat) error {
 	if err != nil {
 		return err
 	}
-	return copyFile(ctx, sc, stats)
+	return copyFile(ctx, ec, stats)
 }

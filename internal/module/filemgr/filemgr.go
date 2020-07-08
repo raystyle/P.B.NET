@@ -29,6 +29,26 @@ const (
 	ErrCtrlOpCancel        // cancel whole copy or move operation
 )
 
+// states about copy, move, compress and decompress task.
+const (
+	StateReady    = "ready"    // wait call Start()
+	StateCollect  = "collect"  // collect directory(file) information(size number...)
+	StateProcess  = "process"  // in copy or move
+	StatePause    = "pause"    // appear error or user pause progress
+	StateComplete = "complete" // task finished
+	StateCancel   = "cancel"   // task canceled
+)
+
+// events about copy and move, compress and decompress task, it will notice controller
+const (
+	EventStart    = "start"    // update collect progress
+	EventProcess  = "process"  // update progress
+	EventPause    = "pause"    // pause update process progress
+	EventContinue = "continue" // continue update process progress
+	EventComplete = "complete" // task completed
+	EventCancel   = "cancel"   // task canceled not update progress
+)
+
 // ErrUserCanceled is an error about user cancel copy or move.
 var ErrUserCanceled = errors.New("user canceled")
 
@@ -69,7 +89,8 @@ func checkSrcDstPath(src, dst string) (*srcDstStat, error) {
 	if dst == "" {
 		return nil, errors.New("empty dst path")
 	}
-	// replace the relative path to the absolute path for prevent call os.Chdir().
+	// replace the relative path to the absolute path for
+	// prevent change current directory.
 	srcAbs, err := filepath.Abs(src)
 	if err != nil {
 		return nil, err
@@ -105,8 +126,8 @@ func checkSrcDstPath(src, dst string) (*srcDstStat, error) {
 }
 
 // noticeSameFile is used to notice appear same name file.
-func noticeSameFile(sc ErrCtrl, stats *srcDstStat) (replace bool, err error) {
-	switch code := sc(ErrCtrlSameFile, nil, stats.srcAbs, stats.dstAbs); code {
+func noticeSameFile(ec ErrCtrl, stats *srcDstStat) (replace bool, err error) {
+	switch code := ec(ErrCtrlSameFile, nil, stats.srcAbs, stats.dstAbs); code {
 	case ErrCtrlOpReplace:
 		replace = true
 	case ErrCtrlOpSkip:
@@ -119,8 +140,8 @@ func noticeSameFile(sc ErrCtrl, stats *srcDstStat) (replace bool, err error) {
 }
 
 // noticeSameFileDir is used to notice appear same name about src file and dst dir.
-func noticeSameFileDir(sc ErrCtrl, stats *srcDstStat) (retry bool, err error) {
-	switch code := sc(ErrCtrlSameFileDir, nil, stats.srcAbs, stats.dstAbs); code {
+func noticeSameFileDir(ec ErrCtrl, stats *srcDstStat) (retry bool, err error) {
+	switch code := ec(ErrCtrlSameFileDir, nil, stats.srcAbs, stats.dstAbs); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
@@ -133,8 +154,8 @@ func noticeSameFileDir(sc ErrCtrl, stats *srcDstStat) (retry bool, err error) {
 }
 
 // noticeSameDirFile is used to notice appear same name about src dir and dst file.
-func noticeSameDirFile(sc ErrCtrl, stats *srcDstStat) (retry bool, err error) {
-	switch code := sc(ErrCtrlSameDirFile, nil, stats.srcAbs, stats.dstAbs); code {
+func noticeSameDirFile(ec ErrCtrl, stats *srcDstStat) (retry bool, err error) {
+	switch code := ec(ErrCtrlSameDirFile, nil, stats.srcAbs, stats.dstAbs); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
@@ -147,8 +168,8 @@ func noticeSameDirFile(sc ErrCtrl, stats *srcDstStat) (retry bool, err error) {
 }
 
 // noticeFailedToCopy is used to notice appear some error about copy or move.
-func noticeFailedToCopy(sc ErrCtrl, stats *srcDstStat, e error) (retry bool, err error) {
-	switch code := sc(ErrCtrlCopyFailed, e, stats.srcAbs, stats.dstAbs); code {
+func noticeFailedToCopy(ec ErrCtrl, stats *srcDstStat, e error) (retry bool, err error) {
+	switch code := ec(ErrCtrlCopyFailed, e, stats.srcAbs, stats.dstAbs); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
