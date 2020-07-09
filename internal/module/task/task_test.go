@@ -250,6 +250,72 @@ func TestTask_Start(t *testing.T) {
 		testsuite.IsDestroyed(t, task)
 		testsuite.IsDestroyed(t, mt)
 	})
+
+	t.Run("panic in checkStart", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		// set invalid state
+		task.fsm.SetState(StateCancel)
+
+		defer testsuite.DeferForPanic(t)
+		err := task.Start()
+		require.NoError(t, err)
+	})
+
+	t.Run("panic in checkProcess", func(t *testing.T) {
+		mt := testNewMockTask()
+		mt.PrepareSlow = true
+		task := New(testTaskName, mt, nil)
+
+		// set invalid state
+		go func() {
+			time.Sleep(time.Second)
+			task.fsm.SetState(StateCancel)
+		}()
+
+		defer testsuite.DeferForPanic(t)
+		err := task.Start()
+		require.NoError(t, err)
+	})
+
+	t.Run("cancel before event complete", func(t *testing.T) {
+		mt := testNewMockTask()
+		mt.ProcessSlow = true
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(time.Second)
+			task.Cancel()
+		}()
+
+		err := task.Start()
+		require.Error(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("panic in process", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		// set invalid state
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			task.fsm.SetState(StateCancel)
+		}()
+
+		defer testsuite.DeferForPanic(t)
+		err := task.Start()
+		require.NoError(t, err)
+	})
 }
 
 func TestTask_Cancel(t *testing.T) {
