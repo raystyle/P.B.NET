@@ -91,7 +91,7 @@ func New(name string, cfg *Config) *Task {
 // Start is used to start current task.
 func (task *Task) Start() (err error) {
 	task.startOnce.Do(func() {
-		if !task.start() {
+		if !task.checkStart() {
 			err = errors.New("task canceled")
 			return
 		}
@@ -108,7 +108,7 @@ func (task *Task) Start() (err error) {
 	return
 }
 
-func (task *Task) start() bool {
+func (task *Task) checkStart() bool {
 	task.mu.Lock()
 	defer task.mu.Unlock()
 	if task.finished {

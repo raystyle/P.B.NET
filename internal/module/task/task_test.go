@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -13,7 +14,9 @@ import (
 )
 
 type mockTask struct {
-	Pause bool
+	Pause       bool
+	PrepareErr  bool
+	PrepareSlow bool
 
 	progress float32
 	detail   string
@@ -36,6 +39,18 @@ func (task *mockTask) prepare(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
+	}
+
+	if task.PrepareErr {
+		return errors.New("mock task prepare error")
+	}
+	if task.PrepareSlow {
+		// select {
+		// case <-time.After(3 * time.Second):
+		// case <-ctx.Done():
+		// 	return ctx.Err()
+		// }
+		time.Sleep(3 * time.Second)
 	}
 
 	task.wg.Add(1)
@@ -124,7 +139,50 @@ func (task *mockTask) clean() {
 }
 
 func TestTask(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	mt := testNewMockTask()
+	mt.Pause = true
+
+	cfg := Config{
+		Prepare:  mt.prepare,
+		Process:  mt.process,
+		Progress: mt.getProgress,
+		Detail:   mt.getDetail,
+	}
+	task := New("mock", &cfg)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		time.Sleep(100 * time.Millisecond)
+
+		err := task.Pause()
+		require.NoError(t, err)
+
+		time.Sleep(time.Second)
+
+		err = task.Continue()
+		require.NoError(t, err)
+
+		t.Log(task.Name())
+		t.Log(task.State())
+		t.Log(task.Progress())
+		t.Log(task.Detail())
+	}()
+
+	err := task.Start()
+	require.NoError(t, err)
+
+	wg.Wait()
+
+	mt.clean()
+
+	testsuite.IsDestroyed(t, task)
+	testsuite.IsDestroyed(t, mt)
 }
 
 func TestTask_Start(t *testing.T) {
@@ -133,7 +191,6 @@ func TestTask_Start(t *testing.T) {
 
 	t.Run("common", func(t *testing.T) {
 		mt := testNewMockTask()
-		// defer mt.clean()
 
 		cfg := Config{
 			Prepare:  mt.prepare,
@@ -145,6 +202,117 @@ func TestTask_Start(t *testing.T) {
 
 		err := task.Start()
 		require.NoError(t, err)
+
+		mt.clean()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("cancel before start", func(t *testing.T) {
+		mt := testNewMockTask()
+
+		cfg := Config{
+			Prepare:  mt.prepare,
+			Process:  mt.process,
+			Progress: mt.getProgress,
+			Detail:   mt.getDetail,
+		}
+		task := New("mock", &cfg)
+
+		task.Cancel()
+
+		err := task.Start()
+		require.Error(t, err)
+
+		mt.clean()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("failed to prepare", func(t *testing.T) {
+		mt := testNewMockTask()
+		mt.PrepareErr = true
+
+		cfg := Config{
+			Prepare:  mt.prepare,
+			Process:  mt.process,
+			Progress: mt.getProgress,
+			Detail:   mt.getDetail,
+		}
+		task := New("mock", &cfg)
+
+		err := task.Start()
+		require.Error(t, err)
+
+		mt.clean()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("cancel before checkProcess", func(t *testing.T) {
+		mt := testNewMockTask()
+		mt.PrepareSlow = true
+
+		cfg := Config{
+			Prepare:  mt.prepare,
+			Process:  mt.process,
+			Progress: mt.getProgress,
+			Detail:   mt.getDetail,
+		}
+		task := New("mock", &cfg)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(time.Second)
+			task.Cancel()
+		}()
+
+		err := task.Start()
+		require.Error(t, err)
+
+		wg.Wait()
+
+		mt.clean()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+}
+
+func TestTask_Cancel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("common", func(t *testing.T) {
+		mt := testNewMockTask()
+
+		cfg := Config{
+			Prepare:  mt.prepare,
+			Process:  mt.process,
+			Progress: mt.getProgress,
+			Detail:   mt.getDetail,
+		}
+		task := New("mock", &cfg)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(600 * time.Millisecond)
+			task.Cancel()
+		}()
+
+		err := task.Start()
+		require.Error(t, err)
+
+		wg.Wait()
 
 		mt.clean()
 
