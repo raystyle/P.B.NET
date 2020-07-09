@@ -34,6 +34,7 @@ const (
 type Interface interface {
 	Prepare(ctx context.Context) error
 	Process(ctx context.Context, task *Task) error
+	Clean()
 	Progress() float32
 	Detail() string
 }
@@ -53,6 +54,7 @@ type Task struct {
 
 	startOnce  sync.Once
 	cancelOnce sync.Once
+	cleanOnce  sync.Once
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
@@ -89,6 +91,7 @@ func New(name string, iface Interface, callbacks fsm.Callbacks) *Task {
 // Start is used to start current task.
 func (task *Task) Start() (err error) {
 	task.startOnce.Do(func() {
+		defer task.clean()
 		if !task.checkStart() {
 			err = errors.New("task canceled")
 			return
@@ -158,15 +161,11 @@ func (task *Task) process() error {
 	return nil
 }
 
-// Paused is used to check current task is paused in process function.
-func (task *Task) Paused() {
-	if atomic.LoadInt32(task.paused) != 1 {
-		return
-	}
-	select {
-	case <-task.pausedCh:
-	case <-task.ctx.Done():
-	}
+// clean will be call once after task finish(include Cancel before Start)
+func (task *Task) clean() {
+	task.cleanOnce.Do(func() {
+		task.task.Clean()
+	})
 }
 
 // Pause is used to pause process progress.
@@ -203,6 +202,8 @@ func (task *Task) Continue() error {
 // Cancel is used to cancel current task.
 func (task *Task) Cancel() {
 	task.cancelOnce.Do(func() {
+		defer task.clean()
+
 		atomic.StoreInt32(task.paused, 2)
 
 		task.mu.Lock()
@@ -219,6 +220,27 @@ func (task *Task) Cancel() {
 			panic(fmt.Sprintf("task: internal error: %s", err))
 		}
 	})
+}
+
+// Paused is used to check current task is paused in process function.
+func (task *Task) Paused() {
+	if atomic.LoadInt32(task.paused) != 1 {
+		return
+	}
+	select {
+	case <-task.pausedCh:
+	case <-task.ctx.Done():
+	}
+}
+
+// Canceled is used to check current task is canceled, it is a shortcut.
+func (task *Task) Canceled() bool {
+	select {
+	case <-task.ctx.Done():
+		return true
+	default:
+		return false
+	}
 }
 
 // Name is used to get the name of current task.

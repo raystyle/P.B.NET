@@ -13,10 +13,13 @@ import (
 	"project/internal/testsuite"
 )
 
+const testTaskName = "mock"
+
 type mockTask struct {
 	Pause       bool
 	PrepareErr  bool
 	PrepareSlow bool
+	ProcessSlow bool
 
 	progress float32
 	detail   string
@@ -33,18 +36,18 @@ func testNewMockTask() *mockTask {
 	return &task
 }
 
-func (task *mockTask) Prepare(ctx context.Context) error {
-	// check is canceled
+func (mt *mockTask) Prepare(ctx context.Context) error {
+	// some operation need context
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
 
-	if task.PrepareErr {
+	if mt.PrepareErr {
 		return errors.New("mock task prepare error")
 	}
-	if task.PrepareSlow {
+	if mt.PrepareSlow {
 		// select {
 		// case <-time.After(3 * time.Second):
 		// case <-ctx.Done():
@@ -53,26 +56,34 @@ func (task *mockTask) Prepare(ctx context.Context) error {
 		time.Sleep(3 * time.Second)
 	}
 
-	task.wg.Add(1)
-	go task.watcher()
+	mt.wg.Add(1)
+	go mt.watcher()
 	return nil
 }
 
-func (task *mockTask) Process(ctx context.Context, t *Task) error {
-	// check is canceled
-	select {
-	case <-ctx.Done():
+func (mt *mockTask) Process(ctx context.Context, task *Task) error {
+	if task.Canceled() {
 		return ctx.Err()
-	default:
+	}
+
+	if mt.ProcessSlow {
+		time.Sleep(3 * time.Second)
+		return nil
 	}
 
 	// do something
 	for i := 0; i < 5; i++ {
 		// if task is paused, it will block here
-		t.Paused()
+		task.Paused()
 
-		if task.Pause && i == 3 {
-			err := t.Pause()
+		// if task canceled return process at once.
+		if task.Canceled() {
+			return ctx.Err()
+		}
+
+		// self call Pause
+		if mt.Pause && i == 3 {
+			err := task.Pause()
 			if err != nil {
 				return err
 			}
@@ -80,7 +91,7 @@ func (task *mockTask) Process(ctx context.Context, t *Task) error {
 			// UI block, wait user interact
 			time.Sleep(3 * time.Second)
 
-			err = t.Continue()
+			err = task.Continue()
 			if err != nil {
 				return err
 			}
@@ -88,8 +99,8 @@ func (task *mockTask) Process(ctx context.Context, t *Task) error {
 
 		select {
 		case <-time.After(200 * time.Millisecond):
-			task.updateProgress()
-			task.updateDetail(fmt.Sprintf("mock task detail: %d", i))
+			mt.updateProgress()
+			mt.updateDetail(fmt.Sprintf("mock task detail: %d", i))
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -98,45 +109,45 @@ func (task *mockTask) Process(ctx context.Context, t *Task) error {
 	return nil
 }
 
-func (task *mockTask) updateProgress() {
-	task.rwm.Lock()
-	defer task.rwm.Unlock()
-	task.progress += 0.2
+func (mt *mockTask) updateProgress() {
+	mt.rwm.Lock()
+	defer mt.rwm.Unlock()
+	mt.progress += 0.2
 }
 
-func (task *mockTask) updateDetail(detail string) {
-	task.rwm.Lock()
-	defer task.rwm.Unlock()
-	task.detail = detail
+func (mt *mockTask) updateDetail(detail string) {
+	mt.rwm.Lock()
+	defer mt.rwm.Unlock()
+	mt.detail = detail
 }
 
-func (task *mockTask) watcher() {
-	defer task.wg.Done()
+func (mt *mockTask) watcher() {
+	defer mt.wg.Done()
 	for {
 		select {
 		case <-time.After(time.Second):
 			fmt.Println("watcher is alive")
-		case <-task.ctx.Done():
+		case <-mt.ctx.Done():
 			return
 		}
 	}
 }
 
-func (task *mockTask) Progress() float32 {
-	task.rwm.RLock()
-	defer task.rwm.RUnlock()
-	return task.progress
+func (mt *mockTask) Progress() float32 {
+	mt.rwm.RLock()
+	defer mt.rwm.RUnlock()
+	return mt.progress
 }
 
-func (task *mockTask) Detail() string {
-	task.rwm.RLock()
-	defer task.rwm.RUnlock()
-	return task.detail
+func (mt *mockTask) Detail() string {
+	mt.rwm.RLock()
+	defer mt.rwm.RUnlock()
+	return mt.detail
 }
 
-func (task *mockTask) clean() {
-	task.cancel()
-	task.wg.Wait()
+func (mt *mockTask) Clean() {
+	mt.cancel()
+	mt.wg.Wait()
 }
 
 func TestTask(t *testing.T) {
@@ -145,7 +156,7 @@ func TestTask(t *testing.T) {
 
 	mt := testNewMockTask()
 	mt.Pause = true
-	task := New("mock", mt, nil)
+	task := New(testTaskName, mt, nil)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -173,8 +184,6 @@ func TestTask(t *testing.T) {
 
 	wg.Wait()
 
-	mt.clean()
-
 	testsuite.IsDestroyed(t, task)
 	testsuite.IsDestroyed(t, mt)
 }
@@ -185,12 +194,10 @@ func TestTask_Start(t *testing.T) {
 
 	t.Run("common", func(t *testing.T) {
 		mt := testNewMockTask()
-		task := New("mock", mt, nil)
+		task := New(testTaskName, mt, nil)
 
 		err := task.Start()
 		require.NoError(t, err)
-
-		mt.clean()
 
 		testsuite.IsDestroyed(t, task)
 		testsuite.IsDestroyed(t, mt)
@@ -198,14 +205,12 @@ func TestTask_Start(t *testing.T) {
 
 	t.Run("cancel before start", func(t *testing.T) {
 		mt := testNewMockTask()
-		task := New("mock", mt, nil)
+		task := New(testTaskName, mt, nil)
 
 		task.Cancel()
 
 		err := task.Start()
 		require.Error(t, err)
-
-		mt.clean()
 
 		testsuite.IsDestroyed(t, task)
 		testsuite.IsDestroyed(t, mt)
@@ -214,12 +219,10 @@ func TestTask_Start(t *testing.T) {
 	t.Run("failed to prepare", func(t *testing.T) {
 		mt := testNewMockTask()
 		mt.PrepareErr = true
-		task := New("mock", mt, nil)
+		task := New(testTaskName, mt, nil)
 
 		err := task.Start()
 		require.Error(t, err)
-
-		mt.clean()
 
 		testsuite.IsDestroyed(t, task)
 		testsuite.IsDestroyed(t, mt)
@@ -228,7 +231,7 @@ func TestTask_Start(t *testing.T) {
 	t.Run("cancel before checkProcess", func(t *testing.T) {
 		mt := testNewMockTask()
 		mt.PrepareSlow = true
-		task := New("mock", mt, nil)
+		task := New(testTaskName, mt, nil)
 
 		wg := sync.WaitGroup{}
 		wg.Add(1)
@@ -244,8 +247,6 @@ func TestTask_Start(t *testing.T) {
 
 		wg.Wait()
 
-		mt.clean()
-
 		testsuite.IsDestroyed(t, task)
 		testsuite.IsDestroyed(t, mt)
 	})
@@ -257,7 +258,7 @@ func TestTask_Cancel(t *testing.T) {
 
 	t.Run("common", func(t *testing.T) {
 		mt := testNewMockTask()
-		task := New("mock", mt, nil)
+		task := New(testTaskName, mt, nil)
 
 		wg := sync.WaitGroup{}
 		wg.Add(1)
@@ -272,8 +273,6 @@ func TestTask_Cancel(t *testing.T) {
 		require.Error(t, err)
 
 		wg.Wait()
-
-		mt.clean()
 
 		testsuite.IsDestroyed(t, task)
 		testsuite.IsDestroyed(t, mt)
