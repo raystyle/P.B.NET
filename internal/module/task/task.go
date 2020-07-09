@@ -31,10 +31,11 @@ const (
 )
 
 // Config contains all configuration about task.
+// Not use interface that actual task can use custom function name.
 type Config struct {
 	Callbacks fsm.Callbacks
 	Prepare   func(ctx context.Context) error
-	Process   func(ctx context.Context, checkPaused func(), pause func() error) error
+	Process   func(ctx context.Context, task *Task) error
 	Progress  func() float32
 	Detail    func() string
 }
@@ -42,9 +43,9 @@ type Config struct {
 // Task is a task that contains all information about special task.
 // It provide Pause task and get task progress.
 type Task struct {
-	typ string
-	cfg *Config
-	fsm *fsm.FSM
+	name string
+	cfg  *Config
+	fsm  *fsm.FSM
 
 	// about pause task and control
 	paused   *int32        // 0 = processing, 1 = paused, 2 = canceled
@@ -58,8 +59,8 @@ type Task struct {
 	cancel     context.CancelFunc
 }
 
-// NewTask is used to create a task with callbacks, ctx can cancel task.
-func NewTask(ctx context.Context, typ string, cfg *Config) (*Task, error) {
+// New is used to create a task with callbacks, ctx can cancel task.
+func New(name string, cfg *Config) *Task {
 	// initial FSM
 	cancelEvent := fsm.EventDesc{
 		Name: EventCancel,
@@ -77,14 +78,14 @@ func NewTask(ctx context.Context, typ string, cfg *Config) (*Task, error) {
 	FSM := fsm.NewFSM(StateReady, events, cfg.Callbacks)
 	// create task
 	task := Task{
-		typ:      typ,
+		name:     name,
 		cfg:      cfg,
 		fsm:      FSM,
 		paused:   new(int32),
 		pausedCh: make(chan struct{}, 1),
 	}
-	task.ctx, task.cancel = context.WithCancel(ctx)
-	return &task, nil
+	task.ctx, task.cancel = context.WithCancel(context.Background())
+	return &task
 }
 
 // Start is used to start current task.
@@ -142,7 +143,7 @@ func (task *Task) checkProcess() bool {
 }
 
 func (task *Task) process() error {
-	err := task.cfg.Process(task.ctx, task.checkPaused, task.Pause)
+	err := task.cfg.Process(task.ctx, task)
 	if err != nil {
 		return err
 	}
@@ -159,8 +160,8 @@ func (task *Task) process() error {
 	return nil
 }
 
-// checkPaused is used to check current task is paused in process function.
-func (task *Task) checkPaused() {
+// Paused is used to check current task is paused in process function.
+func (task *Task) Paused() {
 	if atomic.LoadInt32(task.paused) != 1 {
 		return
 	}
@@ -222,9 +223,9 @@ func (task *Task) Cancel() {
 	})
 }
 
-// Type is used to get the type of current task.
-func (task *Task) Type() string {
-	return task.typ
+// Name is used to get the name of current task.
+func (task *Task) Name() string {
+	return task.name
 }
 
 // State is used to get the state about current task.
