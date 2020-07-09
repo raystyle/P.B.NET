@@ -33,7 +33,7 @@ func testNewMockTask() *mockTask {
 	return &task
 }
 
-func (task *mockTask) prepare(ctx context.Context) error {
+func (task *mockTask) Prepare(ctx context.Context) error {
 	// check is canceled
 	select {
 	case <-ctx.Done():
@@ -58,7 +58,7 @@ func (task *mockTask) prepare(ctx context.Context) error {
 	return nil
 }
 
-func (task *mockTask) process(ctx context.Context, t *Task) error {
+func (task *mockTask) Process(ctx context.Context, t *Task) error {
 	// check is canceled
 	select {
 	case <-ctx.Done():
@@ -68,7 +68,8 @@ func (task *mockTask) process(ctx context.Context, t *Task) error {
 
 	// do something
 	for i := 0; i < 5; i++ {
-		t.Paused() // if task is paused, it will block here
+		// if task is paused, it will block here
+		t.Paused()
 
 		if task.Pause && i == 3 {
 			err := t.Pause()
@@ -76,7 +77,7 @@ func (task *mockTask) process(ctx context.Context, t *Task) error {
 				return err
 			}
 
-			// UI block
+			// UI block, wait user interact
 			time.Sleep(3 * time.Second)
 
 			err = t.Continue()
@@ -121,13 +122,13 @@ func (task *mockTask) watcher() {
 	}
 }
 
-func (task *mockTask) getProgress() float32 {
+func (task *mockTask) Progress() float32 {
 	task.rwm.RLock()
 	defer task.rwm.RUnlock()
 	return task.progress
 }
 
-func (task *mockTask) getDetail() string {
+func (task *mockTask) Detail() string {
 	task.rwm.RLock()
 	defer task.rwm.RUnlock()
 	return task.detail
@@ -144,14 +145,7 @@ func TestTask(t *testing.T) {
 
 	mt := testNewMockTask()
 	mt.Pause = true
-
-	cfg := Config{
-		Prepare:  mt.prepare,
-		Process:  mt.process,
-		Progress: mt.getProgress,
-		Detail:   mt.getDetail,
-	}
-	task := New("mock", &cfg)
+	task := New("mock", mt, nil)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -191,14 +185,7 @@ func TestTask_Start(t *testing.T) {
 
 	t.Run("common", func(t *testing.T) {
 		mt := testNewMockTask()
-
-		cfg := Config{
-			Prepare:  mt.prepare,
-			Process:  mt.process,
-			Progress: mt.getProgress,
-			Detail:   mt.getDetail,
-		}
-		task := New("mock", &cfg)
+		task := New("mock", mt, nil)
 
 		err := task.Start()
 		require.NoError(t, err)
@@ -211,14 +198,7 @@ func TestTask_Start(t *testing.T) {
 
 	t.Run("cancel before start", func(t *testing.T) {
 		mt := testNewMockTask()
-
-		cfg := Config{
-			Prepare:  mt.prepare,
-			Process:  mt.process,
-			Progress: mt.getProgress,
-			Detail:   mt.getDetail,
-		}
-		task := New("mock", &cfg)
+		task := New("mock", mt, nil)
 
 		task.Cancel()
 
@@ -234,14 +214,7 @@ func TestTask_Start(t *testing.T) {
 	t.Run("failed to prepare", func(t *testing.T) {
 		mt := testNewMockTask()
 		mt.PrepareErr = true
-
-		cfg := Config{
-			Prepare:  mt.prepare,
-			Process:  mt.process,
-			Progress: mt.getProgress,
-			Detail:   mt.getDetail,
-		}
-		task := New("mock", &cfg)
+		task := New("mock", mt, nil)
 
 		err := task.Start()
 		require.Error(t, err)
@@ -255,14 +228,7 @@ func TestTask_Start(t *testing.T) {
 	t.Run("cancel before checkProcess", func(t *testing.T) {
 		mt := testNewMockTask()
 		mt.PrepareSlow = true
-
-		cfg := Config{
-			Prepare:  mt.prepare,
-			Process:  mt.process,
-			Progress: mt.getProgress,
-			Detail:   mt.getDetail,
-		}
-		task := New("mock", &cfg)
+		task := New("mock", mt, nil)
 
 		wg := sync.WaitGroup{}
 		wg.Add(1)
@@ -291,14 +257,7 @@ func TestTask_Cancel(t *testing.T) {
 
 	t.Run("common", func(t *testing.T) {
 		mt := testNewMockTask()
-
-		cfg := Config{
-			Prepare:  mt.prepare,
-			Process:  mt.process,
-			Progress: mt.getProgress,
-			Detail:   mt.getDetail,
-		}
-		task := New("mock", &cfg)
+		task := New("mock", mt, nil)
 
 		wg := sync.WaitGroup{}
 		wg.Add(1)

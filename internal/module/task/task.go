@@ -30,21 +30,19 @@ const (
 	EventCancel   = "cancel"   // task canceled not update progress
 )
 
-// Config contains all configuration about task.
-// Not use interface that actual task can use custom function name.
-type Config struct {
-	Callbacks fsm.Callbacks
-	Prepare   func(ctx context.Context) error
-	Process   func(ctx context.Context, task *Task) error
-	Progress  func() float32
-	Detail    func() string
+// Interface is the interface about task.
+type Interface interface {
+	Prepare(ctx context.Context) error
+	Process(ctx context.Context, task *Task) error
+	Progress() float32
+	Detail() string
 }
 
 // Task is a task that contains all information about special task.
 // It provide Pause task and get task progress.
 type Task struct {
 	name string
-	cfg  *Config
+	task Interface
 	fsm  *fsm.FSM
 
 	// about pause task and control
@@ -60,7 +58,7 @@ type Task struct {
 }
 
 // New is used to create a task with callbacks, ctx can cancel task.
-func New(name string, cfg *Config) *Task {
+func New(name string, iface Interface, callbacks fsm.Callbacks) *Task {
 	// initial FSM
 	cancelEvent := fsm.EventDesc{
 		Name: EventCancel,
@@ -75,11 +73,11 @@ func New(name string, cfg *Config) *Task {
 		{EventComplete, []string{StateProcess}, StateComplete},
 		cancelEvent,
 	}
-	FSM := fsm.NewFSM(StateReady, events, cfg.Callbacks)
+	FSM := fsm.NewFSM(StateReady, events, callbacks)
 	// create task
 	task := Task{
 		name:     name,
-		cfg:      cfg,
+		task:     iface,
 		fsm:      FSM,
 		paused:   new(int32),
 		pausedCh: make(chan struct{}, 1),
@@ -122,7 +120,7 @@ func (task *Task) checkStart() bool {
 }
 
 func (task *Task) prepare() error {
-	err := task.cfg.Prepare(task.ctx)
+	err := task.task.Prepare(task.ctx)
 	if err != nil {
 		return errors.WithMessage(err, "failed to prepare task")
 	}
@@ -143,7 +141,7 @@ func (task *Task) checkProcess() bool {
 }
 
 func (task *Task) process() error {
-	err := task.cfg.Process(task.ctx, task)
+	err := task.task.Process(task.ctx, task)
 	if err != nil {
 		return err
 	}
@@ -235,10 +233,10 @@ func (task *Task) State() string {
 
 // Progress is used to get the progress about current task.
 func (task *Task) Progress() float32 {
-	return task.cfg.Progress()
+	return task.task.Progress()
 }
 
 // Detail is used to get the detail about current task.
 func (task *Task) Detail() string {
-	return task.cfg.Detail()
+	return task.task.Detail()
 }
