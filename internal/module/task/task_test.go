@@ -258,9 +258,11 @@ func TestTask_Start(t *testing.T) {
 		// set invalid state
 		task.fsm.SetState(StateCancel)
 
-		defer testsuite.DeferForPanic(t)
 		err := task.Start()
-		require.NoError(t, err)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
 	})
 
 	t.Run("panic in checkProcess", func(t *testing.T) {
@@ -274,9 +276,11 @@ func TestTask_Start(t *testing.T) {
 			task.fsm.SetState(StateCancel)
 		}()
 
-		defer testsuite.DeferForPanic(t)
 		err := task.Start()
-		require.NoError(t, err)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
 	})
 
 	t.Run("cancel before event complete", func(t *testing.T) {
@@ -312,9 +316,54 @@ func TestTask_Start(t *testing.T) {
 			task.fsm.SetState(StateCancel)
 		}()
 
-		defer testsuite.DeferForPanic(t)
+		err := task.Start()
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+}
+
+func TestTask_Pause(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("common", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			err := task.Pause()
+			require.NoError(t, err)
+
+			time.Sleep(time.Second)
+
+			err = task.Continue()
+			require.NoError(t, err)
+		}()
+
 		err := task.Start()
 		require.NoError(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+}
+
+func TestTask_Continue(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("common", func(t *testing.T) {
+
 	})
 }
 

@@ -8,6 +8,8 @@ import (
 
 	"github.com/looplab/fsm"
 	"github.com/pkg/errors"
+
+	"project/internal/xpanic"
 )
 
 // states about task
@@ -91,7 +93,19 @@ func New(name string, iface Interface, callbacks fsm.Callbacks) *Task {
 // Start is used to start current task.
 func (task *Task) Start() (err error) {
 	task.startOnce.Do(func() {
-		defer task.clean()
+		defer func() {
+			if err != nil {
+				task.Cancel()
+			} else {
+				task.clean()
+			}
+		}()
+		defer func() {
+			if r := recover(); r != nil {
+				buf := xpanic.Log(r, "Task.Start")
+				err = errors.New(buf.String())
+			}
+		}()
 		if !task.checkStart() {
 			err = errors.New("task canceled")
 			return
@@ -203,6 +217,11 @@ func (task *Task) Continue() error {
 func (task *Task) Cancel() {
 	task.cancelOnce.Do(func() {
 		defer task.clean()
+		defer func() {
+			if r := recover(); r != nil {
+				xpanic.Log(r, "Task.Cancel")
+			}
+		}()
 
 		atomic.StoreInt32(task.paused, 2)
 
