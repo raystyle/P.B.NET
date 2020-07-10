@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -351,6 +350,32 @@ func TestTask_Pause(t *testing.T) {
 		testsuite.IsDestroyed(t, mt)
 	})
 
+	t.Run("pause after cancel", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			task.Cancel()
+
+			err := task.Pause()
+			require.NoError(t, err)
+		}()
+
+		err := task.Start()
+		require.Error(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
 	t.Run("pause twice", func(t *testing.T) {
 		mt := testNewMockTask()
 		task := New(testTaskName, mt, nil)
@@ -383,8 +408,9 @@ func TestTask_Pause(t *testing.T) {
 		testsuite.IsDestroyed(t, mt)
 	})
 
-	t.Run("pause after cancel", func(t *testing.T) {
+	t.Run("pause in prepare", func(t *testing.T) {
 		mt := testNewMockTask()
+		mt.PrepareSlow = true
 		task := New(testTaskName, mt, nil)
 
 		wg := sync.WaitGroup{}
@@ -394,17 +420,22 @@ func TestTask_Pause(t *testing.T) {
 
 			time.Sleep(100 * time.Millisecond)
 
-			task.Cancel()
-
-			// reset paused
-			atomic.StoreInt32(task.paused, 0)
-
 			err := task.Pause()
+			require.Error(t, err)
+
+			time.Sleep(4 * time.Second)
+
+			err = task.Pause()
+			require.NoError(t, err)
+
+			time.Sleep(time.Second)
+
+			err = task.Continue()
 			require.NoError(t, err)
 		}()
 
 		err := task.Start()
-		require.Error(t, err)
+		require.NoError(t, err)
 
 		wg.Wait()
 
@@ -432,6 +463,64 @@ func TestTask_Continue(t *testing.T) {
 			require.NoError(t, err)
 
 			time.Sleep(time.Second)
+
+			err = task.Continue()
+			require.NoError(t, err)
+		}()
+
+		err := task.Start()
+		require.NoError(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("continue after cancel", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			task.Cancel()
+
+			err := task.Continue()
+			require.NoError(t, err)
+		}()
+
+		err := task.Start()
+		require.Error(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("continue twice", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			err := task.Pause()
+			require.NoError(t, err)
+
+			time.Sleep(100 * time.Millisecond)
+
+			err = task.Continue()
+			require.NoError(t, err)
 
 			err = task.Continue()
 			require.NoError(t, err)

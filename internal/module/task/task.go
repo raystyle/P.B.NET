@@ -32,6 +32,8 @@ const (
 	EventCancel   = "cancel"   // task canceled not update progress
 )
 
+const panicFormat = "task: internal error: %s"
+
 // Interface is the interface about task.
 type Interface interface {
 	Prepare(ctx context.Context) error
@@ -131,7 +133,7 @@ func (task *Task) checkStart() bool {
 	}
 	err := task.fsm.Event(EventStart)
 	if err != nil {
-		panic(fmt.Sprintf("task: internal error: %s", err))
+		panic(fmt.Sprintf(panicFormat, err))
 	}
 	return true
 }
@@ -152,7 +154,7 @@ func (task *Task) checkProcess() bool {
 	}
 	err := task.fsm.Event(EventProcess)
 	if err != nil {
-		panic(fmt.Sprintf("task: internal error: %s", err))
+		panic(fmt.Sprintf(panicFormat, err))
 	}
 	return true
 }
@@ -170,7 +172,7 @@ func (task *Task) process() error {
 	task.finished = true
 	err = task.fsm.Event(EventComplete)
 	if err != nil {
-		panic(fmt.Sprintf("task: internal error: %s", err))
+		panic(fmt.Sprintf(panicFormat, err))
 	}
 	return nil
 }
@@ -184,33 +186,42 @@ func (task *Task) clean() {
 
 // Pause is used to pause process progress.
 func (task *Task) Pause() error {
-	if !atomic.CompareAndSwapInt32(task.paused, 0, 1) {
-		return nil
-	}
 	task.mu.Lock()
 	defer task.mu.Unlock()
 	if task.finished {
 		return nil
 	}
-	return task.fsm.Event(EventPause)
+	if !atomic.CompareAndSwapInt32(task.paused, 0, 1) {
+		return nil
+	}
+	err := task.fsm.Event(EventPause)
+	if err != nil {
+		atomic.StoreInt32(task.paused, 0)
+		return err
+	}
+	return nil
 }
 
 // Continue is used to continue current task.
 func (task *Task) Continue() error {
-	if !atomic.CompareAndSwapInt32(task.paused, 1, 0) {
-		return nil
-	}
 	task.mu.Lock()
 	defer task.mu.Unlock()
 	if task.finished {
 		return nil
 	}
-	select {
-	case task.pausedCh <- struct{}{}:
-		return task.fsm.Event(EventContinue)
-	default:
+	if !atomic.CompareAndSwapInt32(task.paused, 1, 0) {
 		return nil
 	}
+	select {
+	case task.pausedCh <- struct{}{}:
+		err := task.fsm.Event(EventContinue)
+		if err != nil {
+			atomic.StoreInt32(task.paused, 1)
+			return err
+		}
+	default:
+	}
+	return nil
 }
 
 // Cancel is used to cancel current task.
@@ -236,7 +247,7 @@ func (task *Task) Cancel() {
 
 		err := task.fsm.Event(EventCancel)
 		if err != nil {
-			panic(fmt.Sprintf("task: internal error: %s", err))
+			panic(fmt.Sprintf(panicFormat, err))
 		}
 	})
 }
