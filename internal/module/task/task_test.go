@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,14 +37,7 @@ func testNewMockTask() *mockTask {
 	return &task
 }
 
-func (mt *mockTask) Prepare(ctx context.Context) error {
-	// some operation need context
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-
+func (mt *mockTask) Prepare(context.Context) error {
 	if mt.PrepareErr {
 		return errors.New("mock task prepare error")
 	}
@@ -356,6 +350,67 @@ func TestTask_Pause(t *testing.T) {
 		testsuite.IsDestroyed(t, task)
 		testsuite.IsDestroyed(t, mt)
 	})
+
+	t.Run("pause twice", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			err := task.Pause()
+			require.NoError(t, err)
+
+			err = task.Pause()
+			require.NoError(t, err)
+
+			time.Sleep(time.Second)
+
+			err = task.Continue()
+			require.NoError(t, err)
+		}()
+
+		err := task.Start()
+		require.NoError(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("pause after cancel", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			task.Cancel()
+
+			// reset paused
+			atomic.StoreInt32(task.paused, 0)
+
+			err := task.Pause()
+			require.NoError(t, err)
+		}()
+
+		err := task.Start()
+		require.Error(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
 }
 
 func TestTask_Continue(t *testing.T) {
@@ -363,7 +418,32 @@ func TestTask_Continue(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("common", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
 
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			err := task.Pause()
+			require.NoError(t, err)
+
+			time.Sleep(time.Second)
+
+			err = task.Continue()
+			require.NoError(t, err)
+		}()
+
+		err := task.Start()
+		require.NoError(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
 	})
 }
 
