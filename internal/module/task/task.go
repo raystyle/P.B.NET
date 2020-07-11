@@ -44,9 +44,9 @@ const (
 type Interface interface {
 	Prepare(ctx context.Context) error
 	Process(ctx context.Context, task *Task) error
-	Clean()
-	Progress() float32 // must be thread safe
-	Detail() string    // must be thread safe
+	Progress() string // must be thread safe, usually provided like "19.99%"
+	Detail() string   // must be thread safe
+	Clean()           // release task internal resource
 }
 
 // Task is a task that contains all information about special task.
@@ -77,11 +77,11 @@ func New(name string, iface Interface, callbacks fsm.Callbacks) *Task {
 		Dst:  StateCancel,
 	}
 	events := []fsm.EventDesc{
-		{EventStart, []string{StateReady}, StatePrepare},
-		{EventProcess, []string{StatePrepare}, StateProcess},
-		{EventPause, []string{StateProcess}, StatePause},
-		{EventContinue, []string{StatePause}, StateProcess},
-		{EventComplete, []string{StateProcess}, StateComplete},
+		{Name: EventStart, Src: []string{StateReady}, Dst: StatePrepare},
+		{Name: EventProcess, Src: []string{StatePrepare}, Dst: StateProcess},
+		{Name: EventPause, Src: []string{StateProcess}, Dst: StatePause},
+		{Name: EventContinue, Src: []string{StatePause}, Dst: StateProcess},
+		{Name: EventComplete, Src: []string{StateProcess}, Dst: StateComplete},
 		cancelEvent,
 	}
 	FSM := fsm.NewFSM(StateReady, events, callbacks)
@@ -293,7 +293,7 @@ func (task *Task) State() string {
 }
 
 // Progress is used to get the progress about current task.
-func (task *Task) Progress() float32 {
+func (task *Task) Progress() string {
 	return task.task.Progress()
 }
 

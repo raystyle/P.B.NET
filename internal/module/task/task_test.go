@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,7 +23,7 @@ type mockTask struct {
 	PrepareSlow bool
 	ProcessSlow bool
 
-	progress float32
+	progress float64
 	detail   string
 	rwm      sync.RWMutex
 
@@ -122,10 +123,10 @@ func (mt *mockTask) watcher() {
 	}
 }
 
-func (mt *mockTask) Progress() float32 {
+func (mt *mockTask) Progress() string {
 	mt.rwm.RLock()
 	defer mt.rwm.RUnlock()
-	return mt.progress
+	return strconv.FormatFloat(mt.progress, 'f', -1, 64)
 }
 
 func (mt *mockTask) Detail() string {
