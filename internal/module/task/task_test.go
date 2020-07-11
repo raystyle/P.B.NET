@@ -69,8 +69,6 @@ func (mt *mockTask) Process(ctx context.Context, task *Task) error {
 	// do something
 	for i := 0; i < 5; i++ {
 		// if task is paused, it will block here
-		task.Paused()
-
 		// if task canceled return process at once.
 		if task.Canceled() {
 			return ctx.Err()

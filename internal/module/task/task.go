@@ -272,8 +272,10 @@ func (task *Task) Paused() {
 	atomic.StoreInt32(task.state, pStateProcess)
 }
 
-// Canceled is used to check current task is canceled, it is a shortcut.
+// Canceled is used to check current task is canceled.
+// if Task paused it will block until continue or cancel.
 func (task *Task) Canceled() bool {
+	task.Paused()
 	select {
 	case <-task.ctx.Done():
 		return true
