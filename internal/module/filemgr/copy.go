@@ -3,8 +3,10 @@ package filemgr
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -240,9 +242,10 @@ type copyTask struct {
 	dst     string
 	stats   *srcDstStat
 
-	progress float32
-	detail   string
-	rwm      sync.RWMutex
+	current *big.Float
+	total   *big.Float
+	detail  string
+	rwm     sync.RWMutex
 }
 
 // NewCopyTask is used to create a copy task that implement task.Interface.
@@ -251,6 +254,8 @@ func NewCopyTask(errCtrl ErrCtrl, src, dst string, callbacks fsm.Callbacks) *tas
 		errCtrl: errCtrl,
 		src:     src,
 		dst:     dst,
+		current: big.NewFloat(0),
+		total:   big.NewFloat(0),
 	}
 	return task.New(TaskNameCopy, &ct, callbacks)
 }
@@ -317,6 +322,8 @@ func (ct *copyTask) copySingleFile(ctx context.Context, task *task.Task) error {
 		srcStat: ct.stats.srcStat,
 		dstStat: dstStat,
 	}
+	// update progress
+
 	return ct.copyFile(ctx, task, stats)
 }
 
@@ -337,22 +344,34 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDst
 	return nil
 }
 
-func (ct *copyTask) updateProgress(progress float32) {
-	ct.rwm.Lock()
-	defer ct.rwm.Unlock()
-	ct.progress = progress
-}
-
 func (ct *copyTask) updateDetail(detail string) {
 	ct.rwm.Lock()
 	defer ct.rwm.Unlock()
 	ct.detail = detail
 }
 
-func (ct *copyTask) Progress() float32 {
+var zeroFloat = big.NewFloat(0)
+
+func (ct *copyTask) Progress() string {
 	ct.rwm.RLock()
 	defer ct.rwm.RUnlock()
-	return ct.progress
+	// prevent / 0
+	if ct.current.Cmp(zeroFloat) == 0 || ct.total.Cmp(zeroFloat) == 0 {
+		return "0%"
+	}
+	value := new(big.Float).Quo(ct.current, ct.total)
+	// split result
+	text := value.Text('G', 64)
+	if len(text) > 6 { // 0.999999999...999 -> 0.9999
+		text = text[:6]
+	}
+	// format result
+	result, err := strconv.ParseFloat(text, 64)
+	if err != nil {
+		return fmt.Sprintf("err: %s", err)
+	}
+	// 0.9999 -> 99.99
+	return strconv.FormatFloat(result*100, 'f', -1, 64) + "%"
 }
 
 func (ct *copyTask) Detail() string {
