@@ -2,13 +2,11 @@ package filemgr
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/looplab/fsm"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
@@ -457,39 +455,4 @@ func TestCopy(t *testing.T) {
 			require.Equal(t, 1, count)
 		})
 	})
-}
-
-func TestCopyTask(t *testing.T) {
-
-	events := []fsm.EventDesc{
-		{EventStart, []string{StateReady}, StateCollect},
-		{EventProcess, []string{StateCollect}, StateProcess},
-		{EventPause, []string{StateCollect, StateProcess}, StatePause},
-		{EventComplete, []string{StateProcess}, StateComplete},
-	}
-	callbacks := make(fsm.Callbacks)
-	// callbacks[EventComplete] = func(event *fsm.Event) {
-	// 	// notice Controller -> Web UI
-	// 	fmt.Println("hello:", event)
-	//
-	// }
-	// callbacks[EventPause] = func(event *fsm.Event) {
-	// 	// notice Controller -> Web UI
-	// }
-	FSM := fsm.NewFSM(StateReady, events, callbacks)
-
-	err := FSM.Event(EventStart)
-	fmt.Println(err)
-
-	err = FSM.Event(EventProcess)
-	fmt.Println(err)
-
-	err = FSM.Event(EventComplete)
-	fmt.Println(err)
-
-	err = FSM.Event(EventComplete)
-	fmt.Println(err)
-
-	fmt.Println(FSM.Current())
-
 }

@@ -6,7 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
+	"github.com/looplab/fsm"
+
+	"project/internal/convert"
+	"project/internal/module/task"
 	"project/internal/xio"
 )
 
@@ -82,11 +87,10 @@ func copySrcFile(ctx context.Context, ec ErrCtrl, stats *srcDstStat) error {
 		}
 	}
 	newStats := &srcDstStat{
-		srcAbs:    stats.srcAbs,
-		dstAbs:    dstFileName,
-		srcStat:   stats.srcStat,
-		dstStat:   dstStat,
-		srcIsFile: true,
+		srcAbs:  stats.srcAbs,
+		dstAbs:  dstFileName,
+		srcStat: stats.srcStat,
+		dstStat: dstStat,
 	}
 	return copyFile(ctx, ec, newStats)
 }
@@ -153,7 +157,6 @@ func copySrcDir(ctx context.Context, ec ErrCtrl, stats *srcDstStat) error {
 			}
 			return nil
 		}
-		newStats.srcIsFile = true
 		return copyFile(ctx, ec, newStats)
 	}
 	return filepath.Walk(stats.srcAbs, walkFunc)
@@ -229,5 +232,133 @@ func retryCopyFile(ctx context.Context, ec ErrCtrl, stats *srcDstStat) error {
 	return copyFile(ctx, ec, stats)
 }
 
+// copyTask implement task.Interface that is used to copy src to dst directory.
+// It can pause in progress and get current progress and detail information.
 type copyTask struct {
+	errCtrl ErrCtrl
+	src     string
+	dst     string
+	stats   *srcDstStat
+
+	progress float32
+	detail   string
+	rwm      sync.RWMutex
 }
+
+// NewCopyTask is used to create a copy task that implement task.Interface.
+func NewCopyTask(errCtrl ErrCtrl, src, dst string, callbacks fsm.Callbacks) *task.Task {
+	ct := copyTask{
+		errCtrl: errCtrl,
+		src:     src,
+		dst:     dst,
+	}
+	return task.New(TaskNameCopy, &ct, callbacks)
+}
+
+// Prepare will check src and dst path.
+func (ct *copyTask) Prepare(context.Context) error {
+	stats, err := checkSrcDstPath(ct.src, ct.dst)
+	if err != nil {
+		return err
+	}
+	ct.stats = stats
+	return nil
+}
+
+func (ct *copyTask) Process(ctx context.Context, task *task.Task) error {
+	if ct.stats.srcIsFile {
+		return ct.copySingleFile(ctx, task)
+	}
+	return nil
+}
+
+func (ct *copyTask) copySingleFile(ctx context.Context, task *task.Task) error {
+	_, srcFileName := filepath.Split(ct.stats.srcAbs)
+	var (
+		dstFileName string
+		dstStat     os.FileInfo
+	)
+	if ct.stats.dstStat != nil { // dst is exists
+		// copyFile will handle the same file, dir
+		//
+		// copy "a.exe" -> "C:\ExistDir"
+		// "a.exe" -> "C:\ExistDir\a.exe"
+		if ct.stats.dstStat.IsDir() {
+			dstFileName = filepath.Join(ct.stats.dstAbs, srcFileName)
+			stat, err := stat(dstFileName)
+			if err != nil {
+				return err
+			}
+			dstStat = stat
+		} else {
+			dstFileName = ct.stats.dstAbs
+			dstStat = ct.stats.dstStat
+		}
+	} else { // dst is doesn't exists
+		last := ct.dst[len(ct.dst)-1]
+		if os.IsPathSeparator(last) { // is a directory path
+			err := os.MkdirAll(ct.stats.dstAbs, 0750)
+			if err != nil {
+				return err
+			}
+			dstFileName = filepath.Join(ct.stats.dstAbs, srcFileName)
+		} else { // is a file path
+			dir, _ := filepath.Split(ct.stats.dstAbs)
+			err := os.MkdirAll(dir, 0750)
+			if err != nil {
+				return err
+			}
+			dstFileName = ct.stats.dstAbs
+		}
+	}
+	stats := &srcDstStat{
+		srcAbs:  ct.stats.srcAbs,
+		dstAbs:  dstFileName,
+		srcStat: ct.stats.srcStat,
+		dstStat: dstStat,
+	}
+	return ct.copyFile(ctx, task, stats)
+}
+
+// collect will collect directory information.
+func (ct *copyTask) collect() error {
+	return nil
+}
+
+func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDstStat) error {
+
+	// update detail information
+	const detailFormat = "size: %s path: %s -> %s"
+	srcSize := convert.ByteToString(uint64(stats.srcStat.Size()))
+	ct.updateDetail(fmt.Sprintf(detailFormat, srcSize, stats.srcAbs, stats.dstAbs))
+
+	//
+
+	return nil
+}
+
+func (ct *copyTask) updateProgress(progress float32) {
+	ct.rwm.Lock()
+	defer ct.rwm.Unlock()
+	ct.progress = progress
+}
+
+func (ct *copyTask) updateDetail(detail string) {
+	ct.rwm.Lock()
+	defer ct.rwm.Unlock()
+	ct.detail = detail
+}
+
+func (ct *copyTask) Progress() float32 {
+	ct.rwm.RLock()
+	defer ct.rwm.RUnlock()
+	return ct.progress
+}
+
+func (ct *copyTask) Detail() string {
+	ct.rwm.RLock()
+	defer ct.rwm.RUnlock()
+	return ct.detail
+}
+
+func (ct *copyTask) Clean() {}

@@ -7,6 +7,14 @@ import (
 	"path/filepath"
 )
 
+// name about task
+const (
+	TaskNameCopy       = "copy"
+	TaskNameMove       = "move"
+	TaskNameCompress   = "compress"
+	TaskNameDecompress = "decompress"
+)
+
 // ErrCtrl is used to tell Move or Copy function how to control the same file,
 // directory, or copy, move error. src and dst is the absolute file path.
 type ErrCtrl func(typ uint8, err error, src string, dst string) uint8
@@ -29,26 +37,6 @@ const (
 	ErrCtrlOpCancel        // cancel whole copy or move operation
 )
 
-// states about copy, move, compress and decompress task.
-const (
-	StateReady    = "ready"    // wait call Start()
-	StateCollect  = "collect"  // collect directory(file) information(size number...)
-	StateProcess  = "process"  // in copy or move
-	StatePause    = "pause"    // appear error or user pause progress
-	StateComplete = "complete" // task finished
-	StateCancel   = "cancel"   // task canceled
-)
-
-// events about copy and move, compress and decompress task, it will notice controller
-const (
-	EventStart    = "start"    // update collect progress
-	EventProcess  = "process"  // update progress
-	EventPause    = "pause"    // pause update process progress
-	EventContinue = "continue" // continue update process progress
-	EventComplete = "complete" // task completed
-	EventCancel   = "cancel"   // task canceled not update progress
-)
-
 // ErrUserCanceled is an error about user cancel copy or move.
 var ErrUserCanceled = errors.New("user canceled")
 
@@ -59,11 +47,13 @@ var ReplaceAll = func(uint8, error, string, string) uint8 { return ErrCtrlOpRepl
 var SkipAll = func(uint8, error, string, string) uint8 { return ErrCtrlOpSkip }
 
 type srcDstStat struct {
-	dst       string // dstAbs will lost the last "/" or "\"
-	srcAbs    string // "E:\file.dat" "E:\file", last will not be "/ or "\"
-	dstAbs    string
-	srcStat   os.FileInfo
-	dstStat   os.FileInfo // check destination file or directory is exists
+	srcAbs  string // "E:\file.dat" "E:\file", last will not be "/ or "\"
+	dstAbs  string
+	srcStat os.FileInfo
+	dstStat os.FileInfo // check destination file or directory is exists
+
+	// extra info
+	dst       string // dstAbs will lost the last "/" or "\" // TODO remove it
 	srcIsFile bool
 }
 
