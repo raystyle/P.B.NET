@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -292,6 +293,23 @@ func TestTask_Start(t *testing.T) {
 		testsuite.IsDestroyed(t, mt)
 	})
 
+	t.Run("invalid pState", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		// set invalid state
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			atomic.StoreInt32(task.state, pStateReady)
+		}()
+
+		err := task.Start()
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
 	t.Run("panic in process", func(t *testing.T) {
 		mt := testNewMockTask()
 		task := New(testTaskName, mt, nil)
@@ -419,6 +437,34 @@ func TestTask_Pause(t *testing.T) {
 
 		err := task.Start()
 		require.NoError(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("event failed", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			// mock
+			err := task.fsm.Event(EventComplete)
+			require.NoError(t, err)
+
+			defer testsuite.DeferForPanic(t)
+			task.Pause()
+		}()
+
+		err := task.Start()
+		require.Error(t, err)
 
 		wg.Wait()
 
@@ -570,39 +616,114 @@ func TestTask_Cancel(t *testing.T) {
 		testsuite.IsDestroyed(t, task)
 		testsuite.IsDestroyed(t, mt)
 	})
+
+	t.Run("cancel after complete", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		err := task.Start()
+		require.NoError(t, err)
+
+		task.Cancel()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
 }
 
 func TestTask_Paused(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	mt := testNewMockTask()
-	task := New(testTaskName, mt, nil)
+	t.Run("canceled", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 
-		time.Sleep(100 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 
-		task.Pause()
+			task.Pause()
 
-		// make sure select ctx
-		time.Sleep(300 * time.Millisecond)
-		task.cancel()
+			// make sure select ctx
+			time.Sleep(300 * time.Millisecond)
+			task.cancel()
 
-		time.Sleep(300 * time.Millisecond)
-		task.Cancel()
-	}()
+			time.Sleep(300 * time.Millisecond)
+			task.Cancel()
+		}()
 
-	err := task.Start()
-	require.Error(t, err)
+		err := task.Start()
+		require.Error(t, err)
 
-	wg.Wait()
+		wg.Wait()
 
-	testsuite.IsDestroyed(t, task)
-	testsuite.IsDestroyed(t, mt)
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("continue and finish", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			task.Pause()
+
+			// wait task run Paused()
+			time.Sleep(time.Second)
+
+			// mock finish
+			atomic.StoreInt32(task.state, pStateProcess)
+
+			// mock continue
+			task.pausedCh <- struct{}{}
+		}()
+
+		err := task.Start()
+		require.Error(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("event failed", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			task.Pause()
+
+			// mock
+			task.fsm.SetState(StateComplete)
+
+			task.Continue()
+		}()
+
+		err := task.Start()
+		require.Error(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
 }
 
 func TestTask_Pause_Continue(t *testing.T) {
