@@ -1,6 +1,7 @@
 package filemgr
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/module/task"
 	"project/internal/system"
 	"project/internal/testsuite"
 )
@@ -88,4 +90,29 @@ func testCompareDirectory(t *testing.T, a, b string) {
 	for i := 0; i < aFilesLen; i++ {
 		testCompareFile(t, aFiles[i], bFiles[i])
 	}
+}
+
+type notEqualWriter struct{}
+
+func (notEqualWriter) Write([]byte) (int, error) {
+	return 0, nil
+}
+
+func TestIOCopy(t *testing.T) {
+	testdata := bytes.Repeat([]byte("hello"), 100)
+	add := func(int64) {}
+
+	t.Run("common", func(t *testing.T) {
+		fakeTask := task.New("fake task", nil, nil)
+		readBuf := new(bytes.Buffer)
+		writeBuf := new(bytes.Buffer)
+
+		readBuf.Write(testdata)
+
+		n, err := ioCopy(fakeTask, add, writeBuf, readBuf)
+		require.NoError(t, err)
+		require.Equal(t, int64(len(testdata)), n)
+
+		require.Equal(t, testdata, writeBuf.Bytes())
+	})
 }

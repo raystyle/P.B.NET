@@ -126,9 +126,7 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDst
 	// check dst file is exist
 	if stats.dstStat != nil {
 		if stats.dstStat.IsDir() {
-			retry, err := notice(task, func() (bool, error) {
-				return noticeSameFileDir(ctx, ct.errCtrl, stats)
-			})
+			retry, err := noticeSameFileDir(ctx, task, ct.errCtrl, stats)
 			if retry {
 				return ct.retryCopyFile(ctx, task, stats)
 			}
@@ -136,9 +134,7 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDst
 			ct.updateCurrent(stats.srcStat.Size(), true)
 			return err
 		}
-		replace, err := notice(task, func() (bool, error) {
-			return noticeSameFile(ctx, ct.errCtrl, stats)
-		})
+		replace, err := noticeSameFile(ctx, task, ct.errCtrl, stats)
 		if !replace {
 			ct.updateCurrent(stats.srcStat.Size(), true)
 			return err
@@ -151,9 +147,7 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDst
 			// reset current
 			ct.updateCurrent(copied, false)
 			var retry bool
-			retry, err = notice(task, func() (bool, error) {
-				return noticeFailedToCopy(ctx, ct.errCtrl, stats, err)
-			})
+			retry, err = noticeFailedToCopy(ctx, task, ct.errCtrl, stats, err)
 			if retry {
 				err = ct.retryCopyFile(ctx, task, stats)
 			} else if err == nil {

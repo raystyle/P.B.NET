@@ -2,12 +2,13 @@ package filemgr
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"os"
 	"path/filepath"
+
+	"github.com/pkg/errors"
 
 	"project/internal/module/task"
 )
@@ -23,6 +24,14 @@ const (
 // ErrCtrl is used to tell Move or Copy function how to control the same file,
 // directory, or copy, move error. src and dst is the absolute file path.
 type ErrCtrl func(ctx context.Context, typ uint8, err error, stats *srcDstStat) uint8
+
+var (
+	// ReplaceAll is used to replace all src file to dst file.
+	ReplaceAll = func(context.Context, uint8, error, *srcDstStat) uint8 { return ErrCtrlOpReplace }
+
+	// SkipAll is used to skip all existed file or other error.
+	SkipAll = func(context.Context, uint8, error, *srcDstStat) uint8 { return ErrCtrlOpSkip }
+)
 
 // errors about ErrCtrl
 const (
@@ -40,17 +49,6 @@ const (
 	ErrCtrlOpSkip          // skip same name file, directory or copy
 	ErrCtrlOpRetry         // try to copy or move again
 	ErrCtrlOpCancel        // cancel whole copy or move operation
-)
-
-// ErrUserCanceled is an error about user cancel copy or move.
-var ErrUserCanceled = errors.New("user canceled")
-
-var (
-	// ReplaceAll is used to replace all src file to dst file.
-	ReplaceAll = func(context.Context, uint8, error, *srcDstStat) uint8 { return ErrCtrlOpReplace }
-
-	// SkipAll is used to skip all existed file or other error.
-	SkipAll = func(context.Context, uint8, error, *srcDstStat) uint8 { return ErrCtrlOpSkip }
 )
 
 var zeroFloat = big.NewFloat(0)
@@ -122,71 +120,92 @@ func checkSrcDstPath(src, dst string) (*srcDstStat, error) {
 	}, nil
 }
 
-// notice is a wrapper about notice functions.
-func notice(task *task.Task, fn func() (bool, error)) (bool, error) {
-	task.Pause()
-	defer task.Continue()
-	return fn()
-}
+// ErrUserCanceled is an error about user cancel copy or move.
+var ErrUserCanceled = fmt.Errorf("user canceled")
 
 // noticeSameFile is used to notice appear same name file.
-// returned replace and error
-func noticeSameFile(ctx context.Context, errCtrl ErrCtrl, stats *srcDstStat) (bool, error) {
+func noticeSameFile(
+	ctx context.Context,
+	task *task.Task,
+	errCtrl ErrCtrl,
+	stats *srcDstStat,
+) (replace bool, err error) {
+	task.Pause()
+	defer task.Continue()
 	switch code := errCtrl(ctx, ErrCtrlSameFile, nil, stats); code {
 	case ErrCtrlOpReplace:
-		return true, nil
+		replace = true
 	case ErrCtrlOpSkip:
-		return false, nil
 	case ErrCtrlOpCancel:
-		return false, ErrUserCanceled
+		err = ErrUserCanceled
 	default:
-		return false, fmt.Errorf("unknown same file operation code: %d", code)
+		err = errors.Errorf("unknown same file operation code: %d", code)
 	}
+	return
 }
 
 // noticeSameFileDir is used to notice appear same name about src file and dst dir.
-// returned retry and error
-func noticeSameFileDir(ctx context.Context, errCtrl ErrCtrl, stats *srcDstStat) (bool, error) {
+func noticeSameFileDir(
+	ctx context.Context,
+	task *task.Task,
+	errCtrl ErrCtrl,
+	stats *srcDstStat,
+) (retry bool, err error) {
+	task.Pause()
+	defer task.Continue()
 	switch code := errCtrl(ctx, ErrCtrlSameFileDir, nil, stats); code {
 	case ErrCtrlOpRetry:
-		return true, nil
+		retry = true
 	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
-		return false, nil
 	case ErrCtrlOpCancel:
-		return false, ErrUserCanceled
+		err = ErrUserCanceled
 	default:
-		return false, fmt.Errorf("unknown same file dir operation code: %d", code)
+		err = errors.Errorf("unknown same file dir operation code: %d", code)
 	}
+	return
 }
 
 // noticeSameDirFile is used to notice appear same name about src dir and dst file.
-// returned retry and error
-func noticeSameDirFile(ctx context.Context, errCtrl ErrCtrl, stats *srcDstStat) (bool, error) {
+func noticeSameDirFile(
+	ctx context.Context,
+	task *task.Task,
+	errCtrl ErrCtrl,
+	stats *srcDstStat,
+) (retry bool, err error) {
+	task.Pause()
+	defer task.Continue()
 	switch code := errCtrl(ctx, ErrCtrlSameDirFile, nil, stats); code {
 	case ErrCtrlOpRetry:
-		return true, nil
+		retry = true
 	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
-		return false, nil
 	case ErrCtrlOpCancel:
-		return false, ErrUserCanceled
+		err = ErrUserCanceled
 	default:
-		return false, fmt.Errorf("unknown same dir file operation code: %d", code)
+		err = errors.Errorf("unknown same dir file operation code: %d", code)
 	}
+	return
 }
 
 // noticeFailedToCopy is used to notice appear some error about copy or move.
-// returned retry and error
-func noticeFailedToCopy(ctx context.Context, errCtrl ErrCtrl, stats *srcDstStat, e error) (bool, error) {
+func noticeFailedToCopy(
+	ctx context.Context,
+	task *task.Task,
+	errCtrl ErrCtrl,
+	stats *srcDstStat,
+	e error,
+) (retry bool, err error) {
+	task.Pause()
+	defer task.Continue()
 	switch code := errCtrl(ctx, ErrCtrlCopyFailed, e, stats); code {
 	case ErrCtrlOpRetry:
-		return true, nil
+		retry = true
 	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
-		return false, nil
 	case ErrCtrlOpCancel:
-		return false, ErrUserCanceled
+		err = ErrUserCanceled
 	default:
-		return false, fmt.Errorf("unknown failed to copy operation code: %d", code)
+		err = errors.Errorf("unknown failed to copy operation code: %d", code)
 	}
+	return
 }
 
 // ioCopy is used to copy with task.Paused and add function is used to update task progress.
@@ -201,8 +220,10 @@ func ioCopy(task *task.Task, add func(int64), dst io.Writer, src io.Reader) (int
 	)
 	buf := make([]byte, 32*1024)
 	for {
-		// check task is paused
-		task.Paused()
+		// check task is canceled
+		if task.Canceled() {
+			return written, context.Canceled
+		}
 		// copy
 		rn, re = src.Read(buf)
 		if rn > 0 {
