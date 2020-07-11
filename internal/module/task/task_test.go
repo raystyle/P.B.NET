@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -92,6 +93,7 @@ func (mt *mockTask) Process(ctx context.Context, task *Task) error {
 
 		select {
 		case <-time.After(200 * time.Millisecond):
+			fmt.Printf("process %d\n", i)
 			mt.updateProgress()
 			mt.updateDetail(fmt.Sprintf("mock task detail: %d", i))
 		case <-ctx.Done():
@@ -524,6 +526,85 @@ func TestTask_Continue(t *testing.T) {
 
 			err = task.Continue()
 			require.NoError(t, err)
+		}()
+
+		err := task.Start()
+		require.NoError(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("continue in prepare", func(t *testing.T) {
+		mt := testNewMockTask()
+		mt.PrepareSlow = true
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			atomic.StoreInt32(task.paused, 1)
+			err := task.Continue()
+			require.Error(t, err)
+			atomic.StoreInt32(task.paused, 0)
+
+			time.Sleep(4 * time.Second)
+
+			err = task.Pause()
+			require.NoError(t, err)
+
+			time.Sleep(time.Second)
+
+			err = task.Continue()
+			require.NoError(t, err)
+		}()
+
+		err := task.Start()
+		require.NoError(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("pausedCh block", func(t *testing.T) {
+		t.Skip()
+
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			for i := 0; i < 10; i++ {
+				err := task.Pause()
+				require.NoError(t, err)
+
+				time.Sleep(10 * time.Millisecond)
+
+				err = task.Continue()
+				require.NoError(t, err)
+			}
+			for i := 0; i < 100; i++ {
+				err := task.Pause()
+				require.NoError(t, err)
+
+				time.Sleep(50 * time.Millisecond)
+
+				err = task.Continue()
+				require.NoError(t, err)
+			}
 		}()
 
 		err := task.Start()
