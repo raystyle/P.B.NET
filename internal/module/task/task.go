@@ -32,15 +32,21 @@ const (
 	EventCancel   = "cancel"   // task canceled not update progress
 )
 
-const panicFormat = "task: internal error: %s"
+// task internal state(different from state in FSM)
+const (
+	pStateReady int32 = iota
+	pStateProcess
+	pStatePause
+	pStateFinish // cancel or complete
+)
 
 // Interface is the interface about task.
 type Interface interface {
 	Prepare(ctx context.Context) error
 	Process(ctx context.Context, task *Task) error
 	Clean()
-	Progress() float32
-	Detail() string
+	Progress() float32 // must be thread safe
+	Detail() string    // must be thread safe
 }
 
 // Task is a task that contains all information about special task.
@@ -50,10 +56,9 @@ type Task struct {
 	task Interface
 	fsm  *fsm.FSM
 
-	// about pause task and control
-	paused   *int32        // 0 = processing, 1 = paused, 2 = canceled
-	pausedCh chan struct{} // prevent paused chan block
-	finished bool          // prevent cancel twice
+	// about control task
+	state    *int32
+	pausedCh chan struct{}
 	mu       sync.Mutex
 
 	startOnce  sync.Once
@@ -85,7 +90,7 @@ func New(name string, iface Interface, callbacks fsm.Callbacks) *Task {
 		name:     name,
 		task:     iface,
 		fsm:      FSM,
-		paused:   new(int32),
+		state:    new(int32),
 		pausedCh: make(chan struct{}, 1),
 	}
 	task.ctx, task.cancel = context.WithCancel(context.Background())
@@ -128,12 +133,12 @@ func (task *Task) Start() (err error) {
 func (task *Task) checkStart() bool {
 	task.mu.Lock()
 	defer task.mu.Unlock()
-	if task.finished {
+	if atomic.LoadInt32(task.state) != pStateReady {
 		return false
 	}
 	err := task.fsm.Event(EventStart)
 	if err != nil {
-		panic(fmt.Sprintf(panicFormat, err))
+		internalErr(err)
 	}
 	return true
 }
@@ -149,13 +154,14 @@ func (task *Task) prepare() error {
 func (task *Task) checkProcess() bool {
 	task.mu.Lock()
 	defer task.mu.Unlock()
-	if task.finished {
+	if atomic.LoadInt32(task.state) != pStateReady {
 		return false
 	}
 	err := task.fsm.Event(EventProcess)
 	if err != nil {
-		panic(fmt.Sprintf(panicFormat, err))
+		internalErr(err)
 	}
+	atomic.StoreInt32(task.state, pStateProcess)
 	return true
 }
 
@@ -164,16 +170,23 @@ func (task *Task) process() error {
 	if err != nil {
 		return err
 	}
+	// maybe call Paused() between Process and mu.Lock()
 	task.mu.Lock()
 	defer task.mu.Unlock()
-	if task.finished {
+	switch state := atomic.LoadInt32(task.state); state {
+	case pStateProcess:
+	case pStatePause: // if paused, we need "continue"
+		task.fsm.SetState(StateProcess)
+	case pStateFinish:
 		return errors.New("task canceled")
+	default:
+		panic(fmt.Sprintf("invalid pState %d", state))
 	}
-	task.finished = true
 	err = task.fsm.Event(EventComplete)
 	if err != nil {
-		panic(fmt.Sprintf(panicFormat, err))
+		internalErr(err)
 	}
+	atomic.StoreInt32(task.state, pStateFinish)
 	return nil
 }
 
@@ -185,43 +198,30 @@ func (task *Task) clean() {
 }
 
 // Pause is used to pause process progress.
-func (task *Task) Pause() error {
+func (task *Task) Pause() {
 	task.mu.Lock()
 	defer task.mu.Unlock()
-	if task.finished {
-		return nil
-	}
-	if !atomic.CompareAndSwapInt32(task.paused, 0, 1) {
-		return nil
+	if atomic.LoadInt32(task.state) != pStateProcess {
+		return
 	}
 	err := task.fsm.Event(EventPause)
 	if err != nil {
-		atomic.StoreInt32(task.paused, 0)
-		return err
+		internalErr(err)
 	}
-	return nil
+	atomic.StoreInt32(task.state, pStatePause)
 }
 
 // Continue is used to continue current task.
-func (task *Task) Continue() error {
+func (task *Task) Continue() {
 	task.mu.Lock()
 	defer task.mu.Unlock()
-	if task.finished {
-		return nil
-	}
-	if !atomic.CompareAndSwapInt32(task.paused, 1, 0) {
-		return nil
+	if atomic.LoadInt32(task.state) != pStatePause {
+		return
 	}
 	select {
 	case task.pausedCh <- struct{}{}:
-		err := task.fsm.Event(EventContinue)
-		if err != nil {
-			atomic.StoreInt32(task.paused, 1)
-			return err
-		}
 	default:
 	}
-	return nil
 }
 
 // Cancel is used to cancel current task.
@@ -233,34 +233,43 @@ func (task *Task) Cancel() {
 				xpanic.Log(r, "Task.Cancel")
 			}
 		}()
-
-		atomic.StoreInt32(task.paused, 2)
-
 		task.mu.Lock()
 		defer task.mu.Unlock()
-		if task.finished {
+		if atomic.LoadInt32(task.state) == pStateFinish {
 			return
 		}
 		close(task.pausedCh)
 		task.cancel()
-		task.finished = true
-
 		err := task.fsm.Event(EventCancel)
 		if err != nil {
-			panic(fmt.Sprintf(panicFormat, err))
+			internalErr(err)
 		}
+		atomic.StoreInt32(task.state, pStateFinish)
 	})
 }
 
 // Paused is used to check current task is paused in process function.
 func (task *Task) Paused() {
-	if atomic.LoadInt32(task.paused) != 1 {
+	if atomic.LoadInt32(task.state) != pStatePause {
 		return
 	}
+	// wait continue signal
 	select {
 	case <-task.pausedCh:
 	case <-task.ctx.Done():
+		return
 	}
+	// set process state
+	task.mu.Lock()
+	defer task.mu.Unlock()
+	if atomic.LoadInt32(task.state) != pStatePause {
+		return
+	}
+	err := task.fsm.Event(EventContinue)
+	if err != nil {
+		internalErr(err)
+	}
+	atomic.StoreInt32(task.state, pStateProcess)
 }
 
 // Canceled is used to check current task is canceled, it is a shortcut.
@@ -291,4 +300,8 @@ func (task *Task) Progress() float32 {
 // Detail is used to get the detail about current task.
 func (task *Task) Detail() string {
 	return task.task.Detail()
+}
+
+func internalErr(err error) {
+	panic(fmt.Sprintf("task: internal error: %s", err))
 }

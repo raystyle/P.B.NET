@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,7 +13,7 @@ import (
 	"project/internal/testsuite"
 )
 
-const testTaskName = "mock"
+const testTaskName = "mock task"
 
 type mockTask struct {
 	Pause       bool
@@ -77,18 +76,12 @@ func (mt *mockTask) Process(ctx context.Context, task *Task) error {
 
 		// self call Pause
 		if mt.Pause && i == 3 {
-			err := task.Pause()
-			if err != nil {
-				return err
-			}
+			task.Pause()
 
 			// UI block, wait user interact
-			time.Sleep(3 * time.Second)
+			time.Sleep(time.Second)
 
-			err = task.Continue()
-			if err != nil {
-				return err
-			}
+			task.Continue()
 		}
 
 		select {
@@ -160,13 +153,11 @@ func TestTask(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond)
 
-		err := task.Pause()
-		require.NoError(t, err)
+		task.Pause()
 
 		time.Sleep(time.Second)
 
-		err = task.Continue()
-		require.NoError(t, err)
+		task.Continue()
 
 		t.Log(task.Name())
 		t.Log(task.State())
@@ -334,13 +325,11 @@ func TestTask_Pause(t *testing.T) {
 
 			time.Sleep(100 * time.Millisecond)
 
-			err := task.Pause()
-			require.NoError(t, err)
+			task.Pause()
 
 			time.Sleep(time.Second)
 
-			err = task.Continue()
-			require.NoError(t, err)
+			task.Continue()
 		}()
 
 		err := task.Start()
@@ -365,8 +354,7 @@ func TestTask_Pause(t *testing.T) {
 
 			task.Cancel()
 
-			err := task.Pause()
-			require.NoError(t, err)
+			task.Pause()
 		}()
 
 		err := task.Start()
@@ -389,16 +377,12 @@ func TestTask_Pause(t *testing.T) {
 
 			time.Sleep(100 * time.Millisecond)
 
-			err := task.Pause()
-			require.NoError(t, err)
-
-			err = task.Pause()
-			require.NoError(t, err)
+			task.Pause()
+			task.Pause()
 
 			time.Sleep(time.Second)
 
-			err = task.Continue()
-			require.NoError(t, err)
+			task.Continue()
 		}()
 
 		err := task.Start()
@@ -422,18 +406,15 @@ func TestTask_Pause(t *testing.T) {
 
 			time.Sleep(100 * time.Millisecond)
 
-			err := task.Pause()
-			require.Error(t, err)
+			task.Pause()
 
 			time.Sleep(4 * time.Second)
 
-			err = task.Pause()
-			require.NoError(t, err)
+			task.Pause()
 
 			time.Sleep(time.Second)
 
-			err = task.Continue()
-			require.NoError(t, err)
+			task.Continue()
 		}()
 
 		err := task.Start()
@@ -461,13 +442,11 @@ func TestTask_Continue(t *testing.T) {
 
 			time.Sleep(100 * time.Millisecond)
 
-			err := task.Pause()
-			require.NoError(t, err)
+			task.Pause()
 
 			time.Sleep(time.Second)
 
-			err = task.Continue()
-			require.NoError(t, err)
+			task.Continue()
 		}()
 
 		err := task.Start()
@@ -492,8 +471,7 @@ func TestTask_Continue(t *testing.T) {
 
 			task.Cancel()
 
-			err := task.Continue()
-			require.NoError(t, err)
+			task.Continue()
 		}()
 
 		err := task.Start()
@@ -516,16 +494,13 @@ func TestTask_Continue(t *testing.T) {
 
 			time.Sleep(100 * time.Millisecond)
 
-			err := task.Pause()
-			require.NoError(t, err)
+			task.Pause()
 
 			time.Sleep(100 * time.Millisecond)
 
-			err = task.Continue()
-			require.NoError(t, err)
+			task.Continue()
 
-			err = task.Continue()
-			require.NoError(t, err)
+			task.Continue()
 		}()
 
 		err := task.Start()
@@ -549,62 +524,15 @@ func TestTask_Continue(t *testing.T) {
 
 			time.Sleep(100 * time.Millisecond)
 
-			atomic.StoreInt32(task.paused, 1)
-			err := task.Continue()
-			require.Error(t, err)
-			atomic.StoreInt32(task.paused, 0)
+			task.Continue()
 
 			time.Sleep(4 * time.Second)
 
-			err = task.Pause()
-			require.NoError(t, err)
+			task.Pause()
 
 			time.Sleep(time.Second)
 
-			err = task.Continue()
-			require.NoError(t, err)
-		}()
-
-		err := task.Start()
-		require.NoError(t, err)
-
-		wg.Wait()
-
-		testsuite.IsDestroyed(t, task)
-		testsuite.IsDestroyed(t, mt)
-	})
-
-	t.Run("pausedCh block", func(t *testing.T) {
-		t.Skip()
-
-		mt := testNewMockTask()
-		task := New(testTaskName, mt, nil)
-
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			time.Sleep(100 * time.Millisecond)
-
-			for i := 0; i < 10; i++ {
-				err := task.Pause()
-				require.NoError(t, err)
-
-				time.Sleep(10 * time.Millisecond)
-
-				err = task.Continue()
-				require.NoError(t, err)
-			}
-			for i := 0; i < 100; i++ {
-				err := task.Pause()
-				require.NoError(t, err)
-
-				time.Sleep(50 * time.Millisecond)
-
-				err = task.Continue()
-				require.NoError(t, err)
-			}
+			task.Continue()
 		}()
 
 		err := task.Start()
@@ -638,6 +566,177 @@ func TestTask_Cancel(t *testing.T) {
 		require.Error(t, err)
 
 		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+}
+
+func TestTask_Paused(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	mt := testNewMockTask()
+	task := New(testTaskName, mt, nil)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		time.Sleep(100 * time.Millisecond)
+
+		task.Pause()
+
+		// make sure select ctx
+		time.Sleep(300 * time.Millisecond)
+		task.cancel()
+
+		time.Sleep(300 * time.Millisecond)
+		task.Cancel()
+	}()
+
+	err := task.Start()
+	require.Error(t, err)
+
+	wg.Wait()
+
+	testsuite.IsDestroyed(t, task)
+	testsuite.IsDestroyed(t, mt)
+}
+
+func TestTask_Pause_Continue(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("brute", func(t *testing.T) {
+		mt := testNewMockTask()
+		mt.Pause = true
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			for i := 0; i < 100; i++ {
+				task.Pause()
+
+				task.Continue()
+			}
+		}()
+
+		err := task.Start()
+		require.NoError(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("brute without pause", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			for i := 0; i < 100; i++ {
+				task.Pause()
+
+				task.Continue()
+			}
+		}()
+
+		err := task.Start()
+		require.NoError(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("brute with continue", func(t *testing.T) {
+		mt := testNewMockTask()
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			for i := 0; i < 100; i++ {
+				task.Pause()
+
+				task.Continue()
+			}
+
+			time.Sleep(3 * time.Second)
+			task.Continue()
+		}()
+
+		err := task.Start()
+		require.NoError(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("a lot of operations", func(t *testing.T) {
+		mt := testNewMockTask()
+		mt.Pause = true
+		task := New(testTaskName, mt, nil)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			time.Sleep(100 * time.Millisecond)
+
+			for i := 0; i < 100; i++ {
+				task.Pause()
+
+				time.Sleep(20 * time.Millisecond)
+
+				task.Continue()
+			}
+		}()
+
+		err := task.Start()
+		require.NoError(t, err)
+
+		wg.Wait()
+
+		testsuite.IsDestroyed(t, task)
+		testsuite.IsDestroyed(t, mt)
+	})
+
+	t.Run("pause continue after complete", func(t *testing.T) {
+		mt := testNewMockTask()
+		mt.Pause = true
+		task := New(testTaskName, mt, nil)
+
+		err := task.Start()
+		require.NoError(t, err)
+
+		for i := 0; i < 100; i++ {
+			task.Pause()
+
+			task.Continue()
+		}
 
 		testsuite.IsDestroyed(t, task)
 		testsuite.IsDestroyed(t, mt)
