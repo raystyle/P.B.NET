@@ -24,7 +24,7 @@ type copyTask struct {
 	errCtrl ErrCtrl
 	src     string
 	dst     string
-	stats   *srcDstStat
+	stats   *SrcDstStat
 
 	files    []*fileStat
 	skipDirs []string
@@ -58,7 +58,7 @@ func (ct *copyTask) Prepare(context.Context) error {
 }
 
 func (ct *copyTask) Process(ctx context.Context, task *task.Task) error {
-	if ct.stats.srcIsFile {
+	if ct.stats.SrcIsFile {
 		return ct.copySrcFile(ctx, task)
 	}
 	return ct.copySrcDir(ctx, task)
@@ -71,53 +71,53 @@ func (ct *copyTask) Process(ctx context.Context, task *task.Task) error {
 // new path is a dir  and not exist
 // new path is a file and not exist
 func (ct *copyTask) copySrcFile(ctx context.Context, task *task.Task) error {
-	_, srcFileName := filepath.Split(ct.stats.srcAbs)
+	_, srcFileName := filepath.Split(ct.stats.SrcAbs)
 	var (
 		dstFileName string
 		dstStat     os.FileInfo
 	)
-	if ct.stats.dstStat != nil { // dst is exists
+	if ct.stats.DstStat != nil { // dst is exists
 		// copyFile will handle the same file, dir
 		//
 		// copy "a.exe" -> "C:\ExistDir"
 		// "a.exe" -> "C:\ExistDir\a.exe"
-		if ct.stats.dstStat.IsDir() {
-			dstFileName = filepath.Join(ct.stats.dstAbs, srcFileName)
+		if ct.stats.DstStat.IsDir() {
+			dstFileName = filepath.Join(ct.stats.DstAbs, srcFileName)
 			stat, err := stat(dstFileName)
 			if err != nil {
 				return err
 			}
 			dstStat = stat
 		} else {
-			dstFileName = ct.stats.dstAbs
-			dstStat = ct.stats.dstStat
+			dstFileName = ct.stats.DstAbs
+			dstStat = ct.stats.DstStat
 		}
 	} else { // dst is doesn't exists
 		dstRunes := []rune(ct.dst)
 		last := string(dstRunes[len(dstRunes)-1])[0]
 		if os.IsPathSeparator(last) { // is a directory path
-			err := os.MkdirAll(ct.stats.dstAbs, 0750)
+			err := os.MkdirAll(ct.stats.DstAbs, 0750)
 			if err != nil {
 				return err
 			}
-			dstFileName = filepath.Join(ct.stats.dstAbs, srcFileName)
+			dstFileName = filepath.Join(ct.stats.DstAbs, srcFileName)
 		} else { // is a file path
-			dir, _ := filepath.Split(ct.stats.dstAbs)
+			dir, _ := filepath.Split(ct.stats.DstAbs)
 			err := os.MkdirAll(dir, 0750)
 			if err != nil {
 				return err
 			}
-			dstFileName = ct.stats.dstAbs
+			dstFileName = ct.stats.DstAbs
 		}
 	}
-	stats := &srcDstStat{
-		srcAbs:  ct.stats.srcAbs,
-		dstAbs:  dstFileName,
-		srcStat: ct.stats.srcStat,
-		dstStat: dstStat,
+	stats := &SrcDstStat{
+		SrcAbs:  ct.stats.SrcAbs,
+		DstAbs:  dstFileName,
+		SrcStat: ct.stats.SrcStat,
+		DstStat: dstStat,
 	}
 	// update progress
-	ct.updateTotal(ct.stats.srcStat.Size(), true)
+	ct.updateTotal(ct.stats.SrcStat.Size(), true)
 	return ct.copyFile(ctx, task, stats)
 }
 
@@ -147,7 +147,7 @@ func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 		}
 		if err != nil {
 			const format = "failed to walk \"%s\" in \"%s\": %s"
-			ne := fmt.Errorf(format, srcAbs, ct.stats.srcAbs, err)
+			ne := fmt.Errorf(format, srcAbs, ct.stats.SrcAbs, err)
 			retry, ne := noticeFailedToCollect(ctx, task, ct.errCtrl, srcAbs, ne)
 			if retry {
 				walkFailed = true
@@ -177,14 +177,14 @@ func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 		}
 		return nil
 	}
-	return filepath.Walk(ct.stats.srcAbs, walkFunc)
+	return filepath.Walk(ct.stats.SrcAbs, walkFunc)
 }
 
 func (ct *copyTask) copyDirFiles(ctx context.Context, task *task.Task) error {
 	// check root path, and make directory if target path is not exists
 	// C:\test -> D:\test[exist]
-	if ct.stats.dstStat == nil {
-		err := os.MkdirAll(ct.stats.dstAbs, ct.stats.srcStat.Mode().Perm())
+	if ct.stats.DstStat == nil {
+		err := os.MkdirAll(ct.stats.DstAbs, ct.stats.SrcStat.Mode().Perm())
 		if err != nil {
 			return errors.Wrap(err, "failed to create destination directory")
 		}
@@ -209,9 +209,9 @@ func (ct *copyTask) copyDirFile(ctx context.Context, task *task.Task, file *file
 	}
 	// C:\test\a.exe -> a.exe
 	// C:\test\dir\a.exe -> dir\a.exe
-	relativePath := strings.ReplaceAll(file.path, ct.stats.srcAbs, "")
+	relativePath := strings.ReplaceAll(file.path, ct.stats.SrcAbs, "")
 	relativePath = string([]rune(relativePath)[1:]) // remove the first "\" or "/"
-	dstAbs := filepath.Join(ct.stats.dstAbs, relativePath)
+	dstAbs := filepath.Join(ct.stats.DstAbs, relativePath)
 retry:
 	// check task is canceled
 	if task.Canceled() {
@@ -230,11 +230,11 @@ retry:
 		ct.updateCurrent(file.stat.Size(), true)
 		return nil
 	}
-	newStats := &srcDstStat{
-		srcAbs:  file.path,
-		dstAbs:  dstAbs,
-		srcStat: file.stat,
-		dstStat: dstStat,
+	newStats := &SrcDstStat{
+		SrcAbs:  file.path,
+		DstAbs:  dstAbs,
+		SrcStat: file.stat,
+		DstStat: dstStat,
 	}
 	if file.stat.IsDir() {
 		if dstStat == nil {
@@ -274,12 +274,12 @@ retry:
 	return nil
 }
 
-func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDstStat) error {
+func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *SrcDstStat) error {
 	if task.Canceled() {
 		return context.Canceled
 	}
 	// check src file is become directory
-	srcStat, err := os.Stat(stats.srcAbs)
+	srcStat, err := os.Stat(stats.SrcAbs)
 	if err != nil {
 		retry, ne := noticeFailedToCopy(ctx, task, ct.errCtrl, stats, err)
 		if retry {
@@ -288,11 +288,11 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDst
 		if ne != nil {
 			return ne
 		}
-		ct.updateCurrent(stats.srcStat.Size(), true)
+		ct.updateCurrent(stats.SrcStat.Size(), true)
 		return nil
 	}
 	if srcStat.IsDir() {
-		err = os.MkdirAll(stats.dstAbs, srcStat.Mode().Perm())
+		err = os.MkdirAll(stats.DstAbs, srcStat.Mode().Perm())
 		if err != nil {
 			retry, ne := noticeFailedToCopy(ctx, task, ct.errCtrl, stats, err)
 			if retry {
@@ -302,37 +302,37 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDst
 				return ne
 			}
 		}
-		ct.updateCurrent(stats.srcStat.Size(), true)
+		ct.updateCurrent(stats.SrcStat.Size(), true)
 		return nil
 	}
 	// update current task detail, output:
 	//   copying file, name: test.dat size: 1.127MB
 	//   src: C:\testdata\test.dat
 	//   dst: D:\test\test.dat
-	_, srcFileName := filepath.Split(stats.srcAbs)
-	srcSize := convert.ByteToString(uint64(stats.srcStat.Size()))
+	_, srcFileName := filepath.Split(stats.SrcAbs)
+	srcSize := convert.ByteToString(uint64(stats.SrcStat.Size()))
 	const format = "copying file, name: %s size: %s\nsrc: %s\ndst: %s"
-	ct.updateDetail(fmt.Sprintf(format, srcFileName, srcSize, stats.srcAbs, stats.dstAbs))
+	ct.updateDetail(fmt.Sprintf(format, srcFileName, srcSize, stats.SrcAbs, stats.DstAbs))
 	// check dst file is exist
-	if stats.dstStat != nil {
-		if stats.dstStat.IsDir() {
+	if stats.DstStat != nil {
+		if stats.DstStat.IsDir() {
 			retry, err := noticeSameFileDir(ctx, task, ct.errCtrl, stats)
 			if retry {
 				return ct.retryCopyFile(ctx, task, stats)
 			}
-			ct.updateCurrent(stats.srcStat.Size(), true)
+			ct.updateCurrent(stats.SrcStat.Size(), true)
 			return err
 		}
 		replace, err := noticeSameFile(ctx, task, ct.errCtrl, stats)
 		if !replace {
-			ct.updateCurrent(stats.srcStat.Size(), true)
+			ct.updateCurrent(stats.SrcStat.Size(), true)
 			return err
 		}
 	}
 	return ct.ioCopy(ctx, task, stats)
 }
 
-func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *srcDstStat) (err error) {
+func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *SrcDstStat) (err error) {
 	// check copy file error, and maybe retry copy file.
 	var copied int64
 	defer func() {
@@ -344,12 +344,12 @@ func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *srcDstSt
 			if retry {
 				err = ct.retryCopyFile(ctx, task, stats)
 			} else if err == nil { // skipped
-				ct.updateCurrent(stats.srcStat.Size(), true)
+				ct.updateCurrent(stats.SrcStat.Size(), true)
 			}
 		}
 	}()
 	// open src file
-	srcFile, err := os.Open(stats.srcAbs)
+	srcFile, err := os.Open(stats.SrcAbs)
 	if err != nil {
 		return
 	}
@@ -359,9 +359,9 @@ func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *srcDstSt
 	if err != nil {
 		return
 	}
-	perm := stats.srcStat.Mode().Perm()
+	perm := stats.SrcStat.Mode().Perm()
 	// open dst file
-	dstFile, err := os.OpenFile(stats.dstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	dstFile, err := os.OpenFile(stats.DstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
 		return
 	}
@@ -370,7 +370,7 @@ func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *srcDstSt
 	defer func() {
 		_ = dstFile.Close()
 		if !ok {
-			_ = os.Remove(stats.dstAbs)
+			_ = os.Remove(stats.DstAbs)
 		}
 	}()
 	// copy file
@@ -384,8 +384,8 @@ func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *srcDstSt
 		return
 	}
 	// set the modification time about the dst file
-	modTime := stats.srcStat.ModTime()
-	err = os.Chtimes(stats.dstAbs, modTime, modTime)
+	modTime := stats.SrcStat.ModTime()
+	err = os.Chtimes(stats.DstAbs, modTime, modTime)
 	if err != nil {
 		return
 	}
@@ -393,7 +393,7 @@ func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *srcDstSt
 	return
 }
 
-func (ct *copyTask) updateSrcFileStat(srcFile *os.File, stats *srcDstStat) error {
+func (ct *copyTask) updateSrcFileStat(srcFile *os.File, stats *SrcDstStat) error {
 	srcStat, err := srcFile.Stat()
 	if err != nil {
 		return err
@@ -401,12 +401,12 @@ func (ct *copyTask) updateSrcFileStat(srcFile *os.File, stats *srcDstStat) error
 	// update total(must update in one operation)
 	// total - old size + new size = total + (new size - old size)
 	newSize := srcStat.Size()
-	oldSize := stats.srcStat.Size()
+	oldSize := stats.SrcStat.Size()
 	if newSize != oldSize {
 		delta := newSize - oldSize
 		ct.updateTotal(delta, true)
 	}
-	stats.srcStat = srcStat
+	stats.SrcStat = srcStat
 	return nil
 }
 
@@ -415,12 +415,12 @@ func (ct *copyTask) ioCopyAdd(delta int64) {
 }
 
 // retryCopyFile will update src and dst file stat.
-func (ct *copyTask) retryCopyFile(ctx context.Context, task *task.Task, stats *srcDstStat) error {
-	dstStat, err := stat(stats.dstAbs)
+func (ct *copyTask) retryCopyFile(ctx context.Context, task *task.Task, stats *SrcDstStat) error {
+	dstStat, err := stat(stats.DstAbs)
 	if err != nil {
 		return err
 	}
-	stats.dstStat = dstStat
+	stats.DstStat = dstStat
 	return ct.copyFile(ctx, task, stats)
 }
 

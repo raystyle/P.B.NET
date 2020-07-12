@@ -24,14 +24,14 @@ const (
 // ErrCtrl is used to tell Move or Copy function how to control the same file,
 // directory, or copy, move error. src and dst is the absolute file path.
 // err and fileStat in stats maybe nil.
-type ErrCtrl func(ctx context.Context, typ uint8, err error, stats *srcDstStat) uint8
+type ErrCtrl func(ctx context.Context, typ uint8, err error, stats *SrcDstStat) uint8
 
 var (
 	// ReplaceAll is used to replace all src file to dst file.
-	ReplaceAll = func(context.Context, uint8, error, *srcDstStat) uint8 { return ErrCtrlOpReplace }
+	ReplaceAll = func(context.Context, uint8, error, *SrcDstStat) uint8 { return ErrCtrlOpReplace }
 
 	// SkipAll is used to skip all existed file or other error.
-	SkipAll = func(context.Context, uint8, error, *srcDstStat) uint8 { return ErrCtrlOpSkip }
+	SkipAll = func(context.Context, uint8, error, *SrcDstStat) uint8 { return ErrCtrlOpSkip }
 )
 
 // errors about ErrCtrl
@@ -67,20 +67,21 @@ func stat(name string) (os.FileInfo, error) {
 	return stat, nil
 }
 
-type srcDstStat struct {
-	srcAbs  string // "E:\file.dat" "E:\file", last will not be "/ or "\"
-	dstAbs  string
-	srcStat os.FileInfo
-	dstStat os.FileInfo // check destination file or directory is exists
+// SrcDstStat contains absolute path and file stat about src and dst.
+type SrcDstStat struct {
+	SrcAbs  string // "E:\file.dat" "E:\file", last will not be "/ or "\"
+	DstAbs  string
+	SrcStat os.FileInfo
+	DstStat os.FileInfo // check destination file or directory is exists
 
-	srcIsFile bool
+	SrcIsFile bool
 }
 
 // src path [file], dst path [file] --valid
 // src path [file], dst path [dir]  --valid
 // src path [dir],  dst path [dir]  --valid
 // src path [dir],  dst path [file] --invalid
-func checkSrcDstPath(src, dst string) (*srcDstStat, error) {
+func checkSrcDstPath(src, dst string) (*SrcDstStat, error) {
 	if src == "" {
 		return nil, errors.New("empty src path")
 	}
@@ -114,12 +115,12 @@ func checkSrcDstPath(src, dst string) (*srcDstStat, error) {
 		const format = "\"%s\" is a directory but \"%s\" is a file"
 		return nil, fmt.Errorf(format, srcAbs, dstAbs)
 	}
-	return &srcDstStat{
-		srcAbs:    srcAbs,
-		dstAbs:    dstAbs,
-		srcStat:   srcStat,
-		dstStat:   dstStat,
-		srcIsFile: !srcIsDir,
+	return &SrcDstStat{
+		SrcAbs:    srcAbs,
+		DstAbs:    dstAbs,
+		SrcStat:   srcStat,
+		DstStat:   dstStat,
+		SrcIsFile: !srcIsDir,
 	}, nil
 }
 
@@ -136,7 +137,7 @@ func noticeSameFile(
 	ctx context.Context,
 	task *task.Task,
 	errCtrl ErrCtrl,
-	stats *srcDstStat,
+	stats *SrcDstStat,
 ) (replace bool, err error) {
 	task.Pause()
 	defer task.Continue()
@@ -157,7 +158,7 @@ func noticeSameFileDir(
 	ctx context.Context,
 	task *task.Task,
 	errCtrl ErrCtrl,
-	stats *srcDstStat,
+	stats *SrcDstStat,
 ) (retry bool, err error) {
 	task.Pause()
 	defer task.Continue()
@@ -178,7 +179,7 @@ func noticeSameDirFile(
 	ctx context.Context,
 	task *task.Task,
 	errCtrl ErrCtrl,
-	stats *srcDstStat,
+	stats *SrcDstStat,
 ) (retry bool, err error) {
 	task.Pause()
 	defer task.Continue()
@@ -204,7 +205,7 @@ func noticeFailedToCollect(
 ) (retry bool, err error) {
 	task.Pause()
 	defer task.Continue()
-	stats := srcDstStat{srcAbs: path}
+	stats := SrcDstStat{SrcAbs: path}
 	switch code := errCtrl(ctx, ErrCtrlCollectFailed, extError, &stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
@@ -222,7 +223,7 @@ func noticeFailedToCopy(
 	ctx context.Context,
 	task *task.Task,
 	errCtrl ErrCtrl,
-	stats *srcDstStat,
+	stats *SrcDstStat,
 	extError error,
 ) (retry bool, err error) {
 	task.Pause()
@@ -249,7 +250,7 @@ func noticeFailedToCopyDir(
 ) (retry bool, err error) {
 	task.Pause()
 	defer task.Continue()
-	stats := srcDstStat{srcAbs: path}
+	stats := SrcDstStat{SrcAbs: path}
 	switch code := errCtrl(ctx, ErrCtrlCopyDirFailed, extError, &stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
