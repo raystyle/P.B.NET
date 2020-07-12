@@ -23,6 +23,7 @@ const (
 
 // ErrCtrl is used to tell Move or Copy function how to control the same file,
 // directory, or copy, move error. src and dst is the absolute file path.
+// err and fileStat in stats maybe nil.
 type ErrCtrl func(ctx context.Context, typ uint8, err error, stats *srcDstStat) uint8
 
 var (
@@ -35,11 +36,12 @@ var (
 
 // errors about ErrCtrl
 const (
-	_                  uint8 = iota
-	ErrCtrlSameFile          // two same name file
-	ErrCtrlSameFileDir       // same src file name with dst directory
-	ErrCtrlSameDirFile       // same src directory name with dst file name
-	ErrCtrlCopyFailed        // appear error when copy file
+	_                    uint8 = iota
+	ErrCtrlSameFile            // two same name file
+	ErrCtrlSameFileDir         // same src file name with dst directory
+	ErrCtrlSameDirFile         // same src directory name with dst file name
+	ErrCtrlCollectFailed       // appear error when collect directory information
+	ErrCtrlCopyFailed          // appear error when copy file
 )
 
 // operation code about ErrCtrl
@@ -53,15 +55,6 @@ const (
 
 var zeroFloat = big.NewFloat(0)
 
-type srcDstStat struct {
-	srcAbs  string // "E:\file.dat" "E:\file", last will not be "/ or "\"
-	dstAbs  string
-	srcStat os.FileInfo
-	dstStat os.FileInfo // check destination file or directory is exists
-
-	srcIsFile bool
-}
-
 // stat is used to get file stat, if err is NotExist, it will return nil error and os.FileInfo.
 func stat(name string) (os.FileInfo, error) {
 	stat, err := os.Stat(name)
@@ -71,6 +64,15 @@ func stat(name string) (os.FileInfo, error) {
 		}
 	}
 	return stat, nil
+}
+
+type srcDstStat struct {
+	srcAbs  string // "E:\file.dat" "E:\file", last will not be "/ or "\"
+	dstAbs  string
+	srcStat os.FileInfo
+	dstStat os.FileInfo // check destination file or directory is exists
+
+	srcIsFile bool
 }
 
 // src path [file], dst path [file] --valid
@@ -120,6 +122,11 @@ func checkSrcDstPath(src, dst string) (*srcDstStat, error) {
 	}, nil
 }
 
+type fileStat struct {
+	path string // abs
+	stat os.FileInfo
+}
+
 // ErrUserCanceled is an error about user cancel copy or move.
 var ErrUserCanceled = fmt.Errorf("user canceled")
 
@@ -156,7 +163,7 @@ func noticeSameFileDir(
 	switch code := errCtrl(ctx, ErrCtrlSameFileDir, nil, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
-	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
+	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
 	case ErrCtrlOpCancel:
 		err = ErrUserCanceled
 	default:
@@ -177,11 +184,34 @@ func noticeSameDirFile(
 	switch code := errCtrl(ctx, ErrCtrlSameDirFile, nil, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
-	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
+	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
 	case ErrCtrlOpCancel:
 		err = ErrUserCanceled
 	default:
 		err = errors.Errorf("unknown same dir file operation code: %d", code)
+	}
+	return
+}
+
+// noticeFailedToCollect is used to notice appear some error in collectDirInfo.
+func noticeFailedToCollect(
+	ctx context.Context,
+	task *task.Task,
+	errCtrl ErrCtrl,
+	path string,
+	e error,
+) (retry bool, err error) {
+	task.Pause()
+	defer task.Continue()
+	stats := srcDstStat{srcAbs: path}
+	switch code := errCtrl(ctx, ErrCtrlCollectFailed, e, &stats); code {
+	case ErrCtrlOpRetry:
+		retry = true
+	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
+	case ErrCtrlOpCancel:
+		err = ErrUserCanceled
+	default:
+		err = errors.Errorf("unknown failed to collect operation code: %d", code)
 	}
 	return
 }
@@ -199,7 +229,7 @@ func noticeFailedToCopy(
 	switch code := errCtrl(ctx, ErrCtrlCopyFailed, e, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
-	case ErrCtrlOpReplace, ErrCtrlOpSkip: // for ReplaceAll
+	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
 	case ErrCtrlOpCancel:
 		err = ErrUserCanceled
 	default:
