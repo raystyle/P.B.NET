@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/module/task"
@@ -407,10 +408,12 @@ func TestCopyWithContext(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		ec := func(_ context.Context, _ uint8, _ error, _ *SrcDstStat) uint8 {
 			cancel()
+			// wait close chan
+			time.Sleep(time.Second)
 			return ErrCtrlOpReplace
 		}
 		err := CopyWithContext(ctx, ec, src, dst)
-		require.Equal(t, context.Canceled, err)
+		require.Equal(t, context.Canceled, errors.Cause(err))
 
 		exist, err := system.IsExist(dir)
 		require.NoError(t, err)
@@ -426,94 +429,186 @@ func TestCopyWithNotice(t *testing.T) {
 	defer gm.Compare()
 
 	const (
-		src = "testdata/file.dat"
-		dst = "testdata/file/file.dat"
-		dir = "testdata/file"
+		srcDir   = "testdata/dir"
+		srcFile1 = "file1.dat"
+		srcDir2  = "dir2"
+		srcFile2 = "dir2/file2.dat"
+		dstDir   = "testdata/dir-dir/"
 	)
 
-	// create test file
-	testCreateFile(t, src)
+	// create test directory
+	err := os.MkdirAll(srcDir, 0750)
+	require.NoError(t, err)
 	defer func() {
-		err := os.RemoveAll(src)
+		err = os.RemoveAll(srcDir)
 		require.NoError(t, err)
 	}()
+	// create test file
+	testCreateFile(t, filepath.Join(srcDir, srcFile1))
+	// create dir2
+	err = os.MkdirAll(filepath.Join(srcDir, srcDir2), 0750)
+	require.NoError(t, err)
+	// create test file 2
+	testCreateFile2(t, filepath.Join(srcDir, srcFile2))
 
-	t.Run("FailedToCopy-retry", func(t *testing.T) {
-		defer func() {
-			err := os.RemoveAll(dir)
-			require.NoError(t, err)
-		}()
-
-		patch := func(*task.Task, func(int64), io.Writer, io.Reader) (int64, error) {
-			return 0, monkey.Error
+	t.Run("FailedToCollect", func(t *testing.T) {
+		patch := func(string) (os.FileInfo, error) {
+			return nil, monkey.Error
 		}
-		pg := monkey.Patch(ioCopy, patch)
+		pg := monkey.Patch(os.Lstat, patch)
 		defer pg.Unpatch()
 
-		count := 0
-		ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-			require.Equal(t, ErrCtrlCopyFailed, typ)
-			require.Error(t, err)
-			count++
-			pg.Unpatch()
-			return ErrCtrlOpRetry
-		}
-		err := Copy(ec, src, dst)
-		require.NoError(t, err)
+		t.Run("retry", func(t *testing.T) {
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
 
-		require.Equal(t, 1, count)
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+			err := Copy(ec, srcDir, dstDir)
+			require.Error(t, err)
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			pg.Restore()
+
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpSkip
+			}
+			err := Copy(ec, srcDir, dstDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			pg.Restore()
+
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpCancel
+			}
+			err := Copy(ec, srcDir, dstDir)
+			require.Error(t, err)
+
+			require.Equal(t, 1, count)
+		})
 	})
 
-	t.Run("FailedToCopy-skip", func(t *testing.T) {
-		defer func() {
-			err := os.RemoveAll(dir)
-			require.NoError(t, err)
-		}()
-
+	t.Run("FailedToCopy", func(t *testing.T) {
 		patch := func(*task.Task, func(int64), io.Writer, io.Reader) (int64, error) {
 			return 0, monkey.Error
 		}
 		pg := monkey.Patch(ioCopy, patch)
 		defer pg.Unpatch()
 
-		count := 0
-		ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-			require.Equal(t, ErrCtrlCopyFailed, typ)
-			require.Error(t, err)
-			count++
-			pg.Unpatch()
-			return ErrCtrlOpSkip
-		}
-		err := Copy(ec, src, dst)
-		require.NoError(t, err)
+		t.Run("retry", func(t *testing.T) {
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
 
-		require.Equal(t, 1, count)
-	})
-
-	t.Run("FailedToCopy-cancel", func(t *testing.T) {
-		defer func() {
-			err := os.RemoveAll(dir)
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+			err := Copy(ec, srcDir, dstDir)
 			require.NoError(t, err)
-		}()
 
-		patch := func(*task.Task, func(int64), io.Writer, io.Reader) (int64, error) {
-			return 0, monkey.Error
-		}
-		pg := monkey.Patch(ioCopy, patch)
-		defer pg.Unpatch()
+			require.Equal(t, 1, count)
 
-		count := 0
-		ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-			require.Equal(t, ErrCtrlCopyFailed, typ)
-			require.Error(t, err)
-			count++
-			pg.Unpatch()
-			return ErrCtrlOpCancel
-		}
-		err := Copy(ec, src, dst)
-		require.Equal(t, ErrUserCanceled, err)
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
+		})
 
-		require.Equal(t, 1, count)
+		t.Run("skip", func(t *testing.T) {
+			pg.Restore()
+
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpSkip
+			}
+			err = Copy(ec, srcDir, dstDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			pg.Restore()
+
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpCancel
+			}
+			err := Copy(ec, srcDir, dstDir)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+		})
 	})
 }
 
@@ -526,24 +621,29 @@ func TestCopyTask_Progress(t *testing.T) {
 		dstDir   = "testdata/dir-dir/"
 	)
 
-	t.Run("common", func(t *testing.T) {
-		// create test directory
-		err := os.MkdirAll(srcDir, 0750)
+	// create test directory
+	err := os.MkdirAll(srcDir, 0750)
+	require.NoError(t, err)
+	defer func() {
+		err = os.RemoveAll(srcDir)
 		require.NoError(t, err)
+	}()
+	// create test file
+	testCreateFile(t, filepath.Join(srcDir, srcFile1))
+	// create dir2
+	err = os.MkdirAll(filepath.Join(srcDir, srcDir2), 0750)
+	require.NoError(t, err)
+	// create test file 2
+	testCreateFile2(t, filepath.Join(srcDir, srcFile2))
+
+	t.Run("common", func(t *testing.T) {
 		defer func() {
-			err = os.RemoveAll(srcDir)
+			err = os.RemoveAll(dstDir)
 			require.NoError(t, err)
 		}()
-		// create test file
-		testCreateFile(t, filepath.Join(srcDir, srcFile1))
-		// create dir2
-		err = os.MkdirAll(filepath.Join(srcDir, srcDir2), 0750)
-		require.NoError(t, err)
-		// create test file 2
-		testCreateFile2(t, filepath.Join(srcDir, srcFile2))
 
 		// create exist file(file2 will copy first, than copy file1)
-		err = os.MkdirAll(dstDir, 0750)
+		err := os.MkdirAll(dstDir, 0750)
 		require.NoError(t, err)
 		testCreateFile2(t, filepath.Join(dstDir, srcFile1))
 
@@ -572,11 +672,12 @@ func TestCopyTask_Progress(t *testing.T) {
 
 		close(done)
 
+		rct := ct.Task()
+		testsuite.IsDestroyed(t, ct)
+		testsuite.IsDestroyed(t, rct)
+
 		exist, err := system.IsExist(dstDir)
 		require.NoError(t, err)
 		require.True(t, exist)
-
-		err = os.RemoveAll(dstDir)
-		require.NoError(t, err)
 	})
 }

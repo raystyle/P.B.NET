@@ -189,11 +189,18 @@ func (ct *copyTask) copyDirFiles(ctx context.Context, task *task.Task) error {
 			return errors.Wrap(err, "failed to create destination directory")
 		}
 	}
+	// skip root directory
+	// set fake progress for pass progress check
+	if len(ct.files) == 0 {
+		ct.current.SetUint64(1)
+		ct.total.SetUint64(1)
+		return nil
+	}
 	// must skip root path, otherwise will appear zero relative path
 	for _, file := range ct.files[1:] {
 		err := ct.copyDirFile(ctx, task, file)
 		if err != nil {
-			return errors.Wrap(err, "failed to copy file")
+			return errors.WithMessagef(err, "failed to copy file \"%s\"", file.path)
 		}
 	}
 	return nil
@@ -504,11 +511,11 @@ func Copy(errCtrl ErrCtrl, src, dst string) error {
 func CopyWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string) error {
 	ct := NewCopyTask(errCtrl, src, dst, nil)
 	if done := ctx.Done(); done != nil {
-		innerCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
+		finish := make(chan struct{})
+		defer close(finish)
 		// if ctx is canceled
 		select {
-		case <-ctx.Done():
+		case <-done:
 			return ctx.Err()
 		default:
 		}
@@ -520,9 +527,9 @@ func CopyWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string) erro
 				}
 			}()
 			select {
-			case <-ctx.Done():
+			case <-done:
 				ct.Cancel()
-			case <-innerCtx.Done():
+			case <-finish:
 			}
 		}()
 	}
