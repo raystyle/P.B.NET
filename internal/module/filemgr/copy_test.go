@@ -456,7 +456,3 @@ func TestCopy(t *testing.T) {
 		})
 	})
 }
-
-func TestMove(t *testing.T) {
-
-}
