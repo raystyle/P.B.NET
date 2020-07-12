@@ -57,7 +57,7 @@ func TestCopy(t *testing.T) {
 					}()
 
 					count := 0
-					err := Copy(func(typ uint8, err error, src, dst string) uint8 {
+					err := Copy(func(ctx context.Context, typ uint8, err error, stat *srcDstStat) uint8 {
 						require.Equal(t, ErrCtrlSameFile, typ)
 						count++
 						return ErrCtrlOpReplace
@@ -111,7 +111,7 @@ func TestCopy(t *testing.T) {
 					}()
 
 					count := 0
-					err := Copy(func(typ uint8, err error, src, dst string) uint8 {
+					err := Copy(func(ctx context.Context, typ uint8, err error, stat *srcDstStat) uint8 {
 						require.Equal(t, ErrCtrlSameFile, typ)
 						count++
 						return ErrCtrlOpReplace
@@ -132,7 +132,7 @@ func TestCopy(t *testing.T) {
 					}()
 
 					count := 0
-					err = Copy(func(typ uint8, err error, src, dst string) uint8 {
+					err = Copy(func(ctx context.Context, typ uint8, err error, stat *srcDstStat) uint8 {
 						require.Equal(t, ErrCtrlSameFileDir, typ)
 						count++
 						return ErrCtrlOpSkip
@@ -266,7 +266,7 @@ func TestCopy(t *testing.T) {
 				}()
 
 				count := 0
-				err = Copy(func(typ uint8, err error, src string, dst string) uint8 {
+				err = Copy(func(ctx context.Context, typ uint8, err error, stat *srcDstStat) uint8 {
 					require.Equal(t, ErrCtrlSameFileDir, typ)
 					count++
 					return ErrCtrlOpSkip
@@ -294,7 +294,7 @@ func TestCopy(t *testing.T) {
 				}()
 
 				count := 0
-				err := Copy(func(typ uint8, err error, src string, dst string) uint8 {
+				err := Copy(func(ctx context.Context, typ uint8, err error, stat *srcDstStat) uint8 {
 					require.Equal(t, ErrCtrlSameDirFile, typ)
 					count++
 					return ErrCtrlOpSkip
@@ -396,7 +396,7 @@ func TestCopy(t *testing.T) {
 			defer pg.Unpatch()
 
 			count := 0
-			err := Copy(func(typ uint8, err error, src string, dst string) uint8 {
+			err := Copy(func(_ context.Context, typ uint8, _ error, _ *srcDstStat) uint8 {
 				require.Equal(t, ErrCtrlCopyFailed, typ)
 				count++
 				pg.Unpatch()
@@ -420,7 +420,7 @@ func TestCopy(t *testing.T) {
 			defer pg.Unpatch()
 
 			count := 0
-			err := Copy(func(typ uint8, err error, src string, dst string) uint8 {
+			err := Copy(func(_ context.Context, typ uint8, _ error, _ *srcDstStat) uint8 {
 				require.Equal(t, ErrCtrlCopyFailed, typ)
 				count++
 				pg.Unpatch()
@@ -444,7 +444,7 @@ func TestCopy(t *testing.T) {
 			defer pg.Unpatch()
 
 			count := 0
-			err := Copy(func(typ uint8, err error, src string, dst string) uint8 {
+			err := Copy(func(_ context.Context, typ uint8, _ error, _ *srcDstStat) uint8 {
 				require.Equal(t, ErrCtrlCopyFailed, typ)
 				count++
 				pg.Unpatch()
@@ -455,4 +455,8 @@ func TestCopy(t *testing.T) {
 			require.Equal(t, 1, count)
 		})
 	})
+}
+
+func TestMove(t *testing.T) {
+
 }
