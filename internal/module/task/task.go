@@ -289,6 +289,11 @@ func (task *Task) Name() string {
 	return task.name
 }
 
+// Task is used to get raw task Interface.
+func (task *Task) Task() Interface {
+	return task.task
+}
+
 // State is used to get the state about current task.
 func (task *Task) State() string {
 	return task.fsm.Current()

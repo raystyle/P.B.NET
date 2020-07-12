@@ -160,6 +160,7 @@ func TestTask(t *testing.T) {
 		task.Continue()
 
 		t.Log(task.Name())
+		t.Log(task.Task())
 		t.Log(task.State())
 		t.Log(task.Progress())
 		t.Log(task.Detail())
