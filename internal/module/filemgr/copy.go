@@ -234,6 +234,10 @@ retry:
 		if ne != nil {
 			return ne
 		}
+		if file.stat.IsDir() {
+			ct.skipDirs = append(ct.skipDirs, file.path)
+			return nil
+		}
 		ct.updateCurrent(file.stat.Size(), true)
 		return nil
 	}
@@ -308,6 +312,7 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *SrcDst
 			if ne != nil {
 				return ne
 			}
+			ct.skipDirs = append(ct.skipDirs, stats.SrcAbs)
 		}
 		ct.updateCurrent(stats.SrcStat.Size(), true)
 		return nil
@@ -511,8 +516,6 @@ func Copy(errCtrl ErrCtrl, src, dst string) error {
 func CopyWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string) error {
 	ct := NewCopyTask(errCtrl, src, dst, nil)
 	if done := ctx.Done(); done != nil {
-		finish := make(chan struct{})
-		defer close(finish)
 		// if ctx is canceled
 		select {
 		case <-done:
@@ -520,6 +523,8 @@ func CopyWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string) erro
 		default:
 		}
 		// start a goroutine to watch ctx
+		finish := make(chan struct{})
+		defer close(finish)
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {

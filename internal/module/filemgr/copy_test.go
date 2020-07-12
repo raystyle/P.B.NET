@@ -531,6 +531,99 @@ func TestCopyWithNotice(t *testing.T) {
 		})
 	})
 
+	t.Run("FailedToCopyDir", func(t *testing.T) {
+		patch := func(name string) (os.FileInfo, error) {
+			abs, err := filepath.Abs(filepath.Join(dstDir, srcDir2))
+			if err != nil {
+				return nil, err
+			}
+			if name == abs {
+				return nil, monkey.Error
+			}
+			stat, err := os.Stat(name)
+			if err != nil {
+				if !os.IsNotExist(err) {
+					return nil, err
+				}
+			}
+			return stat, nil
+		}
+		pg := monkey.Patch(stat, patch)
+		defer pg.Unpatch()
+
+		t.Run("retry", func(t *testing.T) {
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+			err := Copy(ec, srcDir, dstDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			pg.Restore()
+
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpSkip
+			}
+			err := Copy(ec, srcDir, dstDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			pg.Restore()
+
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpCancel
+			}
+			err := Copy(ec, srcDir, dstDir)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+		})
+	})
+
 	t.Run("FailedToCopy", func(t *testing.T) {
 		patch := func(*task.Task, func(int64), io.Writer, io.Reader) (int64, error) {
 			return 0, monkey.Error
