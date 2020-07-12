@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/looplab/fsm"
+	"github.com/pkg/errors"
 
 	"project/internal/convert"
 	"project/internal/module/task"
@@ -25,7 +26,8 @@ type copyTask struct {
 	dst     string
 	stats   *srcDstStat
 
-	files []*fileStat
+	files    []*fileStat
+	skipDirs []string
 
 	current *big.Float
 	total   *big.Float
@@ -183,58 +185,90 @@ func (ct *copyTask) copyDirFiles(ctx context.Context, task *task.Task) error {
 	if ct.stats.dstStat == nil {
 		err := os.MkdirAll(ct.stats.dstAbs, ct.stats.srcStat.Mode().Perm())
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to create destination directory")
 		}
 	}
-	// used to store skipped directories
-	var skippedDirs []string
-	// must check root path special, otherwise will appear zero relative ath
-next:
+	// must check root path special, otherwise will appear zero relative path
 	for _, file := range ct.files[1:] {
-		// check task is canceled
-		if task.Canceled() {
-			return context.Canceled
+		err := ct.copyDirFile(ctx, task, file)
+		if err != nil {
+			return errors.Wrap(err, "failed to copy file")
 		}
-		// skip file in skipped directories
-		for i := 0; i < len(skippedDirs); i++ {
-			if strings.HasPrefix(file.path, skippedDirs[i]) {
-				continue next
-			}
+	}
+	return nil
+}
+
+func (ct *copyTask) copyDirFile(ctx context.Context, task *task.Task, file *fileStat) error {
+	// skip file in skipped directories
+	for i := 0; i < len(ct.skipDirs); i++ {
+		if strings.HasPrefix(file.path, ct.skipDirs[i]) {
+			ct.updateCurrent(file.stat.Size(), true)
+			return nil
 		}
-		// C:\test\a.exe -> a.exe
-		// C:\test\dir\a.exe -> dir\a.exe
-		relativePath := strings.ReplaceAll(file.path, ct.stats.srcAbs, "")
-		relativePath = string([]rune(relativePath)[1:]) // remove the first "\" or "/"
-		dstAbs := filepath.Join(ct.stats.dstAbs, relativePath)
-	retry: // dstStat maybe updated
-		dstStat, err := stat(dstAbs)
+	}
+	// C:\test\a.exe -> a.exe
+	// C:\test\dir\a.exe -> dir\a.exe
+	relativePath := strings.ReplaceAll(file.path, ct.stats.srcAbs, "")
+	relativePath = string([]rune(relativePath)[1:]) // remove the first "\" or "/"
+	dstAbs := filepath.Join(ct.stats.dstAbs, relativePath)
+retry:
+	// check task is canceled
+	if task.Canceled() {
+		return context.Canceled
+	}
+	// dstStat maybe updated
+	dstStat, err := stat(dstAbs)
+	if err != nil {
+		retry, err := noticeFailedToCopyDir(ctx, task, ct.errCtrl, dstAbs, err)
+		if retry {
+			goto retry
+		}
 		if err != nil {
 			return err
 		}
-		newStats := &srcDstStat{
-			srcAbs:  file.path,
-			dstAbs:  dstAbs,
-			srcStat: file.stat,
-			dstStat: dstStat,
+		ct.updateCurrent(file.stat.Size(), true)
+		return nil
+	}
+	newStats := &srcDstStat{
+		srcAbs:  file.path,
+		dstAbs:  dstAbs,
+		srcStat: file.stat,
+		dstStat: dstStat,
+	}
+	if file.stat.IsDir() {
+		if dstStat == nil {
+			return ct.mkDir(ctx, task, file, dstAbs)
 		}
-		if file.stat.IsDir() {
-			if dstStat == nil {
-				return os.MkdirAll(dstAbs, file.stat.Mode().Perm())
+		if !dstStat.IsDir() {
+			retry, err := noticeSameDirFile(ctx, task, ct.errCtrl, newStats)
+			if retry {
+				goto retry
 			}
-			if !dstStat.IsDir() {
-				retry, err := noticeSameDirFile(ctx, task, ct.errCtrl, newStats)
-				if retry {
-					goto retry
-				}
-				if err != nil {
-					return err
-				}
-				skippedDirs = append(skippedDirs, file.path)
+			if err != nil {
+				return err
 			}
-			return nil
+			ct.skipDirs = append(ct.skipDirs, file.path)
 		}
-		ct.copyFile(ctx, task, newStats)
+		return nil
+	}
+	return ct.copyFile(ctx, task, newStats)
+}
 
+func (ct *copyTask) mkDir(ctx context.Context, task *task.Task, file *fileStat, dstAbs string) error {
+retry:
+	// check task is canceled
+	if task.Canceled() {
+		return context.Canceled
+	}
+	err := os.MkdirAll(dstAbs, file.stat.Mode().Perm())
+	if err != nil {
+		retry, err := noticeFailedToCopyDir(ctx, task, ct.errCtrl, dstAbs, err)
+		if retry {
+			goto retry
+		}
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -249,6 +283,7 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDst
 	srcSize := convert.ByteToString(uint64(stats.srcStat.Size()))
 	const format = "copying file, name: %s size: %s\nsrc: %s\ndst: %s"
 	ct.updateDetail(fmt.Sprintf(format, srcFileName, srcSize, stats.srcAbs, stats.dstAbs))
+
 	// check dst file is exist
 	if stats.dstStat != nil {
 		if stats.dstStat.IsDir() {
@@ -256,7 +291,6 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDst
 			if retry {
 				return ct.retryCopyFile(ctx, task, stats)
 			}
-			// update total
 			ct.updateCurrent(stats.srcStat.Size(), true)
 			return err
 		}
@@ -293,12 +327,21 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDst
 	if err != nil {
 		return
 	}
-	defer func() { _ = dstFile.Close() }()
+	var ok bool
+	defer func() {
+		_ = dstFile.Close()
+		if !ok {
+			_ = os.Remove(stats.dstAbs)
+		}
+	}()
+	// update progress(actual size maybe changed)
+	err = ct.updateActualProgress(srcFile, stats)
+	if err != nil {
+		return
+	}
 	// copy file
 	copied, err = ioCopy(task, ct.ioCopyAdd, dstFile, srcFile)
 	if err != nil {
-		_ = dstFile.Close()
-		_ = os.Remove(stats.dstAbs)
 		return
 	}
 	// sync
@@ -308,7 +351,29 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDst
 	}
 	// set the modification time about the dst file
 	modTime := stats.srcStat.ModTime()
-	return os.Chtimes(stats.dstAbs, modTime, modTime)
+	err = os.Chtimes(stats.dstAbs, modTime, modTime)
+	if err != nil {
+		return
+	}
+	ok = true
+	return
+}
+
+func (ct *copyTask) updateActualProgress(srcFile *os.File, stats *srcDstStat) error {
+	stat, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+	// update total(must update in one operation)
+	// total - old size + new size = total + (new size - old size)
+	newSize := stat.Size()
+	oldSize := stats.srcStat.Size()
+	if newSize != oldSize {
+		delta := newSize - oldSize
+		ct.updateTotal(delta, true)
+	}
+	stats.srcStat = stat
+	return nil
 }
 
 func (ct *copyTask) ioCopyAdd(delta int64) {
@@ -327,8 +392,12 @@ func (ct *copyTask) retryCopyFile(ctx context.Context, task *task.Task, stats *s
 	}
 	// update total(must update in one operation)
 	// total - old size + new size = total + (new size - old size)
-	delta := srcStat.Size() - stats.srcStat.Size()
-	ct.updateTotal(delta, true)
+	newSize := srcStat.Size()
+	oldSize := stats.srcStat.Size()
+	if newSize != oldSize {
+		delta := newSize - oldSize
+		ct.updateTotal(delta, true)
+	}
 	stats.srcStat = srcStat
 	stats.dstStat = dstStat
 	return ct.copyFile(ctx, task, stats)
@@ -407,7 +476,7 @@ func (ct *copyTask) Clean() {}
 
 // Copy is used to create a copyTask to copy src to dst.
 func Copy(errCtrl ErrCtrl, src, dst string) error {
-	return NewCopyTask(errCtrl, src, dst, nil).Start()
+	return CopyWithContext(context.Background(), errCtrl, src, dst)
 }
 
 // CopyWithContext is used to create a copyTask with context.
@@ -434,5 +503,14 @@ func CopyWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string) erro
 			}
 		}()
 	}
-	return ct.Start()
+	err := ct.Start()
+	if err != nil {
+		return err
+	}
+	// check progress
+	progress := ct.Progress()
+	if progress != "100%" {
+		return errors.New("unexpected progress: " + progress)
+	}
+	return nil
 }

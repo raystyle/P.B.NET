@@ -40,8 +40,9 @@ const (
 	ErrCtrlSameFile            // two same name file
 	ErrCtrlSameFileDir         // same src file name with dst directory
 	ErrCtrlSameDirFile         // same src directory name with dst file name
-	ErrCtrlCollectFailed       // appear error when collect directory information
-	ErrCtrlCopyFailed          // appear error when copy file
+	ErrCtrlCollectFailed       // appear error in collectDirInfo()
+	ErrCtrlCopyFailed          // appear error in copyFile()
+	ErrCtrlCopyDirFailed       // appear error in copyDirFile()
 )
 
 // operation code about ErrCtrl
@@ -199,12 +200,12 @@ func noticeFailedToCollect(
 	task *task.Task,
 	errCtrl ErrCtrl,
 	path string,
-	e error,
+	extError error,
 ) (retry bool, err error) {
 	task.Pause()
 	defer task.Continue()
 	stats := srcDstStat{srcAbs: path}
-	switch code := errCtrl(ctx, ErrCtrlCollectFailed, e, &stats); code {
+	switch code := errCtrl(ctx, ErrCtrlCollectFailed, extError, &stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
@@ -222,11 +223,34 @@ func noticeFailedToCopy(
 	task *task.Task,
 	errCtrl ErrCtrl,
 	stats *srcDstStat,
-	e error,
+	extError error,
 ) (retry bool, err error) {
 	task.Pause()
 	defer task.Continue()
-	switch code := errCtrl(ctx, ErrCtrlCopyFailed, e, stats); code {
+	switch code := errCtrl(ctx, ErrCtrlCopyFailed, extError, stats); code {
+	case ErrCtrlOpRetry:
+		retry = true
+	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
+	case ErrCtrlOpCancel:
+		err = ErrUserCanceled
+	default:
+		err = errors.Errorf("unknown failed to copy operation code: %d", code)
+	}
+	return
+}
+
+// noticeFailedToCopyDir is used to notice appear some error about copyDirFile.
+func noticeFailedToCopyDir(
+	ctx context.Context,
+	task *task.Task,
+	errCtrl ErrCtrl,
+	path string,
+	extError error,
+) (retry bool, err error) {
+	task.Pause()
+	defer task.Continue()
+	stats := srcDstStat{srcAbs: path}
+	switch code := errCtrl(ctx, ErrCtrlCopyDirFailed, extError, &stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
