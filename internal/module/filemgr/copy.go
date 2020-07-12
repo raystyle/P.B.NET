@@ -126,14 +126,14 @@ func (ct *copyTask) copySrcFile(ctx context.Context, task *task.Task) error {
 func (ct *copyTask) copySrcDir(ctx context.Context, task *task.Task) error {
 	err := ct.collectDirInfo(ctx, task)
 	if err != nil {
-		return err
+		return errors.WithMessage(err, "failed to collect directory information")
 	}
 	return ct.copyDirFiles(ctx, task)
 }
 
 // collect will collect directory information for calculate total size.
 func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
-	ct.files = make([]*fileStat, 64)
+	ct.files = make([]*fileStat, 0, 64)
 	walkFunc := func(srcAbs string, srcStat os.FileInfo, err error) error {
 		// for retry
 		var walkFailed bool
@@ -169,7 +169,7 @@ func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 			const format = "collecting directory information\npath: %s"
 			ct.updateDetail(fmt.Sprintf(format, srcAbs))
 		} else {
-			// collecting directory information
+			// collecting file information
 			// path: C:\testdata\test
 			const format = "collecting file information\npath: %s"
 			ct.updateDetail(fmt.Sprintf(format, srcAbs))
@@ -189,7 +189,7 @@ func (ct *copyTask) copyDirFiles(ctx context.Context, task *task.Task) error {
 			return errors.Wrap(err, "failed to create destination directory")
 		}
 	}
-	// must check root path special, otherwise will appear zero relative path
+	// must skip root path, otherwise will appear zero relative path
 	for _, file := range ct.files[1:] {
 		err := ct.copyDirFile(ctx, task, file)
 		if err != nil {
@@ -200,7 +200,7 @@ func (ct *copyTask) copyDirFiles(ctx context.Context, task *task.Task) error {
 }
 
 func (ct *copyTask) copyDirFile(ctx context.Context, task *task.Task, file *fileStat) error {
-	// skip file in skipped directories
+	// skip file if it in skipped directories
 	for i := 0; i < len(ct.skipDirs); i++ {
 		if strings.HasPrefix(file.path, ct.skipDirs[i]) {
 			ct.updateCurrent(file.stat.Size(), true)
@@ -278,7 +278,34 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *srcDst
 	if task.Canceled() {
 		return context.Canceled
 	}
-	// update detail, output:
+	// check src file is become directory
+	srcStat, err := os.Stat(stats.srcAbs)
+	if err != nil {
+		retry, ne := noticeFailedToCopy(ctx, task, ct.errCtrl, stats, err)
+		if retry {
+			return ct.retryCopyFile(ctx, task, stats)
+		}
+		if ne != nil {
+			return ne
+		}
+		ct.updateCurrent(stats.srcStat.Size(), true)
+		return nil
+	}
+	if srcStat.IsDir() {
+		err = os.MkdirAll(stats.dstAbs, srcStat.Mode().Perm())
+		if err != nil {
+			retry, ne := noticeFailedToCopy(ctx, task, ct.errCtrl, stats, err)
+			if retry {
+				return ct.retryCopyFile(ctx, task, stats)
+			}
+			if ne != nil {
+				return ne
+			}
+		}
+		ct.updateCurrent(stats.srcStat.Size(), true)
+		return nil
+	}
+	// update current task detail, output:
 	//   copying file, name: test.dat size: 1.127MB
 	//   src: C:\testdata\test.dat
 	//   dst: D:\test\test.dat
@@ -328,7 +355,7 @@ func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *srcDstSt
 	}
 	defer func() { _ = srcFile.Close() }()
 	// update progress(actual size maybe changed)
-	err = ct.updateSrcFile(srcFile, stats)
+	err = ct.updateSrcFileStat(srcFile, stats)
 	if err != nil {
 		return
 	}
@@ -366,7 +393,7 @@ func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *srcDstSt
 	return
 }
 
-func (ct *copyTask) updateSrcFile(srcFile *os.File, stats *srcDstStat) error {
+func (ct *copyTask) updateSrcFileStat(srcFile *os.File, stats *srcDstStat) error {
 	srcStat, err := srcFile.Stat()
 	if err != nil {
 		return err
@@ -389,15 +416,10 @@ func (ct *copyTask) ioCopyAdd(delta int64) {
 
 // retryCopyFile will update src and dst file stat.
 func (ct *copyTask) retryCopyFile(ctx context.Context, task *task.Task, stats *srcDstStat) error {
-	srcStat, err := os.Stat(stats.srcAbs)
-	if err != nil {
-		return err
-	}
 	dstStat, err := stat(stats.dstAbs)
 	if err != nil {
 		return err
 	}
-	stats.srcStat = srcStat
 	stats.dstStat = dstStat
 	return ct.copyFile(ctx, task, stats)
 }
@@ -484,11 +506,13 @@ func CopyWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string) erro
 	if done := ctx.Done(); done != nil {
 		innerCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
+		// if ctx is canceled
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
+		// start a goroutine to watch ctx
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
