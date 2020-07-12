@@ -2,6 +2,7 @@ package filemgr
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -92,6 +93,27 @@ func testCompareDirectory(t *testing.T, a, b string) {
 	}
 }
 
+type mockTask struct{}
+
+func (mockTask) Prepare(context.Context) error {
+	return nil
+}
+
+func (mockTask) Process(context.Context, *task.Task) error {
+	return nil
+}
+
+func (mockTask) Progress() string {
+	return ""
+}
+
+func (mockTask) Detail() string {
+	return ""
+}
+
+func (mockTask) Clean() {
+}
+
 type notEqualWriter struct{}
 
 func (notEqualWriter) Write([]byte) (int, error) {
@@ -114,5 +136,50 @@ func TestIOCopy(t *testing.T) {
 		require.Equal(t, int64(len(testdata)), n)
 
 		require.Equal(t, testdata, writeBuf.Bytes())
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		fakeTask := task.New("fake task", new(mockTask), nil)
+		fakeTask.Cancel()
+		readBuf := new(bytes.Buffer)
+		writeBuf := new(bytes.Buffer)
+
+		readBuf.Write(testdata)
+
+		n, err := ioCopy(fakeTask, add, writeBuf, readBuf)
+		require.Equal(t, context.Canceled, err)
+		require.Zero(t, n)
+	})
+
+	t.Run("failed to read", func(t *testing.T) {
+		fakeTask := task.New("fake task", nil, nil)
+		reader := testsuite.NewMockConnWithReadError()
+		writer := new(bytes.Buffer)
+
+		n, err := ioCopy(fakeTask, add, writer, reader)
+		require.Error(t, err)
+		require.Equal(t, int64(0), n)
+	})
+
+	t.Run("failed to write", func(t *testing.T) {
+		fakeTask := task.New("fake task", nil, nil)
+		reader := new(bytes.Buffer)
+		reader.Write([]byte{1, 2, 3})
+		writer := testsuite.NewMockConnWithWriteError()
+
+		n, err := ioCopy(fakeTask, add, writer, reader)
+		require.Error(t, err)
+		require.Equal(t, int64(0), n)
+	})
+
+	t.Run("written not equal", func(t *testing.T) {
+		fakeTask := task.New("fake task", nil, nil)
+		reader := new(bytes.Buffer)
+		reader.Write([]byte{1, 2, 3})
+		writer := new(notEqualWriter)
+
+		n, err := ioCopy(fakeTask, add, writer, reader)
+		require.Error(t, err)
+		require.Equal(t, int64(0), n)
 	})
 }
