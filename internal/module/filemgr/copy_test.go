@@ -808,19 +808,109 @@ func TestCopyWithNotice(t *testing.T) {
 
 	t.Run("SameDirFile", func(t *testing.T) {
 		t.Run("retry", func(t *testing.T) {
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
 
+			// create same name file with src dir
+			path := filepath.Join(dstDir, srcDir2)
+			testCreateFile(t, path)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, _ error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameDirFile, typ)
+				count++
+				err := os.Remove(path)
+				require.NoError(t, err)
+				return ErrCtrlOpRetry
+			}
+			err = Copy(ec, srcDir, dstDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
 		})
 
 		t.Run("skip", func(t *testing.T) {
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
 
+			// create same name file with src dir
+			path := filepath.Join(dstDir, srcDir2)
+			testCreateFile(t, path)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, _ error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameDirFile, typ)
+				count++
+				return ErrCtrlOpSkip
+			}
+			err = Copy(ec, srcDir, dstDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
 		})
 
 		t.Run("user cancel", func(t *testing.T) {
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
 
+			// create same name file with src dir
+			path := filepath.Join(dstDir, srcDir2)
+			testCreateFile(t, path)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, _ error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameDirFile, typ)
+				count++
+				return ErrCtrlOpCancel
+			}
+			err = Copy(ec, srcDir, dstDir)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
 		})
 
 		t.Run("unknown operation", func(t *testing.T) {
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
 
+			// create same name file with src dir
+			path := filepath.Join(dstDir, srcDir2)
+			testCreateFile(t, path)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, _ error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameDirFile, typ)
+				count++
+				return ErrCtrlOpInvalid
+			}
+			err = Copy(ec, srcDir, dstDir)
+			require.Error(t, err)
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
 		})
 	})
 
