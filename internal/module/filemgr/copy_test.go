@@ -460,7 +460,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 		t.Run("retry", func(t *testing.T) {
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -486,7 +486,7 @@ func TestCopyWithNotice(t *testing.T) {
 			pg.Restore()
 
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -512,7 +512,7 @@ func TestCopyWithNotice(t *testing.T) {
 			pg.Restore()
 
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -534,7 +534,7 @@ func TestCopyWithNotice(t *testing.T) {
 			pg.Restore()
 
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -575,7 +575,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 		t.Run("retry", func(t *testing.T) {
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -671,7 +671,7 @@ func TestCopyWithNotice(t *testing.T) {
 	t.Run("FailedToCopyDir-mkdir", func(t *testing.T) {
 		t.Run("retry", func(t *testing.T) {
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -705,7 +705,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 		t.Run("skip", func(t *testing.T) {
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -739,7 +739,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 		t.Run("user cancel", func(t *testing.T) {
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -773,7 +773,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 		t.Run("unknown operation", func(t *testing.T) {
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -809,7 +809,7 @@ func TestCopyWithNotice(t *testing.T) {
 	t.Run("SameDirFile", func(t *testing.T) {
 		t.Run("retry", func(t *testing.T) {
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -825,7 +825,7 @@ func TestCopyWithNotice(t *testing.T) {
 				require.NoError(t, err)
 				return ErrCtrlOpRetry
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err := Copy(ec, srcDir, dstDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -837,7 +837,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 		t.Run("skip", func(t *testing.T) {
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -851,7 +851,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpSkip
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err := Copy(ec, srcDir, dstDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -863,7 +863,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 		t.Run("user cancel", func(t *testing.T) {
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -877,7 +877,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpCancel
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err := Copy(ec, srcDir, dstDir)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
@@ -889,7 +889,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 		t.Run("unknown operation", func(t *testing.T) {
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -903,7 +903,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpInvalid
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err := Copy(ec, srcDir, dstDir)
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
@@ -928,7 +928,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 		t.Run("retry", func(t *testing.T) {
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -940,7 +940,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpRetry
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err := Copy(ec, srcDir, dstDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -954,7 +954,7 @@ func TestCopyWithNotice(t *testing.T) {
 			pg.Restore()
 
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -966,7 +966,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpSkip
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err := Copy(ec, srcDir, dstDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -980,7 +980,7 @@ func TestCopyWithNotice(t *testing.T) {
 			pg.Restore()
 
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -992,7 +992,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpCancel
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err := Copy(ec, srcDir, dstDir)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
@@ -1006,7 +1006,7 @@ func TestCopyWithNotice(t *testing.T) {
 			pg.Restore()
 
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -1030,7 +1030,215 @@ func TestCopyWithNotice(t *testing.T) {
 	})
 
 	t.Run("FailedToCopy-copyFile-IsDir", func(t *testing.T) {
+		// create same name file and replace src file to dir and retry
+		t.Run("retry", func(t *testing.T) {
+			defer func() {
+				err := os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
 
+			// create same name file with src file
+			src := filepath.Join(srcDir, srcFile1)
+			dst := filepath.Join(dstDir, srcFile1)
+			err := os.MkdirAll(dst, 0750)
+			require.NoError(t, err)
+
+			patch := func(string, os.FileMode) error {
+				return monkey.Error
+			}
+			var pg *monkey.PatchGuard
+			defer func() { pg.Unpatch() }()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				if typ == ErrCtrlSameFileDir {
+					require.NoError(t, err)
+
+					err := os.Remove(src)
+					require.NoError(t, err)
+					err = os.Remove(dst)
+					require.NoError(t, err)
+					err = os.MkdirAll(src, 0750)
+					require.NoError(t, err)
+
+					pg = monkey.Patch(os.MkdirAll, patch)
+					return ErrCtrlOpRetry
+				}
+
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+			err = Copy(ec, srcDir, dstDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			defer func() {
+				err := os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			// recover src file and create same name file with src file
+			src := filepath.Join(srcDir, srcFile1)
+			err := os.Remove(src)
+			require.NoError(t, err)
+			testCreateFile(t, src)
+			dst := filepath.Join(dstDir, srcFile1)
+			err = os.MkdirAll(dst, 0750)
+			require.NoError(t, err)
+
+			patch := func(string, os.FileMode) error {
+				return monkey.Error
+			}
+			var pg *monkey.PatchGuard
+			defer func() { pg.Unpatch() }()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				if typ == ErrCtrlSameFileDir {
+					require.NoError(t, err)
+
+					err := os.Remove(src)
+					require.NoError(t, err)
+					err = os.Remove(dst)
+					require.NoError(t, err)
+					err = os.MkdirAll(src, 0750)
+					require.NoError(t, err)
+
+					pg = monkey.Patch(os.MkdirAll, patch)
+					return ErrCtrlOpRetry
+				}
+
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpSkip
+			}
+			err = Copy(ec, srcDir, dstDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			defer func() {
+				err := os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			// recover src file and create same name file with src file
+			src := filepath.Join(srcDir, srcFile1)
+			err := os.Remove(src)
+			require.NoError(t, err)
+			testCreateFile(t, src)
+			dst := filepath.Join(dstDir, srcFile1)
+			err = os.MkdirAll(dst, 0750)
+			require.NoError(t, err)
+
+			patch := func(string, os.FileMode) error {
+				return monkey.Error
+			}
+			var pg *monkey.PatchGuard
+			defer func() { pg.Unpatch() }()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				if typ == ErrCtrlSameFileDir {
+					require.NoError(t, err)
+
+					err := os.Remove(src)
+					require.NoError(t, err)
+					err = os.Remove(dst)
+					require.NoError(t, err)
+					err = os.MkdirAll(src, 0750)
+					require.NoError(t, err)
+
+					pg = monkey.Patch(os.MkdirAll, patch)
+					return ErrCtrlOpRetry
+				}
+
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpCancel
+			}
+			err = Copy(ec, srcDir, dstDir)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			defer func() {
+				err := os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			// recover src file and create same name file with src file
+			src := filepath.Join(srcDir, srcFile1)
+			err := os.Remove(src)
+			require.NoError(t, err)
+			testCreateFile(t, src)
+			dst := filepath.Join(dstDir, srcFile1)
+			err = os.MkdirAll(dst, 0750)
+			require.NoError(t, err)
+
+			patch := func(string, os.FileMode) error {
+				return monkey.Error
+			}
+			var pg *monkey.PatchGuard
+			defer func() { pg.Unpatch() }()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				if typ == ErrCtrlSameFileDir {
+					require.NoError(t, err)
+
+					err := os.Remove(src)
+					require.NoError(t, err)
+					err = os.Remove(dst)
+					require.NoError(t, err)
+					err = os.MkdirAll(src, 0750)
+					require.NoError(t, err)
+
+					pg = monkey.Patch(os.MkdirAll, patch)
+					return ErrCtrlOpRetry
+				}
+
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpInvalid
+			}
+			err = Copy(ec, srcDir, dstDir)
+			require.Error(t, err)
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
+		})
 	})
 
 	t.Run("FailedToCopy-ioCopy", func(t *testing.T) {
@@ -1042,7 +1250,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 		t.Run("retry", func(t *testing.T) {
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -1068,7 +1276,7 @@ func TestCopyWithNotice(t *testing.T) {
 			pg.Restore()
 
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -1080,7 +1288,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpSkip
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err := Copy(ec, srcDir, dstDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -1094,7 +1302,7 @@ func TestCopyWithNotice(t *testing.T) {
 			pg.Restore()
 
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -1110,13 +1318,17 @@ func TestCopyWithNotice(t *testing.T) {
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
 		})
 
 		t.Run("unknown operation", func(t *testing.T) {
 			pg.Restore()
 
 			defer func() {
-				err = os.RemoveAll(dstDir)
+				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
 			}()
 
@@ -1132,6 +1344,10 @@ func TestCopyWithNotice(t *testing.T) {
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
 		})
 	})
 }
