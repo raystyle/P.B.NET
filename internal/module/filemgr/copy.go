@@ -281,6 +281,7 @@ retry:
 		if ne != nil {
 			return ne
 		}
+		ct.skipDirs = append(ct.skipDirs, file.path)
 	}
 	return nil
 }
