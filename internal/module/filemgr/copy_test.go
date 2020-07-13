@@ -1035,6 +1035,12 @@ func TestCopyWithNotice(t *testing.T) {
 			defer func() {
 				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
+
+				// recover src file
+				src := filepath.Join(srcDir, srcFile1)
+				err = os.Remove(src)
+				require.NoError(t, err)
+				testCreateFile(t, src)
 			}()
 
 			// create same name file with src file
@@ -1085,13 +1091,16 @@ func TestCopyWithNotice(t *testing.T) {
 			defer func() {
 				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
+
+				// recover src file
+				src := filepath.Join(srcDir, srcFile1)
+				err = os.Remove(src)
+				require.NoError(t, err)
+				testCreateFile(t, src)
 			}()
 
 			// recover src file and create same name file with src file
 			src := filepath.Join(srcDir, srcFile1)
-			err := os.Remove(src)
-			require.NoError(t, err)
-			testCreateFile(t, src)
 			dst := filepath.Join(dstDir, srcFile1)
 			err = os.MkdirAll(dst, 0750)
 			require.NoError(t, err)
@@ -1138,13 +1147,16 @@ func TestCopyWithNotice(t *testing.T) {
 			defer func() {
 				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
+
+				// recover src file
+				src := filepath.Join(srcDir, srcFile1)
+				err = os.Remove(src)
+				require.NoError(t, err)
+				testCreateFile(t, src)
 			}()
 
 			// recover src file and create same name file with src file
 			src := filepath.Join(srcDir, srcFile1)
-			err := os.Remove(src)
-			require.NoError(t, err)
-			testCreateFile(t, src)
 			dst := filepath.Join(dstDir, srcFile1)
 			err = os.MkdirAll(dst, 0750)
 			require.NoError(t, err)
@@ -1191,13 +1203,16 @@ func TestCopyWithNotice(t *testing.T) {
 			defer func() {
 				err := os.RemoveAll(dstDir)
 				require.NoError(t, err)
+
+				// recover src file
+				src := filepath.Join(srcDir, srcFile1)
+				err = os.Remove(src)
+				require.NoError(t, err)
+				testCreateFile(t, src)
 			}()
 
-			// recover src file and create same name file with src file
+			// create same name file with src file
 			src := filepath.Join(srcDir, srcFile1)
-			err := os.Remove(src)
-			require.NoError(t, err)
-			testCreateFile(t, src)
 			dst := filepath.Join(dstDir, srcFile1)
 			err = os.MkdirAll(dst, 0750)
 			require.NoError(t, err)
@@ -1258,7 +1273,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpReplace
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err := Copy(ec, srcDir, dstDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -1284,7 +1299,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpSkip
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err := Copy(ec, srcDir, dstDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -1310,7 +1325,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpCancel
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err := Copy(ec, srcDir, dstDir)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
@@ -1336,7 +1351,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpInvalid
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err := Copy(ec, srcDir, dstDir)
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
@@ -1459,6 +1474,9 @@ func TestCopyWithNotice(t *testing.T) {
 }
 
 func TestCopyTask_Progress(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	const (
 		srcDir   = "testdata/dir"
 		srcFile1 = "file1.dat"
