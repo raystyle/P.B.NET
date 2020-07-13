@@ -47,7 +47,7 @@ const (
 
 // operation code about ErrCtrl
 const (
-	_                uint8 = iota
+	ErrCtrlOpInvalid uint8 = iota
 	ErrCtrlOpReplace       // replace same name file
 	ErrCtrlOpSkip          // skip same name file, directory or copy
 	ErrCtrlOpRetry         // try to copy or move again

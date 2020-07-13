@@ -529,9 +529,31 @@ func TestCopyWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			pg.Restore()
+
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpInvalid
+			}
+			err := Copy(ec, srcDir, dstDir)
+			require.Error(t, err)
+
+			require.Equal(t, 1, count)
+		})
 	})
 
-	t.Run("FailedToCopyDir", func(t *testing.T) {
+	t.Run("FailedToCopyDir-copyDirFile", func(t *testing.T) {
 		patch := func(name string) (os.FileInfo, error) {
 			abs, err := filepath.Abs(filepath.Join(dstDir, srcDir2))
 			if err != nil {
@@ -622,9 +644,75 @@ func TestCopyWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			pg.Restore()
+
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpInvalid
+			}
+			err := Copy(ec, srcDir, dstDir)
+			require.Error(t, err)
+
+			require.Equal(t, 1, count)
+		})
 	})
 
-	t.Run("FailedToCopy", func(t *testing.T) {
+	t.Run("FailedToCopyDir-mkdir", func(t *testing.T) {
+		t.Run("retry", func(t *testing.T) {
+			t.Skip()
+
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Error(t, err)
+				count++
+				// pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+			err := Copy(ec, srcDir, dstDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			exist, err := system.IsExist(dstDir)
+			require.NoError(t, err)
+			require.True(t, exist)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+
+		})
+	})
+
+	t.Run("FailedToCopy-copyFile-os.Stat", func(t *testing.T) {
+
+	})
+
+	t.Run("FailedToCopy-copyFile-IsDir", func(t *testing.T) {
+
+	})
+
+	t.Run("FailedToCopy-ioCopy", func(t *testing.T) {
 		patch := func(*task.Task, func(int64), io.Writer, io.Reader) (int64, error) {
 			return 0, monkey.Error
 		}
@@ -699,6 +787,28 @@ func TestCopyWithNotice(t *testing.T) {
 			}
 			err := Copy(ec, srcDir, dstDir)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			pg.Restore()
+
+			defer func() {
+				err = os.RemoveAll(dstDir)
+				require.NoError(t, err)
+			}()
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				require.Error(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpInvalid
+			}
+			err := Copy(ec, srcDir, dstDir)
+			require.Error(t, err)
 
 			require.Equal(t, 1, count)
 		})
