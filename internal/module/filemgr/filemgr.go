@@ -41,16 +41,16 @@ const (
 	ErrCtrlSameFileDir         // same src file name with dst directory
 	ErrCtrlSameDirFile         // same src directory name with dst file name
 	ErrCtrlCollectFailed       // appear error in collectDirInfo()
-	ErrCtrlCopyFailed          // appear error in copyFile()
 	ErrCtrlCopyDirFailed       // appear error in copyDirFile()
+	ErrCtrlCopyFailed          // appear error in copyFile()
 )
 
 // operation code about ErrCtrl
 const (
 	ErrCtrlOpInvalid uint8 = iota
 	ErrCtrlOpReplace       // replace same name file
-	ErrCtrlOpSkip          // skip same name file, directory or copy
 	ErrCtrlOpRetry         // try to copy or move again
+	ErrCtrlOpSkip          // skip same name file, directory or copy
 	ErrCtrlOpCancel        // cancel whole copy or move operation
 )
 
