@@ -17,6 +17,7 @@ import (
 const (
 	TaskNameCopy       = "copy"
 	TaskNameMove       = "move"
+	TaskNameDelete     = "delete"
 	TaskNameCompress   = "compress"
 	TaskNameDecompress = "decompress"
 )

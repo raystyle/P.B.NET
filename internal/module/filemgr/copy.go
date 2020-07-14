@@ -49,7 +49,7 @@ func NewCopyTask(errCtrl ErrCtrl, src, dst string, callbacks fsm.Callbacks) *tas
 	return task.New(TaskNameCopy, &ct, callbacks)
 }
 
-// Prepare will check src and dst path.
+// Prepare will check source and destination path.
 func (ct *copyTask) Prepare(context.Context) error {
 	stats, err := checkSrcDstPath(ct.src, ct.dst)
 	if err != nil {
@@ -431,7 +431,7 @@ func (ct *copyTask) ioCopyAdd(delta int64) {
 	ct.updateCurrent(delta, true)
 }
 
-// retryCopyFile will update src and dst file stat.
+// retryCopyFile will update source and destination file stat.
 func (ct *copyTask) retryCopyFile(ctx context.Context, task *task.Task, stats *SrcDstStat) error {
 	dstStat, err := stat(stats.DstAbs)
 	if err != nil {

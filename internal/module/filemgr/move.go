@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 
@@ -45,7 +47,7 @@ func NewMoveTask(errCtrl ErrCtrl, src, dst string, callbacks fsm.Callbacks) *tas
 	return task.New(TaskNameMove, &mt, callbacks)
 }
 
-// Prepare will check src and dst path.
+// Prepare will check source and destination path.
 func (mt *moveTask) Prepare(context.Context) error {
 	stats, err := checkSrcDstPath(mt.src, mt.dst)
 	if err != nil {
@@ -69,7 +71,54 @@ func (mt *moveTask) Process(ctx context.Context, task *task.Task) error {
 // new path is a dir  and not exist
 // new path is a file and not exist
 func (mt *moveTask) moveSrcFile(ctx context.Context, task *task.Task) error {
-	return nil
+	_, srcFileName := filepath.Split(mt.stats.SrcAbs)
+	var (
+		dstFileName string
+		dstStat     os.FileInfo
+	)
+	if mt.stats.DstStat != nil { // dst is exists
+		// moveFile will handle the same file, dir
+		//
+		// move "a.exe" -> "C:\ExistDir"
+		// "a.exe" -> "C:\ExistDir\a.exe"
+		if mt.stats.DstStat.IsDir() {
+			dstFileName = filepath.Join(mt.stats.DstAbs, srcFileName)
+			stat, err := stat(dstFileName)
+			if err != nil {
+				return err
+			}
+			dstStat = stat
+		} else {
+			dstFileName = mt.stats.DstAbs
+			dstStat = mt.stats.DstStat
+		}
+	} else { // dst is doesn't exists
+		dstRunes := []rune(mt.dst)
+		last := string(dstRunes[len(dstRunes)-1])[0]
+		if os.IsPathSeparator(last) { // is a directory path
+			err := os.MkdirAll(mt.stats.DstAbs, 0750)
+			if err != nil {
+				return err
+			}
+			dstFileName = filepath.Join(mt.stats.DstAbs, srcFileName)
+		} else { // is a file path
+			dir, _ := filepath.Split(mt.stats.DstAbs)
+			err := os.MkdirAll(dir, 0750)
+			if err != nil {
+				return err
+			}
+			dstFileName = mt.stats.DstAbs
+		}
+	}
+	stats := &SrcDstStat{
+		SrcAbs:  mt.stats.SrcAbs,
+		DstAbs:  dstFileName,
+		SrcStat: mt.stats.SrcStat,
+		DstStat: dstStat,
+	}
+	// update progress
+	mt.updateTotal(mt.stats.SrcStat.Size(), true)
+	return mt.moveFile(ctx, task, stats)
 }
 
 // moveSrcDir is used to move directory to a path.
@@ -78,6 +127,63 @@ func (mt *moveTask) moveSrcFile(ctx context.Context, task *task.Task) error {
 // move file C:\test\file.dat -> C:\test2\file.dat
 func (mt *moveTask) moveSrcDir(ctx context.Context, task *task.Task) error {
 	return nil
+}
+
+func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, stats *SrcDstStat) error {
+	return nil
+}
+
+func (mt *moveTask) updateSrcFileStat(srcFile *os.File, stats *SrcDstStat) error {
+	srcStat, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+	// update total(must update in one operation)
+	// total - old size + new size = total + (new size - old size)
+	newSize := srcStat.Size()
+	oldSize := stats.SrcStat.Size()
+	if newSize != oldSize {
+		delta := newSize - oldSize
+		mt.updateTotal(delta, true)
+	}
+	stats.SrcStat = srcStat
+	return nil
+}
+
+func (mt *moveTask) ioMoveAdd(delta int64) {
+	mt.updateCurrent(delta, true)
+}
+
+// retryMoveFile will update source and destination file stat.
+func (mt *moveTask) retryMoveFile(ctx context.Context, task *task.Task, stats *SrcDstStat) error {
+	dstStat, err := stat(stats.DstAbs)
+	if err != nil {
+		return err
+	}
+	stats.DstStat = dstStat
+	return mt.moveFile(ctx, task, stats)
+}
+
+func (mt *moveTask) updateCurrent(delta int64, add bool) {
+	mt.rwm.Lock()
+	defer mt.rwm.Unlock()
+	d := new(big.Float).SetInt64(delta)
+	if add {
+		mt.current.Add(mt.current, d)
+	} else {
+		mt.current.Sub(mt.current, d)
+	}
+}
+
+func (mt *moveTask) updateTotal(delta int64, add bool) {
+	mt.rwm.Lock()
+	defer mt.rwm.Unlock()
+	d := new(big.Float).SetInt64(delta)
+	if add {
+		mt.total.Add(mt.total, d)
+	} else {
+		mt.total.Sub(mt.total, d)
+	}
 }
 
 // Progress is used to get progress about current move task.
