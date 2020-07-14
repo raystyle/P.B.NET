@@ -15,7 +15,6 @@ import (
 
 	"project/internal/convert"
 	"project/internal/module/task"
-	"project/internal/xpanic"
 )
 
 // copyTask implement task.Interface that is used to copy source to destination.
@@ -524,37 +523,5 @@ func Copy(errCtrl ErrCtrl, src, dst string) error {
 // CopyWithContext is used to create a copyTask with context.
 func CopyWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string) error {
 	ct := NewCopyTask(errCtrl, src, dst, nil)
-	if done := ctx.Done(); done != nil {
-		// if ctx is canceled
-		select {
-		case <-done:
-			return ctx.Err()
-		default:
-		}
-		// start a goroutine to watch ctx
-		finish := make(chan struct{})
-		defer close(finish)
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					xpanic.Log(r, "CopyWithContext")
-				}
-			}()
-			select {
-			case <-done:
-				ct.Cancel()
-			case <-finish:
-			}
-		}()
-	}
-	err := ct.Start()
-	if err != nil {
-		return err
-	}
-	// check progress
-	progress := ct.Progress()
-	if progress != "100%" {
-		return errors.New("unexpected progress: " + progress)
-	}
-	return nil
+	return startTask(ctx, ct, "Copy")
 }

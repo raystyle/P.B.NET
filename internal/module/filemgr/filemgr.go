@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/module/task"
+	"project/internal/xpanic"
 )
 
 // name about task
@@ -44,6 +45,7 @@ const (
 	ErrCtrlCollectFailed       // appear error in collectDirInfo()
 	ErrCtrlCopyDirFailed       // appear error in copyDirFile()
 	ErrCtrlCopyFailed          // appear error in copyFile()
+	ErrCtrlMoveFailed          // appear error in moveFile()
 )
 
 // operation code about ErrCtrl
@@ -130,7 +132,7 @@ type fileStat struct {
 	stat os.FileInfo
 }
 
-// ErrUserCanceled is an error about user cancel copy or move.
+// ErrUserCanceled is an error about user cancel task.
 var ErrUserCanceled = fmt.Errorf("user canceled")
 
 // noticeSameFile is used to notice appear same name file.
@@ -219,7 +221,7 @@ func noticeFailedToCollect(
 	return
 }
 
-// noticeFailedToCopy is used to notice appear some error about copy or move.
+// noticeFailedToCopy is used to notice appear some error about copy.
 func noticeFailedToCopy(
 	ctx context.Context,
 	task *task.Task,
@@ -260,6 +262,28 @@ func noticeFailedToCopyDir(
 		err = ErrUserCanceled
 	default:
 		err = errors.Errorf("unknown failed to copy operation code: %d", code)
+	}
+	return
+}
+
+// noticeFailedToMove is used to notice appear some error about move.
+func noticeFailedToMove(
+	ctx context.Context,
+	task *task.Task,
+	errCtrl ErrCtrl,
+	stats *SrcDstStat,
+	extError error,
+) (retry bool, err error) {
+	task.Pause()
+	defer task.Continue()
+	switch code := errCtrl(ctx, ErrCtrlMoveFailed, extError, stats); code {
+	case ErrCtrlOpRetry:
+		retry = true
+	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
+	case ErrCtrlOpCancel:
+		err = ErrUserCanceled
+	default:
+		err = errors.Errorf("unknown failed to move operation code: %d", code)
 	}
 	return
 }
@@ -306,4 +330,40 @@ func ioCopy(task *task.Task, add func(int64), dst io.Writer, src io.Reader) (int
 		}
 	}
 	return written, err
+}
+
+func startTask(ctx context.Context, task *task.Task, name string) error {
+	if done := ctx.Done(); done != nil {
+		// if ctx is canceled
+		select {
+		case <-done:
+			return ctx.Err()
+		default:
+		}
+		// start a goroutine to watch ctx
+		finish := make(chan struct{})
+		defer close(finish)
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					xpanic.Log(r, name+"WithContext")
+				}
+			}()
+			select {
+			case <-done:
+				task.Cancel()
+			case <-finish:
+			}
+		}()
+	}
+	err := task.Start()
+	if err != nil {
+		return err
+	}
+	// check progress
+	progress := task.Progress()
+	if progress != "100%" {
+		return errors.New("unexpected progress: " + progress)
+	}
+	return nil
 }

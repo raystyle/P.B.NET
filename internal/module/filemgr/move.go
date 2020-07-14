@@ -13,7 +13,6 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/module/task"
-	"project/internal/xpanic"
 )
 
 // moveTask implement task.Interface that is used to move source to destination.
@@ -24,7 +23,9 @@ type moveTask struct {
 	dst     string
 	stats   *SrcDstStat
 
-	// store all files will move
+	// store all dirs and files will move
+	// key is path, value is a flag whether delete
+	dirs     map[string]bool
 	files    []*fileStat
 	skipDirs []string
 
@@ -126,11 +127,111 @@ func (mt *moveTask) moveSrcFile(ctx context.Context, task *task.Task) error {
 // move dir  C:\test -> D:\test2
 // move file C:\test\file.dat -> C:\test2\file.dat
 func (mt *moveTask) moveSrcDir(ctx context.Context, task *task.Task) error {
+	err := mt.collectDirInfo(ctx, task)
+	if err != nil {
+		return errors.WithMessage(err, "failed to collect directory information")
+	}
+	return mt.moveDirFiles(ctx, task)
+}
+
+func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
+	return nil
+}
+
+func (mt *moveTask) moveDirFiles(ctx context.Context, task *task.Task) error {
 	return nil
 }
 
 func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, stats *SrcDstStat) error {
+	if task.Canceled() {
+		return context.Canceled
+	}
+
 	return nil
+}
+
+func (mt *moveTask) ioMove(ctx context.Context, task *task.Task, stats *SrcDstStat) (err error) {
+	// check move file error, and maybe retry move file.
+	var moved int64
+	defer func() {
+		if err != nil && err != context.Canceled {
+			// reset current
+			mt.updateCurrent(moved, false)
+			var retry bool
+			retry, err = noticeFailedToMove(ctx, task, mt.errCtrl, stats, err)
+			if retry {
+				err = mt.retryMoveFile(ctx, task, stats)
+			} else if err == nil { // skipped
+				mt.updateCurrent(stats.SrcStat.Size(), true)
+			}
+		}
+	}()
+	// use fast mode firstly
+	enabled, err := mt.ioMoveFast(stats)
+	if enabled {
+		if err != nil {
+			return
+		}
+		mt.updateCurrent(stats.SrcStat.Size(), true)
+		return
+	}
+	// open src file
+	srcFile, err := os.Open(stats.SrcAbs)
+	if err != nil {
+		return
+	}
+	defer func() { _ = srcFile.Close() }()
+	// update progress(actual size maybe changed)
+	err = mt.updateSrcFileStat(srcFile, stats)
+	if err != nil {
+		return
+	}
+	perm := stats.SrcStat.Mode().Perm()
+	// open dst file
+	dstFile, err := os.OpenFile(stats.DstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return
+	}
+	// if failed to move, delete dst file
+	var ok bool
+	defer func() {
+		_ = dstFile.Close()
+		if !ok {
+			_ = os.Remove(stats.DstAbs)
+		}
+	}()
+	// move file
+	moved, err = ioCopy(task, mt.ioMoveAdd, dstFile, srcFile)
+	if err != nil {
+		return
+	}
+	// sync
+	err = dstFile.Sync()
+	if err != nil {
+		return
+	}
+	// set the modification time about the dst file
+	modTime := stats.SrcStat.ModTime()
+	err = os.Chtimes(stats.DstAbs, modTime, modTime)
+	if err != nil {
+		return
+	}
+	ok = true
+	return
+}
+
+// ioMoveFast will use syscall to move file, it can move faster if two file in the same volume.
+// Windows is finished, other platform need thinking.
+func (mt *moveTask) ioMoveFast(stats *SrcDstStat) (bool, error) {
+	srcVol := filepath.VolumeName(stats.SrcAbs)
+	if srcVol == "" {
+		return false, nil
+	}
+	dstVol := filepath.VolumeName(stats.DstAbs)
+	if srcVol != dstVol {
+		return false, nil
+	}
+	return true, os.Rename(stats.SrcAbs, stats.DstAbs)
 }
 
 func (mt *moveTask) updateSrcFileStat(srcFile *os.File, stats *SrcDstStat) error {
@@ -247,37 +348,5 @@ func Move(errCtrl ErrCtrl, src, dst string) error {
 // MoveWithContext is used to create a moveTask with context.
 func MoveWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string) error {
 	mt := NewMoveTask(errCtrl, src, dst, nil)
-	if done := ctx.Done(); done != nil {
-		// if ctx is canceled
-		select {
-		case <-done:
-			return ctx.Err()
-		default:
-		}
-		// start a goroutine to watch ctx
-		finish := make(chan struct{})
-		defer close(finish)
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					xpanic.Log(r, "MoveWithContext")
-				}
-			}()
-			select {
-			case <-done:
-				mt.Cancel()
-			case <-finish:
-			}
-		}()
-	}
-	err := mt.Start()
-	if err != nil {
-		return err
-	}
-	// check progress
-	progress := mt.Progress()
-	if progress != "100%" {
-		return errors.New("unexpected progress: " + progress)
-	}
-	return nil
+	return startTask(ctx, mt, "Move")
 }
