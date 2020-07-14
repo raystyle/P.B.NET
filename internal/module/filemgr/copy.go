@@ -18,7 +18,7 @@ import (
 	"project/internal/xpanic"
 )
 
-// copyTask implement task.Interface that is used to copy src to dst directory.
+// copyTask implement task.Interface that is used to copy source to destination.
 // It can pause in progress and get current progress and detail information.
 type copyTask struct {
 	errCtrl ErrCtrl
@@ -26,9 +26,11 @@ type copyTask struct {
 	dst     string
 	stats   *SrcDstStat
 
+	// store all files will copy
 	files    []*fileStat
 	skipDirs []string
 
+	// about progress and detail
 	current *big.Float
 	total   *big.Float
 	detail  string
@@ -121,8 +123,10 @@ func (ct *copyTask) copySrcFile(ctx context.Context, task *task.Task) error {
 	return ct.copyFile(ctx, task, stats)
 }
 
-// copy C:\test -> D:\test2
-// -- copy C:\test\file.dat -> C:\test2\file.dat
+// copySrcDir is used to copy directory to a path.
+//
+// copy dir  C:\test -> D:\test2
+// copy file C:\test\file.dat -> C:\test2\file.dat
 func (ct *copyTask) copySrcDir(ctx context.Context, task *task.Task) error {
 	err := ct.collectDirInfo(ctx, task)
 	if err != nil {
@@ -459,7 +463,11 @@ func (ct *copyTask) updateTotal(delta int64, add bool) {
 	}
 }
 
-// Progress will be 0%(in collect), 100%(finish) or 15.22%|[current]/[total]
+// Progress is used to get progress about current copy task.
+//
+// collect: "0%"
+// copy:    "15.22%|[current]/[total]"
+// finish:  "100%"
 func (ct *copyTask) Progress() string {
 	ct.rwm.RLock()
 	defer ct.rwm.RUnlock()
