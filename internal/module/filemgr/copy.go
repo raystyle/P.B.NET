@@ -134,7 +134,7 @@ func (ct *copyTask) copySrcDir(ctx context.Context, task *task.Task) error {
 	return ct.copyDir(ctx, task)
 }
 
-// collect will collect directory information for calculate total size.
+// collectDirInfo will collect directory information for calculate total size.
 func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 	ct.files = make([]*fileStat, 0, 64)
 	walkFunc := func(srcAbs string, srcStat os.FileInfo, err error) error {
@@ -184,6 +184,13 @@ func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 }
 
 func (ct *copyTask) copyDir(ctx context.Context, task *task.Task) error {
+	// skip root directory
+	// set fake progress for pass progress check
+	if len(ct.files) == 0 {
+		ct.current.SetUint64(1)
+		ct.total.SetUint64(1)
+		return nil
+	}
 	// check root path, and make directory if target path is not exists
 	// C:\test -> D:\test[exist]
 	if ct.stats.DstStat == nil {
@@ -191,13 +198,6 @@ func (ct *copyTask) copyDir(ctx context.Context, task *task.Task) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to create destination directory")
 		}
-	}
-	// skip root directory
-	// set fake progress for pass progress check
-	if len(ct.files) == 0 {
-		ct.current.SetUint64(1)
-		ct.total.SetUint64(1)
-		return nil
 	}
 	// must skip root path, otherwise will appear zero relative path
 	for _, file := range ct.files[1:] {
@@ -220,7 +220,7 @@ func (ct *copyTask) copyDirFile(ctx context.Context, task *task.Task, file *file
 	// calculate destination absolute path
 	// C:\test\a.exe -> a.exe
 	// C:\test\dir\a.exe -> dir\a.exe
-	relativePath := strings.ReplaceAll(file.path, ct.stats.SrcAbs, "")
+	relativePath := strings.Replace(file.path, ct.stats.SrcAbs, "", 1)
 	relativePath = string([]rune(relativePath)[1:]) // remove the first "\" or "/"
 	dstAbs := filepath.Join(ct.stats.DstAbs, relativePath)
 retry:
@@ -270,13 +270,13 @@ retry:
 	return ct.copyFile(ctx, task, stat)
 }
 
-func (ct *copyTask) mkdir(ctx context.Context, task *task.Task, file *fileStat, dstAbs string) error {
+func (ct *copyTask) mkdir(ctx context.Context, task *task.Task, dir *fileStat, dstAbs string) error {
 retry:
 	// check task is canceled
 	if task.Canceled() {
 		return context.Canceled
 	}
-	err := os.MkdirAll(dstAbs, file.stat.Mode().Perm())
+	err := os.Mkdir(dstAbs, dir.stat.Mode().Perm())
 	if err != nil {
 		retry, ne := noticeFailedToCopyDir(ctx, task, ct.errCtrl, dstAbs, err)
 		if retry {
@@ -285,7 +285,7 @@ retry:
 		if ne != nil {
 			return ne
 		}
-		ct.skipDirs = append(ct.skipDirs, file.path)
+		ct.skipDirs = append(ct.skipDirs, dir.path)
 	}
 	return nil
 }

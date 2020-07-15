@@ -134,6 +134,7 @@ func (mt *moveTask) moveSrcDir(ctx context.Context, task *task.Task) error {
 	return mt.moveRoot(ctx, task)
 }
 
+// collectDirInfo will collect directory information for calculate total size.
 func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 	var (
 		cDir  string // current directory
@@ -206,6 +207,13 @@ func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 }
 
 func (mt *moveTask) moveRoot(ctx context.Context, task *task.Task) error {
+	// skip root directory
+	// set fake progress for pass progress check
+	if mt.root == nil {
+		mt.current.SetUint64(1)
+		mt.total.SetUint64(1)
+		return nil
+	}
 	// check root path, and make directory if target path is not exists
 	// C:\test -> D:\test[exist]
 	if mt.stats.DstStat == nil {
@@ -213,13 +221,6 @@ func (mt *moveTask) moveRoot(ctx context.Context, task *task.Task) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to create destination directory")
 		}
-	}
-	// skip root directory
-	// set fake progress for pass progress check
-	if mt.root == nil {
-		mt.current.SetUint64(1)
-		mt.total.SetUint64(1)
-		return nil
 	}
 	_, err := mt.moveDir(ctx, task, mt.root)
 	if err != nil {
@@ -241,6 +242,10 @@ func (mt *moveTask) moveDir(ctx context.Context, task *task.Task, dir *file) (bo
 		}
 		var sk bool
 		if file.stat.IsDir() {
+			err = mt.mkdir(ctx, task, file)
+			if err != nil {
+				return false, err
+			}
 			sk, err = mt.moveDir(ctx, task, file)
 		} else {
 			sk, err = mt.moveDirFile(ctx, task, file)
@@ -259,19 +264,83 @@ func (mt *moveTask) moveDir(ctx context.Context, task *task.Task, dir *file) (bo
 	return true, nil
 }
 
+func (mt *moveTask) mkdir(ctx context.Context, task *task.Task, dir *file) error {
+	// skip dir if it in skipped directories
+	for i := 0; i < len(mt.skipDirs); i++ {
+		if strings.HasPrefix(dir.path, mt.skipDirs[i]) {
+			return nil
+		}
+	}
+	// calculate destination absolute path
+	// C:\test\a.exe -> a.exe
+	// C:\test\dir\a.exe -> dir\a.exe
+	relativePath := strings.Replace(dir.path, mt.stats.SrcAbs, "", 1)
+	relativePath = string([]rune(relativePath)[1:]) // remove the first "\" or "/"
+	dstAbs := filepath.Join(mt.stats.DstAbs, relativePath)
+retry:
+	// check task is canceled
+	if task.Canceled() {
+		return context.Canceled
+	}
+	// check destination directory is exist
+	dstStat, err := stat(dstAbs)
+	if err != nil {
+		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, dstAbs, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return ne
+		}
+		mt.skipDirs = append(mt.skipDirs, dir.path)
+		return nil
+	}
+	if dstStat != nil {
+		if dstStat.IsDir() {
+			return nil
+		}
+		stat := &SrcDstStat{
+			SrcAbs:  dir.path,
+			DstAbs:  dstAbs,
+			SrcStat: dir.stat,
+			DstStat: dstStat,
+		}
+		retry, ne := noticeSameDirFile(ctx, task, mt.errCtrl, stat)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return ne
+		}
+		mt.skipDirs = append(mt.skipDirs, dir.path)
+	}
+	err = os.Mkdir(dstAbs, dir.stat.Mode().Perm())
+	if err != nil {
+		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, dstAbs, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return ne
+		}
+		mt.skipDirs = append(mt.skipDirs, dir.path)
+	}
+	return nil
+}
+
 // returned bool is skipped this file.
 func (mt *moveTask) moveDirFile(ctx context.Context, task *task.Task, file *file) (bool, error) {
 	// skip file if it in skipped directories
 	for i := 0; i < len(mt.skipDirs); i++ {
 		if strings.HasPrefix(file.path, mt.skipDirs[i]) {
 			mt.updateCurrent(file.stat.Size(), true)
-			return false, nil
+			return true, nil
 		}
 	}
 	// calculate destination absolute path
 	// C:\test\a.exe -> a.exe
 	// C:\test\dir\a.exe -> dir\a.exe
-	relativePath := strings.ReplaceAll(file.path, mt.stats.SrcAbs, "")
+	relativePath := strings.Replace(file.path, mt.stats.SrcAbs, "", 1)
 	relativePath = string([]rune(relativePath)[1:]) // remove the first "\" or "/"
 	dstAbs := filepath.Join(mt.stats.DstAbs, relativePath)
 retry:
@@ -289,31 +358,25 @@ retry:
 		if ne != nil {
 			return false, ne
 		}
-		if file.stat.IsDir() {
-			mt.skipDirs = append(mt.skipDirs, file.path)
-			return true, nil
-		}
 		mt.updateCurrent(file.stat.Size(), true)
 		return true, nil
 	}
-
 	stat := &SrcDstStat{
 		SrcAbs:  file.path,
 		DstAbs:  dstAbs,
 		SrcStat: file.stat,
 		DstStat: dstStat,
 	}
-
 	return mt.moveFile(ctx, task, stat)
 }
 
 // returned bool is skipped this file.
 func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, stats *SrcDstStat) (bool, error) {
-
 	if task.Canceled() {
 		return false, context.Canceled
 	}
-	return true, nil
+
+	return false, os.Remove(stats.SrcAbs)
 }
 
 func (mt *moveTask) ioMove(ctx context.Context, task *task.Task, stats *SrcDstStat) (skipped bool, err error) {

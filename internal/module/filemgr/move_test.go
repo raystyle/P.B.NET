@@ -95,7 +95,7 @@ func TestMove(t *testing.T) {
 				testCreateMoveSrcDir(t)
 				defer func() {
 					testRemoveMoveDstDir(t)
-					// testRemoveMoveDir(t)
+					testRemoveMoveDir(t)
 				}()
 
 				err := Move(ReplaceAll, testMoveSrcDir, testMoveDstDir)
