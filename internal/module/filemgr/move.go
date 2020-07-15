@@ -23,11 +23,9 @@ type moveTask struct {
 	dst     string
 	stats   *SrcDstStat
 
-	// store all dirs and files will move
-	// key is path, value is a flag whether delete
-	dirs     map[string]bool
-	files    []*fileStat
-	skipDirs []string
+	files     *file            // store all dirs and files will move
+	dirPoints map[string]*file // for search dir faster, key is path
+	skipDirs  []string
 
 	// about progress and detail
 	current *big.Float
@@ -131,11 +129,16 @@ func (mt *moveTask) moveSrcDir(ctx context.Context, task *task.Task) error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to collect directory information")
 	}
+	return nil
+
 	return mt.moveDirFiles(ctx, task)
 }
 
 func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
-	mt.files = make([]*fileStat, 0, 64)
+	var (
+		cDir  string // current directory
+		cFile *file  // current file
+	)
 	walkFunc := func(srcAbs string, srcStat os.FileInfo, err error) error {
 		// for retry
 		var walkFailed bool
@@ -160,23 +163,43 @@ func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 			}
 			return filepath.SkipDir
 		}
-		mt.files = append(mt.files, &fileStat{
+		f := &file{
 			path: srcAbs,
 			stat: srcStat,
-		})
+		}
+		// is root directory
+		if mt.files == nil {
+			// initialize task structure
+			mt.files = f
+			mt.dirPoints = make(map[string]*file)
+			mt.dirPoints[srcAbs] = f
+			// set current data
+			cDir = srcAbs
+			cFile = f
+			return nil
+		}
 		// update detail and total size
+		dir := filepath.Dir(srcAbs)
+		if dir != cDir {
+			cDir = dir
+			cFile = mt.dirPoints[dir]
+		}
+		cFile.files = append(cFile.files, f)
 		if srcStat.IsDir() {
+			cDir = srcAbs
+			cFile = f
+			mt.dirPoints[srcAbs] = f
 			// collecting directory information
 			// path: C:\testdata\test
 			const format = "collecting directory information\npath: %s"
 			mt.updateDetail(fmt.Sprintf(format, srcAbs))
-		} else {
-			// collecting file information
-			// path: C:\testdata\test
-			const format = "collecting file information\npath: %s"
-			mt.updateDetail(fmt.Sprintf(format, srcAbs))
-			mt.updateTotal(srcStat.Size(), true)
+			return nil
 		}
+		// collecting file information
+		// path: C:\testdata\test
+		const format = "collecting file information\npath: %s"
+		mt.updateDetail(fmt.Sprintf(format, srcAbs))
+		mt.updateTotal(srcStat.Size(), true)
 		return nil
 	}
 	return filepath.Walk(mt.stats.SrcAbs, walkFunc)
@@ -193,18 +216,18 @@ func (mt *moveTask) moveDirFiles(ctx context.Context, task *task.Task) error {
 	}
 	// skip root directory
 	// set fake progress for pass progress check
-	if len(mt.files) == 0 {
+	if mt.files == nil {
 		mt.current.SetUint64(1)
 		mt.total.SetUint64(1)
 		return nil
 	}
 	// must skip root path, otherwise will appear zero relative path
-	for _, file := range mt.files[1:] {
-		err := mt.moveDirFile(ctx, task, file)
-		if err != nil {
-			return errors.WithMessagef(err, "failed to copy file \"%s\"", file.path)
-		}
-	}
+	// for _, file := range mt.filess[1:] {
+	// 	err := mt.moveDirFile(ctx, task, file)
+	// 	if err != nil {
+	// 		return errors.WithMessagef(err, "failed to copy file \"%s\"", file.path)
+	// 	}
+	// }
 	return nil
 }
 
@@ -224,7 +247,7 @@ func (mt *moveTask) ioMove(ctx context.Context, task *task.Task, stats *SrcDstSt
 	var moved int64
 	defer func() {
 		if err != nil && err != context.Canceled {
-			// reset current
+			// reset current progress
 			mt.updateCurrent(moved, false)
 			var retry bool
 			retry, err = noticeFailedToMove(ctx, task, mt.errCtrl, stats, err)
@@ -244,49 +267,7 @@ func (mt *moveTask) ioMove(ctx context.Context, task *task.Task, stats *SrcDstSt
 		mt.updateCurrent(stats.SrcStat.Size(), true)
 		return
 	}
-	// open src file
-	srcFile, err := os.Open(stats.SrcAbs)
-	if err != nil {
-		return
-	}
-	defer func() { _ = srcFile.Close() }()
-	// update progress(actual size maybe changed)
-	err = mt.updateSrcFileStat(srcFile, stats)
-	if err != nil {
-		return
-	}
-	perm := stats.SrcStat.Mode().Perm()
-	// open dst file
-	dstFile, err := os.OpenFile(stats.DstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
-	if err != nil {
-		return
-	}
-	// if failed to move, delete dst file
-	var ok bool
-	defer func() {
-		_ = dstFile.Close()
-		if !ok {
-			_ = os.Remove(stats.DstAbs)
-		}
-	}()
-	// move file
-	moved, err = ioCopy(task, mt.ioMoveAdd, dstFile, srcFile)
-	if err != nil {
-		return
-	}
-	// sync
-	err = dstFile.Sync()
-	if err != nil {
-		return
-	}
-	// set the modification time about the dst file
-	modTime := stats.SrcStat.ModTime()
-	err = os.Chtimes(stats.DstAbs, modTime, modTime)
-	if err != nil {
-		return
-	}
-	ok = true
-	return
+	return mt.ioMoveCommon(task, stats, &moved)
 }
 
 // ioMoveFast will use syscall to move file, it can move faster if two file in the same volume.
@@ -301,6 +282,57 @@ func (mt *moveTask) ioMoveFast(stats *SrcDstStat) (bool, error) {
 		return false, nil
 	}
 	return true, os.Rename(stats.SrcAbs, stats.DstAbs)
+}
+
+func (mt *moveTask) ioMoveCommon(task *task.Task, stats *SrcDstStat, moved *int64) error {
+	// open src file
+	srcFile, err := os.Open(stats.SrcAbs)
+	if err != nil {
+		return err
+	}
+	var ok bool
+	defer func() {
+		_ = srcFile.Close()
+		if ok {
+			err = os.Remove(stats.SrcAbs)
+		}
+	}()
+	// update progress(actual size maybe changed)
+	err = mt.updateSrcFileStat(srcFile, stats)
+	if err != nil {
+		return err
+	}
+	perm := stats.SrcStat.Mode().Perm()
+	// open dst file
+	dstFile, err := os.OpenFile(stats.DstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	// if failed to move, delete dst file
+	defer func() {
+		_ = dstFile.Close()
+		if !ok {
+			_ = os.Remove(stats.DstAbs)
+		}
+	}()
+	// move file
+	*moved, err = ioCopy(task, mt.ioMoveAdd, dstFile, srcFile)
+	if err != nil {
+		return err
+	}
+	// sync
+	err = dstFile.Sync()
+	if err != nil {
+		return err
+	}
+	// set the modification time about the dst file
+	modTime := stats.SrcStat.ModTime()
+	err = os.Chtimes(stats.DstAbs, modTime, modTime)
+	if err != nil {
+		return err
+	}
+	ok = true
+	return nil
 }
 
 func (mt *moveTask) updateSrcFileStat(srcFile *os.File, stats *SrcDstStat) error {

@@ -171,13 +171,13 @@ func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 			// path: C:\testdata\test
 			const format = "collecting directory information\npath: %s"
 			ct.updateDetail(fmt.Sprintf(format, srcAbs))
-		} else {
-			// collecting file information
-			// path: C:\testdata\test
-			const format = "collecting file information\npath: %s"
-			ct.updateDetail(fmt.Sprintf(format, srcAbs))
-			ct.updateTotal(srcStat.Size(), true)
+			return nil
 		}
+		// collecting file information
+		// path: C:\testdata\test
+		const format = "collecting file information\npath: %s"
+		ct.updateDetail(fmt.Sprintf(format, srcAbs))
+		ct.updateTotal(srcStat.Size(), true)
 		return nil
 	}
 	return filepath.Walk(ct.stats.SrcAbs, walkFunc)
@@ -353,7 +353,7 @@ func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *SrcDstSt
 	var copied int64
 	defer func() {
 		if err != nil && err != context.Canceled {
-			// reset current
+			// reset current progress
 			ct.updateCurrent(copied, false)
 			var retry bool
 			retry, err = noticeFailedToCopy(ctx, task, ct.errCtrl, stats, err)

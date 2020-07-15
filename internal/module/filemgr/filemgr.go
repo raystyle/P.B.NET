@@ -28,6 +28,12 @@ const (
 // err and fileStat in stats maybe nil.
 type ErrCtrl func(ctx context.Context, typ uint8, err error, stats *SrcDstStat) uint8
 
+type file struct {
+	path  string // abs
+	stat  os.FileInfo
+	files []*file
+}
+
 // errors about ErrCtrl
 const (
 	_                    uint8 = iota
