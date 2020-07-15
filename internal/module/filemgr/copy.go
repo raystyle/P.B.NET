@@ -131,7 +131,7 @@ func (ct *copyTask) copySrcDir(ctx context.Context, task *task.Task) error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to collect directory information")
 	}
-	return ct.copyDirFiles(ctx, task)
+	return ct.copyDir(ctx, task)
 }
 
 // collect will collect directory information for calculate total size.
@@ -183,7 +183,7 @@ func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 	return filepath.Walk(ct.stats.SrcAbs, walkFunc)
 }
 
-func (ct *copyTask) copyDirFiles(ctx context.Context, task *task.Task) error {
+func (ct *copyTask) copyDir(ctx context.Context, task *task.Task) error {
 	// check root path, and make directory if target path is not exists
 	// C:\test -> D:\test[exist]
 	if ct.stats.DstStat == nil {
@@ -217,6 +217,7 @@ func (ct *copyTask) copyDirFile(ctx context.Context, task *task.Task, file *file
 			return nil
 		}
 	}
+	// calculate destination absolute path
 	// C:\test\a.exe -> a.exe
 	// C:\test\dir\a.exe -> dir\a.exe
 	relativePath := strings.ReplaceAll(file.path, ct.stats.SrcAbs, "")
@@ -244,7 +245,7 @@ retry:
 		ct.updateCurrent(file.stat.Size(), true)
 		return nil
 	}
-	newStats := &SrcDstStat{
+	stat := &SrcDstStat{
 		SrcAbs:  file.path,
 		DstAbs:  dstAbs,
 		SrcStat: file.stat,
@@ -255,7 +256,7 @@ retry:
 			return ct.mkdir(ctx, task, file, dstAbs)
 		}
 		if !dstStat.IsDir() {
-			retry, ne := noticeSameDirFile(ctx, task, ct.errCtrl, newStats)
+			retry, ne := noticeSameDirFile(ctx, task, ct.errCtrl, stat)
 			if retry {
 				goto retry
 			}
@@ -266,7 +267,7 @@ retry:
 		}
 		return nil
 	}
-	return ct.copyFile(ctx, task, newStats)
+	return ct.copyFile(ctx, task, stat)
 }
 
 func (ct *copyTask) mkdir(ctx context.Context, task *task.Task, file *fileStat, dstAbs string) error {

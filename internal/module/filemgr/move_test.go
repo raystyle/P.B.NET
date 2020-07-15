@@ -46,13 +46,33 @@ func testCreateMoveSrcFile(t *testing.T) {
 	testCreateFile(t, testMoveSrcFile)
 }
 
-func testRemoveMoveSrcFile(t *testing.T) {
-	err := os.Remove(testMoveSrcFile)
+func testCreateMoveSrcDir(t *testing.T) {
+	err := os.MkdirAll(testMoveSrcDir, 0750)
+	require.NoError(t, err)
+
+	testCreateFile(t, testMoveSrcFile1)
+	err = os.Mkdir(testMoveSrcDir1, 0750)
+	require.NoError(t, err)
+	testCreateFile2(t, testMoveSrcFile2)
+	err = os.Mkdir(testMoveSrcDir2, 0750)
+	require.NoError(t, err)
+	err = os.Mkdir(testMoveSrcDir3, 0750)
+	require.NoError(t, err)
+	err = os.Mkdir(testMoveSrcDir4, 0750)
+	require.NoError(t, err)
+	testCreateFile(t, testMoveSrcFile3)
+	testCreateFile2(t, testMoveSrcFile4)
+	testCreateFile2(t, testMoveSrcFile5)
+}
+
+func testRemoveMoveDstDir(t *testing.T) {
+	err := os.RemoveAll(testMoveDstDir)
 	require.NoError(t, err)
 }
 
-func testCreateMoveSrcDir(t *testing.T) {
-
+func testRemoveMoveDir(t *testing.T) {
+	err := os.RemoveAll(testMoveDir)
+	require.NoError(t, err)
 }
 
 func TestMove(t *testing.T) {
@@ -71,7 +91,21 @@ func TestMove(t *testing.T) {
 
 	t.Run("src is directory", func(t *testing.T) {
 		t.Run("to directory path", func(t *testing.T) {
+			t.Run("dst doesn't exist", func(t *testing.T) {
+				testCreateMoveSrcDir(t)
+				defer func() {
+					testRemoveMoveDstDir(t)
+					// testRemoveMoveDir(t)
+				}()
 
+				err := Move(ReplaceAll, testMoveSrcDir, testMoveDstDir)
+				require.NoError(t, err)
+
+			})
+
+			t.Run("dst already exists", func(t *testing.T) {
+
+			})
 		})
 
 		t.Run("to file path", func(t *testing.T) {

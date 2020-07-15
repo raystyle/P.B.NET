@@ -49,7 +49,7 @@ func TestCopy(t *testing.T) {
 				testCompareFile(t, src, dstFile)
 			})
 
-			t.Run("dst exists", func(t *testing.T) {
+			t.Run("dst already exists", func(t *testing.T) {
 				defer func() {
 					err := os.RemoveAll(dstDir)
 					require.NoError(t, err)
@@ -104,7 +104,7 @@ func TestCopy(t *testing.T) {
 				testCompareFile(t, src, dstFile)
 			})
 
-			t.Run("dst exists", func(t *testing.T) {
+			t.Run("dst already exists", func(t *testing.T) {
 				defer func() {
 					err := os.RemoveAll(dstDir)
 					require.NoError(t, err)
@@ -193,7 +193,7 @@ func TestCopy(t *testing.T) {
 				testCompareDirectory(t, srcDir, dstDir)
 			})
 
-			t.Run("dst exists", func(t *testing.T) {
+			t.Run("dst already exists", func(t *testing.T) {
 				err := os.MkdirAll(dstDir, 0750)
 				require.NoError(t, err)
 				defer func() {
@@ -223,7 +223,7 @@ func TestCopy(t *testing.T) {
 				testCompareDirectory(t, srcDir, dstDir)
 			})
 
-			t.Run("dst exists", func(t *testing.T) {
+			t.Run("dst already exists", func(t *testing.T) {
 				t.Run("file", func(t *testing.T) {
 					defer func() {
 						err := os.RemoveAll(dstDir)

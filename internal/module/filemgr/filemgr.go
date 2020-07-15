@@ -43,6 +43,7 @@ const (
 	ErrCtrlCollectFailed       // appear error in collectDirInfo()
 	ErrCtrlCopyDirFailed       // appear error in copyDirFile()
 	ErrCtrlCopyFailed          // appear error in copyFile()
+	ErrCtrlMoveDirFailed       // appear error in moveDirFile()
 	ErrCtrlMoveFailed          // appear error in moveFile()
 )
 
@@ -234,6 +235,29 @@ func noticeFailedToCollect(
 	return
 }
 
+// noticeFailedToCopyDir is used to notice appear some error about copyDirFile.
+func noticeFailedToCopyDir(
+	ctx context.Context,
+	task *task.Task,
+	errCtrl ErrCtrl,
+	path string,
+	extError error,
+) (retry bool, err error) {
+	task.Pause()
+	defer task.Continue()
+	stats := SrcDstStat{SrcAbs: path}
+	switch code := errCtrl(ctx, ErrCtrlCopyDirFailed, extError, &stats); code {
+	case ErrCtrlOpRetry:
+		retry = true
+	case ErrCtrlOpSkip:
+	case ErrCtrlOpCancel:
+		err = ErrUserCanceled
+	default:
+		err = errors.Errorf("unknown failed to copy dir operation code: %d", code)
+	}
+	return
+}
+
 // noticeFailedToCopy is used to notice appear some error about copy.
 func noticeFailedToCopy(
 	ctx context.Context,
@@ -256,8 +280,8 @@ func noticeFailedToCopy(
 	return
 }
 
-// noticeFailedToCopyDir is used to notice appear some error about copyDirFile.
-func noticeFailedToCopyDir(
+// noticeFailedToMoveDir is used to notice appear some error about moveDirFile.
+func noticeFailedToMoveDir(
 	ctx context.Context,
 	task *task.Task,
 	errCtrl ErrCtrl,
@@ -267,14 +291,14 @@ func noticeFailedToCopyDir(
 	task.Pause()
 	defer task.Continue()
 	stats := SrcDstStat{SrcAbs: path}
-	switch code := errCtrl(ctx, ErrCtrlCopyDirFailed, extError, &stats); code {
+	switch code := errCtrl(ctx, ErrCtrlMoveDirFailed, extError, &stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpSkip:
 	case ErrCtrlOpCancel:
 		err = ErrUserCanceled
 	default:
-		err = errors.Errorf("unknown failed to copy operation code: %d", code)
+		err = errors.Errorf("unknown failed to move dir operation code: %d", code)
 	}
 	return
 }
