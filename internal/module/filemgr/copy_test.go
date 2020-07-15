@@ -37,7 +37,7 @@ func TestCopy(t *testing.T) {
 		}()
 
 		t.Run("to file path", func(t *testing.T) {
-			t.Run("destination doesn't exist", func(t *testing.T) {
+			t.Run("dst doesn't exist", func(t *testing.T) {
 				defer func() {
 					err := os.RemoveAll(dstDir)
 					require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestCopy(t *testing.T) {
 				testCompareFile(t, src, dstFile)
 			})
 
-			t.Run("destination exists", func(t *testing.T) {
+			t.Run("dst exists", func(t *testing.T) {
 				defer func() {
 					err := os.RemoveAll(dstDir)
 					require.NoError(t, err)
@@ -92,7 +92,7 @@ func TestCopy(t *testing.T) {
 		})
 
 		t.Run("to directory path", func(t *testing.T) {
-			t.Run("destination doesn't exist", func(t *testing.T) {
+			t.Run("dst doesn't exist", func(t *testing.T) {
 				defer func() {
 					err := os.RemoveAll(dstDir)
 					require.NoError(t, err)
@@ -104,7 +104,7 @@ func TestCopy(t *testing.T) {
 				testCompareFile(t, src, dstFile)
 			})
 
-			t.Run("destination exists", func(t *testing.T) {
+			t.Run("dst exists", func(t *testing.T) {
 				defer func() {
 					err := os.RemoveAll(dstDir)
 					require.NoError(t, err)
@@ -181,7 +181,7 @@ func TestCopy(t *testing.T) {
 		t.Run("to directory path", func(t *testing.T) {
 			const dstDir = "testdata/dir-dir/"
 
-			t.Run("destination doesn't exist", func(t *testing.T) {
+			t.Run("dst doesn't exist", func(t *testing.T) {
 				defer func() {
 					err = os.RemoveAll(dstDir)
 					require.NoError(t, err)
@@ -193,7 +193,7 @@ func TestCopy(t *testing.T) {
 				testCompareDirectory(t, srcDir, dstDir)
 			})
 
-			t.Run("destination exists", func(t *testing.T) {
+			t.Run("dst exists", func(t *testing.T) {
 				err := os.MkdirAll(dstDir, 0750)
 				require.NoError(t, err)
 				defer func() {
@@ -211,7 +211,7 @@ func TestCopy(t *testing.T) {
 		t.Run("to file path", func(t *testing.T) {
 			const dstDir = "testdata/dir-dir"
 
-			t.Run("destination doesn't exist", func(t *testing.T) {
+			t.Run("dst doesn't exist", func(t *testing.T) {
 				defer func() {
 					err := os.RemoveAll(dstDir)
 					require.NoError(t, err)
@@ -223,7 +223,7 @@ func TestCopy(t *testing.T) {
 				testCompareDirectory(t, srcDir, dstDir)
 			})
 
-			t.Run("destination exists", func(t *testing.T) {
+			t.Run("dst exists", func(t *testing.T) {
 				t.Run("file", func(t *testing.T) {
 					defer func() {
 						err := os.RemoveAll(dstDir)

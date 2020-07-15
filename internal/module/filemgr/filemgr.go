@@ -28,14 +28,6 @@ const (
 // err and fileStat in stats maybe nil.
 type ErrCtrl func(ctx context.Context, typ uint8, err error, stats *SrcDstStat) uint8
 
-var (
-	// ReplaceAll is used to replace all src file to dst file.
-	ReplaceAll = func(context.Context, uint8, error, *SrcDstStat) uint8 { return ErrCtrlOpReplace }
-
-	// SkipAll is used to skip all existed file or other error.
-	SkipAll = func(context.Context, uint8, error, *SrcDstStat) uint8 { return ErrCtrlOpSkip }
-)
-
 // errors about ErrCtrl
 const (
 	_                    uint8 = iota
@@ -55,6 +47,21 @@ const (
 	ErrCtrlOpRetry         // try to copy or move again
 	ErrCtrlOpSkip          // skip same name file, directory or copy
 	ErrCtrlOpCancel        // cancel whole copy or move operation
+)
+
+var (
+	// ReplaceAll is used to replace all src file to dst file.
+	ReplaceAll = func(_ context.Context, typ uint8, _ error, _ *SrcDstStat) uint8 {
+		if typ == ErrCtrlSameFile {
+			return ErrCtrlOpReplace
+		}
+		return ErrCtrlOpSkip
+	}
+
+	// SkipAll is used to skip all existed file or other error.
+	SkipAll = func(context.Context, uint8, error, *SrcDstStat) uint8 {
+		return ErrCtrlOpSkip
+	}
 )
 
 var zeroFloat = big.NewFloat(0)
@@ -168,7 +175,7 @@ func noticeSameFileDir(
 	switch code := errCtrl(ctx, ErrCtrlSameFileDir, nil, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
-	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
+	case ErrCtrlOpSkip:
 	case ErrCtrlOpCancel:
 		err = ErrUserCanceled
 	default:
@@ -189,7 +196,7 @@ func noticeSameDirFile(
 	switch code := errCtrl(ctx, ErrCtrlSameDirFile, nil, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
-	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
+	case ErrCtrlOpSkip:
 	case ErrCtrlOpCancel:
 		err = ErrUserCanceled
 	default:
@@ -212,7 +219,7 @@ func noticeFailedToCollect(
 	switch code := errCtrl(ctx, ErrCtrlCollectFailed, extError, &stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
-	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
+	case ErrCtrlOpSkip:
 	case ErrCtrlOpCancel:
 		err = ErrUserCanceled
 	default:
@@ -234,7 +241,7 @@ func noticeFailedToCopy(
 	switch code := errCtrl(ctx, ErrCtrlCopyFailed, extError, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
-	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
+	case ErrCtrlOpSkip:
 	case ErrCtrlOpCancel:
 		err = ErrUserCanceled
 	default:
@@ -257,7 +264,7 @@ func noticeFailedToCopyDir(
 	switch code := errCtrl(ctx, ErrCtrlCopyDirFailed, extError, &stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
-	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
+	case ErrCtrlOpSkip:
 	case ErrCtrlOpCancel:
 		err = ErrUserCanceled
 	default:
@@ -279,7 +286,7 @@ func noticeFailedToMove(
 	switch code := errCtrl(ctx, ErrCtrlMoveFailed, extError, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
-	case ErrCtrlOpSkip, ErrCtrlOpReplace: // for ReplaceAll
+	case ErrCtrlOpSkip:
 	case ErrCtrlOpCancel:
 		err = ErrUserCanceled
 	default:

@@ -135,10 +135,80 @@ func (mt *moveTask) moveSrcDir(ctx context.Context, task *task.Task) error {
 }
 
 func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
-	return nil
+	mt.files = make([]*fileStat, 0, 64)
+	walkFunc := func(srcAbs string, srcStat os.FileInfo, err error) error {
+		// for retry
+		var walkFailed bool
+	retry:
+		// check task is canceled
+		if task.Canceled() {
+			return context.Canceled
+		}
+		if walkFailed {
+			srcStat, err = os.Stat(srcAbs)
+		}
+		if err != nil {
+			const format = "failed to walk \"%s\" in \"%s\": %s"
+			ne := fmt.Errorf(format, srcAbs, mt.stats.SrcAbs, err)
+			retry, ne := noticeFailedToCollect(ctx, task, mt.errCtrl, srcAbs, ne)
+			if retry {
+				walkFailed = true
+				goto retry
+			}
+			if ne != nil {
+				return ne
+			}
+			return filepath.SkipDir
+		}
+		mt.files = append(mt.files, &fileStat{
+			path: srcAbs,
+			stat: srcStat,
+		})
+		// update detail and total size
+		if srcStat.IsDir() {
+			// collecting directory information
+			// path: C:\testdata\test
+			const format = "collecting directory information\npath: %s"
+			mt.updateDetail(fmt.Sprintf(format, srcAbs))
+		} else {
+			// collecting file information
+			// path: C:\testdata\test
+			const format = "collecting file information\npath: %s"
+			mt.updateDetail(fmt.Sprintf(format, srcAbs))
+			mt.updateTotal(srcStat.Size(), true)
+		}
+		return nil
+	}
+	return filepath.Walk(mt.stats.SrcAbs, walkFunc)
 }
 
 func (mt *moveTask) moveDirFiles(ctx context.Context, task *task.Task) error {
+	// check root path, and make directory if target path is not exists
+	// C:\test -> D:\test[exist]
+	if mt.stats.DstStat == nil {
+		err := os.MkdirAll(mt.stats.DstAbs, mt.stats.SrcStat.Mode().Perm())
+		if err != nil {
+			return errors.Wrap(err, "failed to create destination directory")
+		}
+	}
+	// skip root directory
+	// set fake progress for pass progress check
+	if len(mt.files) == 0 {
+		mt.current.SetUint64(1)
+		mt.total.SetUint64(1)
+		return nil
+	}
+	// must skip root path, otherwise will appear zero relative path
+	for _, file := range mt.files[1:] {
+		err := mt.moveDirFile(ctx, task, file)
+		if err != nil {
+			return errors.WithMessagef(err, "failed to copy file \"%s\"", file.path)
+		}
+	}
+	return nil
+}
+
+func (mt *moveTask) moveDirFile(ctx context.Context, task *task.Task, file *fileStat) error {
 	return nil
 }
 
@@ -146,7 +216,6 @@ func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, stats *SrcDst
 	if task.Canceled() {
 		return context.Canceled
 	}
-
 	return nil
 }
 
