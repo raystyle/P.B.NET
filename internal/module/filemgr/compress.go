@@ -83,7 +83,7 @@ func DirToZipFile(src, dstZip string) error {
 			Method:   zip.Deflate,
 			Modified: time.Time{},
 		}
-		writer.CreateHeader(&header)
+		_, _ = writer.CreateHeader(&header)
 
 		return nil
 	})
@@ -116,7 +116,7 @@ func ZipFileToDir(srcZip, dstDir string) error {
 		}
 	}
 	for _, dir := range dirs {
-		filename := filepath.Join(dstDir, dir.Name)
+		filename := filepath.Join(dstDir, filepath.Clean(dir.Name))
 		err = os.Chtimes(filename, time.Now(), dir.Modified)
 		if err != nil {
 			return errors.Wrap(err, "failed to change directory \"\" modification time")
@@ -126,7 +126,7 @@ func ZipFileToDir(srcZip, dstDir string) error {
 }
 
 func zipWriteFile(file *zip.File, dst string) error {
-	filename := filepath.Join(dst, file.Name)
+	filename := filepath.Join(dst, filepath.Clean(file.Name))
 	// check file is already exists
 	exist, err := system.IsExist(filename)
 	if err != nil {

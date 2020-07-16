@@ -192,13 +192,13 @@ func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 			mt.dirs[srcAbs] = f
 			// collecting directory information
 			// path: C:\testdata\test
-			const format = "collecting directory information\npath: %s"
+			const format = "collect directory information\npath: %s"
 			mt.updateDetail(fmt.Sprintf(format, srcAbs))
 			return nil
 		}
 		// collecting file information
 		// path: C:\testdata\test
-		const format = "collecting file information\npath: %s"
+		const format = "collect file information\npath: %s"
 		mt.updateDetail(fmt.Sprintf(format, srcAbs))
 		mt.updateTotal(srcStat.Size(), true)
 		return nil
@@ -313,6 +313,7 @@ retry:
 			return ne
 		}
 		mt.skipDirs = append(mt.skipDirs, dir.path)
+		return nil
 	}
 	err = os.Mkdir(dstAbs, dir.stat.Mode().Perm())
 	if err != nil {
@@ -375,7 +376,31 @@ func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, stats *SrcDst
 	if task.Canceled() {
 		return false, context.Canceled
 	}
-
+	// check src file is become directory
+	srcStat, err := os.Stat(stats.SrcAbs)
+	if err != nil {
+		retry, ne := noticeFailedToMove(ctx, task, mt.errCtrl, stats, err)
+		if retry {
+			return mt.retryMoveFile(ctx, task, stats)
+		}
+		if ne != nil {
+			return false, ne
+		}
+		mt.updateCurrent(stats.SrcStat.Size(), true)
+		return true, nil
+	}
+	if srcStat.IsDir() {
+		err = errors.New("src file become directory")
+		retry, ne := noticeFailedToMove(ctx, task, mt.errCtrl, stats, err)
+		if retry {
+			return mt.retryMoveFile(ctx, task, stats)
+		}
+		if ne != nil {
+			return false, ne
+		}
+		mt.updateCurrent(stats.SrcStat.Size(), true)
+		return true, nil
+	}
 	return false, os.Remove(stats.SrcAbs)
 }
 
@@ -442,7 +467,7 @@ func (mt *moveTask) ioMoveCommon(task *task.Task, stats *SrcDstStat, moved *int6
 	}
 	perm := stats.SrcStat.Mode().Perm()
 	// open dst file
-	dstFile, err := os.OpenFile(stats.DstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	dstFile, err := os.OpenFile(stats.DstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm) // #nosec
 	if err != nil {
 		return err
 	}

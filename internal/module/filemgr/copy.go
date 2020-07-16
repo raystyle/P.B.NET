@@ -9,12 +9,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/looplab/fsm"
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
 	"project/internal/module/task"
+	"project/internal/xpanic"
 )
 
 // copyTask implement task.Interface that is used to copy source to destination.
@@ -29,21 +31,28 @@ type copyTask struct {
 	files    []*fileStat
 	skipDirs []string
 
-	// about progress and detail
+	// about progress, detail and speed
 	current *big.Float
 	total   *big.Float
 	detail  string
+	speed   uint64
+	speeds  [10]uint64
+	full    bool
 	rwm     sync.RWMutex
+
+	// control watcher
+	stopSignal chan struct{}
 }
 
 // NewCopyTask is used to create a copy task that implement task.Interface.
 func NewCopyTask(errCtrl ErrCtrl, src, dst string, callbacks fsm.Callbacks) *task.Task {
 	ct := copyTask{
-		errCtrl: errCtrl,
-		src:     src,
-		dst:     dst,
-		current: big.NewFloat(0),
-		total:   big.NewFloat(0),
+		errCtrl:    errCtrl,
+		src:        src,
+		dst:        dst,
+		current:    big.NewFloat(0),
+		total:      big.NewFloat(0),
+		stopSignal: make(chan struct{}),
 	}
 	return task.New(TaskNameCopy, &ct, callbacks)
 }
@@ -55,6 +64,7 @@ func (ct *copyTask) Prepare(context.Context) error {
 		return err
 	}
 	ct.stats = stats
+	go ct.watcher()
 	return nil
 }
 
@@ -169,13 +179,13 @@ func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 		if srcStat.IsDir() {
 			// collecting directory information
 			// path: C:\testdata\test
-			const format = "collecting directory information\npath: %s"
+			const format = "collect directory information\npath: %s"
 			ct.updateDetail(fmt.Sprintf(format, srcAbs))
 			return nil
 		}
 		// collecting file information
 		// path: C:\testdata\test
-		const format = "collecting file information\npath: %s"
+		const format = "collect file information\npath: %s"
 		ct.updateDetail(fmt.Sprintf(format, srcAbs))
 		ct.updateTotal(srcStat.Size(), true)
 		return nil
@@ -308,16 +318,13 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *SrcDst
 		return nil
 	}
 	if srcStat.IsDir() {
-		err = os.MkdirAll(stats.DstAbs, srcStat.Mode().Perm())
-		if err != nil {
-			retry, ne := noticeFailedToCopy(ctx, task, ct.errCtrl, stats, err)
-			if retry {
-				return ct.retryCopyFile(ctx, task, stats)
-			}
-			if ne != nil {
-				return ne
-			}
-			ct.skipDirs = append(ct.skipDirs, stats.SrcAbs)
+		err = errors.New("source file become directory")
+		retry, ne := noticeFailedToCopy(ctx, task, ct.errCtrl, stats, err)
+		if retry {
+			return ct.retryCopyFile(ctx, task, stats)
+		}
+		if ne != nil {
+			return ne
 		}
 		ct.updateCurrent(stats.SrcStat.Size(), true)
 		return nil
@@ -327,8 +334,8 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *SrcDst
 	//   src: C:\testdata\test.dat
 	//   dst: D:\test\test.dat
 	_, srcFileName := filepath.Split(stats.SrcAbs)
-	srcSize := convert.ByteToString(uint64(stats.SrcStat.Size()))
-	const format = "copying file, name: %s size: %s\nsrc: %s\ndst: %s"
+	srcSize := convert.FormatByte(uint64(stats.SrcStat.Size()))
+	const format = "copy file, name: %s size: %s\nsrc: %s\ndst: %s"
 	ct.updateDetail(fmt.Sprintf(format, srcFileName, srcSize, stats.SrcAbs, stats.DstAbs))
 	// check dst file is exist
 	if stats.DstStat != nil {
@@ -378,7 +385,7 @@ func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *SrcDstSt
 	}
 	perm := stats.SrcStat.Mode().Perm()
 	// open dst file
-	dstFile, err := os.OpenFile(stats.DstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	dstFile, err := os.OpenFile(stats.DstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm) // #nosec
 	if err != nil {
 		return
 	}
@@ -392,11 +399,6 @@ func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *SrcDstSt
 	}()
 	// copy file
 	copied, err = ioCopy(task, ct.ioCopyAdd, dstFile, srcFile)
-	if err != nil {
-		return
-	}
-	// sync
-	err = dstFile.Sync()
 	if err != nil {
 		return
 	}
@@ -466,7 +468,7 @@ func (ct *copyTask) updateTotal(delta int64, add bool) {
 // Progress is used to get progress about current copy task.
 //
 // collect: "0%"
-// copy:    "15.22%|[current]/[total]"
+// copy:    "15.22%|current/total|128 MB/s"
 // finish:  "100%"
 func (ct *copyTask) Progress() string {
 	ct.rwm.RLock()
@@ -481,7 +483,7 @@ func (ct *copyTask) Progress() string {
 	case 1: // current > total
 		current := ct.current.Text('G', 64)
 		total := ct.total.Text('G', 64)
-		return fmt.Sprintf("err: current[%s] > total[%s]", current, total)
+		return fmt.Sprintf("err: current %s > total %s", current, total)
 	}
 	value := new(big.Float).Quo(ct.current, ct.total)
 	// split result
@@ -495,11 +497,18 @@ func (ct *copyTask) Progress() string {
 		return fmt.Sprintf("err: %s", err)
 	}
 	// 0.9999 -> 99.99%
-	str := strconv.FormatFloat(result*100, 'f', -1, 64) + "%"
-	// add |[current]/[total]
+	progress := strconv.FormatFloat(result*100, 'f', -1, 64)
+	offset := strings.Index(progress, ".")
+	if offset != -1 {
+		if len(progress[offset+1:]) > 2 {
+			progress = progress[:offset+3]
+		}
+	}
+	// progress|current/total|speed
 	current := ct.current.Text('G', 64)
 	total := ct.total.Text('G', 64)
-	return str + fmt.Sprintf("|[%s]/[%s]", current, total)
+	speed := convert.FormatByte(ct.speed)
+	return fmt.Sprintf("%s%%|%s/%s|%s/s", progress, current, total, speed)
 }
 
 func (ct *copyTask) updateDetail(detail string) {
@@ -508,13 +517,76 @@ func (ct *copyTask) updateDetail(detail string) {
 	ct.detail = detail
 }
 
+// Detail is used to get detail about copy task.
+//
+// collect dir info:
+//   collecting directory information
+//   path: C:\testdata\test
+//
+// copy file:
+//   copying file, name: test.dat size: 1.127MB
+//   src: C:\testdata\test.dat
+//   dst: D:\test\test.dat
 func (ct *copyTask) Detail() string {
 	ct.rwm.RLock()
 	defer ct.rwm.RUnlock()
 	return ct.detail
 }
 
-func (ct *copyTask) Clean() {}
+// watcher is used to calculate current speed.
+func (ct *copyTask) watcher() {
+	defer func() {
+		if r := recover(); r != nil {
+			xpanic.Log(r, "copyTask.watcher")
+		}
+	}()
+	ticker := time.NewTicker(time.Second / time.Duration(len(ct.speeds)))
+	defer ticker.Stop()
+	current := new(big.Float)
+	index := -1
+	for {
+		select {
+		case <-ticker.C:
+			index++
+			if index >= len(ct.speeds) {
+				index = 0
+			}
+			ct.watchSpeed(current, index)
+		case <-ct.stopSignal:
+			return
+		}
+	}
+}
+
+func (ct *copyTask) watchSpeed(current *big.Float, index int) {
+	ct.rwm.Lock()
+	defer ct.rwm.Unlock()
+	delta := new(big.Float).Sub(ct.current, current)
+	current.Add(current, delta)
+	// update speed
+	ct.speeds[index], _ = delta.Uint64()
+	if ct.full {
+		ct.speed = 0
+		for i := 0; i < len(ct.speeds); i++ {
+			ct.speed += ct.speeds[i]
+		}
+		return
+	}
+	if index == len(ct.speeds)-1 {
+		ct.full = true
+	}
+	// calculate average speed
+	var cs float64 // current speed
+	for i := 0; i < index; i++ {
+		cs += float64(ct.speeds[i])
+	}
+	ct.speed = uint64(cs * float64(len(ct.speeds)) / float64(index+1))
+}
+
+// Clean is used to send stop signal to watcher.
+func (ct *copyTask) Clean() {
+	close(ct.stopSignal)
+}
 
 // Copy is used to create a copyTask to copy src to dst.
 func Copy(errCtrl ErrCtrl, src, dst string) error {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -503,7 +504,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 
-			exist, err := system.IsExist(dstDir)
+			exist, err := system.IsNotExist(dstDir)
 			require.NoError(t, err)
 			require.True(t, exist)
 		})
@@ -682,7 +683,7 @@ func TestCopyWithNotice(t *testing.T) {
 			patch := func(string, os.FileMode) error {
 				return monkey.Error
 			}
-			pg := monkey.Patch(os.MkdirAll, patch)
+			pg := monkey.Patch(os.Mkdir, patch)
 			defer pg.Unpatch()
 
 			count := 0
@@ -716,7 +717,7 @@ func TestCopyWithNotice(t *testing.T) {
 			patch := func(string, os.FileMode) error {
 				return monkey.Error
 			}
-			pg := monkey.Patch(os.MkdirAll, patch)
+			pg := monkey.Patch(os.Mkdir, patch)
 			defer pg.Unpatch()
 
 			count := 0
@@ -750,7 +751,7 @@ func TestCopyWithNotice(t *testing.T) {
 			patch := func(string, os.FileMode) error {
 				return monkey.Error
 			}
-			pg := monkey.Patch(os.MkdirAll, patch)
+			pg := monkey.Patch(os.Mkdir, patch)
 			defer pg.Unpatch()
 
 			count := 0
@@ -784,7 +785,7 @@ func TestCopyWithNotice(t *testing.T) {
 			patch := func(string, os.FileMode) error {
 				return monkey.Error
 			}
-			pg := monkey.Patch(os.MkdirAll, patch)
+			pg := monkey.Patch(os.Mkdir, patch)
 			defer pg.Unpatch()
 
 			count := 0
@@ -1049,12 +1050,6 @@ func TestCopyWithNotice(t *testing.T) {
 			err := os.MkdirAll(dst, 0750)
 			require.NoError(t, err)
 
-			patch := func(string, os.FileMode) error {
-				return monkey.Error
-			}
-			var pg *monkey.PatchGuard
-			defer func() { pg.Unpatch() }()
-
 			count := 0
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
 				if typ == ErrCtrlSameFileDir {
@@ -1066,15 +1061,18 @@ func TestCopyWithNotice(t *testing.T) {
 					require.NoError(t, err)
 					err = os.MkdirAll(src, 0750)
 					require.NoError(t, err)
-
-					pg = monkey.Patch(os.MkdirAll, patch)
 					return ErrCtrlOpRetry
 				}
 
 				require.Equal(t, ErrCtrlCopyFailed, typ)
 				require.Error(t, err)
 				count++
-				pg.Unpatch()
+
+				// recover src file
+				src := filepath.Join(srcDir, srcFile1)
+				err = os.Remove(src)
+				require.NoError(t, err)
+				testCreateFile(t, src)
 				return ErrCtrlOpRetry
 			}
 			err = Copy(ec, srcDir, dstDir)
@@ -1105,12 +1103,6 @@ func TestCopyWithNotice(t *testing.T) {
 			err = os.MkdirAll(dst, 0750)
 			require.NoError(t, err)
 
-			patch := func(string, os.FileMode) error {
-				return monkey.Error
-			}
-			var pg *monkey.PatchGuard
-			defer func() { pg.Unpatch() }()
-
 			count := 0
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
 				if typ == ErrCtrlSameFileDir {
@@ -1122,15 +1114,12 @@ func TestCopyWithNotice(t *testing.T) {
 					require.NoError(t, err)
 					err = os.MkdirAll(src, 0750)
 					require.NoError(t, err)
-
-					pg = monkey.Patch(os.MkdirAll, patch)
 					return ErrCtrlOpRetry
 				}
 
 				require.Equal(t, ErrCtrlCopyFailed, typ)
 				require.Error(t, err)
 				count++
-				pg.Unpatch()
 				return ErrCtrlOpSkip
 			}
 			err = Copy(ec, srcDir, dstDir)
@@ -1161,12 +1150,6 @@ func TestCopyWithNotice(t *testing.T) {
 			err = os.MkdirAll(dst, 0750)
 			require.NoError(t, err)
 
-			patch := func(string, os.FileMode) error {
-				return monkey.Error
-			}
-			var pg *monkey.PatchGuard
-			defer func() { pg.Unpatch() }()
-
 			count := 0
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
 				if typ == ErrCtrlSameFileDir {
@@ -1178,15 +1161,12 @@ func TestCopyWithNotice(t *testing.T) {
 					require.NoError(t, err)
 					err = os.MkdirAll(src, 0750)
 					require.NoError(t, err)
-
-					pg = monkey.Patch(os.MkdirAll, patch)
 					return ErrCtrlOpRetry
 				}
 
 				require.Equal(t, ErrCtrlCopyFailed, typ)
 				require.Error(t, err)
 				count++
-				pg.Unpatch()
 				return ErrCtrlOpCancel
 			}
 			err = Copy(ec, srcDir, dstDir)
@@ -1217,12 +1197,6 @@ func TestCopyWithNotice(t *testing.T) {
 			err = os.MkdirAll(dst, 0750)
 			require.NoError(t, err)
 
-			patch := func(string, os.FileMode) error {
-				return monkey.Error
-			}
-			var pg *monkey.PatchGuard
-			defer func() { pg.Unpatch() }()
-
 			count := 0
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
 				if typ == ErrCtrlSameFileDir {
@@ -1234,15 +1208,12 @@ func TestCopyWithNotice(t *testing.T) {
 					require.NoError(t, err)
 					err = os.MkdirAll(src, 0750)
 					require.NoError(t, err)
-
-					pg = monkey.Patch(os.MkdirAll, patch)
 					return ErrCtrlOpRetry
 				}
 
 				require.Equal(t, ErrCtrlCopyFailed, typ)
 				require.Error(t, err)
 				count++
-				pg.Unpatch()
 				return ErrCtrlOpInvalid
 			}
 			err = Copy(ec, srcDir, dstDir)
@@ -1626,7 +1597,7 @@ func TestCopyTask_Progress(t *testing.T) {
 		testCreateFile2(t, filepath.Join(dstDir, srcFile1))
 
 		ec := func(_ context.Context, _ uint8, _ error, stats *SrcDstStat) uint8 {
-			time.Sleep(time.Second)
+			time.Sleep(2 * time.Second)
 			return ErrCtrlOpReplace
 		}
 		ct := NewCopyTask(ec, srcDir, dstDir, nil)
@@ -1639,8 +1610,9 @@ func TestCopyTask_Progress(t *testing.T) {
 					return
 				default:
 				}
-				fmt.Println("detail:", ct.Detail())
 				fmt.Println("progress:", ct.Progress())
+				fmt.Println("detail:", ct.Detail())
+				fmt.Println()
 				time.Sleep(250 * time.Millisecond)
 			}
 		}()
@@ -1658,4 +1630,38 @@ func TestCopyTask_Progress(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, exist)
 	})
+}
+
+func TestCopyTask_Speed(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	// ct := NewCopyTask(ReplaceAll, "D:\\Go", "E:\\Go", nil)
+	ct := NewCopyTask(ReplaceAll, "D:\\msf.msi", "E:\\", nil)
+	// ct := NewCopyTask(ReplaceAll, "D:\\big.vmdk", "E:\\", nil)
+
+	done := make(chan struct{})
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			fmt.Println("progress:", ct.Progress())
+			fmt.Println("detail:", ct.Detail())
+			fmt.Println()
+			time.Sleep(200 * time.Millisecond)
+		}
+	}()
+
+	err := ct.Start()
+	require.NoError(t, err)
+
+	close(done)
+
+	wg.Wait()
 }
