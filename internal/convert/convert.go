@@ -2,6 +2,7 @@ package convert
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
@@ -164,7 +165,13 @@ func FormatByte(n uint64) string {
 			text = text[:offset+1+3]
 		}
 	}
-	return text + " " + unit
+	// delete zero: 1.100 -> 1.1
+	result, err := strconv.ParseFloat(text, 64)
+	if err != nil {
+		panic(fmt.Sprintf("convert: internal error: %s", err))
+	}
+	value := strconv.FormatFloat(result, 'f', -1, 64)
+	return value + " " + unit
 }
 
 // FormatNumber is used to convert "123456.789" to "123,456.789".

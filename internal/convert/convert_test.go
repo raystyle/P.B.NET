@@ -2,9 +2,12 @@ package convert
 
 import (
 	"bytes"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/patch/monkey"
 )
 
 func TestNumberToBytes(t *testing.T) {
@@ -132,27 +135,41 @@ func TestAbsInt64(t *testing.T) {
 }
 
 func TestFormatByte(t *testing.T) {
-	for _, testdata := range [...]*struct {
-		input  uint64
-		output string
-	}{
-		{1023 * Byte, "1023 Byte"},
-		{1024 * Byte, "1 KB"},
-		{1536 * Byte, "1.5 KB"},
-		{MB, "1 MB"},
-		{1536 * KB, "1.5 MB"},
-		{GB, "1 GB"},
-		{1536 * MB, "1.5 GB"},
-		{TB, "1 TB"},
-		{1536 * GB, "1.5 TB"},
-		{PB, "1 PB"},
-		{1536 * TB, "1.5 PB"},
-		{EB, "1 EB"},
-		{1536 * PB, "1.5 EB"},
-		{1264, "1.234 KB"}, // 1264/1024 = 1.234375
-	} {
-		require.Equal(t, testdata.output, FormatByte(testdata.input))
-	}
+	t.Run("common", func(t *testing.T) {
+		for _, testdata := range [...]*struct {
+			input  uint64
+			output string
+		}{
+			{1023 * Byte, "1023 Byte"},
+			{1024 * Byte, "1 KB"},
+			{1536 * Byte, "1.5 KB"},
+			{MB, "1 MB"},
+			{1536 * KB, "1.5 MB"},
+			{GB, "1 GB"},
+			{1536 * MB, "1.5 GB"},
+			{TB, "1 TB"},
+			{1536 * GB, "1.5 TB"},
+			{PB, "1 PB"},
+			{1536 * TB, "1.5 PB"},
+			{EB, "1 EB"},
+			{1536 * PB, "1.5 EB"},
+			{1264, "1.234 KB"},  // 1264/1024 = 1.234375
+			{1153539, "1.1 MB"}, // 1.1001 MB
+		} {
+			require.Equal(t, testdata.output, FormatByte(testdata.input))
+		}
+	})
+
+	t.Run("internal error", func(t *testing.T) {
+		patch := func(string, int) (float64, error) {
+			return 0, monkey.Error
+		}
+		pg := monkey.Patch(strconv.ParseFloat, patch)
+		defer pg.Unpatch()
+
+		defer testDeferForPanic(t)
+		FormatByte(1024)
+	})
 }
 
 func TestFormatNumber(t *testing.T) {
