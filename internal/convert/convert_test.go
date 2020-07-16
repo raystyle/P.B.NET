@@ -131,22 +131,27 @@ func TestAbsInt64(t *testing.T) {
 	}
 }
 
-func TestByteToString(t *testing.T) {
+func TestFormatByte(t *testing.T) {
 	for _, testdata := range [...]*struct {
-		input  int
+		input  uint64
 		output string
 	}{
-		{1023, "1023 Byte"},
-		{1024, "1.000 KB"},
-		{1536, "1.500 KB"},
-		{1024 << 10, "1.000 MB"},
-		{1536 << 10, "1.500 MB"},
-		{1024 << 20, "1.000 GB"},
-		{1536 << 20, "1.500 GB"},
-		{1024 << 30, "1.000 TB"},
-		{1536 << 30, "1.500 TB"},
+		{1023 * Byte, "1023 Byte"},
+		{1024 * Byte, "1 KB"},
+		{1536 * Byte, "1.5 KB"},
+		{MB, "1 MB"},
+		{1536 * KB, "1.5 MB"},
+		{GB, "1 GB"},
+		{1536 * MB, "1.5 GB"},
+		{TB, "1 TB"},
+		{1536 * GB, "1.5 TB"},
+		{PB, "1 PB"},
+		{1536 * TB, "1.5 PB"},
+		{EB, "1 EB"},
+		{1536 * PB, "1.5 EB"},
+		{1264, "1.234 KB"}, // 1264/1024 = 1.234375
 	} {
-		require.Equal(t, testdata.output, ByteToString(uint64(testdata.input)))
+		require.Equal(t, testdata.output, FormatByte(testdata.input))
 	}
 }
 
@@ -179,7 +184,7 @@ func TestFormatNumber(t *testing.T) {
 	}
 }
 
-func TestByteSliceToString(t *testing.T) {
+func TestOutputBytes(t *testing.T) {
 	for _, testdata := range [...]*struct {
 		input  []byte
 		output string
@@ -189,6 +194,6 @@ func TestByteSliceToString(t *testing.T) {
 		{[]byte{1, 2}, "[]byte{1, 2}"},
 		{[]byte{1, 2, 3}, "[]byte{1, 2, 3}"},
 	} {
-		require.Equal(t, testdata.output, ByteSliceToString(testdata.input))
+		require.Equal(t, testdata.output, OutputBytes(testdata.input))
 	}
 }

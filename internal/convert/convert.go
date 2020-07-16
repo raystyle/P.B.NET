@@ -2,7 +2,7 @@ package convert
 
 import (
 	"encoding/binary"
-	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -114,26 +114,57 @@ func AbsInt64(n int64) int64 {
 	return (n ^ y) - y
 }
 
-// ByteToString is used to covert Byte to KB, MB, GB or TB.
-func ByteToString(n uint64) string {
-	const (
-		kb = 1 << 10
-		mb = 1 << 20
-		gb = 1 << 30
-		tb = 1 << 40
+// unit about storage
+const (
+	Byte = 1
+	KB   = Byte * 1024
+	MB   = KB * 1024
+	GB   = MB * 1024
+	TB   = GB * 1024
+	PB   = TB * 1024
+	EB   = PB * 1024
+)
+
+// FormatByte is used to covert Byte to KB, MB, GB or TB.
+func FormatByte(n uint64) string {
+	if n < KB {
+		return strconv.Itoa(int(n)) + " Byte"
+	}
+	bn := new(big.Float).SetUint64(n)
+	var (
+		unit string
+		div  uint64
 	)
 	switch {
-	case n < kb:
-		return fmt.Sprintf("%d Byte", n)
-	case n < mb:
-		return fmt.Sprintf("%.3f KB", float64(n)/kb)
-	case n < gb:
-		return fmt.Sprintf("%.3f MB", float64(n)/mb)
-	case n < tb:
-		return fmt.Sprintf("%.3f GB", float64(n)/gb)
+	case n < MB:
+		unit = "KB"
+		div = KB
+	case n < GB:
+		unit = "MB"
+		div = MB
+	case n < TB:
+		unit = "GB"
+		div = GB
+	case n < PB:
+		unit = "TB"
+		div = TB
+	case n < EB:
+		unit = "PB"
+		div = PB
 	default:
-		return fmt.Sprintf("%.3f TB", float64(n)/tb)
+		unit = "EB"
+		div = EB
 	}
+	bn.Quo(bn, new(big.Float).SetUint64(div))
+	// 1.99999999 -> 1.999
+	text := bn.Text('G', 64)
+	offset := strings.Index(text, ".")
+	if offset != -1 {
+		if len(text[offset+1:]) > 3 {
+			text = text[:offset+1+3]
+		}
+	}
+	return text + " " + unit
 }
 
 // FormatNumber is used to convert "123456.789" to "123,456.789".
@@ -167,8 +198,8 @@ func FormatNumber(str string) string {
 	return builder.String()
 }
 
-// ByteSliceToString is used to print byte slice, output is "[]byte{1, 2, 3}".
-func ByteSliceToString(b []byte) string {
+// OutputBytes is used to print byte slice, output is "[]byte{1, 2, 3}".
+func OutputBytes(b []byte) string {
 	l := len(b)
 	end := l - 1
 	builder := strings.Builder{}
