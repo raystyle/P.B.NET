@@ -150,28 +150,14 @@ func (ct *copyTask) copySrcDir(ctx context.Context, task *task.Task) error {
 func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 	ct.files = make([]*fileStat, 0, 64)
 	walkFunc := func(srcAbs string, srcStat os.FileInfo, err error) error {
-		// for retry
-		var walkFailed bool
-	retry:
-		// check task is canceled
-		if task.Canceled() {
-			return context.Canceled
-		}
-		if walkFailed {
-			srcStat, err = os.Stat(srcAbs)
-		}
 		if err != nil {
 			const format = "failed to walk \"%s\" in \"%s\": %s"
-			ne := fmt.Errorf(format, srcAbs, ct.stats.SrcAbs, err)
-			retry, ne := noticeFailedToCollect(ctx, task, ct.errCtrl, srcAbs, ne)
-			if retry {
-				walkFailed = true
-				goto retry
+			err = fmt.Errorf(format, srcAbs, ct.stats.SrcAbs, err)
+			skip, ne := noticeFailedToCollect(ctx, task, ct.errCtrl, srcAbs, err)
+			if skip {
+				return filepath.SkipDir
 			}
-			if ne != nil {
-				return ne
-			}
-			return filepath.SkipDir
+			return ne
 		}
 		ct.files = append(ct.files, &fileStat{
 			path: srcAbs,

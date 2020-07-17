@@ -220,14 +220,13 @@ func noticeFailedToCollect(
 	errCtrl ErrCtrl,
 	path string,
 	extError error,
-) (retry bool, err error) {
+) (skip bool, err error) {
 	task.Pause()
 	defer task.Continue()
 	stats := SrcDstStat{SrcAbs: path}
 	switch code := errCtrl(ctx, ErrCtrlCollectFailed, extError, &stats); code {
-	case ErrCtrlOpRetry:
-		retry = true
 	case ErrCtrlOpSkip:
+		skip = true
 	case ErrCtrlOpCancel:
 		err = ErrUserCanceled
 	default:

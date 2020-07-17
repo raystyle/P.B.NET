@@ -154,34 +154,20 @@ func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 		cFile *file  // current file
 	)
 	walkFunc := func(srcAbs string, srcStat os.FileInfo, err error) error {
-		// for retry
-		var walkFailed bool
-	retry:
-		// check task is canceled
-		if task.Canceled() {
-			return context.Canceled
-		}
-		if walkFailed {
-			srcStat, err = os.Stat(srcAbs)
-		}
 		if err != nil {
 			const format = "failed to walk \"%s\" in \"%s\": %s"
-			ne := fmt.Errorf(format, srcAbs, mt.stats.SrcAbs, err)
-			retry, ne := noticeFailedToCollect(ctx, task, mt.errCtrl, srcAbs, ne)
-			if retry {
-				walkFailed = true
-				goto retry
+			err = fmt.Errorf(format, srcAbs, mt.stats.SrcAbs, err)
+			skip, ne := noticeFailedToCollect(ctx, task, mt.errCtrl, srcAbs, err)
+			if skip {
+				return filepath.SkipDir
 			}
-			if ne != nil {
-				return ne
-			}
-			return filepath.SkipDir
+			return ne
 		}
 		f := &file{
 			path: srcAbs,
 			stat: srcStat,
 		}
-		// is root directory
+		// check is root directory
 		if mt.root == nil {
 			// initialize task structure
 			mt.root = f
