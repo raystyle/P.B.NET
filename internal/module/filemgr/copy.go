@@ -3,6 +3,7 @@ package filemgr
 import (
 	"context"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -234,6 +235,11 @@ func (ct *copyTask) copyDirFile(ctx context.Context, task *task.Task, file *file
 	relativePath := strings.Replace(file.path, ct.stats.SrcAbs, "", 1)
 	relativePath = string([]rune(relativePath)[1:]) // remove the first "\" or "/"
 	dstAbs := filepath.Join(ct.stats.DstAbs, relativePath)
+	stats := &SrcDstStat{
+		SrcAbs:  file.path,
+		DstAbs:  dstAbs,
+		SrcStat: file.stat,
+	}
 retry:
 	// check task is canceled
 	if task.Canceled() {
@@ -242,7 +248,7 @@ retry:
 	// dstStat maybe updated
 	dstStat, err := stat(dstAbs)
 	if err != nil {
-		retry, ne := noticeFailedToCopyDir(ctx, task, ct.errCtrl, dstAbs, err)
+		retry, ne := noticeFailedToCopyDir(ctx, task, ct.errCtrl, stats, err)
 		if retry {
 			goto retry
 		}
@@ -256,18 +262,13 @@ retry:
 		ct.updateCurrent(file.stat.Size(), true)
 		return nil
 	}
-	stat := &SrcDstStat{
-		SrcAbs:  file.path,
-		DstAbs:  dstAbs,
-		SrcStat: file.stat,
-		DstStat: dstStat,
-	}
+	stats.DstStat = dstStat
 	if file.stat.IsDir() {
 		if dstStat == nil {
-			return ct.mkdir(ctx, task, file, dstAbs)
+			return ct.mkdir(ctx, task, stats)
 		}
 		if !dstStat.IsDir() {
-			retry, ne := noticeSameDirFile(ctx, task, ct.errCtrl, stat)
+			retry, ne := noticeSameDirFile(ctx, task, ct.errCtrl, stats)
 			if retry {
 				goto retry
 			}
@@ -278,25 +279,51 @@ retry:
 		}
 		return nil
 	}
-	return ct.copyFile(ctx, task, stat)
+	return ct.copyFile(ctx, task, stats)
 }
 
-func (ct *copyTask) mkdir(ctx context.Context, task *task.Task, dir *fileStat, dstAbs string) error {
+func (ct *copyTask) mkdir(ctx context.Context, task *task.Task, stats *SrcDstStat) error {
 retry:
 	// check task is canceled
 	if task.Canceled() {
 		return context.Canceled
 	}
-	err := os.Mkdir(dstAbs, dir.stat.Mode().Perm())
+	// check src directory is become file
+	srcStat, err := os.Stat(stats.SrcAbs)
 	if err != nil {
-		retry, ne := noticeFailedToCopyDir(ctx, task, ct.errCtrl, dstAbs, err)
+		retry, ne := noticeFailedToCopyDir(ctx, task, ct.errCtrl, stats, err)
 		if retry {
 			goto retry
 		}
 		if ne != nil {
 			return ne
 		}
-		ct.skipDirs = append(ct.skipDirs, dir.path)
+		ct.skipDirs = append(ct.skipDirs, stats.SrcAbs)
+		return nil
+	}
+	if !srcStat.IsDir() {
+		err = errors.New("source directory become file")
+		retry, ne := noticeFailedToCopyDir(ctx, task, ct.errCtrl, stats, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return ne
+		}
+		ct.skipDirs = append(ct.skipDirs, stats.SrcAbs)
+		return nil
+	}
+	// create directory
+	err = os.Mkdir(stats.DstAbs, srcStat.Mode().Perm())
+	if err != nil {
+		retry, ne := noticeFailedToCopyDir(ctx, task, ct.errCtrl, stats, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return ne
+		}
+		ct.skipDirs = append(ct.skipDirs, stats.SrcAbs)
 	}
 	return nil
 }
@@ -399,7 +426,8 @@ func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *SrcDstSt
 		}
 	}()
 	// copy file
-	copied, err = ioCopy(task, ct.ioCopyAdd, dstFile, srcFile)
+	lr := io.LimitReader(srcFile, stats.SrcStat.Size())
+	copied, err = ioCopy(task, ct.ioCopyAdd, dstFile, lr)
 	if err != nil {
 		return
 	}

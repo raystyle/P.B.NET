@@ -3,6 +3,7 @@ package filemgr
 import (
 	"context"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -297,7 +298,8 @@ retry:
 	// check destination directory is exist
 	dstStat, err := stat(dstAbs)
 	if err != nil {
-		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, dstAbs, err)
+
+		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, nil, err)
 		if retry {
 			goto retry
 		}
@@ -311,13 +313,13 @@ retry:
 		if dstStat.IsDir() {
 			return nil
 		}
-		stat := &SrcDstStat{
+		stats := &SrcDstStat{
 			SrcAbs:  dir.path,
 			DstAbs:  dstAbs,
 			SrcStat: dir.stat,
 			DstStat: dstStat,
 		}
-		retry, ne := noticeSameDirFile(ctx, task, mt.errCtrl, stat)
+		retry, ne := noticeSameDirFile(ctx, task, mt.errCtrl, stats)
 		if retry {
 			goto retry
 		}
@@ -329,7 +331,7 @@ retry:
 	}
 	err = os.Mkdir(dstAbs, dir.stat.Mode().Perm())
 	if err != nil {
-		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, dstAbs, err)
+		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, nil, err)
 		if retry {
 			goto retry
 		}
@@ -364,7 +366,7 @@ retry:
 	// dstStat maybe updated
 	dstStat, err := stat(dstAbs)
 	if err != nil {
-		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, dstAbs, err)
+		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, nil, err)
 		if retry {
 			goto retry
 		}
@@ -374,13 +376,13 @@ retry:
 		mt.updateCurrent(file.stat.Size(), true)
 		return true, nil
 	}
-	stat := &SrcDstStat{
+	stats := &SrcDstStat{
 		SrcAbs:  file.path,
 		DstAbs:  dstAbs,
 		SrcStat: file.stat,
 		DstStat: dstStat,
 	}
-	return mt.moveFile(ctx, task, stat)
+	return mt.moveFile(ctx, task, stats)
 }
 
 // returned bool is skipped this file.
@@ -402,7 +404,7 @@ func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, stats *SrcDst
 		return true, nil
 	}
 	if srcStat.IsDir() {
-		err = errors.New("src file become directory")
+		err = errors.New("source file become directory")
 		retry, ne := noticeFailedToMove(ctx, task, mt.errCtrl, stats, err)
 		if retry {
 			return mt.retryMoveFile(ctx, task, stats)
@@ -413,7 +415,7 @@ func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, stats *SrcDst
 		mt.updateCurrent(stats.SrcStat.Size(), true)
 		return true, nil
 	}
-	return false, os.Remove(stats.SrcAbs)
+	return mt.ioMove(ctx, task, stats)
 }
 
 func (mt *moveTask) ioMove(ctx context.Context, task *task.Task, stats *SrcDstStat) (skipped bool, err error) {
@@ -491,7 +493,8 @@ func (mt *moveTask) ioMoveCommon(task *task.Task, stats *SrcDstStat, moved *int6
 		}
 	}()
 	// move file
-	*moved, err = ioCopy(task, mt.ioMoveAdd, dstFile, srcFile)
+	lr := io.LimitReader(srcFile, stats.SrcStat.Size())
+	*moved, err = ioCopy(task, mt.ioMoveAdd, dstFile, lr)
 	if err != nil {
 		return err
 	}

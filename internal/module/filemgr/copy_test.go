@@ -669,6 +669,14 @@ func TestCopyWithNotice(t *testing.T) {
 		})
 	})
 
+	t.Run("FailedToCopyDir-mkdir-os.Stat", func(t *testing.T) {
+		t.Skip()
+	})
+
+	t.Run("FailedToCopyDir-mkdir-IsDir", func(t *testing.T) {
+		t.Skip()
+	})
+
 	t.Run("FailedToCopyDir-mkdir", func(t *testing.T) {
 		t.Run("retry", func(t *testing.T) {
 			defer func() {
