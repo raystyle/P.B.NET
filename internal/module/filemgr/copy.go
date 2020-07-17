@@ -521,11 +521,11 @@ func (ct *copyTask) updateDetail(detail string) {
 // Detail is used to get detail about copy task.
 //
 // collect dir info:
-//   collecting directory information
+//   collect directory information
 //   path: C:\testdata\test
 //
 // copy file:
-//   copying file, name: test.dat size: 1.127MB
+//   copy file, name: test.dat size: 1.127MB
 //   src: C:\testdata\test.dat
 //   dst: D:\test\test.dat
 func (ct *copyTask) Detail() string {

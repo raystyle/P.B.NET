@@ -9,11 +9,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/looplab/fsm"
 	"github.com/pkg/errors"
 
+	"project/internal/convert"
 	"project/internal/module/task"
+	"project/internal/xpanic"
 )
 
 // moveTask implement task.Interface that is used to move source to destination.
@@ -28,21 +31,28 @@ type moveTask struct {
 	dirs     map[string]*file // for search dir faster, key is path
 	skipDirs []string
 
-	// about progress and detail
+	// about progress, detail and speed
 	current *big.Float
 	total   *big.Float
 	detail  string
+	speed   uint64
+	speeds  [10]uint64
+	full    bool
 	rwm     sync.RWMutex
+
+	// control watcher
+	stopSignal chan struct{}
 }
 
 // NewMoveTask is used to create a move task that implement task.Interface.
 func NewMoveTask(errCtrl ErrCtrl, src, dst string, callbacks fsm.Callbacks) *task.Task {
 	mt := moveTask{
-		errCtrl: errCtrl,
-		src:     src,
-		dst:     dst,
-		current: big.NewFloat(0),
-		total:   big.NewFloat(0),
+		errCtrl:    errCtrl,
+		src:        src,
+		dst:        dst,
+		current:    big.NewFloat(0),
+		total:      big.NewFloat(0),
+		stopSignal: make(chan struct{}),
 	}
 	return task.New(TaskNameMove, &mt, callbacks)
 }
@@ -54,6 +64,7 @@ func (mt *moveTask) Prepare(context.Context) error {
 		return err
 	}
 	mt.stats = stats
+	go mt.watcher()
 	return nil
 }
 
@@ -227,7 +238,6 @@ func (mt *moveTask) moveRoot(ctx context.Context, task *task.Task) error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to move directory")
 	}
-	mt.updateDetail("finished")
 	return nil
 }
 
@@ -556,7 +566,7 @@ func (mt *moveTask) updateTotal(delta int64, add bool) {
 // Progress is used to get progress about current move task.
 //
 // collect: "0%"
-// move:    "15.22%|[current]/[total]"
+// move:    "15.22%|current/total|128 MB/s"
 // finish:  "100%"
 func (mt *moveTask) Progress() string {
 	mt.rwm.RLock()
@@ -585,11 +595,18 @@ func (mt *moveTask) Progress() string {
 		return fmt.Sprintf("err: %s", err)
 	}
 	// 0.9999 -> 99.99%
-	str := strconv.FormatFloat(result*100, 'f', -1, 64) + "%"
-	// add |[current]/[total]
+	progress := strconv.FormatFloat(result*100, 'f', -1, 64) + "%"
+	offset := strings.Index(progress, ".")
+	if offset != -1 {
+		if len(progress[offset+1:]) > 2 {
+			progress = progress[:offset+3]
+		}
+	}
+	// progress|current/total|speed
 	current := mt.current.Text('G', 64)
 	total := mt.total.Text('G', 64)
-	return str + fmt.Sprintf("|[%s]/[%s]", current, total)
+	speed := convert.FormatByte(mt.speed)
+	return fmt.Sprintf("%s%%|%s/%s|%s/s", progress, current, total, speed)
 }
 
 func (mt *moveTask) updateDetail(detail string) {
@@ -598,13 +615,75 @@ func (mt *moveTask) updateDetail(detail string) {
 	mt.detail = detail
 }
 
+// Detail is used to get detail about move task.
+//
+// collect dir info:
+//   collect directory information
+//   path: C:\testdata\test
+//
+// move file:
+//   move file, name: test.dat size: 1.127MB
+//   src: C:\testdata\test.dat
+//   dst: D:\test\test.dat
 func (mt *moveTask) Detail() string {
 	mt.rwm.RLock()
 	defer mt.rwm.RUnlock()
 	return mt.detail
 }
 
-func (mt *moveTask) Clean() {}
+// watcher is used to calculate current speed.
+func (mt *moveTask) watcher() {
+	defer func() {
+		if r := recover(); r != nil {
+			xpanic.Log(r, "moveTask.watcher")
+		}
+	}()
+	ticker := time.NewTicker(time.Second / time.Duration(len(mt.speeds)))
+	defer ticker.Stop()
+	current := new(big.Float)
+	index := -1
+	for {
+		select {
+		case <-ticker.C:
+			index++
+			if index >= len(mt.speeds) {
+				index = 0
+			}
+			mt.watchSpeed(current, index)
+		case <-mt.stopSignal:
+			return
+		}
+	}
+}
+
+func (mt *moveTask) watchSpeed(current *big.Float, index int) {
+	mt.rwm.Lock()
+	defer mt.rwm.Unlock()
+	delta := new(big.Float).Sub(mt.current, current)
+	current.Add(current, delta)
+	// update speed
+	mt.speeds[index], _ = delta.Uint64()
+	if mt.full {
+		mt.speed = 0
+		for i := 0; i < len(mt.speeds); i++ {
+			mt.speed += mt.speeds[i]
+		}
+		return
+	}
+	if index == len(mt.speeds)-1 {
+		mt.full = true
+	}
+	// calculate average speed
+	var speed float64 // current speed
+	for i := 0; i < index+1; i++ {
+		speed += float64(mt.speeds[i])
+	}
+	mt.speed = uint64(speed * float64(len(mt.speeds)) / float64(index+1))
+}
+
+func (mt *moveTask) Clean() {
+	close(mt.stopSignal)
+}
 
 // Move is used to create a moveTask to move file or directory.
 func Move(errCtrl ErrCtrl, src, dst string) error {
