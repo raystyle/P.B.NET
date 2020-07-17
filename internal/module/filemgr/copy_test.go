@@ -1603,7 +1603,10 @@ func TestCopyTask_Progress(t *testing.T) {
 		ct := NewCopyTask(ec, srcDir, dstDir, nil)
 
 		done := make(chan struct{})
+		wg := sync.WaitGroup{}
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			for {
 				select {
 				case <-done:
@@ -1621,6 +1624,10 @@ func TestCopyTask_Progress(t *testing.T) {
 		require.NoError(t, err)
 
 		close(done)
+		wg.Wait()
+
+		fmt.Println("progress:", ct.Progress())
+		fmt.Println("detail:", ct.Detail())
 
 		rct := ct.Task()
 		testsuite.IsDestroyed(t, ct)
@@ -1630,38 +1637,4 @@ func TestCopyTask_Progress(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, exist)
 	})
-}
-
-func TestCopyTask_Speed(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	// ct := NewCopyTask(ReplaceAll, "D:\\Go", "E:\\Go", nil)
-	ct := NewCopyTask(ReplaceAll, "D:\\msf.msi", "E:\\", nil)
-	// ct := NewCopyTask(ReplaceAll, "D:\\big.vmdk", "E:\\", nil)
-
-	done := make(chan struct{})
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-done:
-				return
-			default:
-			}
-			fmt.Println("progress:", ct.Progress())
-			fmt.Println("detail:", ct.Detail())
-			fmt.Println()
-			time.Sleep(200 * time.Millisecond)
-		}
-	}()
-
-	err := ct.Start()
-	require.NoError(t, err)
-
-	close(done)
-
-	wg.Wait()
 }

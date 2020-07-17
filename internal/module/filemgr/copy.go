@@ -69,6 +69,7 @@ func (ct *copyTask) Prepare(context.Context) error {
 }
 
 func (ct *copyTask) Process(ctx context.Context, task *task.Task) error {
+	defer ct.updateDetail("finished")
 	if ct.stats.SrcIsFile {
 		return ct.copySrcFile(ctx, task)
 	}
@@ -576,11 +577,11 @@ func (ct *copyTask) watchSpeed(current *big.Float, index int) {
 		ct.full = true
 	}
 	// calculate average speed
-	var cs float64 // current speed
-	for i := 0; i < index; i++ {
-		cs += float64(ct.speeds[i])
+	var speed float64 // current speed
+	for i := 0; i < index+1; i++ {
+		speed += float64(ct.speeds[i])
 	}
-	ct.speed = uint64(cs * float64(len(ct.speeds)) / float64(index+1))
+	ct.speed = uint64(speed * float64(len(ct.speeds)) / float64(index+1))
 }
 
 // Clean is used to send stop signal to watcher.

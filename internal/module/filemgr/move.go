@@ -58,6 +58,7 @@ func (mt *moveTask) Prepare(context.Context) error {
 }
 
 func (mt *moveTask) Process(ctx context.Context, task *task.Task) error {
+	defer mt.updateDetail("finished")
 	if mt.stats.SrcIsFile {
 		return mt.moveSrcFile(ctx, task)
 	}
@@ -226,6 +227,7 @@ func (mt *moveTask) moveRoot(ctx context.Context, task *task.Task) error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to move directory")
 	}
+	mt.updateDetail("finished")
 	return nil
 }
 
