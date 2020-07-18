@@ -208,28 +208,61 @@ func FormatNumber(str string) string {
 }
 
 // OutputBytes is used to print byte slice, each line is 8 bytes.
+func OutputBytes(b []byte) string {
+	return OutputBytesWithSize(b, 8)
+}
+
+// OutputBytesWithSize is used to print byte slice.
 //
 // Output:
-// var data = []byte{
+// ----one line----
+// []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+// -----common-----
+// []byte{
+//		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+//		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+//      0x00, 0x00, 0x00, 0x00,
+// }
+// ----full line---
+// []byte{
 //		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 //		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 // }
-func OutputBytes(b []byte) string {
+func OutputBytesWithSize(b []byte, line int) string {
 	const (
 		begin = "[]byte{"
 		end   = "}"
-		line  = 8
 	)
+	// special: empty data
 	l := len(b)
 	if l == 0 {
 		return begin + end
 	}
+	if line < 1 {
+		line = 1
+	}
+	// create builder
 	builder := new(strings.Builder)
 	builder.Grow(len(begin+end) + len("0x00, ")*l)
 	// write begin string
-	builder.WriteString("[]byte{\n")
+	builder.WriteString("[]byte{")
 	buf := make([]byte, 2)
+	// special: one line
+	if l <= line {
+		for i := 0; i < l; i++ {
+			hex.Encode(buf, []byte{b[i]})
+			builder.WriteString("0x")
+			builder.Write(bytes.ToUpper(buf))
+			if i != l-1 {
+				builder.WriteString(", ")
+			}
+		}
+		builder.WriteString("}")
+		return builder.String()
+	}
+	// write begin string
 	var counter int // need new line
+	builder.WriteString("\n")
 	for i := 0; i < l; i++ {
 		if counter == 0 {
 			builder.WriteString("\t")
@@ -237,18 +270,18 @@ func OutputBytes(b []byte) string {
 		hex.Encode(buf, []byte{b[i]})
 		builder.WriteString("0x")
 		builder.Write(bytes.ToUpper(buf))
-		builder.WriteString(", ")
 		counter++
 		if counter == line {
-			builder.WriteString("\n")
+			builder.WriteString(",\n")
 			counter = 0
+		} else {
+			builder.WriteString(", ")
 		}
 	}
 	// write end string
-	if counter != 0 {
-		builder.WriteString("\n}")
-	} else {
-		builder.WriteString("}")
+	if counter != 0 { // delete last space
+		return builder.String()[:builder.Len()-1] + "\n}"
 	}
+	builder.WriteString("}")
 	return builder.String()
 }
