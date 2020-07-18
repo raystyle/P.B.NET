@@ -1,7 +1,9 @@
 package convert
 
 import (
+	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -205,19 +207,48 @@ func FormatNumber(str string) string {
 	return builder.String()
 }
 
-// OutputBytes is used to print byte slice, output is "[]byte{1, 2, 3}".
+// OutputBytes is used to print byte slice, each line is 8 bytes.
+//
+// Output:
+// var data = []byte{
+//		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+//		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+// }
 func OutputBytes(b []byte) string {
+	const (
+		begin = "[]byte{"
+		end   = "}"
+		line  = 8
+	)
 	l := len(b)
-	end := l - 1
-	builder := strings.Builder{}
-	builder.Grow(8 + 2*l)
-	builder.WriteString("[]byte{")
+	if l == 0 {
+		return begin + end
+	}
+	builder := new(strings.Builder)
+	builder.Grow(len(begin+end) + len("0x00, ")*l)
+	// write begin string
+	builder.WriteString("[]byte{\n")
+	buf := make([]byte, 2)
+	var counter int // need new line
 	for i := 0; i < l; i++ {
-		builder.WriteString(strconv.Itoa(int(b[i])))
-		if i != end {
-			builder.WriteString(", ")
+		if counter == 0 {
+			builder.WriteString("\t")
+		}
+		hex.Encode(buf, []byte{b[i]})
+		builder.WriteString("0x")
+		builder.Write(bytes.ToUpper(buf))
+		builder.WriteString(", ")
+		counter++
+		if counter == line {
+			builder.WriteString("\n")
+			counter = 0
 		}
 	}
-	builder.WriteString("}")
+	// write end string
+	if counter != 0 {
+		builder.WriteString("\n}")
+	} else {
+		builder.WriteString("}")
+	}
 	return builder.String()
 }

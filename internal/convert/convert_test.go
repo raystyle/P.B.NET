@@ -207,9 +207,28 @@ func TestOutputBytes(t *testing.T) {
 		output string
 	}{
 		{[]byte{}, "[]byte{}"},
-		{[]byte{1}, "[]byte{1}"},
-		{[]byte{1, 2}, "[]byte{1, 2}"},
-		{[]byte{1, 2, 3}, "[]byte{1, 2, 3}"},
+		{[]byte{1}, `[]byte{
+	0x01, 
+}`},
+		{[]byte{255, 254}, `[]byte{
+	0xFF, 0xFE, 
+}`},
+		{[]byte{0, 0, 0, 0, 0, 0, 255, 254}, `[]byte{
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFE, 
+}`},
+		{[]byte{0, 0, 0, 0, 0, 0, 255, 254, 1}, `[]byte{
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFE, 
+	0x01, 
+}`},
+		{[]byte{
+			0, 0, 0, 0, 0, 0, 255, 254,
+			1, 2, 2, 2, 2, 2, 2, 2,
+			4, 5,
+		}, `[]byte{
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFE, 
+	0x01, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 
+	0x04, 0x05, 
+}`},
 	} {
 		require.Equal(t, testdata.output, OutputBytes(testdata.input))
 	}
