@@ -19,14 +19,14 @@ var (
 		0xab, 0xf8, 0x77, 0x2f, 0xdf, 0xed, 0xde, 0x07}
 )
 
-func Test_Chaskey_1(t *testing.T) {
+func Test_ChasLey(t *testing.T) {
 	data := plain
-	outdata := Chaskey(key, data)
+	outData := ChasKey(key, data)
 
-	if bytes.Compare(outdata, cipher) == 0 {
-		t.Log("Chaskey Test Passed")
+	if bytes.Compare(outData, cipher) == 0 {
+		t.Log("ChasKey Test Passed")
 	} else {
-		t.Log("Chaskey Test Failed\n", outdata, cipher)
+		t.Log("ChasKey Test Failed\n", outData, cipher)
 		t.Fail()
 	}
 }
@@ -52,7 +52,7 @@ func Test_Maru_2(t *testing.T) {
 	hash := Maru([]byte("Sleep"), iv) ^ dllHash
 	log.Printf("Hash: %x (dllHash was %x)\n", hash, dllHash)
 
-	//0x17, 0xFC, 0xA0, 0x40, 0xD2, 0xBA, 0x66, 0xC7
+	// 0x17, 0xFC, 0xA0, 0x40, 0xD2, 0xBA, 0x66, 0xC7
 	if 0xc766bad240a0fc17 == hash {
 		t.Log("Maru Test Passed")
 	} else {
