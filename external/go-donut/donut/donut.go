@@ -10,8 +10,8 @@ import (
 )
 
 /*
-	This code imports PE files and converts them to shellcode using the algorithm and stubs taken
-	from the donut loader: https://github.com/TheWover/donut
+	This code imports PE files and converts them to shellcode using the algorithm and
+	stubs taken from the donut loader: https://github.com/TheWover/donut
 
 	You can also use the native-code donut tools to do this conversion.
 
@@ -25,7 +25,6 @@ func ShellcodeFromURL(fileURL string, config *DonutConfig) (*bytes.Buffer, error
 	if err != nil {
 		return nil, err
 	}
-	// todo: set things up in config
 	return ShellcodeFromBytes(buf, config)
 }
 
@@ -81,7 +80,8 @@ func ShellcodeFromBytes(buf *bytes.Buffer, config *DonutConfig) (*bytes.Buffer, 
 	return Sandwich(config.Arch, instance)
 }
 
-// Sandwich - adds the donut prefix in the beginning (stomps DOS header), then payload, then donut stub at the end
+// Sandwich - adds the donut prefix in the beginning (stomps DOS header),
+// then payload, then donut stub at the end
 func Sandwich(arch DonutArch, payload *bytes.Buffer) (*bytes.Buffer, error) {
 	/*
 			Disassembly:
@@ -149,8 +149,9 @@ func CreateModule(config *DonutConfig, inputFile *bytes.Buffer) error {
 
 	if config.Type == DONUT_MODULE_NET_DLL ||
 		config.Type == DONUT_MODULE_NET_EXE {
-		if config.Domain == "" && config.Entropy != DONUT_ENTROPY_NONE { // If no domain name specified, generate a random one
-			config.Domain = RandomString(DONUT_DOMAIN_LEN)
+		// If no domain name specified, generate a random one
+		if config.Domain == "" && config.Entropy != EntropyNone {
+			config.Domain = RandomString(domainLen)
 		} else {
 			config.Domain = "AAAAAAAA"
 		}
@@ -168,11 +169,12 @@ func CreateModule(config *DonutConfig, inputFile *bytes.Buffer) error {
 		}
 		log.Println("Runtime:", config.Runtime)
 		copy(mod.Runtime[:], []byte(config.Runtime)[:])
-	} else if config.Type == DONUT_MODULE_DLL && config.Method != "" { // Unmanaged DLL? check for exported api
+	} else if config.Type == DONUT_MODULE_DLL && config.Method != "" {
+		// Unmanaged DLL? check for exported api
 		log.Println("DLL function:", config.Method)
 		copy(mod.Method[:], []byte(config.Method))
 	}
-	mod.Zlen = 0 // todo: support compression
+	mod.Zlen = 0
 	mod.Len = uint32(inputFile.Len())
 
 	if config.Parameters != "" {
@@ -180,9 +182,9 @@ func CreateModule(config *DonutConfig, inputFile *bytes.Buffer) error {
 		// if type is unmanaged EXE
 		if config.Type == DONUT_MODULE_EXE {
 			// and entropy is enabled
-			if config.Entropy != DONUT_ENTROPY_NONE {
+			if config.Entropy != EntropyNone {
 				// generate random name
-				copy(mod.Param[:], []byte(RandomString(DONUT_DOMAIN_LEN) + " ")[:])
+				copy(mod.Param[:], []byte(RandomString(domainLen) + " ")[:])
 			} else {
 				// else set to "AAAA "
 				copy(mod.Param[:], []byte("AAAAAAAA ")[:])
@@ -211,7 +213,7 @@ func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
 
 	inst := new(DonutInstance)
 	modLen := uint32(config.ModuleData.Len()) // ModuleData is mod struct + input file
-	instLen := uint32(3312 + 352 + 8)         //todo: that's how big it is in the C version...
+	instLen := uint32(3312 + 352 + 8)
 	inst.Bypass = uint32(config.Bypass)
 
 	// if this is a PIC instance, add the size of module
@@ -221,39 +223,39 @@ func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
 		instLen += modLen
 	}
 
-	if config.Entropy == DONUT_ENTROPY_DEFAULT {
+	if config.Entropy == EntropyDefault {
 		log.Println("Generating random key for instance")
-		tk, err := GenerateRandomBytes(16)
+		tk, err := RandomBytes(16)
 		if err != nil {
 			return nil, err
 		}
 		copy(inst.KeyMk[:], tk)
 
-		tk, err = GenerateRandomBytes(16)
+		tk, err = RandomBytes(16)
 		if err != nil {
 			return nil, err
 		}
 		copy(inst.KeyCtr[:], tk)
 
 		log.Println("Generating random key for module")
-		tk, err = GenerateRandomBytes(16)
+		tk, err = RandomBytes(16)
 		if err != nil {
 			return nil, err
 		}
 		copy(inst.ModKeyMk[:], tk)
 
-		tk, err = GenerateRandomBytes(16)
+		tk, err = RandomBytes(16)
 		if err != nil {
 			return nil, err
 		}
 		copy(inst.ModKeyCtr[:], tk)
 
 		log.Println("Generating random string to verify decryption")
-		sbsig := RandomString(DONUT_SIG_LEN)
+		sbsig := RandomString(signatureLen)
 		copy(inst.Sig[:], []byte(sbsig))
 
 		log.Println("Generating random IV for Maru hash")
-		iv, err := GenerateRandomBytes(MARU_IV_LEN)
+		iv, err := RandomBytes(maruIVLen)
 		if err != nil {
 			return nil, err
 		}
@@ -350,10 +352,10 @@ func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
 	// set the URL parameter and request verb
 	if inst.Type == DONUT_INSTANCE_URL {
 		if config.ModuleName != "" {
-			if config.Entropy != DONUT_ENTROPY_NONE {
+			if config.Entropy != EntropyNone {
 				// generate a random name for module
 				// that will be saved to disk
-				config.ModuleName = RandomString(DONUT_MAX_MODNAME)
+				config.ModuleName = RandomString(maxModuleName)
 				log.Println("Generated random name for module :", config.ModuleName)
 			} else {
 				config.ModuleName = "AAAAAAAA"
@@ -367,12 +369,12 @@ func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
 		log.Println("Payload will attempt download from:", string(inst.Url[:]))
 	}
 
-	inst.Mod_len = uint64(modLen) + 8 //todo: this 8 is from alignment I think?
+	inst.Mod_len = uint64(modLen) + 8
 	inst.Len = instLen
 	config.inst = inst
 	config.instLen = instLen
 
-	if config.InstType == DONUT_INSTANCE_URL && config.Entropy == DONUT_ENTROPY_DEFAULT {
+	if config.InstType == DONUT_INSTANCE_URL && config.Entropy == EntropyDefault {
 		log.Println("encrypting module for download")
 		config.ModuleMac = Maru(inst.Sig[:], inst.Iv)
 		config.ModuleData = bytes.NewBuffer(Encrypt(
@@ -396,13 +398,13 @@ func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
 	for uint32(b.Len()) < config.instLen {
 		b.WriteByte(0)
 	}
-	if config.Entropy != DONUT_ENTROPY_DEFAULT {
+	if config.Entropy != EntropyDefault {
 		return b, nil
 	}
 	log.Println("encrypting instance")
 	instData := b.Bytes()
 	offset := 4 + // Len uint32
-		CipherKeyLen + CipherBlockLen + // Instance Crypt
+		cipherKeyLen + cipherBlockLen + // Instance Crypt
 		4 + // pad
 		8 + // IV
 		(64 * 8) + // Hashes (64 uuids of len 64bit)
@@ -430,7 +432,7 @@ func DefaultConfig() *DonutConfig {
 		Arch:     X84,
 		Type:     DONUT_MODULE_EXE,
 		InstType: DONUT_INSTANCE_PIC,
-		Entropy:  DONUT_ENTROPY_DEFAULT,
+		Entropy:  EntropyDefault,
 		Compress: 1,
 		Format:   1,
 		Bypass:   3,

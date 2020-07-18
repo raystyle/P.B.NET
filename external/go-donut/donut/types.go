@@ -8,40 +8,48 @@ import (
 	"github.com/google/uuid"
 )
 
+// about entropy level
 const (
-	// entropy level
-	DONUT_ENTROPY_NONE    = 1 // don't use any entropy
-	DONUT_ENTROPY_RANDOM  = 2 // use random names
-	DONUT_ENTROPY_DEFAULT = 3 // use random names + symmetric encryption
+	EntropyNone = 1 // don't use any entropy
+	// EntropyRandom  = 2 // use random names
+	EntropyDefault = 3 // use random names + symmetric encryption
+)
 
-	DONUT_MAX_PARAM   = 8 // maximum number of parameters passed to method
-	DONUT_MAX_NAME    = 256
-	DONUT_MAX_DLL     = 8 // maximum number of DLL supported by instance
-	DONUT_MAX_URL     = 256
-	DONUT_MAX_MODNAME = 8
-	DONUT_SIG_LEN     = 8 // 64-bit string to verify decryption ok
-	DONUT_VER_LEN     = 32
-	DONUT_DOMAIN_LEN  = 8
+// about maru
+const (
+	maruMaxStr = 64
+	maruBlkLen = 16
+	// maruHashLen = 8
+	maruIVLen = 8
+)
 
-	MARU_MAX_STR  = 64
-	MARU_BLK_LEN  = 16
-	MARU_HASH_LEN = 8
-	MARU_IV_LEN   = 8
+// about config, module and module
+const (
+	// maxParam      = 8 // maximum number of parameters passed to method
+	maxName = 256
+	// maxDLL        = 8 // maximum number of DLL supported by instance
+	maxURL        = 256
+	maxModuleName = 8
+	signatureLen  = 8 // 64-bit string to verify decryption ok
+	// versionLen    = 32
+	domainLen = 8
+	// runtimeNET4   = "v4.0.30319"
+)
 
-	DONUT_RUNTIME_NET4 = "v4.0.30319"
-
-	NTDLL_DLL    = "ntdll.dll"
-	KERNEL32_DLL = "kernel32.dll"
-	SHELL32_DLL  = "shell32.dll"
-	ADVAPI32_DLL = "advapi32.dll"
-	CRYPT32_DLL  = "crypt32.dll"
-	MSCOREE_DLL  = "mscoree.dll"
-	OLE32_DLL    = "ole32.dll"
-	OLEAUT32_DLL = "oleaut32.dll"
-	WININET_DLL  = "wininet.dll"
-	COMBASE_DLL  = "combase.dll"
-	USER32_DLL   = "user32.dll"
-	SHLWAPI_DLL  = "shlwapi.dll"
+// about DLL
+const (
+	ntDLL    = "ntdll.dll"
+	kernel32 = "kernel32.dll"
+	shell32  = "shell32.dll"
+	// advAPI32 = "advapi32.dll"
+	// crypt32  = "crypt32.dll"
+	msCoreE  = "mscoree.dll"
+	ole32    = "ole32.dll"
+	oleaut32 = "oleaut32.dll"
+	winiNet  = "wininet.dll"
+	// comBase  = "combase.dll"
+	// user32   = "user32.dll"
+	// shLwAPI  = "shlwapi.dll"
 )
 
 // DonutArch - CPU architecture type (32, 64, or 32+64)
@@ -113,23 +121,23 @@ type DonutModule struct {
 	Thread   uint32 // run entrypoint of unmanaged EXE as a thread
 	Compress uint32 // indicates engine used for compression
 
-	Runtime [DONUT_MAX_NAME]byte // runtime version for .NET EXE/DLL (donut max name = 256)
-	Domain  [DONUT_MAX_NAME]byte // domain name to use for .NET EXE/DLL
-	Cls     [DONUT_MAX_NAME]byte // name of class and optional namespace for .NET EXE/DLL
-	Method  [DONUT_MAX_NAME]byte // name of method to invoke for .NET DLL or api for unmanaged DLL
-	Param   [DONUT_MAX_NAME]byte // string parameters for DLL/EXE (donut max parm = 8)
+	Runtime [maxName]byte // runtime version for .NET EXE/DLL (donut max name = 256)
+	Domain  [maxName]byte // domain name to use for .NET EXE/DLL
+	Cls     [maxName]byte // name of class and optional namespace for .NET EXE/DLL
+	Method  [maxName]byte // name of method to invoke for .NET DLL or api for unmanaged DLL
+	Param   [maxName]byte // string parameters for DLL/EXE (donut max parm = 8)
 
-	Unicode uint32              // convert command line to unicode for unmanaged DLL function
-	Sig     [DONUT_SIG_LEN]byte // random string to verify decryption
-	Mac     uint64              // to verify decryption was ok
-	Zlen    uint32              // compressed size of EXE/DLL/JS/VBS file
-	Len     uint32              // size of EXE/DLL/XSL/JS/VBS file
-	Data    [4]byte             // data of EXE/DLL/XSL/JS/VBS file
+	Unicode uint32             // convert command line to unicode for unmanaged DLL function
+	Sig     [signatureLen]byte // random string to verify decryption
+	Mac     uint64             // to verify decryption was ok
+	Zlen    uint32             // compressed size of EXE/DLL/JS/VBS file
+	Len     uint32             // size of EXE/DLL/XSL/JS/VBS file
+	Data    [4]byte            // data of EXE/DLL/XSL/JS/VBS file
 }
 
 func WriteField(w *bytes.Buffer, name string, i interface{}) {
 	binary.Write(w, binary.LittleEndian, i)
-	// todo: logging here
+
 }
 
 func (mod *DonutModule) WriteTo(w *bytes.Buffer) {
@@ -144,7 +152,7 @@ func (mod *DonutModule) WriteTo(w *bytes.Buffer) {
 	WriteField(w, "Param", mod.Param)
 
 	WriteField(w, "Unicode", mod.Unicode)
-	w.Write(mod.Sig[:DONUT_SIG_LEN])
+	w.Write(mod.Sig[:signatureLen])
 	WriteField(w, "Mac", mod.Mac)
 	WriteField(w, "Zlen", mod.Zlen)
 	WriteField(w, "Len", mod.Len)
@@ -154,8 +162,8 @@ type DonutInstance struct {
 	Len uint32 // total size of instance
 
 	//Key  DonutCrypt // decrypts instance (32 bytes total = 16+16)
-	KeyMk  [CipherKeyLen]byte   // master key
-	KeyCtr [CipherBlockLen]byte // counter + nonce
+	KeyMk  [cipherKeyLen]byte   // master key
+	KeyCtr [cipherBlockLen]byte // counter + nonce
 
 	Iv   uint64     // the 64-bit initial value for maru hash
 	Hash [64]uint64 // holds up to 64 api hashes/addrs {api}
@@ -165,8 +173,8 @@ type DonutInstance struct {
 	OEP     uint64 // original entrypoint
 
 	// everything from here is encrypted
-	ApiCount uint32               // the 64-bit hashes of API required for instance to work
-	DllNames [DONUT_MAX_NAME]byte // a list of DLL strings to load, separated by semi-colon
+	ApiCount uint32        // the 64-bit hashes of API required for instance to work
+	DllNames [maxName]byte // a list of DLL strings to load, separated by semi-colon
 
 	Dataname   [8]byte  // ".data"
 	Kernelbase [12]byte // "kernelbase"
@@ -174,8 +182,8 @@ type DonutInstance struct {
 	Clr        [4]byte  // clr
 	Wldp       [8]byte  // wldp
 
-	CmdSyms [DONUT_MAX_NAME]byte // symbols related to command line
-	ExitApi [DONUT_MAX_NAME]byte // exit-related API
+	CmdSyms [maxName]byte // symbols related to command line
+	ExitApi [maxName]byte // exit-related API
 
 	Bypass         uint32   // indicates behaviour of byassing AMSI/WLDP
 	WldpQuery      [32]byte // WldpQueryDynamicCodeTrust
@@ -209,14 +217,14 @@ type DonutInstance struct {
 
 	Type uint32 // DONUT_INSTANCE_PIC or DONUT_INSTANCE_URL
 
-	Url [DONUT_MAX_URL]byte // staging server hosting donut module
-	Req [8]byte             // just a buffer for "GET"
+	Url [maxURL]byte // staging server hosting donut module
+	Req [8]byte      // just a buffer for "GET"
 
-	Sig [DONUT_MAX_NAME]byte // string to hash
-	Mac uint64               // to verify decryption ok
+	Sig [maxName]byte // string to hash
+	Mac uint64        // to verify decryption ok
 
-	ModKeyMk  [CipherKeyLen]byte   // master key
-	ModKeyCtr [CipherBlockLen]byte // counter + nonce
+	ModKeyMk  [cipherKeyLen]byte   // master key
+	ModKeyCtr [cipherBlockLen]byte // counter + nonce
 
 	Mod_len uint64 // total size of module
 }
@@ -291,65 +299,65 @@ type API_IMPORT struct {
 }
 
 var api_imports = []API_IMPORT{
-	API_IMPORT{Module: KERNEL32_DLL, Name: "LoadLibraryA"}, //0
-	API_IMPORT{Module: KERNEL32_DLL, Name: "GetProcAddress"},
-	API_IMPORT{Module: KERNEL32_DLL, Name: "GetModuleHandleA"},
-	API_IMPORT{Module: KERNEL32_DLL, Name: "VirtualAlloc"},
-	API_IMPORT{Module: KERNEL32_DLL, Name: "VirtualFree"},
-	API_IMPORT{Module: KERNEL32_DLL, Name: "VirtualQuery"}, // 5
-	API_IMPORT{Module: KERNEL32_DLL, Name: "VirtualProtect"},
-	API_IMPORT{Module: KERNEL32_DLL, Name: "Sleep"},
-	API_IMPORT{Module: KERNEL32_DLL, Name: "MultiByteToWideChar"},
-	API_IMPORT{Module: KERNEL32_DLL, Name: "GetUserDefaultLCID"},
-	API_IMPORT{Module: KERNEL32_DLL, Name: "WaitForSingleObject"}, //10
-	API_IMPORT{Module: KERNEL32_DLL, Name: "CreateThread"},
-	API_IMPORT{Module: KERNEL32_DLL, Name: "GetThreadContext"},
-	API_IMPORT{Module: KERNEL32_DLL, Name: "GetCurrentThread"},
-	API_IMPORT{Module: KERNEL32_DLL, Name: "GetCommandLineA"},
-	API_IMPORT{Module: KERNEL32_DLL, Name: "GetCommandLineW"}, // 15
+	API_IMPORT{Module: kernel32, Name: "LoadLibraryA"}, //0
+	API_IMPORT{Module: kernel32, Name: "GetProcAddress"},
+	API_IMPORT{Module: kernel32, Name: "GetModuleHandleA"},
+	API_IMPORT{Module: kernel32, Name: "VirtualAlloc"},
+	API_IMPORT{Module: kernel32, Name: "VirtualFree"},
+	API_IMPORT{Module: kernel32, Name: "VirtualQuery"}, // 5
+	API_IMPORT{Module: kernel32, Name: "VirtualProtect"},
+	API_IMPORT{Module: kernel32, Name: "Sleep"},
+	API_IMPORT{Module: kernel32, Name: "MultiByteToWideChar"},
+	API_IMPORT{Module: kernel32, Name: "GetUserDefaultLCID"},
+	API_IMPORT{Module: kernel32, Name: "WaitForSingleObject"}, //10
+	API_IMPORT{Module: kernel32, Name: "CreateThread"},
+	API_IMPORT{Module: kernel32, Name: "GetThreadContext"},
+	API_IMPORT{Module: kernel32, Name: "GetCurrentThread"},
+	API_IMPORT{Module: kernel32, Name: "GetCommandLineA"},
+	API_IMPORT{Module: kernel32, Name: "GetCommandLineW"}, // 15
 
-	API_IMPORT{Module: SHELL32_DLL, Name: "CommandLineToArgvW"},
+	API_IMPORT{Module: shell32, Name: "CommandLineToArgvW"},
 
-	API_IMPORT{Module: OLEAUT32_DLL, Name: "SafeArrayCreate"},
-	API_IMPORT{Module: OLEAUT32_DLL, Name: "SafeArrayCreateVector"},
-	API_IMPORT{Module: OLEAUT32_DLL, Name: "SafeArrayPutElement"},
-	API_IMPORT{Module: OLEAUT32_DLL, Name: "SafeArrayDestroy"}, // 20
-	API_IMPORT{Module: OLEAUT32_DLL, Name: "SafeArrayGetLBound"},
-	API_IMPORT{Module: OLEAUT32_DLL, Name: "SafeArrayGetUBound"},
-	API_IMPORT{Module: OLEAUT32_DLL, Name: "SysAllocString"},
-	API_IMPORT{Module: OLEAUT32_DLL, Name: "SysFreeString"},
-	API_IMPORT{Module: OLEAUT32_DLL, Name: "LoadTypeLib"}, // 25
+	API_IMPORT{Module: oleaut32, Name: "SafeArrayCreate"},
+	API_IMPORT{Module: oleaut32, Name: "SafeArrayCreateVector"},
+	API_IMPORT{Module: oleaut32, Name: "SafeArrayPutElement"},
+	API_IMPORT{Module: oleaut32, Name: "SafeArrayDestroy"}, // 20
+	API_IMPORT{Module: oleaut32, Name: "SafeArrayGetLBound"},
+	API_IMPORT{Module: oleaut32, Name: "SafeArrayGetUBound"},
+	API_IMPORT{Module: oleaut32, Name: "SysAllocString"},
+	API_IMPORT{Module: oleaut32, Name: "SysFreeString"},
+	API_IMPORT{Module: oleaut32, Name: "LoadTypeLib"}, // 25
 
-	API_IMPORT{Module: WININET_DLL, Name: "InternetCrackUrlA"},
-	API_IMPORT{Module: WININET_DLL, Name: "InternetOpenA"},
-	API_IMPORT{Module: WININET_DLL, Name: "InternetConnectA"},
-	API_IMPORT{Module: WININET_DLL, Name: "InternetSetOptionA"},
-	API_IMPORT{Module: WININET_DLL, Name: "InternetReadFile"}, // 30
-	API_IMPORT{Module: WININET_DLL, Name: "InternetCloseHandle"},
-	API_IMPORT{Module: WININET_DLL, Name: "HttpOpenRequestA"},
-	API_IMPORT{Module: WININET_DLL, Name: "HttpSendRequestA"},
-	API_IMPORT{Module: WININET_DLL, Name: "HttpQueryInfoA"},
+	API_IMPORT{Module: winiNet, Name: "InternetCrackUrlA"},
+	API_IMPORT{Module: winiNet, Name: "InternetOpenA"},
+	API_IMPORT{Module: winiNet, Name: "InternetConnectA"},
+	API_IMPORT{Module: winiNet, Name: "InternetSetOptionA"},
+	API_IMPORT{Module: winiNet, Name: "InternetReadFile"}, // 30
+	API_IMPORT{Module: winiNet, Name: "InternetCloseHandle"},
+	API_IMPORT{Module: winiNet, Name: "HttpOpenRequestA"},
+	API_IMPORT{Module: winiNet, Name: "HttpSendRequestA"},
+	API_IMPORT{Module: winiNet, Name: "HttpQueryInfoA"},
 
-	API_IMPORT{Module: MSCOREE_DLL, Name: "CorBindToRuntime"}, // 35
-	API_IMPORT{Module: MSCOREE_DLL, Name: "CLRCreateInstance"},
+	API_IMPORT{Module: msCoreE, Name: "CorBindToRuntime"}, // 35
+	API_IMPORT{Module: msCoreE, Name: "CLRCreateInstance"},
 
-	API_IMPORT{Module: OLE32_DLL, Name: "CoInitializeEx"},
-	API_IMPORT{Module: OLE32_DLL, Name: "CoCreateInstance"},
-	API_IMPORT{Module: OLE32_DLL, Name: "CoUninitialize"},
+	API_IMPORT{Module: ole32, Name: "CoInitializeEx"},
+	API_IMPORT{Module: ole32, Name: "CoCreateInstance"},
+	API_IMPORT{Module: ole32, Name: "CoUninitialize"},
 
-	API_IMPORT{Module: NTDLL_DLL, Name: "RtlEqualUnicodeString"}, // 40
-	API_IMPORT{Module: NTDLL_DLL, Name: "RtlEqualString"},
-	API_IMPORT{Module: NTDLL_DLL, Name: "RtlUnicodeStringToAnsiString"},
-	API_IMPORT{Module: NTDLL_DLL, Name: "RtlInitUnicodeString"},
-	API_IMPORT{Module: NTDLL_DLL, Name: "RtlExitUserThread"},
-	API_IMPORT{Module: NTDLL_DLL, Name: "RtlExitUserProcess"}, // 45
-	API_IMPORT{Module: NTDLL_DLL, Name: "RtlCreateUnicodeString"},
-	API_IMPORT{Module: NTDLL_DLL, Name: "RtlGetCompressionWorkSpaceSize"},
-	API_IMPORT{Module: NTDLL_DLL, Name: "RtlDecompressBuffer"},
-	API_IMPORT{Module: NTDLL_DLL, Name: "NtContinue"},
+	API_IMPORT{Module: ntDLL, Name: "RtlEqualUnicodeString"}, // 40
+	API_IMPORT{Module: ntDLL, Name: "RtlEqualString"},
+	API_IMPORT{Module: ntDLL, Name: "RtlUnicodeStringToAnsiString"},
+	API_IMPORT{Module: ntDLL, Name: "RtlInitUnicodeString"},
+	API_IMPORT{Module: ntDLL, Name: "RtlExitUserThread"},
+	API_IMPORT{Module: ntDLL, Name: "RtlExitUserProcess"}, // 45
+	API_IMPORT{Module: ntDLL, Name: "RtlCreateUnicodeString"},
+	API_IMPORT{Module: ntDLL, Name: "RtlGetCompressionWorkSpaceSize"},
+	API_IMPORT{Module: ntDLL, Name: "RtlDecompressBuffer"},
+	API_IMPORT{Module: ntDLL, Name: "NtContinue"},
 
-	API_IMPORT{Module: KERNEL32_DLL, Name: "AddVectoredExceptionHandler"}, // 50
-	API_IMPORT{Module: KERNEL32_DLL, Name: "RemoveVectoredExceptionHandler"},
+	API_IMPORT{Module: kernel32, Name: "AddVectoredExceptionHandler"}, // 50
+	API_IMPORT{Module: kernel32, Name: "RemoveVectoredExceptionHandler"},
 }
 
 // required to load .NET assemblies

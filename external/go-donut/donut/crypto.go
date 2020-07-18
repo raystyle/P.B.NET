@@ -9,10 +9,10 @@ import (
 // ChasKey Implementation ported from donut
 
 const (
-	// CipherBlockLen - ChasKey Block Length
-	CipherBlockLen = uint32(128 / 8)
-	// CipherKeyLen - ChasKey Key Length
-	CipherKeyLen = uint32(128 / 8)
+	// cipherBlockLen - ChasKey Block Length
+	cipherBlockLen = uint32(128 / 8)
+	// cipherKeyLen - ChasKey Key Length
+	cipherKeyLen = uint32(128 / 8)
 )
 
 // Rotate32 - rotates a byte right (same as (32 - n) left)
@@ -72,20 +72,20 @@ func BytesToUint32s(b []byte) []uint32 {
 // Encrypt - encrypt/decrypt data in counter mode
 func Encrypt(mk []byte, ctr []byte, data []byte) []byte {
 	length := uint32(len(data))
-	x := make([]byte, CipherBlockLen)
+	x := make([]byte, cipherBlockLen)
 	p := uint32(0) // data blocks counter
 	returnVal := make([]byte, length)
 	for length > 0 {
 		// copy counter+nonce to local buffer
-		copy(x[:CipherBlockLen], ctr[:CipherBlockLen])
+		copy(x[:cipherBlockLen], ctr[:cipherBlockLen])
 
 		// donut_encrypt x
 		x = ChasKey(mk, x)
 
 		// XOR plaintext with ciphertext
 		r := uint32(0)
-		if length > CipherBlockLen {
-			r = CipherBlockLen
+		if length > cipherBlockLen {
+			r = cipherBlockLen
 		} else {
 			r = length
 		}
@@ -97,7 +97,7 @@ func Encrypt(mk []byte, ctr []byte, data []byte) []byte {
 		p += r
 
 		// update counter
-		for i := CipherBlockLen - 1; ; i-- {
+		for i := cipherBlockLen - 1; ; i-- {
 			ctr[i]++
 			if ctr[i] != 0 {
 				break
@@ -126,7 +126,7 @@ func Speck(mk []byte, p uint64) uint64 {
 		w[0] = (Rotate32(w[0], 8) + w[1]) ^ k[0]
 		w[1] = Rotate32(w[1], 29) ^ w[0]
 
-		// create next 32-bit subkey
+		// create next 32-bit sub key
 		t := k[3]
 		k[3] = (Rotate32(k[1], 8) + k[0]) ^ i
 		k[0] = Rotate32(k[0], 29) ^ k[3]
@@ -143,12 +143,12 @@ func Speck(mk []byte, p uint64) uint64 {
 }
 
 // Maru hash
-func Maru(input []byte, iv uint64) uint64 { // todo: iv and return must be 8 bytes
+func Maru(input []byte, iv uint64) uint64 {
 
 	// set H to initial value
 	// h := binary.LittleEndian.Uint64(iv)
 	h := iv
-	b := make([]byte, MARU_BLK_LEN)
+	b := make([]byte, maruBlkLen)
 
 	idx, length, end := 0, 0, 0
 	for {
@@ -156,23 +156,23 @@ func Maru(input []byte, iv uint64) uint64 { // todo: iv and return must be 8 byt
 			break
 		}
 		// end of string or max len?
-		if length == len(input) || input[length] == 0 || length == MARU_MAX_STR {
+		if length == len(input) || input[length] == 0 || length == maruMaxStr {
 			// zero remainder of M
-			for j := idx; j < MARU_BLK_LEN; /*-idx*/ j++ {
+			for j := idx; j < maruBlkLen; /*-idx*/ j++ {
 				b[j] = 0
 			}
 			// store the end bit
 			b[idx] = 0x80
 			// have we space in M for api length?
-			if idx >= MARU_BLK_LEN-4 {
+			if idx >= maruBlkLen-4 {
 				// no, update H with E
 				h ^= Speck(b, h)
 				// zero M
-				b = make([]byte, MARU_BLK_LEN)
+				b = make([]byte, maruBlkLen)
 			}
 			// store total length in bits
-			binary.LittleEndian.PutUint32(b[MARU_BLK_LEN-4:], uint32(length)*8)
-			idx = MARU_BLK_LEN
+			binary.LittleEndian.PutUint32(b[maruBlkLen-4:], uint32(length)*8)
+			idx = maruBlkLen
 			end++
 		} else {
 			// store character from api string
@@ -180,7 +180,7 @@ func Maru(input []byte, iv uint64) uint64 { // todo: iv and return must be 8 byt
 			idx++
 			length++
 		}
-		if idx == MARU_BLK_LEN {
+		if idx == maruBlkLen {
 			// update H with E
 			h ^= Speck(b, h)
 			// reset idx

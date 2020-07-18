@@ -8,14 +8,23 @@ import (
 	"net/http"
 )
 
-// RandomString - generates random string of given length
-func RandomString(len int) string {
-	bytes := make([]byte, len)
-	for i := 0; i < len; i++ {
+// RandomString - generates random string of given length.
+func RandomString(size int) string {
+	b := make([]byte, size)
+	for i := 0; i < size; i++ {
 		r, _ := rand.Int(rand.Reader, big.NewInt(25))
-		bytes[i] = 97 + byte(r.Int64()) //a=97
+		b[i] = 97 + byte(r.Int64()) // a=97
 	}
-	return string(bytes)
+	return string(b)
+}
+
+// RandomBytes : Generates as many random bytes as you ask for, returns them as []byte.
+func RandomBytes(count int) ([]byte, error) {
+	b := make([]byte, count)
+	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 // DownloadFile will download an URL to a byte buffer
@@ -24,7 +33,7 @@ func DownloadFile(url string) (*bytes.Buffer, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	buf := bytes.NewBuffer([]byte{})
 	_, err = io.Copy(buf, resp.Body)
@@ -32,13 +41,4 @@ func DownloadFile(url string) (*bytes.Buffer, error) {
 		return nil, err
 	}
 	return buf, nil
-}
-
-// GenerateRandomBytes : Generates as many random bytes as you ask for, returns them as []byte
-func GenerateRandomBytes(count int) ([]byte, error) {
-	b := make([]byte, count)
-	if _, err := io.ReadFull(rand.Reader, b); err != nil {
-		return nil, err
-	}
-	return b, nil
 }
