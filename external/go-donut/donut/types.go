@@ -52,39 +52,43 @@ const (
 	// shLwAPI  = "shlwapi.dll"
 )
 
-// DonutArch - CPU architecture type (32, 64, or 32+64)
-type DonutArch int
+// Arch - CPU architecture type (32, 64, or 32+64)
+type Arch int
 
 const (
 	// X32 - 32bit
-	X32 DonutArch = iota
+	X32 Arch = iota
 	// X64 - 64 bit
 	X64
 	// X84 - 32+64 bit
 	X84
 )
 
+// ModuleType is input module type
 type ModuleType int
 
+// about module types
 const (
-	DONUT_MODULE_NET_DLL ModuleType = 1 // .NET DLL. Requires class and method
-	DONUT_MODULE_NET_EXE            = 2 // .NET EXE. Executes Main if no class and method provided
-	DONUT_MODULE_DLL                = 3 // Unmanaged DLL, function is optional
-	DONUT_MODULE_EXE                = 4 // Unmanaged EXE
-	DONUT_MODULE_VBS                = 5 // VBScript
-	DONUT_MODULE_JS                 = 6 // JavaScript or JScript
-	DONUT_MODULE_XSL                = 7 // XSL with JavaScript/JScript or VBscript embedded
+	ModuleNETDLL ModuleType = 1 // .NET DLL. Requires class and method
+	ModuleNETEXE            = 2 // .NET EXE. Executes Main if no class and method provided
+	ModuleDLL               = 3 // Unmanaged DLL, function is optional
+	ModuleEXE               = 4 // Unmanaged EXE
+	ModuleVBS               = 5 // VBScript
+	ModuleJS                = 6 // JavaScript or JScript
+	ModuleXSL               = 7 // XSL with JavaScript/JScript or VBScript embedded
 )
 
+// InstanceType is input instance type
 type InstanceType int
 
 const (
-	DONUT_INSTANCE_PIC InstanceType = 1 // Self-contained
-	DONUT_INSTANCE_URL              = 2 // Download from remote server
+	InstancePIC InstanceType = 1 // Self-contained
+	InstanceURL              = 2 // Download from remote server
 )
 
-type DonutConfig struct {
-	Arch       DonutArch
+// Config contains configuration about donut.
+type Config struct {
+	Arch       Arch
 	Type       ModuleType
 	InstType   InstanceType
 	Parameters string // separated by , or ;
@@ -106,17 +110,18 @@ type DonutConfig struct {
 	Runtime string
 	Bypass  int
 
-	Module     *DonutModule
+	Module     *Module
 	ModuleName string
 	URL        string
 	ModuleMac  uint64
 	ModuleData *bytes.Buffer
 
-	inst    *DonutInstance
+	inst    *Instance
 	instLen uint32
 }
 
-type DonutModule struct {
+// Module is the donut module.
+type Module struct {
 	ModType  uint32 // EXE, DLL, JS, VBS, XSL
 	Thread   uint32 // run entrypoint of unmanaged EXE as a thread
 	Compress uint32 // indicates engine used for compression
@@ -125,43 +130,44 @@ type DonutModule struct {
 	Domain  [maxName]byte // domain name to use for .NET EXE/DLL
 	Cls     [maxName]byte // name of class and optional namespace for .NET EXE/DLL
 	Method  [maxName]byte // name of method to invoke for .NET DLL or api for unmanaged DLL
-	Param   [maxName]byte // string parameters for DLL/EXE (donut max parm = 8)
+	Param   [maxName]byte // string parameters for DLL/EXE (donut max param = 8)
 
 	Unicode uint32             // convert command line to unicode for unmanaged DLL function
 	Sig     [signatureLen]byte // random string to verify decryption
 	Mac     uint64             // to verify decryption was ok
-	Zlen    uint32             // compressed size of EXE/DLL/JS/VBS file
+	ZLen    uint32             // compressed size of EXE/DLL/JS/VBS file
 	Len     uint32             // size of EXE/DLL/XSL/JS/VBS file
 	Data    [4]byte            // data of EXE/DLL/XSL/JS/VBS file
 }
 
-func WriteField(w *bytes.Buffer, name string, i interface{}) {
-	binary.Write(w, binary.LittleEndian, i)
+func writeField(w *bytes.Buffer, _ string, i interface{}) {
+	_ = binary.Write(w, binary.LittleEndian, i)
 
 }
 
-func (mod *DonutModule) WriteTo(w *bytes.Buffer) {
-	WriteField(w, "ModType", mod.ModType)
-	WriteField(w, "Thread", mod.Thread)
-	WriteField(w, "Compress", mod.Compress)
+func (mod *Module) WriteTo(w *bytes.Buffer) {
+	writeField(w, "ModType", mod.ModType)
+	writeField(w, "Thread", mod.Thread)
+	writeField(w, "Compress", mod.Compress)
 
-	WriteField(w, "Runtime", mod.Runtime)
-	WriteField(w, "Domain", mod.Domain)
-	WriteField(w, "CLS", mod.Cls)
-	WriteField(w, "Method", mod.Method)
-	WriteField(w, "Param", mod.Param)
+	writeField(w, "Runtime", mod.Runtime)
+	writeField(w, "Domain", mod.Domain)
+	writeField(w, "CLS", mod.Cls)
+	writeField(w, "Method", mod.Method)
+	writeField(w, "Param", mod.Param)
 
-	WriteField(w, "Unicode", mod.Unicode)
+	writeField(w, "Unicode", mod.Unicode)
 	w.Write(mod.Sig[:signatureLen])
-	WriteField(w, "Mac", mod.Mac)
-	WriteField(w, "Zlen", mod.Zlen)
-	WriteField(w, "Len", mod.Len)
+	writeField(w, "Mac", mod.Mac)
+	writeField(w, "Zlen", mod.ZLen)
+	writeField(w, "Len", mod.Len)
 }
 
-type DonutInstance struct {
+// Instance is the donut instance.
+type Instance struct {
 	Len uint32 // total size of instance
 
-	//Key  DonutCrypt // decrypts instance (32 bytes total = 16+16)
+	// Key  DonutCrypt // decrypts instance (32 bytes total = 16+16)
 	KeyMk  [cipherKeyLen]byte   // master key
 	KeyCtr [cipherBlockLen]byte // counter + nonce
 
@@ -169,53 +175,53 @@ type DonutInstance struct {
 	Hash [64]uint64 // holds up to 64 api hashes/addrs {api}
 
 	ExitOpt uint32 // call RtlExitUserProcess to terminate the host process
-	Entropy uint32 // indicates entropt option
+	Entropy uint32 // indicates entropy option
 	OEP     uint64 // original entrypoint
 
 	// everything from here is encrypted
 	ApiCount uint32        // the 64-bit hashes of API required for instance to work
 	DllNames [maxName]byte // a list of DLL strings to load, separated by semi-colon
 
-	Dataname   [8]byte  // ".data"
-	Kernelbase [12]byte // "kernelbase"
-	Amsi       [8]byte  // "amsi"
+	DataName   [8]byte  // ".data"
+	KernelBase [12]byte // "kernelBase"
+	AMSI       [8]byte  // "amsi"
 	Clr        [4]byte  // clr
-	Wldp       [8]byte  // wldp
+	WLDP       [8]byte  // wldp
 
 	CmdSyms [maxName]byte // symbols related to command line
 	ExitApi [maxName]byte // exit-related API
 
-	Bypass         uint32   // indicates behaviour of byassing AMSI/WLDP
+	Bypass         uint32   // indicates behaviour of bypassing AMSI/WLDP
 	WldpQuery      [32]byte // WldpQueryDynamicCodeTrust
 	WldpIsApproved [32]byte // WldpIsClassInApprovedList
 	AmsiInit       [16]byte // AmsiInitialize
 	AmsiScanBuf    [16]byte // AmsiScanBuffer
 	AmsiScanStr    [16]byte // AmsiScanString
 
-	Wscript     [8]byte  // WScript
-	Wscript_exe [12]byte // wscript.exe
+	WScript    [8]byte  // WScript
+	WScriptEXE [12]byte // wscript.exe
 
-	XIID_IUnknown  uuid.UUID
-	XIID_IDispatch uuid.UUID
+	XIIDIUnknown  uuid.UUID
+	XIIDIDispatch uuid.UUID
 
 	//  GUID required to load .NET assemblies
-	XCLSID_CLRMetaHost    uuid.UUID
-	XIID_ICLRMetaHost     uuid.UUID
-	XIID_ICLRRuntimeInfo  uuid.UUID
-	XCLSID_CorRuntimeHost uuid.UUID
-	XIID_ICorRuntimeHost  uuid.UUID
-	XIID_AppDomain        uuid.UUID
+	XCLSIDCLRMetaHost    uuid.UUID
+	XIIDICLRMetaHost     uuid.UUID
+	XIIDICLRRuntimeInfo  uuid.UUID
+	XCLSIDCorRuntimeHost uuid.UUID
+	XIIDICorRuntimeHost  uuid.UUID
+	XIIDAppDomain        uuid.UUID
 
 	//  GUID required to run VBS and JS files
-	XCLSID_ScriptLanguage        uuid.UUID // vbs or js
-	XIID_IHost                   uuid.UUID // wscript object
-	XIID_IActiveScript           uuid.UUID // engine
-	XIID_IActiveScriptSite       uuid.UUID // implementation
-	XIID_IActiveScriptSiteWindow uuid.UUID // basic GUI stuff
-	XIID_IActiveScriptParse32    uuid.UUID // parser
-	XIID_IActiveScriptParse64    uuid.UUID
+	XCLSIDScriptLanguage        uuid.UUID // vbs or js
+	XIIDIHost                   uuid.UUID // wscript object
+	XIIDIActiveScript           uuid.UUID // engine
+	XIIDIActiveScriptSite       uuid.UUID // implementation
+	XIIDIActiveScriptSiteWindow uuid.UUID // basic GUI stuff
+	XIIDIActiveScriptParse32    uuid.UUID // parser
+	XIIDIActiveScriptParse64    uuid.UUID
 
-	Type uint32 // DONUT_INSTANCE_PIC or DONUT_INSTANCE_URL
+	Type uint32 // InstancePIC or InstanceURL
 
 	Url [maxURL]byte // staging server hosting donut module
 	Req [8]byte      // just a buffer for "GET"
@@ -226,212 +232,251 @@ type DonutInstance struct {
 	ModKeyMk  [cipherKeyLen]byte   // master key
 	ModKeyCtr [cipherBlockLen]byte // counter + nonce
 
-	Mod_len uint64 // total size of module
+	ModuleLen uint64 // total size of module
 }
 
-func (inst *DonutInstance) WriteTo(w *bytes.Buffer) {
-	//start := w.Len()
-	WriteField(w, "Len", inst.Len)
-	WriteField(w, "KeyMk", inst.KeyMk)
-	WriteField(w, "KeyCtr", inst.KeyCtr)
+func (inst *Instance) WriteTo(w *bytes.Buffer) {
+	// start := w.Len()
+	writeField(w, "Len", inst.Len)
+	writeField(w, "KeyMk", inst.KeyMk)
+	writeField(w, "KeyCtr", inst.KeyCtr)
 	for i := 0; i < 4; i++ { // padding to 8-byte alignment after 4 byte field
 		w.WriteByte(0)
 	}
-	WriteField(w, "Iv", inst.Iv)
-	WriteField(w, "Hash", inst.Hash)
-	WriteField(w, "ExitOpt", inst.ExitOpt)
-	WriteField(w, "Entropy", inst.Entropy)
-	WriteField(w, "OEP", inst.OEP)
+	writeField(w, "Iv", inst.Iv)
+	writeField(w, "Hash", inst.Hash)
+	writeField(w, "ExitOpt", inst.ExitOpt)
+	writeField(w, "Entropy", inst.Entropy)
+	writeField(w, "OEP", inst.OEP)
 
-	WriteField(w, "ApiCount", inst.ApiCount)
-	WriteField(w, "DllNames", inst.DllNames)
+	writeField(w, "ApiCount", inst.ApiCount)
+	writeField(w, "DllNames", inst.DllNames)
 
-	WriteField(w, "Dataname", inst.Dataname)
-	WriteField(w, "Kernelbase", inst.Kernelbase)
-	WriteField(w, "Amsi", inst.Amsi)
-	WriteField(w, "Clr", inst.Clr)
-	WriteField(w, "Wldp", inst.Wldp)
+	writeField(w, "Dataname", inst.DataName)
+	writeField(w, "Kernelbase", inst.KernelBase)
+	writeField(w, "Amsi", inst.AMSI)
+	writeField(w, "Clr", inst.Clr)
+	writeField(w, "Wldp", inst.WLDP)
 
-	WriteField(w, "CmdSyms", inst.CmdSyms)
-	WriteField(w, "ExitApi", inst.ExitApi)
+	writeField(w, "CmdSyms", inst.CmdSyms)
+	writeField(w, "ExitApi", inst.ExitApi)
 
-	WriteField(w, "Bypass", inst.Bypass)
-	WriteField(w, "WldpQuery", inst.WldpQuery)
-	WriteField(w, "WldpIsApproved", inst.WldpIsApproved)
-	WriteField(w, "AmsiInit", inst.AmsiInit)
-	WriteField(w, "AmsiScanBuf", inst.AmsiScanBuf)
-	WriteField(w, "AmsiScanStr", inst.AmsiScanStr)
+	writeField(w, "Bypass", inst.Bypass)
+	writeField(w, "WldpQuery", inst.WldpQuery)
+	writeField(w, "WldpIsApproved", inst.WldpIsApproved)
+	writeField(w, "AmsiInit", inst.AmsiInit)
+	writeField(w, "AmsiScanBuf", inst.AmsiScanBuf)
+	writeField(w, "AmsiScanStr", inst.AmsiScanStr)
 
-	WriteField(w, "Wscript", inst.Wscript)
-	WriteField(w, "WscriptExe", inst.Wscript_exe)
+	writeField(w, "Wscript", inst.WScript)
+	writeField(w, "WscriptExe", inst.WScriptEXE)
 
-	swapUUID(w, inst.XIID_IUnknown)
-	swapUUID(w, inst.XIID_IDispatch)
+	swapUUID(w, inst.XIIDIUnknown)
+	swapUUID(w, inst.XIIDIDispatch)
 
-	swapUUID(w, inst.XCLSID_CLRMetaHost)
-	swapUUID(w, inst.XIID_ICLRMetaHost)
-	swapUUID(w, inst.XIID_ICLRRuntimeInfo)
-	swapUUID(w, inst.XCLSID_CorRuntimeHost)
-	swapUUID(w, inst.XIID_ICorRuntimeHost)
-	swapUUID(w, inst.XIID_AppDomain)
+	swapUUID(w, inst.XCLSIDCLRMetaHost)
+	swapUUID(w, inst.XIIDICLRMetaHost)
+	swapUUID(w, inst.XIIDICLRRuntimeInfo)
+	swapUUID(w, inst.XCLSIDCorRuntimeHost)
+	swapUUID(w, inst.XIIDICorRuntimeHost)
+	swapUUID(w, inst.XIIDAppDomain)
 
-	swapUUID(w, inst.XCLSID_ScriptLanguage)
-	swapUUID(w, inst.XIID_IHost)
-	swapUUID(w, inst.XIID_IActiveScript)
-	swapUUID(w, inst.XIID_IActiveScriptSite)
-	swapUUID(w, inst.XIID_IActiveScriptSiteWindow)
-	swapUUID(w, inst.XIID_IActiveScriptParse32)
-	swapUUID(w, inst.XIID_IActiveScriptParse64)
+	swapUUID(w, inst.XCLSIDScriptLanguage)
+	swapUUID(w, inst.XIIDIHost)
+	swapUUID(w, inst.XIIDIActiveScript)
+	swapUUID(w, inst.XIIDIActiveScriptSite)
+	swapUUID(w, inst.XIIDIActiveScriptSiteWindow)
+	swapUUID(w, inst.XIIDIActiveScriptParse32)
+	swapUUID(w, inst.XIIDIActiveScriptParse64)
 
-	WriteField(w, "Type", inst.Type)
-	WriteField(w, "Url", inst.Url)
-	WriteField(w, "Req", inst.Req)
-	WriteField(w, "Sig", inst.Sig)
-	WriteField(w, "Mac", inst.Mac)
-	WriteField(w, "ModKeyMk", inst.ModKeyMk)
-	WriteField(w, "ModKeCtr", inst.ModKeyCtr)
-	WriteField(w, "Mod_len", inst.Mod_len)
+	writeField(w, "Type", inst.Type)
+	writeField(w, "Url", inst.Url)
+	writeField(w, "Req", inst.Req)
+	writeField(w, "Sig", inst.Sig)
+	writeField(w, "Mac", inst.Mac)
+	writeField(w, "ModKeyMk", inst.ModKeyMk)
+	writeField(w, "ModKeCtr", inst.ModKeyCtr)
+	writeField(w, "Mod_len", inst.ModuleLen)
 }
 
-type API_IMPORT struct {
+type apiImport struct {
 	Module string
 	Name   string
 }
 
-var api_imports = []API_IMPORT{
-	API_IMPORT{Module: kernel32, Name: "LoadLibraryA"}, //0
-	API_IMPORT{Module: kernel32, Name: "GetProcAddress"},
-	API_IMPORT{Module: kernel32, Name: "GetModuleHandleA"},
-	API_IMPORT{Module: kernel32, Name: "VirtualAlloc"},
-	API_IMPORT{Module: kernel32, Name: "VirtualFree"},
-	API_IMPORT{Module: kernel32, Name: "VirtualQuery"}, // 5
-	API_IMPORT{Module: kernel32, Name: "VirtualProtect"},
-	API_IMPORT{Module: kernel32, Name: "Sleep"},
-	API_IMPORT{Module: kernel32, Name: "MultiByteToWideChar"},
-	API_IMPORT{Module: kernel32, Name: "GetUserDefaultLCID"},
-	API_IMPORT{Module: kernel32, Name: "WaitForSingleObject"}, //10
-	API_IMPORT{Module: kernel32, Name: "CreateThread"},
-	API_IMPORT{Module: kernel32, Name: "GetThreadContext"},
-	API_IMPORT{Module: kernel32, Name: "GetCurrentThread"},
-	API_IMPORT{Module: kernel32, Name: "GetCommandLineA"},
-	API_IMPORT{Module: kernel32, Name: "GetCommandLineW"}, // 15
+var apiImports = []apiImport{
+	{Module: kernel32, Name: "LoadLibraryA"}, // 0
+	{Module: kernel32, Name: "GetProcAddress"},
+	{Module: kernel32, Name: "GetModuleHandleA"},
+	{Module: kernel32, Name: "VirtualAlloc"},
+	{Module: kernel32, Name: "VirtualFree"},
+	{Module: kernel32, Name: "VirtualQuery"}, // 5
+	{Module: kernel32, Name: "VirtualProtect"},
+	{Module: kernel32, Name: "Sleep"},
+	{Module: kernel32, Name: "MultiByteToWideChar"},
+	{Module: kernel32, Name: "GetUserDefaultLCID"},
+	{Module: kernel32, Name: "WaitForSingleObject"}, // 10
+	{Module: kernel32, Name: "CreateThread"},
+	{Module: kernel32, Name: "GetThreadContext"},
+	{Module: kernel32, Name: "GetCurrentThread"},
+	{Module: kernel32, Name: "GetCommandLineA"},
+	{Module: kernel32, Name: "GetCommandLineW"}, // 15
 
-	API_IMPORT{Module: shell32, Name: "CommandLineToArgvW"},
+	{Module: shell32, Name: "CommandLineToArgvW"},
 
-	API_IMPORT{Module: oleaut32, Name: "SafeArrayCreate"},
-	API_IMPORT{Module: oleaut32, Name: "SafeArrayCreateVector"},
-	API_IMPORT{Module: oleaut32, Name: "SafeArrayPutElement"},
-	API_IMPORT{Module: oleaut32, Name: "SafeArrayDestroy"}, // 20
-	API_IMPORT{Module: oleaut32, Name: "SafeArrayGetLBound"},
-	API_IMPORT{Module: oleaut32, Name: "SafeArrayGetUBound"},
-	API_IMPORT{Module: oleaut32, Name: "SysAllocString"},
-	API_IMPORT{Module: oleaut32, Name: "SysFreeString"},
-	API_IMPORT{Module: oleaut32, Name: "LoadTypeLib"}, // 25
+	{Module: oleaut32, Name: "SafeArrayCreate"},
+	{Module: oleaut32, Name: "SafeArrayCreateVector"},
+	{Module: oleaut32, Name: "SafeArrayPutElement"},
+	{Module: oleaut32, Name: "SafeArrayDestroy"}, // 20
+	{Module: oleaut32, Name: "SafeArrayGetLBound"},
+	{Module: oleaut32, Name: "SafeArrayGetUBound"},
+	{Module: oleaut32, Name: "SysAllocString"},
+	{Module: oleaut32, Name: "SysFreeString"},
+	{Module: oleaut32, Name: "LoadTypeLib"}, // 25
 
-	API_IMPORT{Module: winiNet, Name: "InternetCrackUrlA"},
-	API_IMPORT{Module: winiNet, Name: "InternetOpenA"},
-	API_IMPORT{Module: winiNet, Name: "InternetConnectA"},
-	API_IMPORT{Module: winiNet, Name: "InternetSetOptionA"},
-	API_IMPORT{Module: winiNet, Name: "InternetReadFile"}, // 30
-	API_IMPORT{Module: winiNet, Name: "InternetCloseHandle"},
-	API_IMPORT{Module: winiNet, Name: "HttpOpenRequestA"},
-	API_IMPORT{Module: winiNet, Name: "HttpSendRequestA"},
-	API_IMPORT{Module: winiNet, Name: "HttpQueryInfoA"},
+	{Module: winiNet, Name: "InternetCrackUrlA"},
+	{Module: winiNet, Name: "InternetOpenA"},
+	{Module: winiNet, Name: "InternetConnectA"},
+	{Module: winiNet, Name: "InternetSetOptionA"},
+	{Module: winiNet, Name: "InternetReadFile"}, // 30
+	{Module: winiNet, Name: "InternetCloseHandle"},
+	{Module: winiNet, Name: "HttpOpenRequestA"},
+	{Module: winiNet, Name: "HttpSendRequestA"},
+	{Module: winiNet, Name: "HttpQueryInfoA"},
 
-	API_IMPORT{Module: msCoreE, Name: "CorBindToRuntime"}, // 35
-	API_IMPORT{Module: msCoreE, Name: "CLRCreateInstance"},
+	{Module: msCoreE, Name: "CorBindToRuntime"}, // 35
+	{Module: msCoreE, Name: "CLRCreateInstance"},
 
-	API_IMPORT{Module: ole32, Name: "CoInitializeEx"},
-	API_IMPORT{Module: ole32, Name: "CoCreateInstance"},
-	API_IMPORT{Module: ole32, Name: "CoUninitialize"},
+	{Module: ole32, Name: "CoInitializeEx"},
+	{Module: ole32, Name: "CoCreateInstance"},
+	{Module: ole32, Name: "CoUninitialize"},
 
-	API_IMPORT{Module: ntDLL, Name: "RtlEqualUnicodeString"}, // 40
-	API_IMPORT{Module: ntDLL, Name: "RtlEqualString"},
-	API_IMPORT{Module: ntDLL, Name: "RtlUnicodeStringToAnsiString"},
-	API_IMPORT{Module: ntDLL, Name: "RtlInitUnicodeString"},
-	API_IMPORT{Module: ntDLL, Name: "RtlExitUserThread"},
-	API_IMPORT{Module: ntDLL, Name: "RtlExitUserProcess"}, // 45
-	API_IMPORT{Module: ntDLL, Name: "RtlCreateUnicodeString"},
-	API_IMPORT{Module: ntDLL, Name: "RtlGetCompressionWorkSpaceSize"},
-	API_IMPORT{Module: ntDLL, Name: "RtlDecompressBuffer"},
-	API_IMPORT{Module: ntDLL, Name: "NtContinue"},
+	{Module: ntDLL, Name: "RtlEqualUnicodeString"}, // 40
+	{Module: ntDLL, Name: "RtlEqualString"},
+	{Module: ntDLL, Name: "RtlUnicodeStringToAnsiString"},
+	{Module: ntDLL, Name: "RtlInitUnicodeString"},
+	{Module: ntDLL, Name: "RtlExitUserThread"},
+	{Module: ntDLL, Name: "RtlExitUserProcess"}, // 45
+	{Module: ntDLL, Name: "RtlCreateUnicodeString"},
+	{Module: ntDLL, Name: "RtlGetCompressionWorkSpaceSize"},
+	{Module: ntDLL, Name: "RtlDecompressBuffer"},
+	{Module: ntDLL, Name: "NtContinue"},
 
-	API_IMPORT{Module: kernel32, Name: "AddVectoredExceptionHandler"}, // 50
-	API_IMPORT{Module: kernel32, Name: "RemoveVectoredExceptionHandler"},
+	{Module: kernel32, Name: "AddVectoredExceptionHandler"}, // 50
+	{Module: kernel32, Name: "RemoveVectoredExceptionHandler"},
 }
 
 // required to load .NET assemblies
-var ( //the first 6 bytes of these were int32+int16, need to be swapped on write
-	xCLSID_CorRuntimeHost = uuid.UUID{
-		0xcb, 0x2f, 0x67, 0x23, 0xab, 0x3a, 0x11, 0xd2, 0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e}
+// the first 6 bytes of these were int32+int16, need to be swapped on write
+var (
+	xCLSIDCorRuntimeHost = uuid.UUID{
+		0xcb, 0x2f, 0x67, 0x23, 0xab, 0x3a, 0x11, 0xd2,
+		0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e,
+	}
 
-	xIID_ICorRuntimeHost = uuid.UUID{
-		0xcb, 0x2f, 0x67, 0x22, 0xab, 0x3a, 0x11, 0xd2, 0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e}
+	xIIDICorRuntimeHost = uuid.UUID{
+		0xcb, 0x2f, 0x67, 0x22, 0xab, 0x3a, 0x11, 0xd2,
+		0x9c, 0x40, 0x00, 0xc0, 0x4f, 0xa3, 0x0a, 0x3e,
+	}
 
-	xCLSID_CLRMetaHost = uuid.UUID{
-		0x92, 0x80, 0x18, 0x8d, 0x0e, 0x8e, 0x48, 0x67, 0xb3, 0xc, 0x7f, 0xa8, 0x38, 0x84, 0xe8, 0xde}
+	xCLSIDCLRMetaHost = uuid.UUID{
+		0x92, 0x80, 0x18, 0x8d, 0x0e, 0x8e, 0x48, 0x67,
+		0xb3, 0x0c, 0x7f, 0xa8, 0x38, 0x84, 0xe8, 0xde,
+	}
 
-	xIID_ICLRMetaHost = uuid.UUID{
-		0xD3, 0x32, 0xDB, 0x9E, 0xB9, 0xB3, 0x41, 0x25, 0x82, 0x07, 0xA1, 0x48, 0x84, 0xF5, 0x32, 0x16}
+	xIIDICLRMetaHost = uuid.UUID{
+		0xD3, 0x32, 0xDB, 0x9E, 0xB9, 0xB3, 0x41, 0x25,
+		0x82, 0x07, 0xA1, 0x48, 0x84, 0xF5, 0x32, 0x16,
+	}
 
-	xIID_ICLRRuntimeInfo = uuid.UUID{
-		0xBD, 0x39, 0xD1, 0xD2, 0xBA, 0x2F, 0x48, 0x6a, 0x89, 0xB0, 0xB4, 0xB0, 0xCB, 0x46, 0x68, 0x91}
+	xIIDICLRRuntimeInfo = uuid.UUID{
+		0xBD, 0x39, 0xD1, 0xD2, 0xBA, 0x2F, 0x48, 0x6a,
+		0x89, 0xB0, 0xB4, 0xB0, 0xCB, 0x46, 0x68, 0x91,
+	}
 
-	xIID_AppDomain = uuid.UUID{
-		0x05, 0xF6, 0x96, 0xDC, 0x2B, 0x29, 0x36, 0x63, 0xAD, 0x8B, 0xC4, 0x38, 0x9C, 0xF2, 0xA7, 0x13}
+	xIIDAppDomain = uuid.UUID{
+		0x05, 0xF6, 0x96, 0xDC, 0x2B, 0x29, 0x36, 0x63,
+		0xAD, 0x8B, 0xC4, 0x38, 0x9C, 0xF2, 0xA7, 0x13,
+	}
 
 	// required to load VBS and JS files
-	xIID_IUnknown = uuid.UUID{
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}
+	xIIDIUnknown = uuid.UUID{
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46,
+	}
 
-	xIID_IDispatch = uuid.UUID{
-		0x00, 0x02, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}
+	xIIDIDispatch = uuid.UUID{
+		0x00, 0x02, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46,
+	}
 
-	xIID_IHost = uuid.UUID{
-		0x91, 0xaf, 0xbd, 0x1b, 0x5f, 0xeb, 0x43, 0xf5, 0xb0, 0x28, 0xe2, 0xca, 0x96, 0x06, 0x17, 0xec}
+	xIIDIHost = uuid.UUID{
+		0x91, 0xaf, 0xbd, 0x1b, 0x5f, 0xeb, 0x43, 0xf5,
+		0xb0, 0x28, 0xe2, 0xca, 0x96, 0x06, 0x17, 0xec,
+	}
 
-	xIID_IActiveScript = uuid.UUID{
-		0xbb, 0x1a, 0x2a, 0xe1, 0xa4, 0xf9, 0x11, 0xcf, 0x8f, 0x20, 0x00, 0x80, 0x5f, 0x2c, 0xd0, 0x64}
+	xIIDIActiveScript = uuid.UUID{
+		0xbb, 0x1a, 0x2a, 0xe1, 0xa4, 0xf9, 0x11, 0xcf,
+		0x8f, 0x20, 0x00, 0x80, 0x5f, 0x2c, 0xd0, 0x64,
+	}
 
-	xIID_IActiveScriptSite = uuid.UUID{
-		0xdb, 0x01, 0xa1, 0xe3, 0xa4, 0x2b, 0x11, 0xcf, 0x8f, 0x20, 0x00, 0x80, 0x5f, 0x2c, 0xd0, 0x64}
+	xIIDIActiveScriptSite = uuid.UUID{
+		0xdb, 0x01, 0xa1, 0xe3, 0xa4, 0x2b, 0x11, 0xcf,
+		0x8f, 0x20, 0x00, 0x80, 0x5f, 0x2c, 0xd0, 0x64,
+	}
 
-	xIID_IActiveScriptSiteWindow = uuid.UUID{
-		0xd1, 0x0f, 0x67, 0x61, 0x83, 0xe9, 0x11, 0xcf, 0x8f, 0x20, 0x00, 0x80, 0x5f, 0x2c, 0xd0, 0x64}
+	xIIDIActiveScriptSiteWindow = uuid.UUID{
+		0xd1, 0x0f, 0x67, 0x61, 0x83, 0xe9, 0x11, 0xcf,
+		0x8f, 0x20, 0x00, 0x80, 0x5f, 0x2c, 0xd0, 0x64,
+	}
 
-	xIID_IActiveScriptParse32 = uuid.UUID{
-		0xbb, 0x1a, 0x2a, 0xe2, 0xa4, 0xf9, 0x11, 0xcf, 0x8f, 0x20, 0x00, 0x80, 0x5f, 0x2c, 0xd0, 0x64}
+	xIIDIActiveScriptParse32 = uuid.UUID{
+		0xbb, 0x1a, 0x2a, 0xe2, 0xa4, 0xf9, 0x11, 0xcf,
+		0x8f, 0x20, 0x00, 0x80, 0x5f, 0x2c, 0xd0, 0x64,
+	}
 
-	xIID_IActiveScriptParse64 = uuid.UUID{
-		0xc7, 0xef, 0x76, 0x58, 0xe1, 0xee, 0x48, 0x0e, 0x97, 0xea, 0xd5, 0x2c, 0xb4, 0xd7, 0x6d, 0x17}
+	xIIDIActiveScriptParse64 = uuid.UUID{
+		0xc7, 0xef, 0x76, 0x58, 0xe1, 0xee, 0x48, 0x0e,
+		0x97, 0xea, 0xd5, 0x2c, 0xb4, 0xd7, 0x6d, 0x17,
+	}
 
-	xCLSID_VBScript = uuid.UUID{
-		0xB5, 0x4F, 0x37, 0x41, 0x5B, 0x07, 0x11, 0xcf, 0xA4, 0xB0, 0x00, 0xAA, 0x00, 0x4A, 0x55, 0xE8}
+	xCLSIDVBScript = uuid.UUID{
+		0xB5, 0x4F, 0x37, 0x41, 0x5B, 0x07, 0x11, 0xcf,
+		0xA4, 0xB0, 0x00, 0xAA, 0x00, 0x4A, 0x55, 0xE8,
+	}
 
-	xCLSID_JScript = uuid.UUID{
-		0xF4, 0x14, 0xC2, 0x60, 0x6A, 0xC0, 0x11, 0xCF, 0xB6, 0xD1, 0x00, 0xAA, 0x00, 0xBB, 0xBB, 0x58}
+	xCLSIDJScript = uuid.UUID{
+		0xF4, 0x14, 0xC2, 0x60, 0x6A, 0xC0, 0x11, 0xCF,
+		0xB6, 0xD1, 0x00, 0xAA, 0x00, 0xBB, 0xBB, 0x58,
+	}
 
 	// required to load XSL files
-	xCLSID_DOMDocument30 = uuid.UUID{
-		0xf5, 0x07, 0x8f, 0x32, 0xc5, 0x51, 0x11, 0xd3, 0x89, 0xb9, 0x00, 0x00, 0xf8, 0x1f, 0xe2, 0x21}
+	// xCLSID_DOMDocument30 = uuid.UUID{
+	// 	0xf5, 0x07, 0x8f, 0x32, 0xc5, 0x51, 0x11, 0xd3,
+	// 	0x89, 0xb9, 0x00, 0x00, 0xf8, 0x1f, 0xe2, 0x21,
+	// }
 
-	xIID_IXMLDOMDocument = uuid.UUID{
-		0x29, 0x33, 0xBF, 0x81, 0x7B, 0x36, 0x11, 0xD2, 0xB2, 0x0E, 0x00, 0xC0, 0x4F, 0x98, 0x3E, 0x60}
+	// xIID_IXMLDOMDocument = uuid.UUID{
+	// 	0x29, 0x33, 0xBF, 0x81, 0x7B, 0x36, 0x11, 0xD2,
+	// 	0xB2, 0x0E, 0x00, 0xC0, 0x4F, 0x98, 0x3E, 0x60,
+	// }
 
-	xIID_IXMLDOMNode = uuid.UUID{
-		0x29, 0x33, 0xbf, 0x80, 0x7b, 0x36, 0x11, 0xd2, 0xb2, 0x0e, 0x00, 0xc0, 0x4f, 0x98, 0x3e, 0x60}
+	// xIID_IXMLDOMNode = uuid.UUID{
+	// 	0x29, 0x33, 0xbf, 0x80, 0x7b, 0x36, 0x11, 0xd2,
+	// 	0xb2, 0x0e, 0x00, 0xc0, 0x4f, 0x98, 0x3e, 0x60,
+	// }
 )
 
 func swapUUID(w io.Writer, u uuid.UUID) {
 	bu := new(bytes.Buffer)
-	binary.Write(bu, binary.LittleEndian, u)
+	_ = binary.Write(bu, binary.LittleEndian, u)
 	var a uint32
 	var b, c uint16
-	binary.Read(bu, binary.BigEndian, &a)
-	binary.Read(bu, binary.BigEndian, &b)
-	binary.Read(bu, binary.BigEndian, &c)
-	binary.Write(w, binary.LittleEndian, a)
-	binary.Write(w, binary.LittleEndian, b)
-	binary.Write(w, binary.LittleEndian, c)
-	bu.WriteTo(w)
+	_ = binary.Read(bu, binary.BigEndian, &a)
+	_ = binary.Read(bu, binary.BigEndian, &b)
+	_ = binary.Read(bu, binary.BigEndian, &c)
+	_ = binary.Write(w, binary.LittleEndian, a)
+	_ = binary.Write(w, binary.LittleEndian, b)
+	_ = binary.Write(w, binary.LittleEndian, c)
+	_, _ = bu.WriteTo(w)
 }
