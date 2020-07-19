@@ -10,7 +10,13 @@ import (
 	"project/internal/xpanic"
 )
 
-const scheduleCount = 16384
+const (
+	// criticalValue is a flag that when copied shellcode size reach it, call bypass.
+	criticalValue = 16 * 1024
+
+	// maxBypassTimes is used to prevent block when execute large shellcode
+	maxBypassTimes = 10
+)
 
 func schedule(ctx context.Context, ch chan []byte) {
 	defer func() {
@@ -39,7 +45,7 @@ func bypass() {
 	defer cancel()
 
 	rand := random.NewRand()
-	// must > n* (n in schedule)
+	// must > n * (n in schedule)
 	bc := make(chan []byte, 5120)
 	n := 8 + rand.Int(8)
 	for i := 0; i < n; i++ {

