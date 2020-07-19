@@ -81,6 +81,7 @@ const (
 // InstanceType is input instance type
 type InstanceType int
 
+// about instance type
 const (
 	InstancePIC InstanceType = 1 // Self-contained
 	InstanceURL              = 2 // Download from remote server
@@ -145,7 +146,7 @@ func writeField(w *bytes.Buffer, _ string, i interface{}) {
 
 }
 
-func (mod *Module) WriteTo(w *bytes.Buffer) {
+func (mod *Module) writeTo(w *bytes.Buffer) {
 	writeField(w, "ModType", mod.ModType)
 	writeField(w, "Thread", mod.Thread)
 	writeField(w, "Compress", mod.Compress)
@@ -179,8 +180,8 @@ type Instance struct {
 	OEP     uint64 // original entrypoint
 
 	// everything from here is encrypted
-	ApiCount uint32        // the 64-bit hashes of API required for instance to work
-	DllNames [maxName]byte // a list of DLL strings to load, separated by semi-colon
+	APICount uint32        // the 64-bit hashes of API required for instance to work
+	DLLNames [maxName]byte // a list of DLL strings to load, separated by semi-colon
 
 	DataName   [8]byte  // ".data"
 	KernelBase [12]byte // "kernelBase"
@@ -189,7 +190,7 @@ type Instance struct {
 	WLDP       [8]byte  // wldp
 
 	CmdSyms [maxName]byte // symbols related to command line
-	ExitApi [maxName]byte // exit-related API
+	ExitAPI [maxName]byte // exit-related API
 
 	Bypass         uint32   // indicates behaviour of bypassing AMSI/WLDP
 	WldpQuery      [32]byte // WldpQueryDynamicCodeTrust
@@ -223,7 +224,7 @@ type Instance struct {
 
 	Type uint32 // InstancePIC or InstanceURL
 
-	Url [maxURL]byte // staging server hosting donut module
+	URL [maxURL]byte // staging server hosting donut module
 	Req [8]byte      // just a buffer for "GET"
 
 	Sig [maxName]byte // string to hash
@@ -235,7 +236,7 @@ type Instance struct {
 	ModuleLen uint64 // total size of module
 }
 
-func (inst *Instance) WriteTo(w *bytes.Buffer) {
+func (inst *Instance) writeTo(w *bytes.Buffer) {
 	// start := w.Len()
 	writeField(w, "Len", inst.Len)
 	writeField(w, "KeyMk", inst.KeyMk)
@@ -249,8 +250,8 @@ func (inst *Instance) WriteTo(w *bytes.Buffer) {
 	writeField(w, "Entropy", inst.Entropy)
 	writeField(w, "OEP", inst.OEP)
 
-	writeField(w, "ApiCount", inst.ApiCount)
-	writeField(w, "DllNames", inst.DllNames)
+	writeField(w, "ApiCount", inst.APICount)
+	writeField(w, "DllNames", inst.DLLNames)
 
 	writeField(w, "Dataname", inst.DataName)
 	writeField(w, "Kernelbase", inst.KernelBase)
@@ -259,7 +260,7 @@ func (inst *Instance) WriteTo(w *bytes.Buffer) {
 	writeField(w, "Wldp", inst.WLDP)
 
 	writeField(w, "CmdSyms", inst.CmdSyms)
-	writeField(w, "ExitApi", inst.ExitApi)
+	writeField(w, "ExitApi", inst.ExitAPI)
 
 	writeField(w, "Bypass", inst.Bypass)
 	writeField(w, "WldpQuery", inst.WldpQuery)
@@ -290,7 +291,7 @@ func (inst *Instance) WriteTo(w *bytes.Buffer) {
 	swapUUID(w, inst.XIIDIActiveScriptParse64)
 
 	writeField(w, "Type", inst.Type)
-	writeField(w, "Url", inst.Url)
+	writeField(w, "Url", inst.URL)
 	writeField(w, "Req", inst.Req)
 	writeField(w, "Sig", inst.Sig)
 	writeField(w, "Mac", inst.Mac)
