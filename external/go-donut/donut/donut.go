@@ -20,7 +20,7 @@ import (
 
 // ShellcodeFromURL - Downloads a PE from URL, makes shellcode
 func ShellcodeFromURL(fileURL string, config *Config) (*bytes.Buffer, error) {
-	buf, err := DownloadFile(fileURL)
+	buf, err := downloadFile(fileURL)
 	if err != nil {
 		return nil, err
 	}
@@ -60,10 +60,10 @@ func ShellcodeFromFile(filename string, config *Config) (*bytes.Buffer, error) {
 // ShellcodeFromBytes - Passed a PE as byte array, makes shellcode
 func ShellcodeFromBytes(buf *bytes.Buffer, config *Config) (*bytes.Buffer, error) {
 
-	if err := CreateModule(config, buf); err != nil {
+	if err := createModule(config, buf); err != nil {
 		return nil, err
 	}
-	instance, err := CreateInstance(config)
+	instance, err := createInstance(config)
 	if err != nil {
 		return nil, err
 	}
@@ -78,12 +78,12 @@ func ShellcodeFromBytes(buf *bytes.Buffer, config *Config) (*bytes.Buffer, error
 		}
 	}
 	// ioutil.WriteFile("newinst.bin", instance.Bytes(), 0644)
-	return Sandwich(config.Arch, instance)
+	return sandwich(config.Arch, instance)
 }
 
-// Sandwich - adds the donut prefix in the beginning (stomps DOS header),
+// sandwich - adds the donut prefix in the beginning (stomps DOS header),
 // then payload, then donut stub at the end
-func Sandwich(arch Arch, payload *bytes.Buffer) (*bytes.Buffer, error) {
+func sandwich(arch Arch, payload *bytes.Buffer) (*bytes.Buffer, error) {
 	/*
 			Disassembly:
 					   0:  e8 					call $+
@@ -139,8 +139,8 @@ func Sandwich(arch Arch, payload *bytes.Buffer) (*bytes.Buffer, error) {
 	return w, nil
 }
 
-// CreateModule - Creates the Donut Module from Config
-func CreateModule(config *Config, inputFile *bytes.Buffer) error {
+// createModule - Creates the Donut Module from Config
+func createModule(config *Config, inputFile *bytes.Buffer) error {
 
 	mod := new(Module)
 	mod.ModType = uint32(config.Type)
@@ -152,7 +152,7 @@ func CreateModule(config *Config, inputFile *bytes.Buffer) error {
 		config.Type == ModuleNETEXE {
 		// If no domain name specified, generate a random one
 		if config.Domain == "" && config.Entropy != EntropyNone {
-			config.Domain = RandomString(domainLen)
+			config.Domain = randomString(domainLen)
 		} else {
 			config.Domain = "AAAAAAAA"
 		}
@@ -181,7 +181,7 @@ func CreateModule(config *Config, inputFile *bytes.Buffer) error {
 			// and entropy is enabled
 			if config.Entropy != EntropyNone {
 				// generate random name
-				copy(mod.Param[:], []byte(RandomString(domainLen) + " ")[:])
+				copy(mod.Param[:], []byte(randomString(domainLen) + " ")[:])
 			} else {
 				// else set to "AAAA "
 				copy(mod.Param[:], []byte("AAAAAAAA ")[:])
@@ -205,8 +205,8 @@ func CreateModule(config *Config, inputFile *bytes.Buffer) error {
 	return nil
 }
 
-// CreateInstance - Creates the Donut Instance from Config
-func CreateInstance(config *Config) (*bytes.Buffer, error) {
+// createInstance - Creates the Donut Instance from Config
+func createInstance(config *Config) (*bytes.Buffer, error) {
 
 	inst := new(Instance)
 	modLen := uint32(config.ModuleData.Len()) // ModuleData is mod struct + input file
@@ -220,49 +220,49 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 	}
 
 	if config.Entropy == EntropyDefault {
-		tk, err := RandomBytes(16)
+		tk, err := randomBytes(16)
 		if err != nil {
 			return nil, err
 		}
 		copy(inst.KeyMk[:], tk)
 
-		tk, err = RandomBytes(16)
+		tk, err = randomBytes(16)
 		if err != nil {
 			return nil, err
 		}
 		copy(inst.KeyCtr[:], tk)
 
-		tk, err = RandomBytes(16)
+		tk, err = randomBytes(16)
 		if err != nil {
 			return nil, err
 		}
 		copy(inst.ModKeyMk[:], tk)
 
-		tk, err = RandomBytes(16)
+		tk, err = randomBytes(16)
 		if err != nil {
 			return nil, err
 		}
 		copy(inst.ModKeyCtr[:], tk)
 
-		sbSig := RandomString(signatureLen)
+		sbSig := randomString(signatureLen)
 		copy(inst.Sig[:], sbSig)
 
-		iv, err := RandomBytes(maruIVLen)
+		iv, err := randomBytes(maruIVLen)
 		if err != nil {
 			return nil, err
 		}
 		inst.Iv = binary.LittleEndian.Uint64(iv)
 
-		inst.Mac = Maru(inst.Sig[:], inst.Iv)
+		inst.Mac = maru(inst.Sig[:], inst.Iv)
 	}
 
 	for cnt, c := range apiImports {
 		// calculate hash for DLL string
-		dllHash := Maru([]byte(c.Module), inst.Iv)
+		dllHash := maru([]byte(c.Module), inst.Iv)
 
 		// calculate hash for API string.
 		// xor with DLL hash and store in instance
-		inst.Hash[cnt] = Maru([]byte(c.Name), inst.Iv) ^ dllHash
+		inst.Hash[cnt] = maru([]byte(c.Name), inst.Iv) ^ dllHash
 	}
 	// save how many API to resolve
 	inst.APICount = uint32(len(apiImports))
@@ -339,7 +339,7 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 			if config.Entropy != EntropyNone {
 				// generate a random name for module
 				// that will be saved to disk
-				config.ModuleName = RandomString(maxModuleName)
+				config.ModuleName = randomString(maxModuleName)
 			} else {
 				config.ModuleName = "AAAAAAAA"
 			}
@@ -356,8 +356,8 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 	config.instLen = instLen
 
 	if config.InstType == InstanceURL && config.Entropy == EntropyDefault {
-		config.ModuleMac = Maru(inst.Sig[:], inst.Iv)
-		config.ModuleData = bytes.NewBuffer(Encrypt(
+		config.ModuleMac = maru(inst.Sig[:], inst.Iv)
+		config.ModuleData = bytes.NewBuffer(encrypt(
 			inst.ModKeyMk[:],
 			inst.ModKeyCtr[:],
 			config.ModuleData.Bytes()))
@@ -391,7 +391,7 @@ func CreateInstance(config *Config) (*bytes.Buffer, error) {
 		4 + // entropy
 		8 // OEP
 
-	encInstData := Encrypt(
+	encInstData := encrypt(
 		inst.KeyMk[:],
 		inst.KeyCtr[:],
 		instData[offset:])
