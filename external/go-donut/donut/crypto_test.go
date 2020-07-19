@@ -23,7 +23,7 @@ func TestChasLey(t *testing.T) {
 	data := plain
 	outData := chasKey(key, data)
 
-	if bytes.Compare(outData, cipher) == 0 {
+	if bytes.Equal(outData, cipher) {
 		t.Log("chasKey Test Passed")
 	} else {
 		t.Log("chasKey Test Failed\n", outData, cipher)

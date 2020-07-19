@@ -29,7 +29,7 @@ func randomBytes(count int) ([]byte, error) {
 
 // downloadFile will download an URL to a byte buffer
 func downloadFile(url string) (*bytes.Buffer, error) {
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) // #nosec
 	if err != nil {
 		return nil, err
 	}

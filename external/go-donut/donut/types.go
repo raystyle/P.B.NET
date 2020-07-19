@@ -67,13 +67,13 @@ type ModuleType int
 
 // about module types
 const (
-	ModuleNETDLL ModuleType = 1 // .NET DLL. Requires class and method
-	ModuleNETEXE            = 2 // .NET EXE. Executes Main if no class and method provided
-	ModuleDLL               = 3 // Unmanaged DLL, function is optional
-	ModuleEXE               = 4 // Unmanaged EXE
-	ModuleVBS               = 5 // VBScript
-	ModuleJS                = 6 // JavaScript or JScript
-	ModuleXSL               = 7 // XSL with JavaScript/JScript or VBScript embedded
+	ModuleNETDLL ModuleType = iota + 1 // .NET DLL. Requires class and method
+	ModuleNETEXE                       // .NET EXE. Executes Main if no class and method provided
+	ModuleDLL                          // Unmanaged DLL, function is optional
+	ModuleEXE                          // Unmanaged EXE
+	ModuleVBS                          // VBScript
+	ModuleJS                           // JavaScript or JScript
+	ModuleXSL                          // XSL with JavaScript/JScript or VBScript embedded
 )
 
 // InstanceType is input instance type
@@ -81,8 +81,8 @@ type InstanceType int
 
 // about instance type
 const (
-	InstancePIC InstanceType = 1 // Self-contained
-	InstanceURL              = 2 // Download from remote server
+	InstancePIC InstanceType = iota + 1 // Self-contained
+	InstanceURL                         // Download from remote server
 )
 
 // Config contains configuration about donut.

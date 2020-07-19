@@ -115,8 +115,12 @@ func main() {
 			log.Fatal("No source URL or file provided")
 		}
 		payload, err := donut.ShellcodeFromURL(*url, config)
-		if err == nil {
-			err = ioutil.WriteFile(*dstFile, payload.Bytes(), 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = ioutil.WriteFile(*dstFile, payload.Bytes(), 0600)
+		if err != nil {
+			log.Fatal(err)
 		}
 	} else {
 		payload, err := donut.ShellcodeFromFile(*srcFile, config)

@@ -29,8 +29,7 @@ func ShellcodeFromURL(fileURL string, config *Config) (*bytes.Buffer, error) {
 
 // ShellcodeFromFile - Loads PE from file, makes shellcode
 func ShellcodeFromFile(filename string, config *Config) (*bytes.Buffer, error) {
-
-	b, err := ioutil.ReadFile(filename)
+	b, err := ioutil.ReadFile(filename) // #nosec
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +58,6 @@ func ShellcodeFromFile(filename string, config *Config) (*bytes.Buffer, error) {
 
 // ShellcodeFromBytes - Passed a PE as byte array, makes shellcode
 func ShellcodeFromBytes(buf *bytes.Buffer, config *Config) (*bytes.Buffer, error) {
-
 	if err := createModule(config, buf); err != nil {
 		return nil, err
 	}
@@ -72,7 +70,7 @@ func ShellcodeFromBytes(buf *bytes.Buffer, config *Config) (*bytes.Buffer, error
 		// save the module to disk using random name
 		instance.Write([]byte{0, 0, 0, 0, 0, 0, 0, 0})          // mystery padding
 		config.ModuleData.Write([]byte{0, 0, 0, 0, 0, 0, 0, 0}) // mystery padding
-		err = ioutil.WriteFile(config.ModuleName, config.ModuleData.Bytes(), 0644)
+		err = ioutil.WriteFile(config.ModuleName, config.ModuleData.Bytes(), 0600)
 		if err != nil {
 			return nil, err
 		}
@@ -220,42 +218,13 @@ func createInstance(config *Config) (*bytes.Buffer, error) {
 	}
 
 	if config.Entropy == EntropyDefault {
-		tk, err := randomBytes(16)
+		err := createInstanceWithEntropy(inst)
 		if err != nil {
 			return nil, err
 		}
-		copy(inst.KeyMk[:], tk)
-
-		tk, err = randomBytes(16)
-		if err != nil {
-			return nil, err
-		}
-		copy(inst.KeyCtr[:], tk)
-
-		tk, err = randomBytes(16)
-		if err != nil {
-			return nil, err
-		}
-		copy(inst.ModKeyMk[:], tk)
-
-		tk, err = randomBytes(16)
-		if err != nil {
-			return nil, err
-		}
-		copy(inst.ModKeyCtr[:], tk)
-
-		sbSig := randomString(signatureLen)
-		copy(inst.Sig[:], sbSig)
-
-		iv, err := randomBytes(maruIVLen)
-		if err != nil {
-			return nil, err
-		}
-		inst.Iv = binary.LittleEndian.Uint64(iv)
-
-		inst.Mac = maru(inst.Sig[:], inst.Iv)
 	}
 
+	// API imports
 	for cnt, c := range apiImports {
 		// calculate hash for DLL string
 		dllHash := maru([]byte(c.Module), inst.Iv)
@@ -269,35 +238,7 @@ func createInstance(config *Config) (*bytes.Buffer, error) {
 	copy(inst.DLLNames[:], "ole32;oleaut32;wininet;mscoree;shell32")
 
 	// if module is .NET assembly
-	if config.Type == ModuleNETDLL ||
-		config.Type == ModuleNETEXE {
-		copy(inst.XIIDAppDomain[:], xIIDAppDomain[:])
-		copy(inst.XIIDICLRMetaHost[:], xIIDICLRMetaHost[:])
-		copy(inst.XCLSIDCLRMetaHost[:], xCLSIDCLRMetaHost[:])
-		copy(inst.XIIDICLRRuntimeInfo[:], xIIDICLRRuntimeInfo[:])
-		copy(inst.XIIDICorRuntimeHost[:], xIIDICorRuntimeHost[:])
-		copy(inst.XCLSIDCorRuntimeHost[:], xCLSIDCorRuntimeHost[:])
-	} else if config.Type == ModuleVBS ||
-		config.Type == ModuleJS {
-
-		copy(inst.XIIDIUnknown[:], xIIDIUnknown[:])
-		copy(inst.XIIDIDispatch[:], xIIDIDispatch[:])
-		copy(inst.XIIDIHost[:], xIIDIHost[:])
-		copy(inst.XIIDIActiveScript[:], xIIDIActiveScript[:])
-		copy(inst.XIIDIActiveScriptSite[:], xIIDIActiveScriptSite[:])
-		copy(inst.XIIDIActiveScriptSiteWindow[:], xIIDIActiveScriptSiteWindow[:])
-		copy(inst.XIIDIActiveScriptParse32[:], xIIDIActiveScriptParse32[:])
-		copy(inst.XIIDIActiveScriptParse64[:], xIIDIActiveScriptParse64[:])
-
-		copy(inst.WScript[:], "WScript")
-		copy(inst.WScriptEXE[:], "wscript.exe")
-
-		if config.Type == ModuleVBS {
-			copy(inst.XCLSIDScriptLanguage[:], xCLSIDVBScript[:])
-		} else {
-			copy(inst.XCLSIDScriptLanguage[:], xCLSIDJScript[:])
-		}
-	}
+	createInstanceWithType(config, inst)
 
 	// required to disable AMSI
 	copy(inst.Clr[:], "clr")
@@ -334,7 +275,7 @@ func createInstance(config *Config) (*bytes.Buffer, error) {
 
 	// if the module will be downloaded
 	// set the URL parameter and request verb
-	if inst.Type == InstanceURL {
+	if inst.Type == uint32(InstanceURL) {
 		if config.ModuleName != "" {
 			if config.Entropy != EntropyNone {
 				// generate a random name for module
@@ -354,7 +295,81 @@ func createInstance(config *Config) (*bytes.Buffer, error) {
 	inst.Len = instLen
 	config.inst = inst
 	config.instLen = instLen
+	return createFinalInstance(config, inst, instLen)
+}
 
+func createInstanceWithEntropy(inst *Instance) error {
+	tk, err := randomBytes(16)
+	if err != nil {
+		return err
+	}
+	copy(inst.KeyMk[:], tk)
+
+	tk, err = randomBytes(16)
+	if err != nil {
+		return err
+	}
+	copy(inst.KeyCtr[:], tk)
+
+	tk, err = randomBytes(16)
+	if err != nil {
+		return err
+	}
+	copy(inst.ModKeyMk[:], tk)
+
+	tk, err = randomBytes(16)
+	if err != nil {
+		return err
+	}
+	copy(inst.ModKeyCtr[:], tk)
+
+	sbSig := randomString(signatureLen)
+	copy(inst.Sig[:], sbSig)
+
+	iv, err := randomBytes(maruIVLen)
+	if err != nil {
+		return err
+	}
+	inst.Iv = binary.LittleEndian.Uint64(iv)
+
+	inst.Mac = maru(inst.Sig[:], inst.Iv)
+
+	return nil
+}
+
+func createInstanceWithType(config *Config, inst *Instance) {
+	if config.Type == ModuleNETDLL ||
+		config.Type == ModuleNETEXE {
+		copy(inst.XIIDAppDomain[:], xIIDAppDomain[:])
+		copy(inst.XIIDICLRMetaHost[:], xIIDICLRMetaHost[:])
+		copy(inst.XCLSIDCLRMetaHost[:], xCLSIDCLRMetaHost[:])
+		copy(inst.XIIDICLRRuntimeInfo[:], xIIDICLRRuntimeInfo[:])
+		copy(inst.XIIDICorRuntimeHost[:], xIIDICorRuntimeHost[:])
+		copy(inst.XCLSIDCorRuntimeHost[:], xCLSIDCorRuntimeHost[:])
+	} else if config.Type == ModuleVBS ||
+		config.Type == ModuleJS {
+
+		copy(inst.XIIDIUnknown[:], xIIDIUnknown[:])
+		copy(inst.XIIDIDispatch[:], xIIDIDispatch[:])
+		copy(inst.XIIDIHost[:], xIIDIHost[:])
+		copy(inst.XIIDIActiveScript[:], xIIDIActiveScript[:])
+		copy(inst.XIIDIActiveScriptSite[:], xIIDIActiveScriptSite[:])
+		copy(inst.XIIDIActiveScriptSiteWindow[:], xIIDIActiveScriptSiteWindow[:])
+		copy(inst.XIIDIActiveScriptParse32[:], xIIDIActiveScriptParse32[:])
+		copy(inst.XIIDIActiveScriptParse64[:], xIIDIActiveScriptParse64[:])
+
+		copy(inst.WScript[:], "WScript")
+		copy(inst.WScriptEXE[:], "wscript.exe")
+
+		if config.Type == ModuleVBS {
+			copy(inst.XCLSIDScriptLanguage[:], xCLSIDVBScript[:])
+		} else {
+			copy(inst.XCLSIDScriptLanguage[:], xCLSIDJScript[:])
+		}
+	}
+}
+
+func createFinalInstance(config *Config, inst *Instance, instLen uint32) (*bytes.Buffer, error) {
 	if config.InstType == InstanceURL && config.Entropy == EntropyDefault {
 		config.ModuleMac = maru(inst.Sig[:], inst.Iv)
 		config.ModuleData = bytes.NewBuffer(encrypt(
