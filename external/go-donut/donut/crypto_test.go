@@ -46,7 +46,6 @@ func Test_Maru_1(t *testing.T) {
 }
 
 func Test_Maru_2(t *testing.T) {
-
 	iv := binary.LittleEndian.Uint64([]byte{0xEB, 0xA7, 0xF4, 0xDE, 0x07, 0x5B, 0xF8, 0x88})
 	dllHash := Maru([]byte("kernel32.dll"), iv)
 	hash := Maru([]byte("Sleep"), iv) ^ dllHash
