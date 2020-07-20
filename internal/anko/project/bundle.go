@@ -4,6 +4,8 @@ package project
 import (
 	"reflect"
 
+	"github.com/mattn/anko/env"
+
 	"project/internal/convert"
 	"project/internal/httptool"
 	"project/internal/logger"
@@ -13,8 +15,6 @@ import (
 	"project/internal/patch/toml"
 	"project/internal/xpanic"
 	"project/internal/xreflect"
-
-	"github.com/mattn/anko/env"
 )
 
 func init() {
@@ -90,30 +90,38 @@ func initInternalPatchToml() {
 func initInternalConvert() {
 	env.Packages["project/internal/convert"] = map[string]reflect.Value{
 		// define constants
+		"Byte": reflect.ValueOf(convert.Byte),
+		"EB":   reflect.ValueOf(convert.EB),
+		"GB":   reflect.ValueOf(convert.GB),
+		"KB":   reflect.ValueOf(convert.KB),
+		"MB":   reflect.ValueOf(convert.MB),
+		"PB":   reflect.ValueOf(convert.PB),
+		"TB":   reflect.ValueOf(convert.TB),
 
 		// define variables
 
 		// define functions
-		"AbsInt64":       reflect.ValueOf(convert.AbsInt64),
-		"BytesToFloat32": reflect.ValueOf(convert.BytesToFloat32),
-		"BytesToFloat64": reflect.ValueOf(convert.BytesToFloat64),
-		"BytesToInt16":   reflect.ValueOf(convert.BytesToInt16),
-		"BytesToInt32":   reflect.ValueOf(convert.BytesToInt32),
-		"BytesToInt64":   reflect.ValueOf(convert.BytesToInt64),
-		"BytesToUint16":  reflect.ValueOf(convert.BytesToUint16),
-		"BytesToUint32":  reflect.ValueOf(convert.BytesToUint32),
-		"BytesToUint64":  reflect.ValueOf(convert.BytesToUint64),
-		"Float32ToBytes": reflect.ValueOf(convert.Float32ToBytes),
-		"Float64ToBytes": reflect.ValueOf(convert.Float64ToBytes),
-		"FormatByte":     reflect.ValueOf(convert.FormatByte),
-		"FormatNumber":   reflect.ValueOf(convert.FormatNumber),
-		"Int16ToBytes":   reflect.ValueOf(convert.Int16ToBytes),
-		"Int32ToBytes":   reflect.ValueOf(convert.Int32ToBytes),
-		"Int64ToBytes":   reflect.ValueOf(convert.Int64ToBytes),
-		"OutputBytes":    reflect.ValueOf(convert.OutputBytes),
-		"Uint16ToBytes":  reflect.ValueOf(convert.Uint16ToBytes),
-		"Uint32ToBytes":  reflect.ValueOf(convert.Uint32ToBytes),
-		"Uint64ToBytes":  reflect.ValueOf(convert.Uint64ToBytes),
+		"AbsInt64":            reflect.ValueOf(convert.AbsInt64),
+		"BytesToFloat32":      reflect.ValueOf(convert.BytesToFloat32),
+		"BytesToFloat64":      reflect.ValueOf(convert.BytesToFloat64),
+		"BytesToInt16":        reflect.ValueOf(convert.BytesToInt16),
+		"BytesToInt32":        reflect.ValueOf(convert.BytesToInt32),
+		"BytesToInt64":        reflect.ValueOf(convert.BytesToInt64),
+		"BytesToUint16":       reflect.ValueOf(convert.BytesToUint16),
+		"BytesToUint32":       reflect.ValueOf(convert.BytesToUint32),
+		"BytesToUint64":       reflect.ValueOf(convert.BytesToUint64),
+		"Float32ToBytes":      reflect.ValueOf(convert.Float32ToBytes),
+		"Float64ToBytes":      reflect.ValueOf(convert.Float64ToBytes),
+		"FormatByte":          reflect.ValueOf(convert.FormatByte),
+		"FormatNumber":        reflect.ValueOf(convert.FormatNumber),
+		"Int16ToBytes":        reflect.ValueOf(convert.Int16ToBytes),
+		"Int32ToBytes":        reflect.ValueOf(convert.Int32ToBytes),
+		"Int64ToBytes":        reflect.ValueOf(convert.Int64ToBytes),
+		"OutputBytes":         reflect.ValueOf(convert.OutputBytes),
+		"OutputBytesWithSize": reflect.ValueOf(convert.OutputBytesWithSize),
+		"Uint16ToBytes":       reflect.ValueOf(convert.Uint16ToBytes),
+		"Uint32ToBytes":       reflect.ValueOf(convert.Uint32ToBytes),
+		"Uint64ToBytes":       reflect.ValueOf(convert.Uint64ToBytes),
 	}
 	var ()
 	env.PackageTypes["project/internal/convert"] = map[string]reflect.Type{}
@@ -158,6 +166,7 @@ func initInternalLogger() {
 		"NewWriterWithPrefix": reflect.ValueOf(logger.NewWriterWithPrefix),
 		"Parse":               reflect.ValueOf(logger.Parse),
 		"Prefix":              reflect.ValueOf(logger.Prefix),
+		"SetErrorLogger":      reflect.ValueOf(logger.SetErrorLogger),
 		"Wrap":                reflect.ValueOf(logger.Wrap),
 	}
 	var (

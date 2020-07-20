@@ -132,9 +132,9 @@ func exportDeclaration(root, path, init string) (string, error) {
 	}
 	// replace special path
 	switch {
-	case path[0] == '$':
+	case path[0] == '$': // to internal/anko/project
 		path = "project/" + path[1:]
-	case strings.Contains(path, "@"):
+	case strings.Contains(path, "@"): // to internal/anko/third-party
 		path = strings.Split(path, "@")[0]
 	}
 	c := sortStringMap(constants)

@@ -345,9 +345,9 @@ package project
 import (
 	"reflect"
 
-%s
 	"github.com/mattn/anko/env"
-)
+
+%s)
 
 func init() {
 %s}
