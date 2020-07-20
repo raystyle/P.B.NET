@@ -88,27 +88,28 @@ func main() {
 	tpl := template.New("execute")
 	_, err = tpl.Parse(srcTemplate)
 	system.CheckError(err)
-	srcFile, err := os.Create("temp.go")
+	const tempSrc = "temp.go"
+	srcFile, err := os.Create(tempSrc)
 	system.CheckError(err)
 	defer func() {
 		_ = srcFile.Close()
-		_ = os.Remove("temp.go")
+		_ = os.Remove(tempSrc)
 	}()
 	cfg := config{
 		Shellcode: convert.OutputBytes(encShellcode),
 		AESKey:    convert.OutputBytes(aesKey),
 		AESIV:     convert.OutputBytes(aesIV),
-		Method:    "vp",
+		Method:    method,
 	}
 	err = tpl.Execute(srcFile, cfg)
 	system.CheckError(err)
 
 	// build source code
 	fmt.Println("build source code to final executable file")
-	args := []string{"build", "-v", "-i", "-ldflags", "-s -w", "-o", output, "temp.go"}
+	args := []string{"build", "-v", "-i", "-ldflags", "-s -w", "-o", output, tempSrc}
 	cmd := exec.Command("go", args...) // #nosec
 	cmd.Env = append(os.Environ(), "GOOS=windows")
-	cmd.Env = append(os.Environ(), "GOARCH="+arch)
+	cmd.Env = append(cmd.Env, "GOARCH="+arch)
 	cmdOutput, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println(string(cmdOutput))
