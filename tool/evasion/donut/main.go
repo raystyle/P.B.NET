@@ -39,7 +39,7 @@ func main() {
 		fmt.Println("no input file path")
 		return
 	}
-	exeData, err := ioutil.ReadFile(input)
+	exeData, err := ioutil.ReadFile(input) // #nosec
 	system.CheckError(err)
 	donutCfg := donut.DefaultConfig()
 

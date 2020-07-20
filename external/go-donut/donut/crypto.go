@@ -83,7 +83,7 @@ func encrypt(mk []byte, ctr []byte, data []byte) []byte {
 		x = chasKey(mk, x)
 
 		// XOR plaintext with ciphertext
-		r := uint32(0)
+		var r uint32
 		if length > cipherBlockLen {
 			r = cipherBlockLen
 		} else {

