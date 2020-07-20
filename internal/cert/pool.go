@@ -25,7 +25,7 @@ func (p *pair) ToPair() *Pair {
 	defer p.PrivateKey.Put(pkcs8)
 	pri, err := x509.ParsePKCS8PrivateKey(pkcs8)
 	if err != nil {
-		panic(fmt.Sprintf("cert internal error: %s", err))
+		panic(fmt.Sprintf("cert: internal error: %s", err))
 	}
 	return &Pair{
 		Certificate: p.Certificate,

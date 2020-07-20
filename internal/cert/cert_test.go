@@ -375,13 +375,12 @@ func testGenerate(t *testing.T, ca *Pair) {
 }
 
 func TestPair_Encode(t *testing.T) {
-	defer testsuite.DeferForPanic(t)
-
 	ca, err := GenerateCA(nil)
 	require.NoError(t, err)
 
 	pair := &Pair{Certificate: ca.Certificate}
 
+	defer testsuite.DeferForPanic(t)
 	pair.Encode()
 }
 

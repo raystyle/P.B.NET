@@ -91,7 +91,7 @@ func LoadSystemCertsWithName(name string) ([][]byte, error) {
 			break
 		}
 		// copy the buf, since ParseCertificate does not create its own copy.
-		buf := (*[1 << 20]byte)(unsafe.Pointer(cert.EncodedCert))[:] // #nosec
+		buf := (*[1024 * 1024]byte)(unsafe.Pointer(cert.EncodedCert))[:] // #nosec
 		buf2 := make([]byte, cert.Length)
 		copy(buf2, buf)
 		certs = append(certs, buf2)

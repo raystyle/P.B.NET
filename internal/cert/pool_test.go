@@ -13,11 +13,10 @@ import (
 )
 
 func TestPair_ToPair(t *testing.T) {
-	defer testsuite.DeferForPanic(t)
-
 	sb := security.NewBytes(make([]byte, 1024))
 	pair := pair{PrivateKey: sb}
 
+	defer testsuite.DeferForPanic(t)
 	pair.ToPair()
 }
 

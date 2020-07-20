@@ -255,7 +255,7 @@ func (p *Pair) Encode() ([]byte, []byte) {
 	cert := p.ASN1()
 	key, err := x509.MarshalPKCS8PrivateKey(p.PrivateKey)
 	if err != nil {
-		panic(fmt.Sprintf("cert internal error: %s", err))
+		panic(fmt.Sprintf("cert: internal error: %s", err))
 	}
 	return cert, key
 }
