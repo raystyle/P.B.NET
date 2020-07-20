@@ -564,12 +564,10 @@ func TestHMAC(t *testing.T) {
 }
 
 func TestHMAC_Sum(t *testing.T) {
-	defer testsuite.DeferForPanic(t)
-
 	h := New(sha256.New, []byte{2, 0, 0, 7}).(*hmac)
-
 	h.marshaled = true
 
+	defer testsuite.DeferForPanic(t)
 	h.Sum(nil)
 }
 
@@ -587,12 +585,10 @@ func (*marshalAbleHash) UnmarshalBinary([]byte) error {
 
 func TestHMAC_Reset(t *testing.T) {
 	t.Run("inner marshalAble", func(t *testing.T) {
-		defer testsuite.DeferForPanic(t)
-
 		h := New(sha256.New, []byte{2, 0, 0, 7}).(*hmac)
-
 		h.marshaled = true
 
+		defer testsuite.DeferForPanic(t)
 		h.Reset()
 	})
 

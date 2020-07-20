@@ -66,8 +66,8 @@ func testLSB(t *testing.T, name string) {
 
 	// look the different about two pictures
 	//
-	// fileName := fmt.Sprintf("testdata/%s_enc.png", name)
-	// err = system.WriteFile(fileName, picEnc)
+	// filename := fmt.Sprintf("testdata/%s_enc.png", name)
+	// err = system.WriteFile(filename, picEnc)
 	// require.NoError(t, err)
 }
 
@@ -274,12 +274,11 @@ func TestDecrypt(t *testing.T) {
 	})
 
 	t.Run("internal error", func(t *testing.T) {
-		defer testsuite.DeferForPanic(t)
-
 		x := 0
 		y := 0
 		img := testGeneratePNG(1, 1)
 
+		defer testsuite.DeferForPanic(t)
 		readDataFromImage(img, 1, 1, &x, &y, 1024)
 	})
 }

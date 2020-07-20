@@ -77,7 +77,7 @@ func Encrypt(img image.Image, plainData, key, iv []byte) (*image.NRGBA64, error)
 	size := len(plainData)
 	if size > storageSize {
 		const format = "this image can only store %s data, plain data size is %d"
-		str := convert.ByteToString(uint64(storageSize))
+		str := convert.FormatByte(uint64(storageSize))
 		return nil, fmt.Errorf(format, str, size)
 	}
 	if size > math.MaxInt32-1 { // because aes block size
