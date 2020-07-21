@@ -285,7 +285,7 @@ func init() {
 	}{
 		{
 			name: "github.com/kardianos/service",
-			path: "github.com/kardianos/service@v1.1.0",
+			path: "github.com/kardianos/service@v1.2.0",
 			init: "GithubComKardianosService",
 		},
 		{
@@ -294,9 +294,14 @@ func init() {
 			init: "GithubComPelletierGoTOML",
 		},
 		{
-			name: "github.com/vmihailenco/msgpack/v4",
-			path: "github.com/vmihailenco/msgpack/v4@v4.3.12",
-			init: "GithubComVmihailencoMsgpackV4",
+			name: "github.com/vmihailenco/msgpack/v5",
+			path: "github.com/vmihailenco/msgpack/v5@v5.0.0",
+			init: "GithubComVmihailencoMsgpackV5",
+		},
+		{
+			name: "github.com/vmihailenco/msgpack/v5/msgpcode",
+			path: "github.com/vmihailenco/msgpack/v5@v5.0.0/msgpcode",
+			init: "GithubComVmihailencoMsgpackV5Msgpcode",
 		},
 	} {
 		_, _ = fmt.Fprintf(pkgBuf, `	"%s"`+"\n", item.name)
