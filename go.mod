@@ -13,9 +13,9 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/jinzhu/gorm v1.9.16
 	github.com/julienschmidt/httprouter v1.3.0
-	github.com/kardianos/service v1.1.0
+	github.com/kardianos/service v1.2.0
 	github.com/looplab/fsm v0.2.0
-	github.com/lucas-clemente/quic-go v0.18.0
+	github.com/lucas-clemente/quic-go v0.19.2
 	github.com/mattn/anko v0.1.8
 	github.com/pelletier/go-toml v1.8.1
 	github.com/pkg/errors v0.9.1
