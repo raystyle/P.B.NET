@@ -62,8 +62,8 @@ func (c *Conn) Write(b []byte) (int, error) {
 // |   4 bytes    |   var   |
 // +--------------+---------+
 const (
-	headerSize   = 4         // message size
-	MaxMsgLength = 256 << 10 // 256 KB
+	headerSize   = 4          // message size
+	MaxMsgLength = 256 * 1024 // 256 KB
 )
 
 // errors
@@ -161,8 +161,8 @@ func (c *Conn) String() string {
 	return fmt.Sprintf(format,
 		s.LocalNetwork, s.LocalAddress,
 		s.RemoteNetwork, s.RemoteAddress,
-		convert.ByteToString(s.Sent),
-		convert.ByteToString(s.Received),
+		convert.FormatByte(s.Sent),
+		convert.FormatByte(s.Received),
 		s.Mode+",", s.DefaultNetwork,
 		s.Connect.Format(logger.TimeLayout),
 	)

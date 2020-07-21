@@ -13,7 +13,7 @@ import (
 
 const (
 	defaultTimeout   = 30 * time.Second // dial and accept
-	defaultNextProto = "h3-29"          // HTTP/3
+	defaultNextProto = "h3-32"          // HTTP/3
 )
 
 // ErrConnClosed is an error about closed.
@@ -81,6 +81,9 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 
 // Close is used to close connection.
 func (c *Conn) Close() error {
+	if c.cancel != nil {
+		c.cancel()
+	}
 	c.acceptOnce.Do(func() {
 		c.acceptErr = ErrConnClosed
 	})
