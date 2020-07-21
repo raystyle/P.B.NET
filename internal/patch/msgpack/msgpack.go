@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/vmihailenco/msgpack/v4"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 // Encoder is a type alias.
@@ -21,7 +21,7 @@ type Decoder struct {
 // NewEncoder returns a new encoder that writes to w.
 func NewEncoder(w io.Writer) *Encoder {
 	encoder := msgpack.NewEncoder(w)
-	encoder.UseCompactEncoding(true)
+	encoder.UseCompactInts(true)
 	encoder.UseCompactFloats(true)
 	return encoder
 }
@@ -29,7 +29,7 @@ func NewEncoder(w io.Writer) *Encoder {
 // NewDecoder returns a new decoder that reads from r.
 func NewDecoder(r io.Reader) *Decoder {
 	decoder := msgpack.NewDecoder(r)
-	decoder.DisallowUnknownFields()
+	decoder.DisallowUnknownFields(true)
 	return &Decoder{Decoder: decoder}
 }
 

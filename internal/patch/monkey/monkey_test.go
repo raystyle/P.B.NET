@@ -84,19 +84,19 @@ func testDeferForPanic(t testing.TB) {
 
 func TestPatchInstanceMethodType(t *testing.T) {
 	t.Run("unknown method", func(t *testing.T) {
-		defer testDeferForPanic(t)
-
 		pri := &private{str: "pri"}
+
+		defer testDeferForPanic(t)
 		PatchInstanceMethod(pri, "foo", nil)
 	})
 
 	t.Run("invalid parameter", func(t *testing.T) {
-		defer testDeferForPanic(t)
-
 		pri := &private{str: "pri"}
 		patch := func(interface{}, string, string) string {
 			return "monkey"
 		}
+
+		defer testDeferForPanic(t)
 		PatchInstanceMethod(pri, "Get", patch)
 	})
 }
