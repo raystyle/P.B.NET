@@ -159,11 +159,12 @@ func TestTask(t *testing.T) {
 
 		task.Continue()
 
-		t.Log(task.Name())
-		t.Log(task.Task())
-		t.Log(task.State())
-		t.Log(task.Progress())
-		t.Log(task.Detail())
+		t.Log("name:", task.Name())
+		// prevent data race
+		t.Log("task:", task.Task().(*mockTask).Progress())
+		t.Log("state", task.State())
+		t.Log("progress:", task.Progress())
+		t.Log("detail", task.Detail())
 	}()
 
 	err := task.Start()
