@@ -4,8 +4,8 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
-	"github.com/vmihailenco/msgpack/v4"
-	"github.com/vmihailenco/msgpack/v4/codes"
+	"github.com/vmihailenco/msgpack/v5"
+	"github.com/vmihailenco/msgpack/v5/msgpcode"
 )
 
 // reference:
@@ -21,13 +21,13 @@ func (e *errorCode) DecodeMsgpack(decoder *msgpack.Decoder) error {
 		return err
 	}
 	switch code {
-	case codes.Uint16:
+	case msgpcode.Uint16:
 		val, err := decoder.DecodeUint16()
 		if err != nil {
 			return err
 		}
 		*e = errorCode(val)
-	case codes.Bin8:
+	case msgpcode.Bin8:
 		str, err := decoder.DecodeString()
 		if err != nil {
 			return err
@@ -1330,13 +1330,13 @@ func (license *license) DecodeMsgpack(decoder *msgpack.Decoder) error {
 		return err
 	}
 	switch {
-	case codes.IsBin(code):
+	case msgpcode.IsBin(code):
 		str, err := decoder.DecodeString()
 		if err != nil {
 			return err
 		}
 		*license = []string{str}
-	case codes.IsFixedArray(code):
+	case msgpcode.IsFixedArray(code):
 		slice, err := decoder.DecodeSlice()
 		if err != nil {
 			return err

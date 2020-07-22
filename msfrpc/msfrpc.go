@@ -135,7 +135,7 @@ func NewMSFRPC(
 	}
 	msfrpc.encoderPool.New = func() interface{} {
 		encoder := msgpack.NewEncoder(nil)
-		encoder.StructAsArray(true)
+		encoder.UseArrayEncodedStructs(true)
 		return encoder
 	}
 	msfrpc.decoderPool.New = func() interface{} {

@@ -24,7 +24,7 @@ import (
 	"project/internal/xreflect"
 )
 
-const minRequestBodySize = 1 << 20 // 1MB
+const minRequestBodySize = 1024 * 1024
 
 // WebServerOptions contains options about web server.
 type WebServerOptions struct {

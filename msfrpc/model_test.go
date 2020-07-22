@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/vmihailenco/msgpack/v4"
-	"github.com/vmihailenco/msgpack/v4/codes"
+	"github.com/vmihailenco/msgpack/v5"
+	"github.com/vmihailenco/msgpack/v5/msgpcode"
 
 	"project/internal/patch/monkey"
 )
@@ -24,7 +24,7 @@ func TestErrorCode_DecodeMsgpack(t *testing.T) {
 	})
 
 	t.Run("uint16", func(t *testing.T) {
-		data := []byte{byte(codes.Uint16), 0x00, 0x01}
+		data := []byte{msgpcode.Uint16, 0x00, 0x01}
 		decoder := msgpack.NewDecoder(bytes.NewReader(data))
 
 		var errCode errorCode
@@ -34,7 +34,7 @@ func TestErrorCode_DecodeMsgpack(t *testing.T) {
 	})
 
 	t.Run("invalid uint16", func(t *testing.T) {
-		data := []byte{byte(codes.Uint16), 0x00}
+		data := []byte{msgpcode.Uint16, 0x00}
 		decoder := msgpack.NewDecoder(bytes.NewReader(data))
 
 		var errCode errorCode
@@ -44,7 +44,7 @@ func TestErrorCode_DecodeMsgpack(t *testing.T) {
 
 	t.Run("bin8", func(t *testing.T) {
 		// type | data | data
-		data := []byte{byte(codes.Bin8), 0x01, []byte("1")[0]}
+		data := []byte{msgpcode.Bin8, 0x01, []byte("1")[0]}
 		decoder := msgpack.NewDecoder(bytes.NewReader(data))
 
 		var errCode errorCode
@@ -55,7 +55,7 @@ func TestErrorCode_DecodeMsgpack(t *testing.T) {
 
 	t.Run("invalid bin8", func(t *testing.T) {
 		// type | data | data
-		data := []byte{byte(codes.Bin8), 0x02, []byte("1")[0]}
+		data := []byte{msgpcode.Bin8, 0x02, []byte("1")[0]}
 		decoder := msgpack.NewDecoder(bytes.NewReader(data))
 
 		var errCode errorCode
@@ -65,7 +65,7 @@ func TestErrorCode_DecodeMsgpack(t *testing.T) {
 
 	t.Run("invalid bin8 NaN", func(t *testing.T) {
 		// type | data | data
-		data := []byte{byte(codes.Bin8), 0x01, []byte("a")[0]}
+		data := []byte{msgpcode.Bin8, 0x01, []byte("a")[0]}
 		decoder := msgpack.NewDecoder(bytes.NewReader(data))
 
 		var errCode errorCode
@@ -102,7 +102,7 @@ func TestLicense_DecodeMsgpack(t *testing.T) {
 	})
 
 	t.Run("bin", func(t *testing.T) {
-		data := []byte{byte(codes.Bin8)}
+		data := []byte{msgpcode.Bin8}
 		decoder := msgpack.NewDecoder(bytes.NewReader(data))
 
 		license := new(license)
@@ -112,7 +112,7 @@ func TestLicense_DecodeMsgpack(t *testing.T) {
 	})
 
 	t.Run("fixed array", func(t *testing.T) {
-		data := []byte{byte(codes.FixedArrayLow)}
+		data := []byte{msgpcode.FixedArrayLow}
 		decoder := msgpack.NewDecoder(bytes.NewReader(data))
 
 		patch := func(interface{}) ([]interface{}, error) {
