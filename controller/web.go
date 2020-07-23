@@ -135,7 +135,7 @@ func newWebServer(ctx *Ctrl, config *Config) (*webServer, error) {
 		TLSConfig:         tlsConfig,
 		ReadHeaderTimeout: time.Minute,
 		IdleTimeout:       time.Minute,
-		MaxHeaderBytes:    32 << 10,
+		MaxHeaderBytes:    32 * 1024,
 		Handler:           router,
 		ErrorLog:          logger.Wrap(logger.Warning, "web", ctx.logger),
 	}

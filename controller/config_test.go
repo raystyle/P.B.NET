@@ -42,13 +42,13 @@ func testGenerateConfig() *Config {
 	cfg.Sender.Worker = 64
 	cfg.Sender.Timeout = 15 * time.Second
 	cfg.Sender.QueueSize = 512
-	cfg.Sender.MaxBufferSize = 16 << 10
+	cfg.Sender.MaxBufferSize = 16 * 1024
 
 	cfg.Syncer.ExpireTime = 3 * time.Second
 
 	cfg.Worker.Number = 64
 	cfg.Worker.QueueSize = 512
-	cfg.Worker.MaxBufferSize = 16 << 10
+	cfg.Worker.MaxBufferSize = 16 * 1024
 
 	cfg.WebServer.Directory = "web"
 	cfg.WebServer.CertFile = "ca/cert.pem"

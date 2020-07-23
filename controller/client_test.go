@@ -55,13 +55,13 @@ func testGenerateNodeConfig(t testing.TB) *node.Config {
 	cfg.Sender.Worker = 64
 	cfg.Sender.Timeout = 15 * time.Second
 	cfg.Sender.QueueSize = 512
-	cfg.Sender.MaxBufferSize = 16 << 10
+	cfg.Sender.MaxBufferSize = 16 * 1024
 
 	cfg.Syncer.ExpireTime = 3 * time.Second
 
 	cfg.Worker.Number = 16
 	cfg.Worker.QueueSize = 1024
-	cfg.Worker.MaxBufferSize = 16 << 10
+	cfg.Worker.MaxBufferSize = 16 * 1024
 
 	cfg.Server.MaxConns = 64
 	cfg.Server.Timeout = 15 * time.Second

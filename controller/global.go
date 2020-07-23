@@ -214,7 +214,7 @@ func (global *global) LoadCoreData(sessionKey, sessionKeyPwd, certPool, certPool
 	defer security.CoverBytes(privateKey)
 	pub, err := ed25519.ImportPublicKey(privateKey[32:])
 	if err != nil {
-		panic(fmt.Sprintf("global internal error: %s", err))
+		panic(fmt.Sprintf("global: internal error: %s", err))
 	}
 	global.objects[objPublicKey] = pub
 	// calculate key exchange public key
@@ -231,7 +231,7 @@ func (global *global) LoadCoreData(sessionKey, sessionKeyPwd, certPool, certPool
 	// aes crypto about broadcast
 	cbc, err := aes.NewCBC(keys[1], keys[2])
 	if err != nil {
-		panic(fmt.Sprintf("global internal error: %s", err))
+		panic(fmt.Sprintf("global: internal error: %s", err))
 	}
 	global.objects[objBroadcastKey] = cbc
 	// load certificate pool

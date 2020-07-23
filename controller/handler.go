@@ -347,7 +347,7 @@ func (h *handler) checkUpdateNodeRequest(role protocol.Role, r *protocol.UpdateN
 		sessionKey = beacon.SessionKey
 		hmacPool = &beacon.HMACPool
 	default:
-		panic(fmt.Sprintf("invalid role: %s", role))
+		panic(fmt.Sprintf("handler: invalid role: %s", role))
 	}
 	sk := sessionKey.Get()
 	defer sessionKey.Put(sk)
@@ -394,7 +394,7 @@ func (h *handler) encryptUpdateNodeResponse(
 		sessionKey = beacon.SessionKey
 		hmacPool = &beacon.HMACPool
 	default:
-		panic(fmt.Sprintf("invalid role: %s", role))
+		panic(fmt.Sprintf("handler: invalid role: %s", role))
 	}
 	sk := sessionKey.Get()
 	defer sessionKey.Put(sk)
