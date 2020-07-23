@@ -401,7 +401,7 @@ func (f *forwarder) operate(conn *conn, operation uint8, guid, data []byte) {
 	case protocol.BeaconQuery:
 		conn.Query(guid, data)
 	default:
-		panic(fmt.Sprintf("unknown operation: %d", operation))
+		panic(fmt.Sprintf("forwarder: unknown operation: %d", operation))
 	}
 }
 

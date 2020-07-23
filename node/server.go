@@ -1059,7 +1059,7 @@ func (server *server) serveRoleUpdate(conn *xnet.Conn, role protocol.Role, guid 
 	case protocol.Beacon:
 		cmd = messages.CMDBNodeUpdateNodeRequestFromBeacon
 	default:
-		panic(fmt.Sprintf("invalid role: %s", role))
+		panic(fmt.Sprintf("server: invalid role: %s", role))
 	}
 	reply, err := server.ctx.messageMgr.Send(server.context, cmd, &unr, false, 15*time.Second)
 	if err != nil {

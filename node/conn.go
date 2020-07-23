@@ -88,7 +88,7 @@ func newConn(ctx *Node, xConn *xnet.Conn, guid *guid.GUID, usage int) *conn {
 		conn.guidLine = "----------------------connected node guid-----------------------"
 		conn.logSrc = "client"
 	default:
-		panic(fmt.Sprintf("invalid conn usage: %d", usage))
+		panic(fmt.Sprintf("conn: invalid conn usage: %d", usage))
 	}
 	if usage != connUsageServeCtrl {
 		conn.guidLine += "\n%s\n"
