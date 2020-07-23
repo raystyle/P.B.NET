@@ -45,14 +45,14 @@ func testGenerateConfig(t testing.TB) *Config {
 	cfg.Sender.MaxConns = 16
 	cfg.Sender.Worker = 64
 	cfg.Sender.QueueSize = 512
-	cfg.Sender.MaxBufferSize = 512 << 10
+	cfg.Sender.MaxBufferSize = 512 * 1024
 	cfg.Sender.Timeout = 15 * time.Second
 
 	cfg.Syncer.ExpireTime = 30 * time.Second
 
 	cfg.Worker.Number = 16
 	cfg.Worker.QueueSize = 1024
-	cfg.Worker.MaxBufferSize = 16384
+	cfg.Worker.MaxBufferSize = 16 * 1024
 
 	cfg.Driver.SleepFixed = 5
 	cfg.Driver.SleepRandom = 10
