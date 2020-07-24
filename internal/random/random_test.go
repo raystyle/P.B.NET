@@ -64,20 +64,18 @@ func TestRandom(t *testing.T) {
 	})
 
 	t.Run("panic about rand.New 1", func(t *testing.T) {
-		defer testDeferForPanic(t)
-
 		patch := func(rand.Source) *rand.Rand {
 			panic(monkey.Panic)
 		}
 		pg := monkey.Patch(rand.New, patch)
 		defer pg.Unpatch()
 
+		defer testDeferForPanic(t)
 		NewRand()
 	})
 
 	t.Run("panic about rand.New 2", func(t *testing.T) {
-		defer func() { time.Sleep(2 * time.Second) }()
-		defer testDeferForPanic(t)
+		defer time.Sleep(2 * time.Second)
 
 		hash := sha256.New()
 		patch := func(interface{}, []byte) (int, error) {
@@ -86,6 +84,7 @@ func TestRandom(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(hash, "Write", patch)
 		defer pg.Unpatch()
 
+		defer testDeferForPanic(t)
 		NewRand()
 	})
 }
