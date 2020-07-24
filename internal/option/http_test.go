@@ -54,7 +54,7 @@ func TestHTTPRequest(t *testing.T) {
 		{expected: http.MethodPost, actual: request.Method},
 		{expected: "https://127.0.0.1/", actual: request.URL.String()},
 		{expected: []byte{1, 2}, actual: postData},
-		{expected: []string{"keep-alive"}, actual: request.Header["Connection"]},
+		{expected: "keep-alive", actual: request.Header.Get("Connection")},
 		{expected: 7, actual: len(request.Header)},
 		{expected: "localhost", actual: request.Host},
 		{expected: true, actual: request.Close},
