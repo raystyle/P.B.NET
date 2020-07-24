@@ -124,17 +124,18 @@ func (t *Terminal) close() {
 
 // readInputLoop is used to read user input command and run.
 func (t *Terminal) readInputLoop() {
+	defer t.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			_, _ = xpanic.Print(r, "Terminal.readInputLoop").WriteTo(t.oPw)
+			buf := xpanic.Print(r, "Terminal.readInputLoop")
+			_, _ = buf.WriteTo(t.oPw)
 			// restart
 			time.Sleep(time.Second)
+			t.wg.Add(1)
 			go t.readInputLoop()
-		} else {
-			t.wg.Done()
 		}
 	}()
-	// print hello
+	// print welcome information
 	hello := []byte("Welcome to terminal [version 1.0.0]\n\n")
 	_, _ = t.oPw.Write(hello)
 	t.printCurrentDirectory()
@@ -381,7 +382,7 @@ func (t *Terminal) dir(args string) {
 			dirList = append(dirList, list[i])
 		} else {
 			size := list[i].Size()
-			sizeStrLen := len(convert.ByteToString(uint64(size)))
+			sizeStrLen := len(convert.FormatByte(uint64(size)))
 			sizeLen := len(convert.FormatNumber(strconv.FormatInt(size, 10)))
 			if sizeStrLen > maxSizeStrLen {
 				maxSizeStrLen = sizeStrLen
@@ -424,7 +425,7 @@ func (t *Terminal) dir(args string) {
 		_, _ = fmt.Fprint(buf, "      ")
 		size := info.Size()
 		format := "%" + strconv.Itoa(maxSizeStrLen) + "s"
-		_, _ = fmt.Fprintf(buf, format, convert.ByteToString(uint64(size)))
+		_, _ = fmt.Fprintf(buf, format, convert.FormatByte(uint64(size)))
 		_, _ = fmt.Fprint(buf, strings.Repeat(" ", splitSpaceSize))
 		format = "%" + strconv.Itoa(maxSizeLen) + "s Byte"
 		_, _ = fmt.Fprintf(buf, format, convert.FormatNumber(strconv.FormatInt(size, 10)))
