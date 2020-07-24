@@ -169,8 +169,8 @@ func (g *Generator) generate() {
 	defer func() {
 		if r := recover(); r != nil {
 			xpanic.Log(r, "Generator.generate")
-			time.Sleep(time.Second)
 			// restart
+			time.Sleep(time.Second)
 			g.wg.Add(1)
 			go g.generate()
 			return
