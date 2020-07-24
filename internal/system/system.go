@@ -19,7 +19,7 @@ func OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
 	return os.OpenFile(name, flag, perm) // #nosec
 }
 
-// WriteFile is used to write file and call synchronize.
+// WriteFile is used to write file and call synchronize, it used to write small file.
 func WriteFile(filename string, data []byte) error {
 	file, err := OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
@@ -85,8 +85,8 @@ func ExecutableName() (string, error) {
 	return file, nil
 }
 
-// ChangeCurrentDirectory is used to changed path for service program
-// and prevent get invalid path when test.
+// ChangeCurrentDirectory is used to changed path for service program and prevent
+// to get invalid path when running test.
 func ChangeCurrentDirectory() error {
 	path, err := os.Executable()
 	if err != nil {
@@ -96,8 +96,8 @@ func ChangeCurrentDirectory() error {
 	return os.Chdir(dir)
 }
 
-// CheckError is used to check error is nil, if not print error and
-// exit program with code 1.
+// CheckError is used to check error is nil, if err is not nil, it will print error
+// and exit program with code 1.
 func CheckError(err error) {
 	if err != nil {
 		fmt.Println(err)
