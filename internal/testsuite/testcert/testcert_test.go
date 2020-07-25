@@ -12,14 +12,13 @@ import (
 )
 
 func TestLoadSystemCertPool(t *testing.T) {
-	defer testsuite.DeferForPanic(t)
-
 	patch := func() (*x509.CertPool, error) {
 		return nil, monkey.Error
 	}
 	pg := monkey.Patch(certpool.System, patch)
 	defer pg.Unpatch()
 
+	defer testsuite.DeferForPanic(t)
 	loadSystemCertPool()
 }
 
