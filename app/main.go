@@ -106,9 +106,13 @@ func loadConfig() *controller.Config {
 }
 
 func generateSessionKey(password []byte) error {
-	_, err := os.Stat(controller.SessionKeyFilePath)
-	if !os.IsNotExist(err) {
-		return errors.Errorf("file %s already exists\n", controller.SessionKeyFilePath)
+	exist, err := system.IsExist(controller.SessionKeyFilePath)
+	if err != nil {
+		return err
+	}
+	if exist {
+		const format = "session key file \"%s\" already exists\n"
+		return errors.Errorf(format, controller.SessionKeyFilePath)
 	}
 	key, err := controller.GenerateSessionKey(password)
 	if err != nil {
