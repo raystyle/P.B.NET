@@ -371,7 +371,7 @@ func (msf *MSFRPC) Close() error {
 func (msf *MSFRPC) Kill() {
 	err := msf.AuthLogout(msf.GetToken())
 	if err != nil {
-		msf.log(logger.Warning, "appear error when kill:", err)
+		msf.log(logger.Warning, "appear error when kill msfrpc:", err)
 	}
 	msf.close()
 	msf.counter.Wait()
