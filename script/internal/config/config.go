@@ -22,7 +22,7 @@ func GoModCache() (string, error) {
 }
 
 func goEnv(name string) (string, error) {
-	output, err := exec.Command("go", "env", name).CombinedOutput()
+	output, err := exec.Command("go", "env", name).CombinedOutput() // #nosec
 	if err != nil {
 		return "", err
 	}

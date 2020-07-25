@@ -3,17 +3,23 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strconv"
 
 	"project/internal/logger"
-	"project/internal/module/compress"
+	"project/internal/module/filemgr"
 	"project/internal/system"
 
+	"project/script/internal/config"
 	"project/script/internal/log"
 )
 
@@ -32,7 +38,7 @@ func main() {
 	log.SetSource("dev")
 	for _, step := range []func() bool{
 		downloadSourceCode,
-		buildTools,
+		buildSourceCode,
 	} {
 		if !step() {
 			return
@@ -51,10 +57,18 @@ func downloadSourceCode() bool {
 			return false
 		}
 		tr.Proxy = http.ProxyURL(URL)
+		// set os environment
+		err = os.Setenv("HTTP_PROXY", proxyURL)
+		if err != nil {
+			log.Println(logger.Error, "failed to set os environment:", err)
+			return false
+		}
 	}
 	if skipTLSVerify {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec
 	}
+	return true
+
 	// download source
 	items := [...]*struct {
 		name string
@@ -83,7 +97,7 @@ func downloadSourceCode() bool {
 		go func(name, url string) {
 			var err error
 			defer func() { errCh <- err }()
-			resp, err := http.Get(url)
+			resp, err := http.Get(url) // #nosec
 			if err != nil {
 				return
 			}
@@ -91,7 +105,7 @@ func downloadSourceCode() bool {
 			// get file size
 			size, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
 			if size == 0 {
-				size = 1 << 20
+				size = 1024 * 1024
 			}
 			buf := bytes.NewBuffer(make([]byte, 0, size))
 			// download file
@@ -107,7 +121,7 @@ func downloadSourceCode() bool {
 				return
 			}
 			// decompress zip file
-			err = compress.ZipFileToDir(filename, "temp/dev")
+			err = filemgr.ZipFileToDir(filename, "temp/dev")
 			if err != nil {
 				return
 			}
@@ -125,6 +139,65 @@ func downloadSourceCode() bool {
 	return true
 }
 
-func buildTools() bool {
+func buildSourceCode() bool {
+	goRoot, err := config.GoRoot()
+	if err != nil {
+		log.Println(logger.Error, err)
+		return false
+	}
+	goRoot = filepath.Join(goRoot, "bin")
+	// start build
+	items := [...]*struct {
+		name string
+		path string
+	}{
+		{name: "golint", path: "lint-master/golint"},
+		{name: "gocyclo", path: "gocyclo-master/cmd/gocyclo"},
+		{name: "gosec", path: "gosec-master/cmd/gosec"},
+		{name: "golangci-lint", path: "golangci-lint-master/cmd/golangci-lint"},
+	}
+	itemsLen := len(items)
+	errCh := make(chan error, itemsLen)
+	for _, item := range items {
+		go func(name, path string) {
+			var err error
+			defer func() { errCh <- err }()
+			var binName string
+			switch runtime.GOOS {
+			case "windows":
+				binName = name + ".exe"
+			case "linux":
+				binName = name
+			default:
+				err = errors.New("unsupported platform: " + runtime.GOOS)
+				return
+			}
+			// go build -v -i -ldflags "-s -w" -o lint.exe
+			args := []string{"build", "-v", "-i", "-ldflags", "-s -w", "-o", binName}
+			cmd := exec.Command("go", args...) // #nosec
+
+			cmd.Dir = filepath.Join("F:/dev", path) // TODO replace it
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				err = fmt.Errorf("%s\n%s", err, output)
+				return
+			}
+
+			// err = os.Rename(filepath.Join(cmd.Dir, ), filepath.Join(goRoot, binName))
+			// if err != nil {
+			// 	return
+			// }
+
+			log.Printf(logger.Info, "build %s successfully", name)
+		}(item.name, item.path)
+	}
+	for i := 0; i < itemsLen; i++ {
+		err := <-errCh
+		if err != nil {
+			log.Println(logger.Error, "failed to build tool:", err)
+			return false
+		}
+	}
+	log.Println(logger.Info, "build tools successfully")
 	return true
 }
