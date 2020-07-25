@@ -30,9 +30,9 @@ type MSFRPC struct {
 	url    string
 	client *http.Client
 
-	bufferPool  sync.Pool
-	encoderPool sync.Pool
-	decoderPool sync.Pool
+	encoderPool  sync.Pool
+	decoderPool  sync.Pool
+	rDecoderPool sync.Pool
 
 	token    string
 	tokenRWM sync.RWMutex
@@ -63,14 +63,23 @@ type Options struct {
 	Token      string               `toml:"token"` // permanent token
 }
 
+type bufEncoder struct {
+	buf     *bytes.Buffer
+	encoder *msgpack.Encoder
+}
+
+type bufDecoder struct {
+	buf     *bytes.Buffer
+	decoder *msgpack.Decoder
+}
+
+type readerDecoder struct {
+	reader  *bytes.Reader
+	decoder *msgpack.Decoder
+}
+
 // NewMSFRPC is used to create a new metasploit RPC connection.
-func NewMSFRPC(
-	address string,
-	username string,
-	password string,
-	logger logger.Logger,
-	opts *Options,
-) (*MSFRPC, error) {
+func NewMSFRPC(address, username, password string, lg logger.Logger, opts *Options) (*MSFRPC, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
@@ -108,7 +117,7 @@ func NewMSFRPC(
 	msfrpc := MSFRPC{
 		username:     username,
 		password:     password,
-		logger:       logger,
+		logger:       lg,
 		client:       &client,
 		token:        opts.Token,
 		consoles:     make(map[string]*Console),
@@ -128,18 +137,31 @@ func NewMSFRPC(
 		handler = opts.Handler
 	}
 	msfrpc.url = fmt.Sprintf("%s://%s/%s", scheme, address, handler)
-	// pool
-	msfrpc.bufferPool.New = func() interface{} {
-		buf := bytes.NewBuffer(make([]byte, 0, 64))
-		return buf
-	}
+	// sync pool
 	msfrpc.encoderPool.New = func() interface{} {
-		encoder := msgpack.NewEncoder(nil)
+		buf := bytes.NewBuffer(make([]byte, 0, 64))
+		encoder := msgpack.NewEncoder(buf)
 		encoder.UseArrayEncodedStructs(true)
-		return encoder
+		return &bufEncoder{
+			buf:     buf,
+			encoder: encoder,
+		}
 	}
 	msfrpc.decoderPool.New = func() interface{} {
-		return msgpack.NewDecoder(nil)
+		buf := bytes.NewBuffer(make([]byte, 0, 64))
+		decoder := msgpack.NewDecoder(buf)
+		return &bufDecoder{
+			buf:     buf,
+			decoder: decoder,
+		}
+	}
+	msfrpc.rDecoderPool.New = func() interface{} {
+		reader := bytes.NewReader(nil)
+		decoder := msgpack.NewDecoder(reader)
+		return &readerDecoder{
+			reader:  reader,
+			decoder: decoder,
+		}
 	}
 	msfrpc.ctx, msfrpc.cancel = context.WithCancel(context.Background())
 	return &msfrpc, nil
@@ -171,22 +193,23 @@ func (msf *MSFRPC) send(ctx context.Context, request, response interface{}) erro
 // sendWithReplace is used to replace response to another response like CoreThreadList
 // and MSFError if decode failed(return a MSFError).
 func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, replace interface{}) error {
-	buf := msf.bufferPool.Get().(*bytes.Buffer)
-	defer msf.bufferPool.Put(buf)
-	buf.Reset()
 	// pack request
-	err := msf.encodeRequest(request, buf)
+	be := msf.encoderPool.Get().(*bufEncoder)
+	defer msf.encoderPool.Put(be)
+	be.buf.Reset()
+	err := be.encoder.Encode(request)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, msf.url, buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, msf.url, be.buf)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	req.Header.Set("Content-Type", "binary/message-pack")
-	req.Header.Set("Accept", "binary/message-pack")
-	req.Header.Set("Accept-Charset", "utf-8")
-	req.Header.Set("Connection", "keep-alive")
+	header := req.Header
+	header.Set("Content-Type", "binary/message-pack")
+	header.Set("Accept", "binary/message-pack")
+	header.Set("Accept-Charset", "utf-8")
+	header.Set("Connection", "keep-alive")
 	// do
 	resp, err := msf.client.Do(req)
 	if err != nil {
@@ -199,53 +222,50 @@ func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, repla
 	// read response body
 	switch resp.StatusCode {
 	case http.StatusOK:
-		_, err = buf.ReadFrom(resp.Body)
+		bd := msf.decoderPool.Get().(*bufDecoder)
+		defer msf.decoderPool.Put(bd)
+		bd.buf.Reset()
+		_, err = bd.buf.ReadFrom(resp.Body)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		if replace == nil {
-			return msf.decodeResponse(response, buf)
+			return bd.decoder.Decode(response)
 		}
-		// try decode to response
-		reader := bytes.NewReader(buf.Bytes())
-		err = msf.decodeResponse(response, reader)
+		// first try to decode to response
+		rd := msf.rDecoderPool.Get().(*readerDecoder)
+		defer msf.rDecoderPool.Put(rd)
+		rd.reader.Reset(bd.buf.Bytes())
+		err = rd.decoder.Decode(response)
 		if err == nil {
 			return nil
 		}
-		// try decode to another
-		reader.Reset(buf.Bytes())
-		return msf.decodeResponse(replace, reader)
+		// then try to decode to replace
+		return bd.decoder.Decode(replace)
 	case http.StatusInternalServerError:
-		var msfErr MSFError
-		err = msf.decodeResponse(&msfErr, resp.Body)
+		bd := msf.decoderPool.Get().(*bufDecoder)
+		defer msf.decoderPool.Put(bd)
+		bd.buf.Reset()
+		_, err = bd.buf.ReadFrom(resp.Body)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		return errors.WithStack(&msfErr)
+		msfErr := new(MSFError)
+		err = bd.decoder.Decode(msfErr)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		return errors.WithStack(msfErr)
 	case http.StatusUnauthorized:
-		err = errors.New("token is invalid")
+		err = errors.New("invalid token")
 	case http.StatusForbidden:
-		err = errors.New("token is not granted access to the resource")
+		err = errors.New("this token is not granted access to the resource")
 	case http.StatusNotFound:
 		err = errors.New("the request was sent to an invalid URL")
 	default:
-		err = errors.New(resp.Status)
+		err = errors.Errorf("unexpected http status code: %d", resp.StatusCode)
 	}
 	return err
-}
-
-func (msf *MSFRPC) encodeRequest(request interface{}, buf *bytes.Buffer) error {
-	encoder := msf.encoderPool.Get().(*msgpack.Encoder)
-	defer msf.encoderPool.Put(encoder)
-	encoder.Reset(buf)
-	return encoder.Encode(request)
-}
-
-func (msf *MSFRPC) decodeResponse(response interface{}, reader io.Reader) error {
-	decoder := msf.decoderPool.Get().(*msgpack.Decoder)
-	defer msf.decoderPool.Put(decoder)
-	decoder.Reset(reader)
-	return decoder.Decode(response)
 }
 
 func (msf *MSFRPC) logf(lv logger.Level, format string, log ...interface{}) {

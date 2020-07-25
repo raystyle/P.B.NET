@@ -509,7 +509,7 @@ func (shell *Shell) CompatibleModules(ctx context.Context) ([]string, error) {
 }
 
 // Stop is used to stop shell session.
-// Must use msfrpc's context, because Shell.context maybe canceled.
+// Must use msfrpc context, because Shell.context maybe canceled.
 func (shell *Shell) Stop() error {
 	err := shell.ctx.SessionStop(shell.ctx.ctx, shell.id)
 	if err != nil {
@@ -702,7 +702,7 @@ func (mp *Meterpreter) CompatibleModules(ctx context.Context) ([]string, error) 
 }
 
 // Stop is used to stop meterpreter session.
-// Must use msfrpc's context, because Meterpreter.context maybe canceled.
+// Must use msfrpc context, because Meterpreter.context maybe canceled.
 func (mp *Meterpreter) Stop() error {
 	err := mp.ctx.SessionStop(mp.ctx.ctx, mp.id)
 	if err != nil {

@@ -283,21 +283,6 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
-	t.Run("failed to read from", func(t *testing.T) {
-		client := new(http.Client)
-		patch := func(interface{}, *http.Request) (*http.Response, error) {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       testsuite.NewMockConnWithReadError(),
-			}, nil
-		}
-		pg := monkey.PatchInstanceMethod(client, "Do", patch)
-		defer pg.Unpatch()
-
-		err := msfrpc.sendWithReplace(ctx, nil, nil, nil)
-		testsuite.IsMockConnReadError(t, errors.Unwrap(err))
-	})
-
 	padding := func() {}
 
 	t.Run("ok", func(t *testing.T) {
@@ -320,6 +305,36 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 
 		err := msfrpc.sendWithReplace(ctx, request, padding, &result)
 		require.NoError(t, err)
+	})
+
+	t.Run("failed to read from-200", func(t *testing.T) {
+		client := new(http.Client)
+		patch := func(interface{}, *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       testsuite.NewMockConnWithReadError(),
+			}, nil
+		}
+		pg := monkey.PatchInstanceMethod(client, "Do", patch)
+		defer pg.Unpatch()
+
+		err := msfrpc.sendWithReplace(ctx, nil, nil, nil)
+		testsuite.IsMockConnReadError(t, errors.Unwrap(err))
+	})
+
+	t.Run("failed to read from-500", func(t *testing.T) {
+		client := new(http.Client)
+		patch := func(interface{}, *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       testsuite.NewMockConnWithReadError(),
+			}, nil
+		}
+		pg := monkey.PatchInstanceMethod(client, "Do", patch)
+		defer pg.Unpatch()
+
+		err := msfrpc.sendWithReplace(ctx, nil, nil, nil)
+		testsuite.IsMockConnReadError(t, errors.Unwrap(err))
 	})
 
 	err := msfrpc.Close()
@@ -372,7 +387,7 @@ func TestMSFRPC_send(t *testing.T) {
 	serverMux.HandleFunc("/403", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 	})
-	serverMux.HandleFunc("/unknown", func(w http.ResponseWriter, r *http.Request) {
+	serverMux.HandleFunc("/unexpected", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 	})
 	server := http.Server{
@@ -428,7 +443,7 @@ func TestMSFRPC_send(t *testing.T) {
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
-		require.EqualError(t, err, "token is invalid")
+		require.EqualError(t, err, "invalid token")
 
 		err = msfrpc.Close()
 		require.Error(t, err)
@@ -446,7 +461,7 @@ func TestMSFRPC_send(t *testing.T) {
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
-		require.EqualError(t, err, "token is not granted access to the resource")
+		require.EqualError(t, err, "this token is not granted access to the resource")
 
 		err = msfrpc.Close()
 		require.Error(t, err)
@@ -474,16 +489,16 @@ func TestMSFRPC_send(t *testing.T) {
 
 	})
 
-	t.Run("other status code", func(t *testing.T) {
+	t.Run("unexpected http status code", func(t *testing.T) {
 		opts := Options{
 			DisableTLS: true,
-			Handler:    "unknown",
+			Handler:    "unexpected",
 		}
 		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
-		require.EqualError(t, err, "202 Accepted")
+		require.EqualError(t, err, "unexpected http status code: 202")
 
 		err = msfrpc.Close()
 		require.Error(t, err)

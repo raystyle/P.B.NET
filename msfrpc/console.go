@@ -452,7 +452,7 @@ func (console *Console) Interrupt(ctx context.Context) error {
 }
 
 // Destroy is used to destroy console.
-// Must use msfrpc's context, because console.context maybe canceled.
+// Must use msfrpc context, because console.context maybe canceled.
 func (console *Console) Destroy() error {
 	err := console.ctx.ConsoleDestroy(console.ctx.ctx, console.id)
 	if err != nil {
