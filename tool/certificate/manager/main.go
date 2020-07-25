@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 
 	"project/internal/cert"
 	"project/internal/cert/certmgr"
@@ -44,18 +44,20 @@ func main() {
 
 func initialize() {
 	// check data file is exists
-	_, err := os.Stat(certmgr.CertPoolFilePath)
-	if !os.IsNotExist(err) {
-		fmt.Printf("file %s already exists\n", certmgr.CertPoolFilePath)
+	exist, err := system.IsExist(certmgr.CertPoolFilePath)
+	checkError(err, true)
+	if exist {
+		const format = "certificate pool file \"%s\" already exists\n"
+		fmt.Printf(format, certmgr.CertPoolFilePath)
 		os.Exit(1)
 	}
 	// input password
 	fmt.Print("password: ")
-	password, err := terminal.ReadPassword(int(syscall.Stdin))
+	password, err := term.ReadPassword(int(syscall.Stdin))
 	checkError(err, true)
 	for {
 		fmt.Print("\nretype: ")
-		retype, err := terminal.ReadPassword(int(syscall.Stdin))
+		retype, err := term.ReadPassword(int(syscall.Stdin))
 		checkError(err, true)
 		if !bytes.Equal(password, retype) {
 			fmt.Print("\ndifferent password")
@@ -91,18 +93,18 @@ func initialize() {
 func resetPassword() {
 	// input old password
 	fmt.Print("input old password: ")
-	oldPwd, err := terminal.ReadPassword(int(syscall.Stdin))
+	oldPwd, err := term.ReadPassword(int(syscall.Stdin))
 	checkError(err, true)
 	fmt.Println()
 	defer security.CoverBytes(oldPwd)
 	// input new password
 	fmt.Print("input new password: ")
-	newPwd1, err := terminal.ReadPassword(int(syscall.Stdin))
+	newPwd1, err := term.ReadPassword(int(syscall.Stdin))
 	checkError(err, true)
 	fmt.Println()
 	defer security.CoverBytes(newPwd1)
 	fmt.Print("retype: ")
-	newPwd2, err := terminal.ReadPassword(int(syscall.Stdin))
+	newPwd2, err := term.ReadPassword(int(syscall.Stdin))
 	checkError(err, true)
 	fmt.Println()
 	defer security.CoverBytes(newPwd2)
@@ -125,7 +127,7 @@ func resetPassword() {
 func manage() {
 	// input password
 	fmt.Print("password: ")
-	password, err := terminal.ReadPassword(int(syscall.Stdin))
+	password, err := term.ReadPassword(int(syscall.Stdin))
 	checkError(err, true)
 	fmt.Println()
 	// backup
@@ -184,7 +186,7 @@ func loadPairs(certFile, keyFile string) ([]*x509.Certificate, []interface{}) {
 func checkError(err error, exit bool) bool {
 	if err != nil {
 		if err != io.EOF {
-			fmt.Printf("%s\n", err)
+			fmt.Println(err)
 		}
 		if exit {
 			os.Exit(1)
