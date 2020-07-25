@@ -201,7 +201,7 @@ func (ct *copyTask) copyDir(ctx context.Context, task *task.Task) error {
 	for _, file := range ct.files[1:] {
 		err := ct.copyDirFile(ctx, task, file)
 		if err != nil {
-			return errors.WithMessagef(err, "failed to copy file \"%s\"", file.path)
+			return errors.WithMessagef(err, "failed to copy \"%s\"", file.path)
 		}
 	}
 	return nil

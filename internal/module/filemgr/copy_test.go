@@ -1613,7 +1613,7 @@ func TestCopyTask_Progress(t *testing.T) {
 		fmt.Println("progress:", ct.Progress())
 		fmt.Println("detail:", ct.Detail())
 
-		rct := ct.Task()
+		rct := ct.Task().(*copyTask)
 		testsuite.IsDestroyed(t, ct)
 		testsuite.IsDestroyed(t, rct)
 

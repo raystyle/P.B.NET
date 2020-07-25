@@ -284,8 +284,7 @@ retry:
 	// check destination directory is exist
 	dstStat, err := stat(dstAbs)
 	if err != nil {
-
-		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, nil, err)
+		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, nil, err) // TODO stats
 		if retry {
 			goto retry
 		}
@@ -317,7 +316,7 @@ retry:
 	}
 	err = os.Mkdir(dstAbs, dir.stat.Mode().Perm())
 	if err != nil {
-		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, nil, err)
+		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, nil, err) // TODO stats
 		if retry {
 			goto retry
 		}
@@ -352,7 +351,7 @@ retry:
 	// dstStat maybe updated
 	dstStat, err := stat(dstAbs)
 	if err != nil {
-		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, nil, err)
+		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, nil, err) // TODO stats
 		if retry {
 			goto retry
 		}
