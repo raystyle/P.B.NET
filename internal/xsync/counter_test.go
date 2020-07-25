@@ -31,10 +31,10 @@ func TestCounter(t *testing.T) {
 }
 
 func TestCounter_Add(t *testing.T) {
-	defer testsuite.DeferForPanic(t)
-
 	// negative counter
 	counter := Counter{}
+
+	defer testsuite.DeferForPanic(t)
 	counter.Done()
 }
 
@@ -54,8 +54,6 @@ func TestCounter_Wait(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		defer testsuite.DeferForPanic(t)
-
 		counter := Counter{}
 
 		counter.Add(1)
@@ -66,6 +64,7 @@ func TestCounter_Wait(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 		}()
 
+		defer testsuite.DeferForPanic(t)
 		counter.Wait()
 
 		testsuite.IsDestroyed(t, &counter)
