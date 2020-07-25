@@ -199,7 +199,7 @@ func (syncer *Syncer) log(lv logger.Level, log ...interface{}) {
 
 // Start is used to start time syncer.
 func (syncer *Syncer) Start() error {
-	if len(syncer.Clients()) == 0 {
+	if len(syncer.clients) == 0 {
 		return ErrNoClients
 	}
 	// first time sync must success
@@ -241,8 +241,8 @@ func (syncer *Syncer) walker() {
 	defer func() {
 		if r := recover(); r != nil {
 			syncer.log(logger.Fatal, xpanic.Print(r, "Syncer.walker"))
-			time.Sleep(time.Second)
 			// restart
+			time.Sleep(time.Second)
 			syncer.wg.Add(1)
 			go syncer.walker()
 		}
@@ -273,8 +273,8 @@ func (syncer *Syncer) synchronizeLoop() {
 	defer func() {
 		if r := recover(); r != nil {
 			syncer.log(logger.Fatal, xpanic.Print(r, "Syncer.synchronizeLoop"))
+			// restart
 			time.Sleep(time.Second)
-			// restart synchronizeLoop
 			syncer.wg.Add(1)
 			go syncer.synchronizeLoop()
 		}

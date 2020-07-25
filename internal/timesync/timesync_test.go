@@ -186,7 +186,7 @@ func TestSyncer(t *testing.T) {
 
 	err := syncer.Start()
 	require.NoError(t, err)
-	t.Log("now: ", syncer.Now().Local())
+	t.Log("now:", syncer.Now().Local())
 
 	// wait walker self-add
 	time.Sleep(3 * time.Second)
