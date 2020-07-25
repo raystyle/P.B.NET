@@ -30,8 +30,7 @@ func TestVirtualProtect(t *testing.T) {
 		file, err = os.Open("testdata/windows_64.txt")
 		require.NoError(t, err)
 	default:
-		t.Log("skip test because arch is:", runtime.GOARCH)
-		return
+		t.Skip("unsupported architecture:", runtime.GOARCH)
 	}
 
 	t.Logf("use %s shellcode\n", runtime.GOARCH)
@@ -67,8 +66,7 @@ func TestCreateThread(t *testing.T) {
 		file, err = os.Open("testdata/windows_64.txt")
 		require.NoError(t, err)
 	default:
-		t.Log("skip test because arch is:", runtime.GOARCH)
-		return
+		t.Skip("unsupported architecture:", runtime.GOARCH)
 	}
 
 	t.Logf("use %s shellcode\n", runtime.GOARCH)
@@ -104,8 +102,7 @@ func TestExecute(t *testing.T) {
 		file, err = os.Open("testdata/windows_64.txt")
 		require.NoError(t, err)
 	default:
-		t.Log("skip test because arch is:", runtime.GOARCH)
-		return
+		t.Skip("unsupported architecture:", runtime.GOARCH)
 	}
 
 	t.Logf("use %s shellcode\n", runtime.GOARCH)
