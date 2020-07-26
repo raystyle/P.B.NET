@@ -2,7 +2,7 @@ package light
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"sync"
 	"time"
@@ -59,7 +59,7 @@ func (c *Conn) handshake() error {
 			defer func() {
 				if r := recover(); r != nil {
 					buf := xpanic.Log(r, "Conn.Handshake")
-					errCh <- fmt.Errorf(buf.String())
+					errCh <- errors.New(buf.String())
 				}
 			}()
 			if c.isClient {

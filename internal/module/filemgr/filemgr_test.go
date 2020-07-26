@@ -100,7 +100,7 @@ func testIsExist(t *testing.T, path string) {
 }
 
 func testIsNotExist(t *testing.T, path string) {
-	notExist, err := system.IsNotExist(testDeleteSrcFile)
+	notExist, err := system.IsNotExist(path)
 	require.NoError(t, err)
 	require.True(t, notExist)
 }
@@ -194,4 +194,11 @@ func TestIOCopy(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, int64(0), n)
 	})
+}
+
+func TestStartTask(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Skip()
 }

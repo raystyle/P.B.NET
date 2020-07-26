@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -59,11 +60,11 @@ func testRemoveDeleteDir(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestDelete_File(t *testing.T) {
+func TestDelete(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("ok", func(t *testing.T) {
+	t.Run("file", func(t *testing.T) {
 		testCreateDeleteSrcFile(t)
 		defer testRemoveDeleteDir(t)
 
@@ -73,7 +74,43 @@ func TestDelete_File(t *testing.T) {
 		testIsNotExist(t, testDeleteSrcFile)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("directory", func(t *testing.T) {
+		testCreateDeleteSrcDir(t)
+		defer testRemoveDeleteDir(t)
+
+		err := Delete(SkipAll, testDeleteSrcDir)
+		require.NoError(t, err)
+
+		testIsNotExist(t, testDeleteSrcDir)
+	})
+
+	t.Run("multi", func(t *testing.T) {
+		t.Run("file first", func(t *testing.T) {
+			testCreateDeleteSrcFile(t)
+			testCreateDeleteSrcDir(t)
+			defer testRemoveDeleteDir(t)
+
+			err := Delete(SkipAll, testDeleteSrcFile, testDeleteSrcDir)
+			require.NoError(t, err)
+
+			testIsNotExist(t, testDeleteSrcFile)
+			testIsNotExist(t, testDeleteSrcDir)
+		})
+
+		t.Run("directory first", func(t *testing.T) {
+			testCreateDeleteSrcDir(t)
+			testCreateDeleteSrcFile(t)
+			defer testRemoveDeleteDir(t)
+
+			err := Delete(SkipAll, testDeleteSrcDir, testDeleteSrcFile)
+			require.NoError(t, err)
+
+			testIsNotExist(t, testDeleteSrcDir)
+			testIsNotExist(t, testDeleteSrcFile)
+		})
+	})
+
+	t.Run("path doesn't exist", func(t *testing.T) {
 		const path = "not exist"
 
 		count := 0
@@ -89,6 +126,45 @@ func TestDelete_File(t *testing.T) {
 		testIsNotExist(t, path)
 		require.Equal(t, 1, count)
 	})
+
+	t.Run("failed to remove file", func(t *testing.T) {
+		testCreateDeleteSrcFile(t)
+		defer testRemoveDeleteDir(t)
+
+		patch := func(string) error {
+			return monkey.Error
+		}
+		pg := monkey.Patch(os.Remove, patch)
+		defer pg.Unpatch()
+
+		count := 0
+		ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+			require.Equal(t, ErrCtrlDeleteFailed, typ)
+			require.Error(t, err)
+			count++
+			return ErrCtrlOpSkip
+		}
+		err := Delete(ec, testDeleteSrcFile)
+		require.NoError(t, err)
+
+		testIsExist(t, testDeleteSrcFile)
+	})
+}
+
+func TestDelete_File(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("ok", func(t *testing.T) {
+		testCreateDeleteSrcFile(t)
+		defer testRemoveDeleteDir(t)
+
+		err := Delete(SkipAll, testDeleteSrcFile)
+		require.NoError(t, err)
+
+		testIsNotExist(t, testDeleteSrcFile)
+	})
+
 }
 
 func TestDelete_Directory(t *testing.T) {
@@ -96,7 +172,13 @@ func TestDelete_Directory(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("ok", func(t *testing.T) {
+		testCreateDeleteSrcDir(t)
+		defer testRemoveDeleteDir(t)
 
+		err := Delete(SkipAll, testDeleteSrcDir)
+		require.NoError(t, err)
+
+		testIsNotExist(t, testDeleteSrcDir)
 	})
 }
 

@@ -63,18 +63,25 @@ func (dt *deleteTask) Prepare(context.Context) error {
 	}
 	// check path is exists
 	paths := make(map[string]struct{}, dt.srcLen)
-	dir, _ := filepath.Split(dt.src[0])
-	for i := 1; i < dt.srcLen; i++ {
+	var dir string
+	for i := 0; i < dt.srcLen; i++ {
+		// make sure all source path is absolute
 		srcAbs, err := filepath.Abs(dt.src[i])
 		if err != nil {
 			return errors.Wrap(err, "failed to get absolute file path")
+		}
+		dt.src[i] = srcAbs
+		if i == 0 {
+			paths[srcAbs] = struct{}{}
+			dir = filepath.Dir(srcAbs)
+			continue
 		}
 		_, ok := paths[srcAbs]
 		if ok {
 			const format = "appear the same path \"%s\""
 			return errors.Errorf(format, srcAbs)
 		}
-		d, _ := filepath.Split(srcAbs)
+		d := filepath.Dir(srcAbs)
 		if d != dir {
 			const format = "split directory about source \"%s\" is different with \"%s\""
 			return errors.Errorf(format, srcAbs, dt.src[0])

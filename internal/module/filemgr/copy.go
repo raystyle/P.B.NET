@@ -83,7 +83,7 @@ func (ct *copyTask) Process(ctx context.Context, task *task.Task) error {
 // new path is a dir  and not exist
 // new path is a file and not exist
 func (ct *copyTask) copySrcFile(ctx context.Context, task *task.Task) error {
-	_, srcFileName := filepath.Split(ct.stats.SrcAbs)
+	srcFileName := filepath.Base(ct.stats.SrcAbs)
 	var (
 		dstFileName string
 		dstStat     os.FileInfo
@@ -114,7 +114,7 @@ func (ct *copyTask) copySrcFile(ctx context.Context, task *task.Task) error {
 			}
 			dstFileName = filepath.Join(ct.stats.DstAbs, srcFileName)
 		} else { // is a file path
-			dir, _ := filepath.Split(ct.stats.DstAbs)
+			dir := filepath.Dir(ct.stats.DstAbs)
 			err := os.MkdirAll(dir, 0750)
 			if err != nil {
 				return err
@@ -351,7 +351,7 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *SrcDst
 	//   copying file, name: test.dat size: 1.127MB
 	//   src: C:\testdata\test.dat
 	//   dst: D:\test\test.dat
-	_, srcFileName := filepath.Split(stats.SrcAbs)
+	srcFileName := filepath.Base(stats.SrcAbs)
 	srcSize := convert.FormatByte(uint64(stats.SrcStat.Size()))
 	const format = "copy file, name: %s size: %s\nsrc: %s\ndst: %s"
 	ct.updateDetail(fmt.Sprintf(format, srcFileName, srcSize, stats.SrcAbs, stats.DstAbs))

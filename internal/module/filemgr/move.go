@@ -84,7 +84,7 @@ func (mt *moveTask) Process(ctx context.Context, task *task.Task) error {
 // new path is a dir  and not exist
 // new path is a file and not exist
 func (mt *moveTask) moveSrcFile(ctx context.Context, task *task.Task) error {
-	_, srcFileName := filepath.Split(mt.stats.SrcAbs)
+	srcFileName := filepath.Base(mt.stats.SrcAbs)
 	var (
 		dstFileName string
 		dstStat     os.FileInfo
@@ -115,7 +115,7 @@ func (mt *moveTask) moveSrcFile(ctx context.Context, task *task.Task) error {
 			}
 			dstFileName = filepath.Join(mt.stats.DstAbs, srcFileName)
 		} else { // is a file path
-			dir, _ := filepath.Split(mt.stats.DstAbs)
+			dir := filepath.Dir(mt.stats.DstAbs)
 			err := os.MkdirAll(dir, 0750)
 			if err != nil {
 				return err
