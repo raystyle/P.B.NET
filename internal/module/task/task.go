@@ -110,7 +110,7 @@ func (task *Task) Start() (err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				buf := xpanic.Log(r, "Task.Start")
-				err = errors.New(buf.String())
+				err = fmt.Errorf(buf.String())
 			}
 		}()
 		if !task.checkStart() {

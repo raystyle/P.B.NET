@@ -194,7 +194,7 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 			defer func() {
 				if r := recover(); r != nil {
 					buf := xpanic.Log(r, "Client.Connect")
-					errCh <- errors.New(buf.String())
+					errCh <- fmt.Errorf(buf.String())
 				}
 			}()
 			if c.socks4 {

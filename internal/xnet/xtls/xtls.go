@@ -3,6 +3,7 @@ package xtls
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -89,7 +90,7 @@ func DialContext(
 			defer func() {
 				if r := recover(); r != nil {
 					buf := xpanic.Log(r, "DialContext")
-					errCh <- errors.New(buf.String())
+					errCh <- fmt.Errorf(buf.String())
 				}
 			}()
 			errCh <- tlsConn.Handshake()
