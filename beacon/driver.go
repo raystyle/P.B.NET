@@ -3,7 +3,6 @@ package beacon
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"hash"
@@ -17,6 +16,7 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
+	"project/internal/crypto/hmac"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"

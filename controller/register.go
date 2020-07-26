@@ -3,7 +3,6 @@ package controller
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/crypto/aes"
 	"project/internal/crypto/curve25519"
+	"project/internal/crypto/hmac"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"

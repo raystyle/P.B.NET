@@ -3,7 +3,6 @@ package node
 import (
 	"bytes"
 	"compress/flate"
-	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"hash"
@@ -14,6 +13,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
+	"project/internal/crypto/hmac"
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xpanic"

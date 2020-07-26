@@ -3,7 +3,6 @@ package beacon
 import (
 	"bytes"
 	"compress/flate"
-	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"hash"
@@ -15,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
+	"project/internal/crypto/hmac"
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xpanic"

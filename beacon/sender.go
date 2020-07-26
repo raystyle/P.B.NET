@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/flate"
 	"context"
-	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
 	"hash"
@@ -16,6 +15,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
+	"project/internal/crypto/hmac"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"

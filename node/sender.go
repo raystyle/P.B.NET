@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/flate"
 	"context"
-	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
 	"hash"
@@ -15,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
+	"project/internal/crypto/hmac"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
