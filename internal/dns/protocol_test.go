@@ -36,18 +36,55 @@ func TestIsDomainName(t *testing.T) {
 func TestUnpackMessage(t *testing.T) {
 	const (
 		domain  = "test.com"
-		queryId = 1234
+		queryID = 0x1234
 	)
 
 	t.Run("invalid message data", func(t *testing.T) {
-		_, err := unpackMessage([]byte{1, 2, 3, 4}, domain, queryId)
+		_, err := unpackMessage([]byte{1, 2, 3, 4}, domain, queryID)
 		require.Error(t, err)
 	})
 
 	t.Run("not response", func(t *testing.T) {
-		msg := packMessage(dnsmessage.TypeA, domain, queryId)
+		msg := packMessage(dnsmessage.TypeA, domain, queryID)
 
-		_, err := unpackMessage(msg, domain, queryId)
-		require.Error(t, err)
+		_, err := unpackMessage(msg, domain, queryID)
+		require.EqualError(t, err, "dns message is not a response")
+	})
+
+	t.Run("different query id", func(t *testing.T) {
+		msg := dnsmessage.Message{}
+		msg.Response = true
+		data, err := msg.Pack()
+		require.NoError(t, err)
+
+		_, err = unpackMessage(data, domain, queryID)
+		errStr := `query id "0x0000" in dns message is different with original "0x1234"`
+		require.EqualError(t, err, errStr)
+	})
+
+	t.Run("unexpected question", func(t *testing.T) {
+		msg := dnsmessage.Message{}
+		msg.Response = true
+		msg.ID = queryID
+		data, err := msg.Pack()
+		require.NoError(t, err)
+
+		_, err = unpackMessage(data, domain, queryID)
+		require.EqualError(t, err, "dns message with unexpected question")
+	})
+
+	t.Run("different domain name", func(t *testing.T) {
+		msg := dnsmessage.Message{}
+		msg.Response = true
+		msg.ID = queryID
+		name, err := dnsmessage.NewName("123.")
+		require.NoError(t, err)
+		msg.Questions = append(msg.Questions, dnsmessage.Question{Name: name})
+		data, err := msg.Pack()
+		require.NoError(t, err)
+
+		_, err = unpackMessage(data, domain, queryID)
+		errStr := `domain name "123" in dns message is different with original "test.com"`
+		require.EqualError(t, err, errStr)
 	})
 }

@@ -123,21 +123,23 @@ func unpackMessage(message []byte, domain string, queryID uint16) ([]string, err
 	}
 	// check message is response
 	if !msg.Response {
-		return nil, errors.New("this dns message is not a response")
+		return nil, errors.New("dns message is not a response")
 	}
 	// check query ID
 	if msg.ID != queryID {
-		return nil, errors.New("query id in dns message is different with original")
+		const format = "query id \"0x%04X\" in dns message is different with original \"0x%04X\""
+		return nil, errors.Errorf(format, msg.ID, queryID)
 	}
 	// check question name is equal original domain name
 	if len(msg.Questions) != 1 {
-		return nil, errors.New("this dns message with unexpected question")
+		return nil, errors.New("dns message with unexpected question")
 	}
 	name := msg.Questions[0].Name
-
-	if name.Length == 0 || name.String()[:name.Length-1] != domain {
+	// name.Length must >= 1
+	nameStr := name.String()[:name.Length-1]
+	if nameStr != domain {
 		const format = "domain name \"%s\" in dns message is different with original \"%s\""
-		return nil, errors.Errorf(format, name, domain)
+		return nil, errors.Errorf(format, nameStr, domain)
 	}
 	var result []string
 	for i := 0; i < len(msg.Answers); i++ {
