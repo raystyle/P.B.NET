@@ -163,6 +163,9 @@ func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 			}
 			return ne
 		}
+		if task.Canceled() {
+			return context.Canceled
+		}
 		f := &file{
 			path: srcAbs,
 			stat: srcStat,
@@ -209,6 +212,8 @@ func (mt *moveTask) moveRoot(ctx context.Context, task *task.Task) error {
 	// skip root directory
 	// set fake progress for pass progress check
 	if mt.root == nil {
+		mt.rwm.Lock()
+		defer mt.rwm.Unlock()
 		mt.current.SetUint64(1)
 		mt.total.SetUint64(1)
 		return nil

@@ -45,6 +45,7 @@ const (
 	ErrCtrlCopyFailed          // appear error in copyFile()
 	ErrCtrlMoveDirFailed       // appear error in moveDirFile()
 	ErrCtrlMoveFailed          // appear error in moveFile()
+	ErrCtrlDeleteFailed        // appear error in deleteDirFile()
 )
 
 // operation code about ErrCtrl
@@ -326,6 +327,30 @@ func noticeFailedToMove(
 		err = ErrUserCanceled
 	default:
 		err = errors.Errorf("unknown failed to move operation code: %d", code)
+	}
+	return
+}
+
+// noticeFailedToDelete is used to notice appear some error about delete.
+// stats to errCtrl can only get SrcAbs.
+func noticeFailedToDelete(
+	ctx context.Context,
+	task *task.Task,
+	errCtrl ErrCtrl,
+	path string,
+	extError error,
+) (retry bool, err error) {
+	task.Pause()
+	defer task.Continue()
+	stats := SrcDstStat{SrcAbs: path}
+	switch code := errCtrl(ctx, ErrCtrlDeleteFailed, extError, &stats); code {
+	case ErrCtrlOpRetry:
+		retry = true
+	case ErrCtrlOpSkip:
+	case ErrCtrlOpCancel:
+		err = ErrUserCanceled
+	default:
+		err = errors.Errorf("unknown failed to delete operation code: %d", code)
 	}
 	return
 }

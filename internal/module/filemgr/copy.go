@@ -159,6 +159,9 @@ func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 			}
 			return ne
 		}
+		if task.Canceled() {
+			return context.Canceled
+		}
 		ct.files = append(ct.files, &fileStat{
 			path: srcAbs,
 			stat: srcStat,
@@ -185,6 +188,8 @@ func (ct *copyTask) copyDir(ctx context.Context, task *task.Task) error {
 	// skip root directory
 	// set fake progress for pass progress check
 	if len(ct.files) == 0 {
+		ct.rwm.Lock()
+		defer ct.rwm.Unlock()
 		ct.current.SetUint64(1)
 		ct.total.SetUint64(1)
 		return nil

@@ -26,7 +26,7 @@ type deleteTask struct {
 	src     []string
 	srcLen  int
 
-	roots    []*file          // store all dirs and files will move
+	roots    []*file          // store all dirs and files will delete
 	dirs     map[string]*file // for search dir faster, key is path
 	skipDirs []string         // store skipped directories
 
@@ -67,7 +67,7 @@ func (dt *deleteTask) Prepare(context.Context) error {
 	for i := 1; i < dt.srcLen; i++ {
 		srcAbs, err := filepath.Abs(dt.src[i])
 		if err != nil {
-			return errors.Wrap(err, "failed to get absolute path")
+			return errors.Wrap(err, "failed to get absolute file path")
 		}
 		_, ok := paths[srcAbs]
 		if ok {
@@ -82,6 +82,7 @@ func (dt *deleteTask) Prepare(context.Context) error {
 		paths[srcAbs] = struct{}{}
 	}
 	dt.roots = make([]*file, dt.srcLen)
+	dt.dirs = make(map[string]*file)
 	go dt.watcher()
 	return nil
 }
@@ -94,7 +95,13 @@ func (dt *deleteTask) Process(ctx context.Context, task *task.Task) error {
 			return err
 		}
 	}
-	return dt.deleteFiles(ctx, task)
+	for i := 0; i < dt.srcLen; i++ {
+		err := dt.deleteRoot(ctx, task, dt.roots[i])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (dt *deleteTask) collectDirInfo(ctx context.Context, task *task.Task, i int) error {
@@ -113,15 +120,23 @@ func (dt *deleteTask) collectDirInfo(ctx context.Context, task *task.Task, i int
 			}
 			return ne
 		}
+		// check task is canceled
+		if task.Canceled() {
+			return context.Canceled
+		}
 		f := &file{
 			path: srcAbs,
 			stat: srcStat,
 		}
+		isDir := srcStat.IsDir()
 		// check is root directory
 		if dt.roots[i] == nil {
-			// initialize task structure
 			dt.roots[i] = f
-			dt.dirs = make(map[string]*file)
+			// check root is file
+			if !isDir {
+				dt.updateTotal()
+				return nil
+			}
 			dt.dirs[srcAbs] = f
 			// set current data
 			cDir = srcAbs
@@ -135,7 +150,7 @@ func (dt *deleteTask) collectDirInfo(ctx context.Context, task *task.Task, i int
 			cFile = dt.dirs[dir]
 		}
 		cFile.files = append(cFile.files, f)
-		if srcStat.IsDir() {
+		if isDir {
 			cDir = srcAbs
 			cFile = f
 			dt.dirs[srcAbs] = f
@@ -149,34 +164,106 @@ func (dt *deleteTask) collectDirInfo(ctx context.Context, task *task.Task, i int
 		// path: C:\testdata\test
 		const format = "collect file information\npath: %s"
 		dt.updateDetail(fmt.Sprintf(format, srcAbs))
-		dt.updateTotal(true)
+		dt.updateTotal()
 		return nil
 	}
 	return filepath.Walk(src, walkFunc)
 }
 
-func (dt *deleteTask) deleteFiles(ctx context.Context, task *task.Task) error {
+func (dt *deleteTask) deleteRoot(ctx context.Context, task *task.Task, root *file) error {
+	// skip root directory
+	// set fake progress for pass progress check
+	if root == nil {
+		dt.rwm.Lock()
+		defer dt.rwm.Unlock()
+		dt.current.Add(dt.current, deleteDelta)
+		dt.total.Add(dt.total, deleteDelta)
+		return nil
+	}
+	// check root is directory
+	if !root.stat.IsDir() {
+		_, err := dt.deleteDirFile(ctx, task, root)
+		return err
+	}
+	// delete all directories and files in root directory
+	_, err := dt.deleteDir(ctx, task, root)
+	if err != nil {
+		return errors.WithMessage(err, "failed to delete directory")
+	}
 	return nil
 }
 
-func (dt *deleteTask) updateCurrent(add bool) {
-	dt.rwm.Lock()
-	defer dt.rwm.Unlock()
-	if add {
-		dt.current.Add(dt.current, deleteDelta)
-	} else {
-		dt.current.Sub(dt.current, deleteDelta)
+// returned bool is skipped this file.
+func (dt *deleteTask) deleteDir(ctx context.Context, task *task.Task, dir *file) (bool, error) {
+	var (
+		skipped bool
+		err     error
+	)
+	for _, file := range dir.files {
+		// check task is canceled
+		if task.Canceled() {
+			return false, context.Canceled
+		}
+		var sk bool
+		if file.stat.IsDir() {
+			sk, err = dt.deleteDir(ctx, task, file)
+		} else {
+			sk, err = dt.deleteDirFile(ctx, task, file)
+		}
+		if err != nil {
+			return false, err
+		}
+		if sk && !skipped {
+			skipped = true
+		}
 	}
+	// if delete all files successfully, delete the directory
+	if !skipped {
+		return false, os.Remove(dir.path)
+	}
+	return true, nil
 }
 
-func (dt *deleteTask) updateTotal(add bool) {
+// returned bool is skipped this file.
+func (dt *deleteTask) deleteDirFile(ctx context.Context, task *task.Task, file *file) (bool, error) {
+	// skip file if it in skipped directories
+	for i := 0; i < len(dt.skipDirs); i++ {
+		if strings.HasPrefix(file.path, dt.skipDirs[i]) {
+			dt.updateCurrent()
+			return true, nil
+		}
+	}
+retry:
+	// check task is canceled
+	if task.Canceled() {
+		return false, context.Canceled
+	}
+	err := os.Remove(file.path)
+	if err != nil {
+		retry, ne := noticeFailedToDelete(ctx, task, dt.errCtrl, file.path, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return false, ne
+		}
+		dt.updateCurrent()
+		return true, nil
+	}
+	dt.updateCurrent()
+	return false, nil
+}
+
+func (dt *deleteTask) updateCurrent() {
 	dt.rwm.Lock()
 	defer dt.rwm.Unlock()
-	if add {
-		dt.total.Add(dt.total, deleteDelta)
-	} else {
-		dt.total.Sub(dt.total, deleteDelta)
-	}
+	dt.current.Add(dt.current, deleteDelta)
+}
+
+func (dt *deleteTask) updateTotal() {
+	dt.rwm.Lock()
+	defer dt.rwm.Unlock()
+	dt.total.Add(dt.total, deleteDelta)
 }
 
 // Progress is used to get progress about current delete task.

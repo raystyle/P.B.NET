@@ -183,6 +183,8 @@ func buildSourceCode() bool {
 				return
 			}
 
+			fmt.Println(goRoot)
+
 			// err = os.Rename(filepath.Join(cmd.Dir, ), filepath.Join(goRoot, binName))
 			// if err != nil {
 			// 	return
