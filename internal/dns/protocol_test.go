@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 func TestIsDomainName(t *testing.T) {
@@ -33,6 +34,20 @@ func TestIsDomainName(t *testing.T) {
 }
 
 func TestUnpackMessage(t *testing.T) {
-	_, err := unpackMessage([]byte{1, 2, 3, 4})
-	require.Error(t, err)
+	const (
+		domain  = "test.com"
+		queryId = 1234
+	)
+
+	t.Run("invalid message data", func(t *testing.T) {
+		_, err := unpackMessage([]byte{1, 2, 3, 4}, domain, queryId)
+		require.Error(t, err)
+	})
+
+	t.Run("not response", func(t *testing.T) {
+		msg := packMessage(dnsmessage.TypeA, domain, queryId)
+
+		_, err := unpackMessage(msg, domain, queryId)
+		require.Error(t, err)
+	})
 }

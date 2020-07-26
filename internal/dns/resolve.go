@@ -18,11 +18,12 @@ import (
 
 	"project/internal/convert"
 	"project/internal/nettool"
+	"project/internal/random"
 )
 
 const (
 	defaultTimeout     = 10 * time.Second // udp is 5 second
-	defaultMaxBodySize = 512 << 10        // 512 KB
+	defaultMaxBodySize = 512 * 1024       // 512 KB
 	headerSize         = 2                // tcp && tls need it
 )
 
@@ -30,7 +31,9 @@ const (
 var ErrNoConnection = fmt.Errorf("no connection")
 
 func resolve(ctx context.Context, address, domain string, opts *Options) ([]string, error) {
-	message := packMessage(types[opts.Type], domain)
+	// use query ID check response is correct
+	queryID := uint16(random.Int(65536))
+	message := packMessage(types[opts.Type], domain, queryID)
 	var err error
 	switch opts.Method {
 	case MethodUDP:
@@ -45,7 +48,7 @@ func resolve(ctx context.Context, address, domain string, opts *Options) ([]stri
 	if err != nil {
 		return nil, err
 	}
-	return unpackMessage(message)
+	return unpackMessage(message, domain, queryID)
 }
 
 // if question size > 512 Byte, use tcp tls doh.

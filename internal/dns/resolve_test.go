@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 
 	"project/internal/convert"
+	"project/internal/random"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testcert"
 )
@@ -139,7 +140,10 @@ func TestCustomResolve(t *testing.T) {
 	})
 }
 
-var testDNSMessage = packMessage(dnsmessage.TypeA, testDomain)
+var (
+	testQueryID    = uint16(random.Int(65536))
+	testDNSMessage = packMessage(dnsmessage.TypeA, testDomain, testQueryID)
+)
 
 func TestDialUDP(t *testing.T) {
 	ctx := context.Background()
@@ -150,7 +154,7 @@ func TestDialUDP(t *testing.T) {
 			msg, err := dialUDP(ctx, "8.8.8.8:53", testDNSMessage, opts)
 			require.NoError(t, err)
 
-			result, err := unpackMessage(msg)
+			result, err := unpackMessage(msg, testDomain, testQueryID)
 			require.NoError(t, err)
 
 			t.Log("UDP (IPv4 DNS Server):", result)
@@ -162,7 +166,7 @@ func TestDialUDP(t *testing.T) {
 			msg, err := dialUDP(ctx, "[2606:4700:4700::1001]:53", testDNSMessage, opts)
 			require.NoError(t, err)
 
-			result, err := unpackMessage(msg)
+			result, err := unpackMessage(msg, testDomain, testQueryID)
 			require.NoError(t, err)
 
 			t.Log("UDP (IPv6 DNS Server):", result)
@@ -207,7 +211,7 @@ func TestDialTCP(t *testing.T) {
 			msg, err := dialTCP(ctx, "8.8.8.8:53", testDNSMessage, opts)
 			require.NoError(t, err)
 
-			result, err := unpackMessage(msg)
+			result, err := unpackMessage(msg, testDomain, testQueryID)
 			require.NoError(t, err)
 
 			t.Log("TCP (IPv4 DNS Server):", result)
@@ -219,7 +223,7 @@ func TestDialTCP(t *testing.T) {
 			msg, err := dialTCP(ctx, "[2606:4700:4700::1001]:53", testDNSMessage, opts)
 			require.NoError(t, err)
 
-			result, err := unpackMessage(msg)
+			result, err := unpackMessage(msg, testDomain, testQueryID)
 			require.NoError(t, err)
 
 			t.Log("TCP (IPv6 DNS Server):", result)
@@ -255,7 +259,7 @@ func TestDialDoT(t *testing.T) {
 				msg, err := dialDoT(ctx, dnsServerIPV4, testDNSMessage, opts)
 				require.NoError(t, err)
 
-				result, err := unpackMessage(msg)
+				result, err := unpackMessage(msg, testDomain, testQueryID)
 				require.NoError(t, err)
 
 				t.Log("DoT-IP (IPv4 DNS Server):", result)
@@ -265,7 +269,7 @@ func TestDialDoT(t *testing.T) {
 				msg, err := dialDoT(ctx, dnsDomainIPv4, testDNSMessage, opts)
 				require.NoError(t, err)
 
-				result, err := unpackMessage(msg)
+				result, err := unpackMessage(msg, testDomain, testQueryID)
 				require.NoError(t, err)
 
 				t.Log("DoT-Domain (IPv4 DNS Server):", result)
@@ -284,7 +288,7 @@ func TestDialDoT(t *testing.T) {
 				msg, err := dialDoT(ctx, dnsServerIPv6, testDNSMessage, opts)
 				require.NoError(t, err)
 
-				result, err := unpackMessage(msg)
+				result, err := unpackMessage(msg, testDomain, testQueryID)
 				require.NoError(t, err)
 
 				t.Log("DoT-IP (IPv6 DNS Server):", result)
@@ -294,7 +298,7 @@ func TestDialDoT(t *testing.T) {
 				msg, err := dialDoT(ctx, dnsDomainIPv6, testDNSMessage, opts)
 				require.NoError(t, err)
 
-				result, err := unpackMessage(msg)
+				result, err := unpackMessage(msg, testDomain, testQueryID)
 				require.NoError(t, err)
 
 				t.Log("DoT-Domain (IPv6 DNS Server):", result)
@@ -356,7 +360,7 @@ func TestDialDoH(t *testing.T) {
 		resp, err := dialDoH(ctx, dnsServer, testDNSMessage, opts)
 		require.NoError(t, err)
 
-		result, err := unpackMessage(resp)
+		result, err := unpackMessage(resp, testDomain, testQueryID)
 		require.NoError(t, err)
 
 		t.Log("DoH GET:", result)
@@ -367,7 +371,7 @@ func TestDialDoH(t *testing.T) {
 		resp, err := dialDoH(ctx, url, testDNSMessage, opts)
 		require.NoError(t, err)
 
-		result, err := unpackMessage(resp)
+		result, err := unpackMessage(resp, testDomain, testQueryID)
 		require.NoError(t, err)
 
 		t.Log("DoH POST:", result)

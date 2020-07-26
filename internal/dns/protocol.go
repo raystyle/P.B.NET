@@ -6,8 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 	"golang.org/x/net/dns/dnsmessage"
-
-	"project/internal/random"
 )
 
 // support query type
@@ -94,16 +92,11 @@ func checkChar(c byte, last byte, nonNumeric *bool, partLen *int, ok *bool) {
 	}
 }
 
-func packMessage(typ dnsmessage.Type, domain string) []byte {
+// packMessage is used to pack to DNS message.
+func packMessage(typ dnsmessage.Type, domain string, queryID uint16) []byte {
 	header := dnsmessage.Header{
-		ID:                 uint16(random.Int(65536)),
-		Response:           false,
-		OpCode:             0,
-		Authoritative:      false,
-		Truncated:          false,
-		RecursionDesired:   true,
-		RecursionAvailable: false,
-		RCode:              0,
+		ID:               queryID,
+		RecursionDesired: true,
 	}
 	// name is not in canonical format (it must end with a .)
 	domain += "."
@@ -121,11 +114,30 @@ func packMessage(typ dnsmessage.Type, domain string) []byte {
 	return b
 }
 
-func unpackMessage(message []byte) ([]string, error) {
+// unpackMessage is used to unpack message and verify message.
+func unpackMessage(message []byte, domain string, queryID uint16) ([]string, error) {
 	msg := dnsmessage.Message{}
 	err := msg.Unpack(message)
 	if err != nil {
 		return nil, errors.WithStack(err)
+	}
+	// check message is response
+	if !msg.Response {
+		return nil, errors.New("this dns message is not a response")
+	}
+	// check query ID
+	if msg.ID != queryID {
+		return nil, errors.New("query id in dns message is different with original")
+	}
+	// check question name is equal original domain name
+	if len(msg.Questions) != 1 {
+		return nil, errors.New("this dns message with unexpected question")
+	}
+	name := msg.Questions[0].Name
+
+	if name.Length == 0 || name.String()[:name.Length-1] != domain {
+		const format = "domain name \"%s\" in dns message is different with original \"%s\""
+		return nil, errors.Errorf(format, name, domain)
 	}
 	var result []string
 	for i := 0; i < len(msg.Answers); i++ {
