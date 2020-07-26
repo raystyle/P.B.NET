@@ -71,7 +71,10 @@ var (
 	}
 )
 
-var zeroFloat = big.NewFloat(0)
+var (
+	zeroFloat   = big.NewFloat(0)
+	deleteDelta = big.NewFloat(1)
+)
 
 // stat is used to get file stat, if err is NotExist, it will return nil error and os.FileInfo.
 func stat(name string) (os.FileInfo, error) {
