@@ -26,7 +26,7 @@ type deleteTask struct {
 	src     []string
 	srcLen  int
 
-	roots    []*file          // store all dirs and files will delete
+	roots    []*file          // store all directories and files will delete
 	dirs     map[string]*file // for search dir faster, key is path
 	skipDirs []string         // store skipped directories
 
@@ -82,7 +82,7 @@ func (dt *deleteTask) Prepare(context.Context) error {
 		paths[srcAbs] = struct{}{}
 	}
 	dt.roots = make([]*file, dt.srcLen)
-	dt.dirs = make(map[string]*file)
+	dt.dirs = make(map[string]*file, dt.srcLen/4)
 	go dt.watcher()
 	return nil
 }
@@ -183,7 +183,10 @@ func (dt *deleteTask) deleteRoot(ctx context.Context, task *task.Task, root *fil
 	// check root is directory
 	if !root.stat.IsDir() {
 		_, err := dt.deleteDirFile(ctx, task, root)
-		return err
+		if err != nil {
+			return errors.WithMessage(err, "failed to delete file")
+		}
+		return nil
 	}
 	// delete all directories and files in root directory
 	_, err := dt.deleteDir(ctx, task, root)
@@ -204,16 +207,16 @@ func (dt *deleteTask) deleteDir(ctx context.Context, task *task.Task, dir *file)
 		if task.Canceled() {
 			return false, context.Canceled
 		}
-		var sk bool
+		var skip bool
 		if file.stat.IsDir() {
-			sk, err = dt.deleteDir(ctx, task, file)
+			skip, err = dt.deleteDir(ctx, task, file)
 		} else {
-			sk, err = dt.deleteDirFile(ctx, task, file)
+			skip, err = dt.deleteDirFile(ctx, task, file)
 		}
 		if err != nil {
 			return false, err
 		}
-		if sk && !skipped {
+		if skip && !skipped {
 			skipped = true
 		}
 	}
@@ -238,6 +241,7 @@ retry:
 	if task.Canceled() {
 		return false, context.Canceled
 	}
+	// delete file
 	err := os.Remove(file.path)
 	if err != nil {
 		retry, ne := noticeFailedToDelete(ctx, task, dt.errCtrl, file.path, err)

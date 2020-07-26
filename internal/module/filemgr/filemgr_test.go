@@ -93,6 +93,18 @@ func testCompareDirectory(t *testing.T, a, b string) {
 	}
 }
 
+func testIsExist(t *testing.T, path string) {
+	exist, err := system.IsExist(path)
+	require.NoError(t, err)
+	require.True(t, exist)
+}
+
+func testIsNotExist(t *testing.T, path string) {
+	notExist, err := system.IsNotExist(testDeleteSrcFile)
+	require.NoError(t, err)
+	require.True(t, notExist)
+}
+
 type mockTask struct{}
 
 func (mockTask) Prepare(context.Context) error {

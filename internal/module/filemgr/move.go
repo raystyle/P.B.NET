@@ -28,9 +28,9 @@ type moveTask struct {
 	dst     string
 	stats   *SrcDstStat
 
-	root     *file            // store all dirs and files will move
+	root     *file            // store all directories and files will move
 	dirs     map[string]*file // for search dir faster, key is path
-	skipDirs []string
+	skipDirs []string         // store skipped directories
 
 	// about progress, detail and speed
 	current *big.Float
@@ -244,20 +244,20 @@ func (mt *moveTask) moveDir(ctx context.Context, task *task.Task, dir *file) (bo
 		if task.Canceled() {
 			return false, context.Canceled
 		}
-		var sk bool
+		var skip bool
 		if file.stat.IsDir() {
 			err = mt.mkdir(ctx, task, file)
 			if err != nil {
 				return false, err
 			}
-			sk, err = mt.moveDir(ctx, task, file)
+			skip, err = mt.moveDir(ctx, task, file)
 		} else {
-			sk, err = mt.moveDirFile(ctx, task, file)
+			skip, err = mt.moveDirFile(ctx, task, file)
 		}
 		if err != nil {
 			return false, err
 		}
-		if sk && !skipped {
+		if skip && !skipped {
 			skipped = true
 		}
 	}

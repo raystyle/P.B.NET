@@ -28,9 +28,8 @@ type copyTask struct {
 	dst     string
 	stats   *SrcDstStat
 
-	// store all files will copy
-	files    []*fileStat
-	skipDirs []string
+	files    []*fileStat // store all files will copy
+	skipDirs []string    // store skipped directories
 
 	// about progress, detail and speed
 	current *big.Float
