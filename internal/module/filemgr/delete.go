@@ -9,12 +9,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/looplab/fsm"
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
 	"project/internal/module/task"
+	"project/internal/xpanic"
 )
 
 // deleteTask is implement task.Interface that is used to delete file or files in one
@@ -28,6 +30,7 @@ type deleteTask struct {
 	dirs     map[string]*file // for search dir faster, key is path
 	skipDirs []string         // store skipped directories
 
+	// about progress, detail and speed
 	current *big.Float
 	total   *big.Float
 	detail  string
@@ -79,6 +82,7 @@ func (dt *deleteTask) Prepare(context.Context) error {
 		paths[srcAbs] = struct{}{}
 	}
 	dt.roots = make([]*file, dt.srcLen)
+	go dt.watcher()
 	return nil
 }
 
@@ -240,6 +244,56 @@ func (dt *deleteTask) Detail() string {
 	dt.rwm.RLock()
 	defer dt.rwm.RUnlock()
 	return dt.detail
+}
+
+// watcher is used to calculate current delete speed.
+func (dt *deleteTask) watcher() {
+	defer func() {
+		if r := recover(); r != nil {
+			xpanic.Log(r, "deleteTask.watcher")
+		}
+	}()
+	ticker := time.NewTicker(time.Second / time.Duration(len(dt.speeds)))
+	defer ticker.Stop()
+	current := new(big.Float)
+	index := -1
+	for {
+		select {
+		case <-ticker.C:
+			index++
+			if index >= len(dt.speeds) {
+				index = 0
+			}
+			dt.watchSpeed(current, index)
+		case <-dt.stopSignal:
+			return
+		}
+	}
+}
+
+func (dt *deleteTask) watchSpeed(current *big.Float, index int) {
+	dt.rwm.Lock()
+	defer dt.rwm.Unlock()
+	delta := new(big.Float).Sub(dt.current, current)
+	current.Add(current, delta)
+	// update speed
+	dt.speeds[index], _ = delta.Uint64()
+	if dt.full {
+		dt.speed = 0
+		for i := 0; i < len(dt.speeds); i++ {
+			dt.speed += dt.speeds[i]
+		}
+		return
+	}
+	if index == len(dt.speeds)-1 {
+		dt.full = true
+	}
+	// calculate average speed
+	var speed uint64 // current speed
+	for i := 0; i < index+1; i++ {
+		speed += dt.speeds[i]
+	}
+	dt.speed = speed / uint64(index+1) * uint64(len(dt.speeds))
 }
 
 // Clean is used to send stop signal to watcher.

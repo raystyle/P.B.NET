@@ -548,7 +548,7 @@ func (ct *copyTask) Detail() string {
 	return ct.detail
 }
 
-// watcher is used to calculate current speed.
+// watcher is used to calculate current copy speed.
 func (ct *copyTask) watcher() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -595,7 +595,7 @@ func (ct *copyTask) watchSpeed(current *big.Float, index int) {
 	for i := 0; i < index+1; i++ {
 		speed += float64(ct.speeds[i])
 	}
-	ct.speed = uint64(speed * float64(len(ct.speeds)) / float64(index+1))
+	ct.speed = uint64(speed / float64(index+1) * float64(len(ct.speeds)))
 }
 
 // Clean is used to send stop signal to watcher.

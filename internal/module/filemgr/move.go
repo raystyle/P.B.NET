@@ -619,7 +619,7 @@ func (mt *moveTask) Detail() string {
 	return mt.detail
 }
 
-// watcher is used to calculate current speed.
+// watcher is used to calculate current move speed.
 func (mt *moveTask) watcher() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -666,7 +666,7 @@ func (mt *moveTask) watchSpeed(current *big.Float, index int) {
 	for i := 0; i < index+1; i++ {
 		speed += float64(mt.speeds[i])
 	}
-	mt.speed = uint64(speed * float64(len(mt.speeds)) / float64(index+1))
+	mt.speed = uint64(speed / float64(index+1) * float64(len(mt.speeds)))
 }
 
 func (mt *moveTask) Clean() {
