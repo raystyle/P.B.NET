@@ -41,7 +41,7 @@ type moveTask struct {
 	full    bool
 	rwm     sync.RWMutex
 
-	// control watcher
+	// control speed watcher
 	stopSignal chan struct{}
 }
 
@@ -673,12 +673,12 @@ func (mt *moveTask) Clean() {
 	close(mt.stopSignal)
 }
 
-// Move is used to create a moveTask to move file or directory.
+// Move is used to create a move task to move paths to destination.
 func Move(errCtrl ErrCtrl, src, dst string) error {
 	return MoveWithContext(context.Background(), errCtrl, src, dst)
 }
 
-// MoveWithContext is used to create a moveTask with context.
+// MoveWithContext is used to create a move task with context to move paths to destination.
 func MoveWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string) error {
 	mt := NewMoveTask(errCtrl, src, dst, nil)
 	return startTask(ctx, mt, "Move")

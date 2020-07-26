@@ -41,7 +41,7 @@ type copyTask struct {
 	full    bool
 	rwm     sync.RWMutex
 
-	// control watcher
+	// control speed watcher
 	stopSignal chan struct{}
 }
 
@@ -603,12 +603,12 @@ func (ct *copyTask) Clean() {
 	close(ct.stopSignal)
 }
 
-// Copy is used to create a copyTask to copy src to dst.
+// Copy is used to create a copy task to copy paths to destination.
 func Copy(errCtrl ErrCtrl, src, dst string) error {
 	return CopyWithContext(context.Background(), errCtrl, src, dst)
 }
 
-// CopyWithContext is used to create a copyTask with context.
+// CopyWithContext is used to create a copy task with context to copy paths to destination.
 func CopyWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string) error {
 	ct := NewCopyTask(errCtrl, src, dst, nil)
 	return startTask(ctx, ct, "Copy")
