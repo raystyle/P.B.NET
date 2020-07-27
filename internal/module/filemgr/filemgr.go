@@ -16,11 +16,11 @@ import (
 
 // name about task
 const (
-	TaskNameCopy       = "copy"
-	TaskNameMove       = "move"
-	TaskNameDelete     = "delete"
-	TaskNameCompress   = "compress"
-	TaskNameDecompress = "decompress"
+	TaskNameCopy   = "copy"
+	TaskNameMove   = "move"
+	TaskNameDelete = "delete"
+	TaskNameZip    = "zip"
+	TaskNameUnZip  = "unzip"
 )
 
 // ErrCtrl is used to tell Move or Copy function how to control the same file,
@@ -401,7 +401,7 @@ func ioCopy(task *task.Task, add func(int64), dst io.Writer, src io.Reader) (int
 
 func startTask(ctx context.Context, task *task.Task, name string) error {
 	if done := ctx.Done(); done != nil {
-		// if ctx is canceled
+		// check ctx is canceled before start
 		select {
 		case <-done:
 			return ctx.Err()
