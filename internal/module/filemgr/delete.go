@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
+	"project/internal/logger"
 	"project/internal/module/task"
 	"project/internal/xpanic"
 )
@@ -243,6 +244,14 @@ func (dt *deleteTask) deleteDirFile(ctx context.Context, task *task.Task, file *
 			return true, nil
 		}
 	}
+	// update current task detail, output:
+	//   delete file, name: test.dat
+	//   path: C:\testdata\test.dat
+	//   modify time: 2020-07-27 19:12:17
+	const format = "delete file, name: %s\npath: %s\nmodify time: %s"
+	fileName := filepath.Base(file.path)
+	modTime := file.stat.ModTime().Format(logger.TimeLayout)
+	dt.updateDetail(fmt.Sprintf(format, fileName, file.path, modTime))
 retry:
 	// check task is canceled
 	if task.Canceled() {

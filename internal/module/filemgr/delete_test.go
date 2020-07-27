@@ -2,8 +2,11 @@ package filemgr
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -154,39 +157,62 @@ func TestDelete(t *testing.T) {
 func TestDelete_File(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
-
-	t.Run("ok", func(t *testing.T) {
-		testCreateDeleteSrcFile(t)
-		defer testRemoveDeleteDir(t)
-
-		err := Delete(SkipAll, testDeleteSrcFile)
-		require.NoError(t, err)
-
-		testIsNotExist(t, testDeleteSrcFile)
-	})
-
 }
 
 func TestDelete_Directory(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
-
-	t.Run("ok", func(t *testing.T) {
-		testCreateDeleteSrcDir(t)
-		defer testRemoveDeleteDir(t)
-
-		err := Delete(SkipAll, testDeleteSrcDir)
-		require.NoError(t, err)
-
-		testIsNotExist(t, testDeleteSrcDir)
-	})
 }
 
 func TestDelete_Multi(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
+}
 
-	t.Run("ok", func(t *testing.T) {
+func TestDeleteTask_Progress(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	pg := testPatchTaskCanceled()
+	defer pg.Unpatch()
+
+	t.Run("common", func(t *testing.T) {
+		testCreateDeleteSrcDir(t)
+		defer testRemoveDeleteDir(t)
+
+		dt := NewDeleteTask(SkipAll, nil, testDeleteSrcDir)
+
+		done := make(chan struct{})
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				fmt.Println("progress:", dt.Progress())
+				fmt.Println("detail:", dt.Detail())
+				fmt.Println()
+				time.Sleep(250 * time.Millisecond)
+			}
+		}()
+
+		err := dt.Start()
+		require.NoError(t, err)
+
+		close(done)
+		wg.Wait()
+
+		fmt.Println("progress:", dt.Progress())
+		fmt.Println("detail:", dt.Detail())
+
+		rdt := dt.Task().(*deleteTask)
+		testsuite.IsDestroyed(t, dt)
+		testsuite.IsDestroyed(t, rdt)
+
+		testIsNotExist(t, testDeleteSrcDir)
 	})
 }

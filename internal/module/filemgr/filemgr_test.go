@@ -7,10 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/module/task"
+	"project/internal/patch/monkey"
 	"project/internal/system"
 	"project/internal/testsuite"
 )
@@ -103,6 +105,15 @@ func testIsNotExist(t *testing.T, path string) {
 	notExist, err := system.IsNotExist(path)
 	require.NoError(t, err)
 	require.True(t, notExist)
+}
+
+func testPatchTaskCanceled() *monkey.PatchGuard {
+	t := new(task.Task)
+	patch := func(interface{}) bool {
+		time.Sleep(200 * time.Millisecond)
+		return false
+	}
+	return monkey.PatchInstanceMethod(t, "Canceled", patch)
 }
 
 type mockTask struct{}
