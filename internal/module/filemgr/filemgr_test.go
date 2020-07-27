@@ -116,6 +116,8 @@ func testPatchTaskCanceled() *monkey.PatchGuard {
 	return monkey.PatchInstanceMethod(t, "Canceled", patch)
 }
 
+const mockTaskName = "mock task"
+
 type mockTask struct{}
 
 func (mockTask) Prepare(context.Context) error {
@@ -127,7 +129,7 @@ func (mockTask) Process(context.Context, *task.Task) error {
 }
 
 func (mockTask) Progress() string {
-	return ""
+	return "99%"
 }
 
 func (mockTask) Detail() string {
@@ -148,13 +150,13 @@ func TestIOCopy(t *testing.T) {
 	add := func(int64) {}
 
 	t.Run("common", func(t *testing.T) {
-		fakeTask := task.New("fake task", nil, nil)
+		mt := task.New(mockTaskName, nil, nil)
 		readBuf := new(bytes.Buffer)
 		writeBuf := new(bytes.Buffer)
 
 		readBuf.Write(testdata)
 
-		n, err := ioCopy(fakeTask, add, writeBuf, readBuf)
+		n, err := ioCopy(mt, add, writeBuf, readBuf)
 		require.NoError(t, err)
 		require.Equal(t, int64(len(testdata)), n)
 
@@ -162,46 +164,46 @@ func TestIOCopy(t *testing.T) {
 	})
 
 	t.Run("cancel", func(t *testing.T) {
-		fakeTask := task.New("fake task", new(mockTask), nil)
-		fakeTask.Cancel()
+		mt := task.New(mockTaskName, new(mockTask), nil)
+		mt.Cancel()
 		readBuf := new(bytes.Buffer)
 		writeBuf := new(bytes.Buffer)
 
 		readBuf.Write(testdata)
 
-		n, err := ioCopy(fakeTask, add, writeBuf, readBuf)
+		n, err := ioCopy(mt, add, writeBuf, readBuf)
 		require.Equal(t, context.Canceled, err)
 		require.Zero(t, n)
 	})
 
 	t.Run("failed to read", func(t *testing.T) {
-		fakeTask := task.New("fake task", nil, nil)
+		mt := task.New(mockTaskName, nil, nil)
 		reader := testsuite.NewMockConnWithReadError()
 		writer := new(bytes.Buffer)
 
-		n, err := ioCopy(fakeTask, add, writer, reader)
+		n, err := ioCopy(mt, add, writer, reader)
 		require.Error(t, err)
 		require.Equal(t, int64(0), n)
 	})
 
 	t.Run("failed to write", func(t *testing.T) {
-		fakeTask := task.New("fake task", nil, nil)
+		mt := task.New(mockTaskName, nil, nil)
 		reader := new(bytes.Buffer)
 		reader.Write([]byte{1, 2, 3})
 		writer := testsuite.NewMockConnWithWriteError()
 
-		n, err := ioCopy(fakeTask, add, writer, reader)
+		n, err := ioCopy(mt, add, writer, reader)
 		require.Error(t, err)
 		require.Equal(t, int64(0), n)
 	})
 
 	t.Run("written not equal", func(t *testing.T) {
-		fakeTask := task.New("fake task", nil, nil)
+		mt := task.New(mockTaskName, nil, nil)
 		reader := new(bytes.Buffer)
 		reader.Write([]byte{1, 2, 3})
 		writer := new(notEqualWriter)
 
-		n, err := ioCopy(fakeTask, add, writer, reader)
+		n, err := ioCopy(mt, add, writer, reader)
 		require.Error(t, err)
 		require.Equal(t, int64(0), n)
 	})
@@ -211,5 +213,41 @@ func TestStartTask(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Skip()
+	t.Run("cancel before start", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		err := startTask(ctx, nil, mockTaskName)
+		require.Equal(t, context.Canceled, err)
+	})
+
+	t.Run("unexpected progress", func(t *testing.T) {
+		mt := task.New(mockTaskName, new(mockTask), nil)
+
+		err := startTask(context.Background(), mt, mockTaskName)
+		require.EqualError(t, err, "unexpected progress: 99%")
+	})
+
+	t.Run("panic in created goroutine", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		mt := task.New(mockTaskName, new(mockTask), nil)
+
+		tt := new(task.Task)
+		patch1 := func(interface{}) bool {
+			panic(monkey.Panic)
+		}
+		pg1 := monkey.PatchInstanceMethod(tt, "Cancel", patch1)
+		defer pg1.Unpatch()
+
+		patch2 := func(interface{}) error {
+			cancel()
+			time.Sleep(time.Second) // wait goroutine in startTask
+			return nil
+		}
+		pg2 := monkey.PatchInstanceMethod(tt, "Start", patch2)
+		defer pg2.Unpatch()
+
+		err := startTask(ctx, mt, mockTaskName)
+		require.Error(t, err)
+	})
 }
