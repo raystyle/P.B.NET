@@ -8,17 +8,20 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/looplab/fsm"
 	"github.com/pkg/errors"
 
+	"project/internal/convert"
 	"project/internal/module/task"
 	"project/internal/system"
 )
 
-// zipTask implement task.Interface that is used to compress files to one zip file.
+// zipTask implement task.Interface that is used to compress files into a zip file.
 // It can pause in progress and get current progress and detail information.
 type zipTask struct {
 	errCtrl  ErrCtrl
@@ -57,27 +60,106 @@ func NewZipTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, dst string, files ...s
 }
 
 // Prepare is used to check destination is not exist or a directory.
-func (ut *zipTask) Prepare(context.Context) error {
+func (zt *zipTask) Prepare(context.Context) error {
 	return nil
 }
 
-func (ut *zipTask) Process(ctx context.Context, task *task.Task) error {
+func (zt *zipTask) Process(ctx context.Context, task *task.Task) error {
 	return nil
 }
 
-func (ut *zipTask) Progress() string {
-	return ""
+// Progress is used to get progress about current zip task.
+//
+// collect: "0%"
+// copy:    "15.22%|current/total|128 MB/s"
+// finish:  "100%"
+func (zt *zipTask) Progress() string {
+	zt.rwm.RLock()
+	defer zt.rwm.RUnlock()
+	// prevent / 0
+	if zt.total.Cmp(zeroFloat) == 0 {
+		return "0%"
+	}
+	switch zt.current.Cmp(zt.total) {
+	case 0: // current == total
+		return "100%"
+	case 1: // current > total
+		current := zt.current.Text('G', 64)
+		total := zt.total.Text('G', 64)
+		return fmt.Sprintf("err: current %s > total %s", current, total)
+	}
+	value := new(big.Float).Quo(zt.current, zt.total)
+	// split result
+	text := value.Text('G', 64)
+	if len(text) > 6 { // 0.999999999...999 -> 0.9999
+		text = text[:6]
+	}
+	// format result
+	result, err := strconv.ParseFloat(text, 64)
+	if err != nil {
+		return fmt.Sprintf("err: %s", err)
+	}
+	// 0.9999 -> 99.99%
+	progress := strconv.FormatFloat(result*100, 'f', -1, 64)
+	offset := strings.Index(progress, ".")
+	if offset != -1 {
+		if len(progress[offset+1:]) > 2 {
+			progress = progress[:offset+3]
+		}
+	}
+	// progress|current/total|speed
+	current := zt.current.Text('G', 64)
+	total := zt.total.Text('G', 64)
+	speed := convert.FormatByte(zt.speed)
+	return fmt.Sprintf("%s%%|%s/%s|%s/s", progress, current, total, speed)
 }
 
-func (ut *zipTask) Detail() string {
-	ut.rwm.RLock()
-	defer ut.rwm.RUnlock()
-	return ut.detail
+func (zt *zipTask) updateCurrent(delta int64, add bool) {
+	zt.rwm.Lock()
+	defer zt.rwm.Unlock()
+	d := new(big.Float).SetInt64(delta)
+	if add {
+		zt.current.Add(zt.current, d)
+	} else {
+		zt.current.Sub(zt.current, d)
+	}
+}
+
+func (zt *zipTask) updateTotal(delta int64, add bool) {
+	zt.rwm.Lock()
+	defer zt.rwm.Unlock()
+	d := new(big.Float).SetInt64(delta)
+	if add {
+		zt.total.Add(zt.total, d)
+	} else {
+		zt.total.Sub(zt.total, d)
+	}
+}
+
+// Detail is used to get detail about zip task.
+// collect file info:
+//   collect file information
+//   path: testdata/test.dat
+//
+// compress file:
+//   compress file, name: test.dat
+//   src: C:\testdata\test.dat
+//   dst: testdata/test.dat
+func (zt *zipTask) Detail() string {
+	zt.rwm.RLock()
+	defer zt.rwm.RUnlock()
+	return zt.detail
+}
+
+func (zt *zipTask) updateDetail(detail string) {
+	zt.rwm.Lock()
+	defer zt.rwm.Unlock()
+	zt.detail = detail
 }
 
 // Clean is used to send stop signal to watcher.
-func (ut *zipTask) Clean() {
-	close(ut.stopSignal)
+func (zt *zipTask) Clean() {
+	close(zt.stopSignal)
 }
 
 // Zip is used to create a zip task to compress files into a zip file.
