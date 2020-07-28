@@ -19,6 +19,7 @@ import (
 	"project/internal/convert"
 	"project/internal/module/task"
 	"project/internal/system"
+	"project/internal/xpanic"
 )
 
 // zipTask implement task.Interface that is used to compress files into a zip file.
@@ -59,8 +60,21 @@ func NewZipTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, dst string, files ...s
 	return task.New(TaskNameZip, &zt, callbacks)
 }
 
-// Prepare is used to check destination is not exist or a directory.
+// Prepare is used to check destination file path is not exist.
 func (zt *zipTask) Prepare(context.Context) error {
+	dstAbs, err := filepath.Abs(zt.dst)
+	if err != nil {
+		return errors.Wrap(err, "failed to get absolute file path")
+	}
+	dstStat, err := stat(dstAbs)
+	if err != nil {
+		return err
+	}
+	if dstStat != nil {
+		return errors.Errorf("destination path %s is already exists", dstAbs)
+	}
+	zt.dst = dstAbs
+	go zt.watcher()
 	return nil
 }
 
@@ -71,7 +85,7 @@ func (zt *zipTask) Process(ctx context.Context, task *task.Task) error {
 // Progress is used to get progress about current zip task.
 //
 // collect: "0%"
-// copy:    "15.22%|current/total|128 MB/s"
+// zip:     "15.22%|current/total|128 MB/s"
 // finish:  "100%"
 func (zt *zipTask) Progress() string {
 	zt.rwm.RLock()
@@ -155,6 +169,56 @@ func (zt *zipTask) updateDetail(detail string) {
 	zt.rwm.Lock()
 	defer zt.rwm.Unlock()
 	zt.detail = detail
+}
+
+// watcher is used to calculate current copy speed.
+func (zt *zipTask) watcher() {
+	defer func() {
+		if r := recover(); r != nil {
+			xpanic.Log(r, "zipTask.watcher")
+		}
+	}()
+	ticker := time.NewTicker(time.Second / time.Duration(len(zt.speeds)))
+	defer ticker.Stop()
+	current := new(big.Float)
+	index := -1
+	for {
+		select {
+		case <-ticker.C:
+			index++
+			if index >= len(zt.speeds) {
+				index = 0
+			}
+			zt.watchSpeed(current, index)
+		case <-zt.stopSignal:
+			return
+		}
+	}
+}
+
+func (zt *zipTask) watchSpeed(current *big.Float, index int) {
+	zt.rwm.Lock()
+	defer zt.rwm.Unlock()
+	delta := new(big.Float).Sub(zt.current, current)
+	current.Add(current, delta)
+	// update speed
+	zt.speeds[index], _ = delta.Uint64()
+	if zt.full {
+		zt.speed = 0
+		for i := 0; i < len(zt.speeds); i++ {
+			zt.speed += zt.speeds[i]
+		}
+		return
+	}
+	if index == len(zt.speeds)-1 {
+		zt.full = true
+	}
+	// calculate average speed
+	var speed float64 // current speed
+	for i := 0; i < index+1; i++ {
+		speed += float64(zt.speeds[i])
+	}
+	zt.speed = uint64(speed / float64(index+1) * float64(len(zt.speeds)))
 }
 
 // Clean is used to send stop signal to watcher.

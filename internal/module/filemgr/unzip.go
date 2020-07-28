@@ -58,7 +58,7 @@ func NewUnZipTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, src, dst string, fil
 	return task.New(TaskNameUnZip, &ut, callbacks)
 }
 
-// Prepare is used to check destination is not exist or a directory.
+// Prepare is used to check destination is not exist or a file.
 func (ut *unZipTask) Prepare(context.Context) error {
 	stats, err := checkSrcDstPath(ut.src, ut.dst)
 	if err != nil {
@@ -103,7 +103,7 @@ func (ut *unZipTask) extractPart(ctx context.Context, task *task.Task) error {
 // Progress is used to get progress about current unzip task.
 //
 // collect: "0%"
-// copy:    "15.22%|current/total|128 MB/s"
+// unzip:   "15.22%|current/total|128 MB/s"
 // finish:  "100%"
 func (ut *unZipTask) Progress() string {
 	ut.rwm.RLock()
