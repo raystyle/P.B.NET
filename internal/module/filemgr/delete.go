@@ -347,6 +347,7 @@ func (dt *deleteTask) updateDetail(detail string) {
 // delete file:
 //   delete file, name: test.dat
 //   path: C:\testdata\test.dat
+//   modify time: 2020-07-27 19:12:17
 func (dt *deleteTask) Detail() string {
 	dt.rwm.RLock()
 	defer dt.rwm.RUnlock()
