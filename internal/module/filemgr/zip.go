@@ -2,16 +2,94 @@ package filemgr
 
 import (
 	"archive/zip"
+	"context"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
+	"github.com/looplab/fsm"
 	"github.com/pkg/errors"
 
+	"project/internal/module/task"
 	"project/internal/system"
 )
+
+// zipTask implement task.Interface that is used to compress files to one zip file.
+// It can pause in progress and get current progress and detail information.
+type zipTask struct {
+	errCtrl  ErrCtrl
+	dst      string // zip file path
+	files    []string
+	filesLen int
+
+	skipDirs []string // store skipped directories
+
+	// about progress, detail and speed
+	current *big.Float
+	total   *big.Float
+	detail  string
+	speed   uint64
+	speeds  [10]uint64
+	full    bool
+	rwm     sync.RWMutex
+
+	// control speed watcher
+	stopSignal chan struct{}
+}
+
+// NewZipTask is used to create a zip task that implement task.Interface.
+// If files is nil, it will create a zip file with empty files.
+func NewZipTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, dst string, files ...string) *task.Task {
+	zt := zipTask{
+		errCtrl:    errCtrl,
+		dst:        dst,
+		files:      files,
+		filesLen:   len(files),
+		current:    big.NewFloat(0),
+		total:      big.NewFloat(0),
+		stopSignal: make(chan struct{}),
+	}
+	return task.New(TaskNameZip, &zt, callbacks)
+}
+
+// Prepare is used to check destination is not exist or a directory.
+func (ut *zipTask) Prepare(context.Context) error {
+	return nil
+}
+
+func (ut *zipTask) Process(ctx context.Context, task *task.Task) error {
+	return nil
+}
+
+func (ut *zipTask) Progress() string {
+	return ""
+}
+
+func (ut *zipTask) Detail() string {
+	ut.rwm.RLock()
+	defer ut.rwm.RUnlock()
+	return ut.detail
+}
+
+// Clean is used to send stop signal to watcher.
+func (ut *zipTask) Clean() {
+	close(ut.stopSignal)
+}
+
+// Zip is used to create a zip task to compress files into a zip file.
+func Zip(errCtrl ErrCtrl, dst string, files ...string) error {
+	return ZipWithContext(context.Background(), errCtrl, dst, files...)
+}
+
+// ZipWithContext is used to create a zip task with context to compress files into a zip file.
+func ZipWithContext(ctx context.Context, errCtrl ErrCtrl, dst string, files ...string) error {
+	zt := NewZipTask(errCtrl, nil, dst, files...)
+	return startTask(ctx, zt, "Zip")
+}
 
 type dirToZipStat struct {
 	srcAbs string

@@ -246,13 +246,13 @@ func (ut *unZipTask) Clean() {
 	close(ut.stopSignal)
 }
 
-// UnZip is used to create a delete task to delete paths.
+// UnZip is used to create a unzip task to extract files from zip file.
 func UnZip(errCtrl ErrCtrl, src, dst string, files ...string) error {
 	return UnZipWithContext(context.Background(), errCtrl, src, dst, files...)
 }
 
-// UnZipWithContext is used to create a delete task with context to delete paths.
+// UnZipWithContext is used to create a unzip task with context to extract files from zip file.
 func UnZipWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string, files ...string) error {
-	dt := NewUnZipTask(errCtrl, nil, src, dst, files...)
-	return startTask(ctx, dt, "UnZip")
+	ut := NewUnZipTask(errCtrl, nil, src, dst, files...)
+	return startTask(ctx, ut, "UnZip")
 }
