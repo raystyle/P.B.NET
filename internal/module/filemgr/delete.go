@@ -274,18 +274,6 @@ retry:
 	return false, nil
 }
 
-func (dt *deleteTask) updateCurrent() {
-	dt.rwm.Lock()
-	defer dt.rwm.Unlock()
-	dt.current.Add(dt.current, deleteDelta)
-}
-
-func (dt *deleteTask) updateTotal() {
-	dt.rwm.Lock()
-	defer dt.rwm.Unlock()
-	dt.total.Add(dt.total, deleteDelta)
-}
-
 // Progress is used to get progress about current delete task.
 //
 // collect: "0%"
@@ -332,10 +320,16 @@ func (dt *deleteTask) Progress() string {
 	return fmt.Sprintf("%s%%|%s/%s|%s file/s", progress, current, total, speed)
 }
 
-func (dt *deleteTask) updateDetail(detail string) {
+func (dt *deleteTask) updateCurrent() {
 	dt.rwm.Lock()
 	defer dt.rwm.Unlock()
-	dt.detail = detail
+	dt.current.Add(dt.current, deleteDelta)
+}
+
+func (dt *deleteTask) updateTotal() {
+	dt.rwm.Lock()
+	defer dt.rwm.Unlock()
+	dt.total.Add(dt.total, deleteDelta)
 }
 
 // Detail is used to get detail about delete task.
@@ -352,6 +346,12 @@ func (dt *deleteTask) Detail() string {
 	dt.rwm.RLock()
 	defer dt.rwm.RUnlock()
 	return dt.detail
+}
+
+func (dt *deleteTask) updateDetail(detail string) {
+	dt.rwm.Lock()
+	defer dt.rwm.Unlock()
+	dt.detail = detail
 }
 
 // watcher is used to calculate current delete speed.

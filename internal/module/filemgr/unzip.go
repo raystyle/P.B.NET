@@ -7,11 +7,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/looplab/fsm"
 
 	"project/internal/convert"
 	"project/internal/module/task"
+	"project/internal/xpanic"
 )
 
 // unZipTask implement task.Interface that is used to extract files from one zip file.
@@ -60,28 +62,6 @@ func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
 	return nil
 }
 
-func (ut *unZipTask) updateCurrent(delta int64, add bool) {
-	ut.rwm.Lock()
-	defer ut.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
-	if add {
-		ut.current.Add(ut.current, d)
-	} else {
-		ut.current.Sub(ut.current, d)
-	}
-}
-
-func (ut *unZipTask) updateTotal(delta int64, add bool) {
-	ut.rwm.Lock()
-	defer ut.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
-	if add {
-		ut.total.Add(ut.total, d)
-	} else {
-		ut.total.Sub(ut.total, d)
-	}
-}
-
 // Progress is used to get progress about current unzip task.
 //
 // collect: "0%"
@@ -128,10 +108,26 @@ func (ut *unZipTask) Progress() string {
 	return fmt.Sprintf("%s%%|%s/%s|%s/s", progress, current, total, speed)
 }
 
-func (ut *unZipTask) updateDetail(detail string) {
+func (ut *unZipTask) updateCurrent(delta int64, add bool) {
 	ut.rwm.Lock()
 	defer ut.rwm.Unlock()
-	ut.detail = detail
+	d := new(big.Float).SetInt64(delta)
+	if add {
+		ut.current.Add(ut.current, d)
+	} else {
+		ut.current.Sub(ut.current, d)
+	}
+}
+
+func (ut *unZipTask) updateTotal(delta int64, add bool) {
+	ut.rwm.Lock()
+	defer ut.rwm.Unlock()
+	d := new(big.Float).SetInt64(delta)
+	if add {
+		ut.total.Add(ut.total, d)
+	} else {
+		ut.total.Sub(ut.total, d)
+	}
 }
 
 // Detail is used to get detail about unzip task.
@@ -148,6 +144,62 @@ func (ut *unZipTask) Detail() string {
 	ut.rwm.RLock()
 	defer ut.rwm.RUnlock()
 	return ut.detail
+}
+
+func (ut *unZipTask) updateDetail(detail string) {
+	ut.rwm.Lock()
+	defer ut.rwm.Unlock()
+	ut.detail = detail
+}
+
+// watcher is used to calculate current copy speed.
+func (ut *unZipTask) watcher() {
+	defer func() {
+		if r := recover(); r != nil {
+			xpanic.Log(r, "unZipTask.watcher")
+		}
+	}()
+	ticker := time.NewTicker(time.Second / time.Duration(len(ut.speeds)))
+	defer ticker.Stop()
+	current := new(big.Float)
+	index := -1
+	for {
+		select {
+		case <-ticker.C:
+			index++
+			if index >= len(ut.speeds) {
+				index = 0
+			}
+			ut.watchSpeed(current, index)
+		case <-ut.stopSignal:
+			return
+		}
+	}
+}
+
+func (ut *unZipTask) watchSpeed(current *big.Float, index int) {
+	ut.rwm.Lock()
+	defer ut.rwm.Unlock()
+	delta := new(big.Float).Sub(ut.current, current)
+	current.Add(current, delta)
+	// update speed
+	ut.speeds[index], _ = delta.Uint64()
+	if ut.full {
+		ut.speed = 0
+		for i := 0; i < len(ut.speeds); i++ {
+			ut.speed += ut.speeds[i]
+		}
+		return
+	}
+	if index == len(ut.speeds)-1 {
+		ut.full = true
+	}
+	// calculate average speed
+	var speed float64 // current speed
+	for i := 0; i < index+1; i++ {
+		speed += float64(ut.speeds[i])
+	}
+	ut.speed = uint64(speed / float64(index+1) * float64(len(ut.speeds)))
 }
 
 // Clean is used to send stop signal to watcher.

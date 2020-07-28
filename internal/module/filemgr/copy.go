@@ -462,28 +462,6 @@ func (ct *copyTask) retryCopyFile(ctx context.Context, task *task.Task, stats *S
 	return ct.copyFile(ctx, task, stats)
 }
 
-func (ct *copyTask) updateCurrent(delta int64, add bool) {
-	ct.rwm.Lock()
-	defer ct.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
-	if add {
-		ct.current.Add(ct.current, d)
-	} else {
-		ct.current.Sub(ct.current, d)
-	}
-}
-
-func (ct *copyTask) updateTotal(delta int64, add bool) {
-	ct.rwm.Lock()
-	defer ct.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
-	if add {
-		ct.total.Add(ct.total, d)
-	} else {
-		ct.total.Sub(ct.total, d)
-	}
-}
-
 // Progress is used to get progress about current copy task.
 //
 // collect: "0%"
@@ -530,10 +508,26 @@ func (ct *copyTask) Progress() string {
 	return fmt.Sprintf("%s%%|%s/%s|%s/s", progress, current, total, speed)
 }
 
-func (ct *copyTask) updateDetail(detail string) {
+func (ct *copyTask) updateCurrent(delta int64, add bool) {
 	ct.rwm.Lock()
 	defer ct.rwm.Unlock()
-	ct.detail = detail
+	d := new(big.Float).SetInt64(delta)
+	if add {
+		ct.current.Add(ct.current, d)
+	} else {
+		ct.current.Sub(ct.current, d)
+	}
+}
+
+func (ct *copyTask) updateTotal(delta int64, add bool) {
+	ct.rwm.Lock()
+	defer ct.rwm.Unlock()
+	d := new(big.Float).SetInt64(delta)
+	if add {
+		ct.total.Add(ct.total, d)
+	} else {
+		ct.total.Sub(ct.total, d)
+	}
 }
 
 // Detail is used to get detail about copy task.
@@ -550,6 +544,12 @@ func (ct *copyTask) Detail() string {
 	ct.rwm.RLock()
 	defer ct.rwm.RUnlock()
 	return ct.detail
+}
+
+func (ct *copyTask) updateDetail(detail string) {
+	ct.rwm.Lock()
+	defer ct.rwm.Unlock()
+	ct.detail = detail
 }
 
 // watcher is used to calculate current copy speed.

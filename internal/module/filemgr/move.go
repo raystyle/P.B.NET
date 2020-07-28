@@ -534,28 +534,6 @@ func (mt *moveTask) retryMoveFile(ctx context.Context, task *task.Task, stats *S
 	return mt.moveFile(ctx, task, stats)
 }
 
-func (mt *moveTask) updateCurrent(delta int64, add bool) {
-	mt.rwm.Lock()
-	defer mt.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
-	if add {
-		mt.current.Add(mt.current, d)
-	} else {
-		mt.current.Sub(mt.current, d)
-	}
-}
-
-func (mt *moveTask) updateTotal(delta int64, add bool) {
-	mt.rwm.Lock()
-	defer mt.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
-	if add {
-		mt.total.Add(mt.total, d)
-	} else {
-		mt.total.Sub(mt.total, d)
-	}
-}
-
 // Progress is used to get progress about current move task.
 //
 // collect: "0%"
@@ -602,10 +580,26 @@ func (mt *moveTask) Progress() string {
 	return fmt.Sprintf("%s%%|%s/%s|%s/s", progress, current, total, speed)
 }
 
-func (mt *moveTask) updateDetail(detail string) {
+func (mt *moveTask) updateCurrent(delta int64, add bool) {
 	mt.rwm.Lock()
 	defer mt.rwm.Unlock()
-	mt.detail = detail
+	d := new(big.Float).SetInt64(delta)
+	if add {
+		mt.current.Add(mt.current, d)
+	} else {
+		mt.current.Sub(mt.current, d)
+	}
+}
+
+func (mt *moveTask) updateTotal(delta int64, add bool) {
+	mt.rwm.Lock()
+	defer mt.rwm.Unlock()
+	d := new(big.Float).SetInt64(delta)
+	if add {
+		mt.total.Add(mt.total, d)
+	} else {
+		mt.total.Sub(mt.total, d)
+	}
 }
 
 // Detail is used to get detail about move task.
@@ -622,6 +616,12 @@ func (mt *moveTask) Detail() string {
 	mt.rwm.RLock()
 	defer mt.rwm.RUnlock()
 	return mt.detail
+}
+
+func (mt *moveTask) updateDetail(detail string) {
+	mt.rwm.Lock()
+	defer mt.rwm.Unlock()
+	mt.detail = detail
 }
 
 // watcher is used to calculate current move speed.
@@ -674,6 +674,7 @@ func (mt *moveTask) watchSpeed(current *big.Float, index int) {
 	mt.speed = uint64(speed / float64(index+1) * float64(len(mt.speeds)))
 }
 
+// Clean is used to send stop signal to watcher.
 func (mt *moveTask) Clean() {
 	close(mt.stopSignal)
 }
