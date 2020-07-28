@@ -96,11 +96,11 @@ func (mt *moveTask) moveSrcFile(ctx context.Context, task *task.Task) error {
 		// "a.exe" -> "C:\ExistDir\a.exe"
 		if mt.stats.DstStat.IsDir() {
 			dstFileName = filepath.Join(mt.stats.DstAbs, srcFileName)
-			stat, err := stat(dstFileName)
+			s, err := stat(dstFileName)
 			if err != nil {
 				return err
 			}
-			dstStat = stat
+			dstStat = s
 		} else {
 			dstFileName = mt.stats.DstAbs
 			dstStat = mt.stats.DstStat

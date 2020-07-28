@@ -95,11 +95,11 @@ func (ct *copyTask) copySrcFile(ctx context.Context, task *task.Task) error {
 		// "a.exe" -> "C:\ExistDir\a.exe"
 		if ct.stats.DstStat.IsDir() {
 			dstFileName = filepath.Join(ct.stats.DstAbs, srcFileName)
-			stat, err := stat(dstFileName)
+			s, err := stat(dstFileName)
 			if err != nil {
 				return err
 			}
-			dstStat = stat
+			dstStat = s
 		} else {
 			dstFileName = ct.stats.DstAbs
 			dstStat = ct.stats.DstStat

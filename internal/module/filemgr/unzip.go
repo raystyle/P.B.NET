@@ -1,6 +1,7 @@
 package filemgr
 
 import (
+	"archive/zip"
 	"context"
 	"fmt"
 	"math/big"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/looplab/fsm"
+	"github.com/pkg/errors"
 
 	"project/internal/convert"
 	"project/internal/module/task"
@@ -20,10 +22,12 @@ import (
 // It can pause in progress and get current progress and detail information.
 type unZipTask struct {
 	errCtrl  ErrCtrl
-	src      string // zip file path
+	src      string // zip file absolute  path
 	dst      string // destination path to store extract files
 	files    []string
 	filesLen int
+
+	skipDirs []string // store skipped directories
 
 	// about progress, detail and speed
 	current *big.Float
@@ -54,11 +58,45 @@ func NewUnZipTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, src, dst string, fil
 	return task.New(TaskNameUnZip, &ut, callbacks)
 }
 
+// Prepare is used to check destination is not exist or a directory.
 func (ut *unZipTask) Prepare(context.Context) error {
+	stats, err := checkSrcDstPath(ut.src, ut.dst)
+	if err != nil {
+		return err
+	}
+	if stats.SrcStat.IsDir() {
+		return errors.Errorf("source path %s is a directory", stats.SrcAbs)
+	}
+	if stats.DstStat != nil && !stats.DstStat.IsDir() {
+		return errors.Errorf("destination path %s is a file", stats.DstAbs)
+	}
+	ut.src = stats.SrcAbs
+	ut.dst = stats.DstAbs
+	go ut.watcher()
 	return nil
 }
 
 func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
+	defer ut.updateDetail("finished")
+	// open and read zip file
+	ut.updateDetail("open zip file")
+	zipFile, err := zip.OpenReader(ut.src)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = zipFile.Close() }()
+	if ut.filesLen == 0 {
+		return ut.extractAll(ctx, task)
+	}
+	return ut.extractPart(ctx, task)
+}
+
+func (ut *unZipTask) extractAll(ctx context.Context, task *task.Task) error {
+
+	return nil
+}
+
+func (ut *unZipTask) extractPart(ctx context.Context, task *task.Task) error {
 	return nil
 }
 
@@ -131,7 +169,8 @@ func (ut *unZipTask) updateTotal(delta int64, add bool) {
 }
 
 // Detail is used to get detail about unzip task.
-//
+// open zip file:
+//   open zip file
 // collect file info:
 //   collect file information
 //   path: testdata/test.dat
@@ -207,12 +246,12 @@ func (ut *unZipTask) Clean() {
 	close(ut.stopSignal)
 }
 
-// Delete is used to create a delete task to delete paths.
+// UnZip is used to create a delete task to delete paths.
 func UnZip(errCtrl ErrCtrl, src, dst string, files ...string) error {
 	return UnZipWithContext(context.Background(), errCtrl, src, dst, files...)
 }
 
-// DeleteWithContext is used to create a delete task with context to delete paths.
+// UnZipWithContext is used to create a delete task with context to delete paths.
 func UnZipWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string, files ...string) error {
 	dt := NewUnZipTask(errCtrl, nil, src, dst, files...)
 	return startTask(ctx, dt, "UnZip")

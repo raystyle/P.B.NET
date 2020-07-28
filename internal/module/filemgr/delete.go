@@ -66,6 +66,9 @@ func (dt *deleteTask) Prepare(context.Context) error {
 	paths := make(map[string]struct{}, dt.srcLen)
 	var dir string
 	for i := 0; i < dt.srcLen; i++ {
+		if dt.src[i] == "" {
+			return errors.New("appear empty path in source paths")
+		}
 		// make sure all source path is absolute
 		srcAbs, err := filepath.Abs(dt.src[i])
 		if err != nil {
