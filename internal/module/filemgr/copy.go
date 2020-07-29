@@ -45,6 +45,7 @@ type copyTask struct {
 }
 
 // NewCopyTask is used to create a copy task that implement task.Interface.
+// Files must in the same directory.
 func NewCopyTask(errCtrl ErrCtrl, src, dst string, callbacks fsm.Callbacks) *task.Task {
 	ct := copyTask{
 		errCtrl:    errCtrl,

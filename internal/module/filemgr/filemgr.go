@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -86,6 +87,28 @@ func stat(name string) (os.FileInfo, error) {
 		}
 	}
 	return stat, nil
+}
+
+// isRoot is used to check path is root directory.
+func isRoot(path string) bool {
+	if path == "/" {
+		return true
+	}
+	if filepath.VolumeName(path)+":\\" == path {
+		return true
+	}
+	return false
+}
+
+// isSub is used to check path a is sub path in b and reverse.
+func isSub(a, b string) error {
+	if strings.HasPrefix(a, b) {
+		return errors.Errorf("\"%s\" is sub path in \"%s\"", a, b)
+	}
+	if strings.HasPrefix(b, a) {
+		return errors.Errorf("\"%s\" is sub path in \"%s\"", b, a)
+	}
+	return nil
 }
 
 // SrcDstStat contains absolute path and file stat about src and dst.

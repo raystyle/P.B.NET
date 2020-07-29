@@ -46,6 +46,7 @@ type moveTask struct {
 }
 
 // NewMoveTask is used to create a move task that implement task.Interface.
+// Files must in the same directory.
 func NewMoveTask(errCtrl ErrCtrl, src, dst string, callbacks fsm.Callbacks) *task.Task {
 	mt := moveTask{
 		errCtrl:    errCtrl,

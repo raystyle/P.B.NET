@@ -24,7 +24,7 @@ import (
 // directory. It can pause in progress and get current progress and detail information.
 type deleteTask struct {
 	errCtrl ErrCtrl
-	src     []string
+	src     []string // absolute path that will be deleted
 	srcLen  int
 
 	roots    []*file          // store all directories and files will delete
@@ -62,9 +62,9 @@ func (dt *deleteTask) Prepare(context.Context) error {
 	if dt.srcLen == 0 {
 		return errors.New("empty path")
 	}
-	// check path is exists
+	// check path is valid
 	paths := make(map[string]struct{}, dt.srcLen)
-	var dir string
+	var basePath string
 	for i := 0; i < dt.srcLen; i++ {
 		if dt.src[i] == "" {
 			return errors.New("appear empty path in source paths")
@@ -77,18 +77,26 @@ func (dt *deleteTask) Prepare(context.Context) error {
 		dt.src[i] = srcAbs
 		if i == 0 {
 			paths[srcAbs] = struct{}{}
-			dir = filepath.Dir(srcAbs)
+			basePath = filepath.Dir(srcAbs)
 			continue
 		}
+		// check file path is already exists
 		_, ok := paths[srcAbs]
 		if ok {
-			const format = "appear the same path \"%s\""
-			return errors.Errorf(format, srcAbs)
+			return errors.Errorf("appear the same path \"%s\"", srcAbs)
 		}
-		d := filepath.Dir(srcAbs)
-		if d != dir {
+		// compare directory is same
+		dir := filepath.Dir(srcAbs)
+		if dir != basePath {
 			const format = "split directory about source \"%s\" is different with \"%s\""
 			return errors.Errorf(format, srcAbs, dt.src[0])
+		}
+		// check path is sub path for prevent special(C:\, C:\sub || C:\sub, C:\)
+		for path := range paths {
+			err = isSub(srcAbs, path)
+			if err != nil {
+				return err
+			}
 		}
 		paths[srcAbs] = struct{}{}
 	}

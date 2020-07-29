@@ -116,6 +116,10 @@ func testPatchTaskCanceled() *monkey.PatchGuard {
 	return monkey.PatchInstanceMethod(t, "Canceled", patch)
 }
 
+func TestIsRoot(t *testing.T) {
+
+}
+
 const mockTaskName = "mock task"
 
 type mockTask struct{}
