@@ -128,9 +128,14 @@ func (dt *deleteTask) collectPathInfo(ctx context.Context, task *task.Task, i in
 	)
 	walkFunc := func(path string, stat os.FileInfo, err error) error {
 		if err != nil {
+			ps := noticePs{
+				ctx:     ctx,
+				task:    task,
+				errCtrl: dt.errCtrl,
+			}
 			const format = "failed to walk \"%s\" in \"%s\": %s"
 			err = fmt.Errorf(format, path, srcPath, err)
-			skip, ne := noticeFailedToCollect(ctx, task, dt.errCtrl, path, err)
+			skip, ne := noticeFailedToCollect(&ps, path, err)
 			if skip {
 				return filepath.SkipDir
 			}
@@ -269,7 +274,12 @@ retry:
 	// delete file
 	err := os.Remove(file.path)
 	if err != nil {
-		retry, ne := noticeFailedToDelete(ctx, task, dt.errCtrl, file.path, err)
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: dt.errCtrl,
+		}
+		retry, ne := noticeFailedToDelete(&ps, file.path, err)
 		if retry {
 			goto retry
 		}

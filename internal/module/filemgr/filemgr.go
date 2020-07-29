@@ -28,12 +28,6 @@ const (
 // err and fileStat in stats maybe nil.
 type ErrCtrl func(ctx context.Context, typ uint8, err error, stats *SrcDstStat) uint8
 
-type file struct {
-	path  string // abs
-	stat  os.FileInfo
-	files []*file
-}
-
 // errors about ErrCtrl
 const (
 	_                    uint8 = iota
@@ -72,6 +66,7 @@ var (
 	}
 )
 
+// for calculate task progress
 var (
 	zeroFloat   = big.NewFloat(0)
 	deleteDelta = big.NewFloat(1)
@@ -86,19 +81,6 @@ func stat(name string) (os.FileInfo, error) {
 		}
 	}
 	return stat, nil
-}
-
-// isRoot is used to check path is root directory.
-func isRoot(path string) bool {
-	switch path {
-	case "/", "\\": // Unix
-		return true
-	case filepath.VolumeName(path) + "\\": // Windows: C:\
-		return true
-	case filepath.VolumeName(path): // UNC: \\host\share
-		return true
-	}
-	return false
 }
 
 // SrcDstStat contains absolute path and file stat about src and dst.
@@ -158,24 +140,45 @@ func checkSrcDstPath(src, dst string) (*SrcDstStat, error) {
 	}, nil
 }
 
+// isRoot is used to check path is root directory.
+func isRoot(path string) bool {
+	switch path {
+	case "/", "\\": // Unix
+		return true
+	case filepath.VolumeName(path) + "\\": // Windows: C:\
+		return true
+	case filepath.VolumeName(path): // UNC: \\host\share
+		return true
+	}
+	return false
+}
+
+type file struct {
+	path  string // absolute
+	stat  os.FileInfo
+	files []*file
+}
+
 type fileStat struct {
-	path string // abs
+	path string // absolute
 	stat os.FileInfo
+}
+
+// noticePs contains three parameters about notice function.
+type noticePs struct {
+	ctx     context.Context
+	task    *task.Task
+	errCtrl ErrCtrl
 }
 
 // ErrUserCanceled is an error about user cancel task.
 var ErrUserCanceled = fmt.Errorf("user canceled")
 
 // noticeSameFile is used to notice appear same name file.
-func noticeSameFile(
-	ctx context.Context,
-	task *task.Task,
-	errCtrl ErrCtrl,
-	stats *SrcDstStat,
-) (replace bool, err error) {
-	task.Pause()
-	defer task.Continue()
-	switch code := errCtrl(ctx, ErrCtrlSameFile, nil, stats); code {
+func noticeSameFile(ps *noticePs, stats *SrcDstStat) (replace bool, err error) {
+	ps.task.Pause()
+	defer ps.task.Continue()
+	switch code := ps.errCtrl(ps.ctx, ErrCtrlSameFile, nil, stats); code {
 	case ErrCtrlOpReplace:
 		replace = true
 	case ErrCtrlOpSkip:
@@ -188,15 +191,10 @@ func noticeSameFile(
 }
 
 // noticeSameFileDir is used to notice appear same name about src file and dst dir.
-func noticeSameFileDir(
-	ctx context.Context,
-	task *task.Task,
-	errCtrl ErrCtrl,
-	stats *SrcDstStat,
-) (retry bool, err error) {
-	task.Pause()
-	defer task.Continue()
-	switch code := errCtrl(ctx, ErrCtrlSameFileDir, nil, stats); code {
+func noticeSameFileDir(ps *noticePs, stats *SrcDstStat) (retry bool, err error) {
+	ps.task.Pause()
+	defer ps.task.Continue()
+	switch code := ps.errCtrl(ps.ctx, ErrCtrlSameFileDir, nil, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpSkip:
@@ -209,15 +207,10 @@ func noticeSameFileDir(
 }
 
 // noticeSameDirFile is used to notice appear same name about src dir and dst file.
-func noticeSameDirFile(
-	ctx context.Context,
-	task *task.Task,
-	errCtrl ErrCtrl,
-	stats *SrcDstStat,
-) (retry bool, err error) {
-	task.Pause()
-	defer task.Continue()
-	switch code := errCtrl(ctx, ErrCtrlSameDirFile, nil, stats); code {
+func noticeSameDirFile(ps *noticePs, stats *SrcDstStat) (retry bool, err error) {
+	ps.task.Pause()
+	defer ps.task.Continue()
+	switch code := ps.errCtrl(ps.ctx, ErrCtrlSameDirFile, nil, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpSkip:
@@ -231,17 +224,11 @@ func noticeSameDirFile(
 
 // noticeFailedToCollect is used to notice appear some error in collectDirInfo.
 // stats to errCtrl can only get SrcAbs.
-func noticeFailedToCollect(
-	ctx context.Context,
-	task *task.Task,
-	errCtrl ErrCtrl,
-	path string,
-	extError error,
-) (skip bool, err error) {
-	task.Pause()
-	defer task.Continue()
+func noticeFailedToCollect(ps *noticePs, path string, extError error) (skip bool, err error) {
+	ps.task.Pause()
+	defer ps.task.Continue()
 	stats := SrcDstStat{SrcAbs: path}
-	switch code := errCtrl(ctx, ErrCtrlCollectFailed, extError, &stats); code {
+	switch code := ps.errCtrl(ps.ctx, ErrCtrlCollectFailed, extError, &stats); code {
 	case ErrCtrlOpSkip:
 		skip = true
 	case ErrCtrlOpCancel:
@@ -254,16 +241,10 @@ func noticeFailedToCollect(
 
 // noticeFailedToCopyDir is used to notice appear some error about copyDirFile.
 // stats.DstStat maybe nil.
-func noticeFailedToCopyDir(
-	ctx context.Context,
-	task *task.Task,
-	errCtrl ErrCtrl,
-	stats *SrcDstStat,
-	extError error,
-) (retry bool, err error) {
-	task.Pause()
-	defer task.Continue()
-	switch code := errCtrl(ctx, ErrCtrlCopyDirFailed, extError, stats); code {
+func noticeFailedToCopyDir(ps *noticePs, stats *SrcDstStat, extError error) (retry bool, err error) {
+	ps.task.Pause()
+	defer ps.task.Continue()
+	switch code := ps.errCtrl(ps.ctx, ErrCtrlCopyDirFailed, extError, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpSkip:
@@ -277,16 +258,10 @@ func noticeFailedToCopyDir(
 
 // noticeFailedToCopy is used to notice appear some error about copy.
 // stats.DstStat maybe nil.
-func noticeFailedToCopy(
-	ctx context.Context,
-	task *task.Task,
-	errCtrl ErrCtrl,
-	stats *SrcDstStat,
-	extError error,
-) (retry bool, err error) {
-	task.Pause()
-	defer task.Continue()
-	switch code := errCtrl(ctx, ErrCtrlCopyFailed, extError, stats); code {
+func noticeFailedToCopy(ps *noticePs, stats *SrcDstStat, extError error) (retry bool, err error) {
+	ps.task.Pause()
+	defer ps.task.Continue()
+	switch code := ps.errCtrl(ps.ctx, ErrCtrlCopyFailed, extError, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpSkip:
@@ -300,16 +275,10 @@ func noticeFailedToCopy(
 
 // noticeFailedToMoveDir is used to notice appear some error about moveDirFile.
 // stats.DstStat maybe nil.
-func noticeFailedToMoveDir(
-	ctx context.Context,
-	task *task.Task,
-	errCtrl ErrCtrl,
-	stats *SrcDstStat,
-	extError error,
-) (retry bool, err error) {
-	task.Pause()
-	defer task.Continue()
-	switch code := errCtrl(ctx, ErrCtrlMoveDirFailed, extError, stats); code {
+func noticeFailedToMoveDir(ps *noticePs, stats *SrcDstStat, extError error) (retry bool, err error) {
+	ps.task.Pause()
+	defer ps.task.Continue()
+	switch code := ps.errCtrl(ps.ctx, ErrCtrlMoveDirFailed, extError, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpSkip:
@@ -323,16 +292,10 @@ func noticeFailedToMoveDir(
 
 // noticeFailedToMove is used to notice appear some error about move.
 // stats.DstStat maybe nil.
-func noticeFailedToMove(
-	ctx context.Context,
-	task *task.Task,
-	errCtrl ErrCtrl,
-	stats *SrcDstStat,
-	extError error,
-) (retry bool, err error) {
-	task.Pause()
-	defer task.Continue()
-	switch code := errCtrl(ctx, ErrCtrlMoveFailed, extError, stats); code {
+func noticeFailedToMove(ps *noticePs, stats *SrcDstStat, extError error) (retry bool, err error) {
+	ps.task.Pause()
+	defer ps.task.Continue()
+	switch code := ps.errCtrl(ps.ctx, ErrCtrlMoveFailed, extError, stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpSkip:
@@ -346,17 +309,11 @@ func noticeFailedToMove(
 
 // noticeFailedToDelete is used to notice appear some error about delete.
 // stats to errCtrl can only get SrcAbs.
-func noticeFailedToDelete(
-	ctx context.Context,
-	task *task.Task,
-	errCtrl ErrCtrl,
-	path string,
-	extError error,
-) (retry bool, err error) {
-	task.Pause()
-	defer task.Continue()
+func noticeFailedToDelete(ps *noticePs, path string, extError error) (retry bool, err error) {
+	ps.task.Pause()
+	defer ps.task.Continue()
 	stats := SrcDstStat{SrcAbs: path}
-	switch code := errCtrl(ctx, ErrCtrlDeleteFailed, extError, &stats); code {
+	switch code := ps.errCtrl(ps.ctx, ErrCtrlDeleteFailed, extError, &stats); code {
 	case ErrCtrlOpRetry:
 		retry = true
 	case ErrCtrlOpSkip:

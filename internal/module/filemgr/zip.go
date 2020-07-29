@@ -147,9 +147,14 @@ func (zt *zipTask) collectPathInfo(ctx context.Context, task *task.Task, i int) 
 	srcPath := zt.paths[i]
 	walkFunc := func(path string, stat os.FileInfo, err error) error {
 		if err != nil {
+			ps := noticePs{
+				ctx:     ctx,
+				task:    task,
+				errCtrl: zt.errCtrl,
+			}
 			const format = "failed to walk \"%s\" in \"%s\": %s"
 			err = fmt.Errorf(format, path, srcPath, err)
-			skip, ne := noticeFailedToCollect(ctx, task, zt.errCtrl, path, err)
+			skip, ne := noticeFailedToCollect(&ps, path, err)
 			if skip {
 				return filepath.SkipDir
 			}

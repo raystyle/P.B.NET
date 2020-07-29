@@ -151,9 +151,14 @@ func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 	ct.files = make([]*fileStat, 0, 64)
 	walkFunc := func(srcAbs string, srcStat os.FileInfo, err error) error {
 		if err != nil {
+			ps := noticePs{
+				ctx:     ctx,
+				task:    task,
+				errCtrl: ct.errCtrl,
+			}
 			const format = "failed to walk \"%s\" in \"%s\": %s"
 			err = fmt.Errorf(format, srcAbs, ct.stats.SrcAbs, err)
-			skip, ne := noticeFailedToCollect(ctx, task, ct.errCtrl, srcAbs, err)
+			skip, ne := noticeFailedToCollect(&ps, srcAbs, err)
 			if skip {
 				return filepath.SkipDir
 			}
@@ -239,7 +244,12 @@ retry:
 	// dstStat maybe updated
 	dstStat, err := stat(dstAbs)
 	if err != nil {
-		retry, ne := noticeFailedToCopyDir(ctx, task, ct.errCtrl, stats, err)
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: ct.errCtrl,
+		}
+		retry, ne := noticeFailedToCopyDir(&ps, stats, err)
 		if retry {
 			goto retry
 		}
@@ -259,7 +269,12 @@ retry:
 			return ct.mkdir(ctx, task, stats)
 		}
 		if !dstStat.IsDir() {
-			retry, ne := noticeSameDirFile(ctx, task, ct.errCtrl, stats)
+			ps := noticePs{
+				ctx:     ctx,
+				task:    task,
+				errCtrl: ct.errCtrl,
+			}
+			retry, ne := noticeSameDirFile(&ps, stats)
 			if retry {
 				goto retry
 			}
@@ -282,7 +297,12 @@ retry:
 	// check src directory is become file
 	srcStat, err := os.Stat(stats.SrcAbs)
 	if err != nil {
-		retry, ne := noticeFailedToCopyDir(ctx, task, ct.errCtrl, stats, err)
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: ct.errCtrl,
+		}
+		retry, ne := noticeFailedToCopyDir(&ps, stats, err)
 		if retry {
 			goto retry
 		}
@@ -293,8 +313,13 @@ retry:
 		return nil
 	}
 	if !srcStat.IsDir() {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: ct.errCtrl,
+		}
 		err = errors.New("source directory become file")
-		retry, ne := noticeFailedToCopyDir(ctx, task, ct.errCtrl, stats, err)
+		retry, ne := noticeFailedToCopyDir(&ps, stats, err)
 		if retry {
 			goto retry
 		}
@@ -307,7 +332,12 @@ retry:
 	// create directory
 	err = os.Mkdir(stats.DstAbs, srcStat.Mode().Perm())
 	if err != nil {
-		retry, ne := noticeFailedToCopyDir(ctx, task, ct.errCtrl, stats, err)
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: ct.errCtrl,
+		}
+		retry, ne := noticeFailedToCopyDir(&ps, stats, err)
 		if retry {
 			goto retry
 		}
@@ -326,7 +356,12 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *SrcDst
 	// check src file is become directory
 	srcStat, err := os.Stat(stats.SrcAbs)
 	if err != nil {
-		retry, ne := noticeFailedToCopy(ctx, task, ct.errCtrl, stats, err)
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: ct.errCtrl,
+		}
+		retry, ne := noticeFailedToCopy(&ps, stats, err)
 		if retry {
 			return ct.retryCopyFile(ctx, task, stats)
 		}
@@ -337,8 +372,13 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *SrcDst
 		return nil
 	}
 	if srcStat.IsDir() {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: ct.errCtrl,
+		}
 		err = errors.New("source file become directory")
-		retry, ne := noticeFailedToCopy(ctx, task, ct.errCtrl, stats, err)
+		retry, ne := noticeFailedToCopy(&ps, stats, err)
 		if retry {
 			return ct.retryCopyFile(ctx, task, stats)
 		}
@@ -358,15 +398,20 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *SrcDst
 	ct.updateDetail(fmt.Sprintf(format, srcFileName, srcSize, stats.SrcAbs, stats.DstAbs))
 	// check dst file is exist
 	if stats.DstStat != nil {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: ct.errCtrl,
+		}
 		if stats.DstStat.IsDir() {
-			retry, err := noticeSameFileDir(ctx, task, ct.errCtrl, stats)
+			retry, err := noticeSameFileDir(&ps, stats)
 			if retry {
 				return ct.retryCopyFile(ctx, task, stats)
 			}
 			ct.updateCurrent(stats.SrcStat.Size(), true)
 			return err
 		}
-		replace, err := noticeSameFile(ctx, task, ct.errCtrl, stats)
+		replace, err := noticeSameFile(&ps, stats)
 		if !replace {
 			ct.updateCurrent(stats.SrcStat.Size(), true)
 			return err
@@ -382,8 +427,13 @@ func (ct *copyTask) ioCopy(ctx context.Context, task *task.Task, stats *SrcDstSt
 		if err != nil && err != context.Canceled {
 			// reset current progress
 			ct.updateCurrent(copied, false)
+			ps := noticePs{
+				ctx:     ctx,
+				task:    task,
+				errCtrl: ct.errCtrl,
+			}
 			var retry bool
-			retry, err = noticeFailedToCopy(ctx, task, ct.errCtrl, stats, err)
+			retry, err = noticeFailedToCopy(&ps, stats, err)
 			if retry {
 				err = ct.retryCopyFile(ctx, task, stats)
 			} else if err == nil { // skipped

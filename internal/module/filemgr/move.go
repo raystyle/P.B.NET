@@ -156,9 +156,14 @@ func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 	)
 	walkFunc := func(srcAbs string, srcStat os.FileInfo, err error) error {
 		if err != nil {
+			ps := noticePs{
+				ctx:     ctx,
+				task:    task,
+				errCtrl: mt.errCtrl,
+			}
 			const format = "failed to walk \"%s\" in \"%s\": %s"
 			err = fmt.Errorf(format, srcAbs, mt.stats.SrcAbs, err)
-			skip, ne := noticeFailedToCollect(ctx, task, mt.errCtrl, srcAbs, err)
+			skip, ne := noticeFailedToCollect(&ps, srcAbs, err)
 			if skip {
 				return filepath.SkipDir
 			}
@@ -290,7 +295,12 @@ retry:
 	// check destination directory is exist
 	dstStat, err := stat(dstAbs)
 	if err != nil {
-		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, nil, err) // TODO stats
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: mt.errCtrl,
+		}
+		retry, ne := noticeFailedToMoveDir(&ps, nil, err) // TODO stats
 		if retry {
 			goto retry
 		}
@@ -304,13 +314,18 @@ retry:
 		if dstStat.IsDir() {
 			return nil
 		}
-		stats := &SrcDstStat{
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: mt.errCtrl,
+		}
+		stats := SrcDstStat{
 			SrcAbs:  dir.path,
 			DstAbs:  dstAbs,
 			SrcStat: dir.stat,
 			DstStat: dstStat,
 		}
-		retry, ne := noticeSameDirFile(ctx, task, mt.errCtrl, stats)
+		retry, ne := noticeSameDirFile(&ps, &stats)
 		if retry {
 			goto retry
 		}
@@ -322,7 +337,12 @@ retry:
 	}
 	err = os.Mkdir(dstAbs, dir.stat.Mode().Perm())
 	if err != nil {
-		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, nil, err) // TODO stats
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: mt.errCtrl,
+		}
+		retry, ne := noticeFailedToMoveDir(&ps, nil, err) // TODO stats
 		if retry {
 			goto retry
 		}
@@ -357,7 +377,12 @@ retry:
 	// dstStat maybe updated
 	dstStat, err := stat(dstAbs)
 	if err != nil {
-		retry, ne := noticeFailedToMoveDir(ctx, task, mt.errCtrl, nil, err) // TODO stats
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: mt.errCtrl,
+		}
+		retry, ne := noticeFailedToMoveDir(&ps, nil, err) // TODO stats
 		if retry {
 			goto retry
 		}
@@ -384,7 +409,12 @@ func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, stats *SrcDst
 	// check src file is become directory
 	srcStat, err := os.Stat(stats.SrcAbs)
 	if err != nil {
-		retry, ne := noticeFailedToMove(ctx, task, mt.errCtrl, stats, err)
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: mt.errCtrl,
+		}
+		retry, ne := noticeFailedToMove(&ps, stats, err)
 		if retry {
 			return mt.retryMoveFile(ctx, task, stats)
 		}
@@ -395,8 +425,13 @@ func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, stats *SrcDst
 		return true, nil
 	}
 	if srcStat.IsDir() {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: mt.errCtrl,
+		}
 		err = errors.New("source file become directory")
-		retry, ne := noticeFailedToMove(ctx, task, mt.errCtrl, stats, err)
+		retry, ne := noticeFailedToMove(&ps, stats, err)
 		if retry {
 			return mt.retryMoveFile(ctx, task, stats)
 		}
@@ -416,8 +451,13 @@ func (mt *moveTask) ioMove(ctx context.Context, task *task.Task, stats *SrcDstSt
 		if err != nil && err != context.Canceled {
 			// reset current progress
 			mt.updateCurrent(moved, false)
+			ps := noticePs{
+				ctx:     ctx,
+				task:    task,
+				errCtrl: mt.errCtrl,
+			}
 			var retry bool
-			retry, err = noticeFailedToMove(ctx, task, mt.errCtrl, stats, err)
+			retry, err = noticeFailedToMove(&ps, stats, err)
 			if retry {
 				skipped, err = mt.retryMoveFile(ctx, task, stats)
 			} else if err == nil { // skipped
