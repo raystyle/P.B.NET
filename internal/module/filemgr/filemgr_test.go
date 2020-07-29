@@ -117,7 +117,12 @@ func testPatchTaskCanceled() *monkey.PatchGuard {
 }
 
 func TestIsRoot(t *testing.T) {
-
+	for _, path := range [...]string{
+		"/", "\\", "C:\\", "\\\\host\\share",
+	} {
+		require.True(t, isRoot(path))
+	}
+	require.False(t, isRoot("C:\\test.dat"))
 }
 
 const mockTaskName = "mock task"

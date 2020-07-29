@@ -26,12 +26,14 @@ import (
 // It can pause in progress and get current progress and detail information.
 type zipTask struct {
 	errCtrl  ErrCtrl
-	dst      string   // zip file absolute path that be created
-	files    []string // absolute path that will be compressed
-	filesLen int
+	zipPath  string   // zip file absolute path that be created
+	paths    []string // absolute path that will be compressed
+	pathsLen int
 
-	basePath string   // for filepath.Rel() in Process
-	skipDirs []string // store skipped directories
+	zipWriter *zip.Writer
+	basePath  string      // for filepath.Rel() in Process
+	files     []*fileStat // store all files stats that will be compressed
+	skipDirs  []string    // store skipped directories
 
 	// about progress, detail and speed
 	current *big.Float
@@ -49,12 +51,12 @@ type zipTask struct {
 // NewZipTask is used to create a zip task that implement task.Interface.
 // If files is nil, it will create a zip file with empty file.
 // Files must in the same directory.
-func NewZipTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, dst string, files ...string) *task.Task {
+func NewZipTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, zipPath string, paths ...string) *task.Task {
 	zt := zipTask{
 		errCtrl:    errCtrl,
-		dst:        dst,
-		files:      files,
-		filesLen:   len(files),
+		zipPath:    zipPath,
+		paths:      paths,
+		pathsLen:   len(paths),
 		current:    big.NewFloat(0),
 		total:      big.NewFloat(0),
 		stopSignal: make(chan struct{}),
@@ -63,11 +65,9 @@ func NewZipTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, dst string, files ...s
 }
 
 // Prepare is used to check destination file path is not exist.
-// C:\asd\asd
-// C:\
 func (zt *zipTask) Prepare(context.Context) error {
 	// check destination path
-	dstAbs, err := filepath.Abs(zt.dst)
+	dstAbs, err := filepath.Abs(zt.zipPath)
 	if err != nil {
 		return errors.Wrap(err, "failed to get absolute file path")
 	}
@@ -78,27 +78,31 @@ func (zt *zipTask) Prepare(context.Context) error {
 	if dstStat != nil {
 		return errors.Errorf("destination path %s is already exists", dstAbs)
 	}
-	zt.dst = dstAbs
+	zt.zipPath = dstAbs
 	// check files
-	if zt.filesLen == 0 {
+	if zt.pathsLen == 0 {
 		return errors.New("empty path")
 	}
 	// check path is valid
-	paths := make(map[string]struct{}, zt.filesLen)
-	for i := 0; i < zt.filesLen; i++ {
-		if zt.files[i] == "" {
+	paths := make(map[string]struct{}, zt.pathsLen)
+	for i := 0; i < zt.pathsLen; i++ {
+		if zt.paths[i] == "" {
 			return errors.New("appear empty path in source path")
 		}
 		// make sure all source path is absolute
-		absPath, err := filepath.Abs(zt.files[i])
+		absPath, err := filepath.Abs(zt.paths[i])
 		if err != nil {
 			return errors.Wrap(err, "failed to get absolute file path")
 		}
-		zt.files[i] = absPath
+		zt.paths[i] = absPath
 		if i == 0 {
 			paths[absPath] = struct{}{}
 			zt.basePath = filepath.Dir(absPath)
 			continue
+		}
+		// only exist one root path
+		if isRoot(absPath) {
+			return errors.Errorf("appear root path \"%s\"", absPath)
 		}
 		// check file path is already exists
 		_, ok := paths[absPath]
@@ -109,23 +113,71 @@ func (zt *zipTask) Prepare(context.Context) error {
 		dir := filepath.Dir(absPath)
 		if dir != zt.basePath {
 			const format = "split directory about source \"%s\" is different with \"%s\""
-			return errors.Errorf(format, absPath, zt.files[0])
-		}
-		// check path is sub path for prevent special(C:\, C:\sub || C:\sub, C:\)
-		for path := range paths {
-			err = isSub(absPath, path)
-			if err != nil {
-				return err
-			}
+			return errors.Errorf(format, absPath, zt.paths[0])
 		}
 		paths[absPath] = struct{}{}
 	}
+	zt.files = make([]*fileStat, 0, 64)
 	go zt.watcher()
 	return nil
 }
 
 func (zt *zipTask) Process(ctx context.Context, task *task.Task) error {
-	return nil
+	defer zt.updateDetail("finished")
+	// must collect files information because the zip file in the same path
+	for i := 0; i < zt.pathsLen; i++ {
+		err := zt.collectPathInfo(ctx, task, i)
+		if err != nil {
+			return err
+		}
+	}
+	// create zip file
+	zipFile, err := system.OpenFile(zt.zipPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return errors.Wrap(err, "failed to create zip file")
+	}
+	defer func() { _ = zipFile.Close() }()
+	zt.zipWriter = zip.NewWriter(zipFile)
+	// compress files
+
+	return zipFile.Sync()
+}
+
+func (zt *zipTask) collectPathInfo(ctx context.Context, task *task.Task, i int) error {
+	srcPath := zt.paths[i]
+	walkFunc := func(path string, stat os.FileInfo, err error) error {
+		if err != nil {
+			const format = "failed to walk \"%s\" in \"%s\": %s"
+			err = fmt.Errorf(format, path, srcPath, err)
+			skip, ne := noticeFailedToCollect(ctx, task, zt.errCtrl, path, err)
+			if skip {
+				return filepath.SkipDir
+			}
+			return ne
+		}
+		if task.Canceled() {
+			return context.Canceled
+		}
+		zt.files = append(zt.files, &fileStat{
+			path: path,
+			stat: stat,
+		})
+		// update detail and total size
+		if stat.IsDir() {
+			// collect directory information
+			// path: C:\testdata\test
+			const format = "collect directory information\npath: %s"
+			zt.updateDetail(fmt.Sprintf(format, path))
+			return nil
+		}
+		// collect file information
+		// path: C:\testdata\test.dat
+		const format = "collect file information\npath: %s"
+		zt.updateDetail(fmt.Sprintf(format, path))
+		zt.updateTotal(stat.Size(), true)
+		return nil
+	}
+	return filepath.Walk(srcPath, walkFunc)
 }
 
 // Progress is used to get progress about current zip task.
@@ -197,7 +249,7 @@ func (zt *zipTask) updateTotal(delta int64, add bool) {
 }
 
 // Detail is used to get detail about zip task.
-// collect file info:
+// collect file or directory info:
 //   collect file information
 //   path: testdata/test.dat
 //
@@ -273,13 +325,13 @@ func (zt *zipTask) Clean() {
 }
 
 // Zip is used to create a zip task to compress files into a zip file.
-func Zip(errCtrl ErrCtrl, dst string, files ...string) error {
-	return ZipWithContext(context.Background(), errCtrl, dst, files...)
+func Zip(errCtrl ErrCtrl, zipPath string, paths ...string) error {
+	return ZipWithContext(context.Background(), errCtrl, zipPath, paths...)
 }
 
 // ZipWithContext is used to create a zip task with context to compress files into a zip file.
-func ZipWithContext(ctx context.Context, errCtrl ErrCtrl, dst string, files ...string) error {
-	zt := NewZipTask(errCtrl, nil, dst, files...)
+func ZipWithContext(ctx context.Context, errCtrl ErrCtrl, zipPath string, paths ...string) error {
+	zt := NewZipTask(errCtrl, nil, zipPath, paths...)
 	return startTask(ctx, zt, "Zip")
 }
 

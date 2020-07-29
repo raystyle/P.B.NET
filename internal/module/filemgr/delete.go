@@ -23,9 +23,9 @@ import (
 // deleteTask is implement task.Interface that is used to delete file or files in one
 // directory. It can pause in progress and get current progress and detail information.
 type deleteTask struct {
-	errCtrl ErrCtrl
-	src     []string // absolute path that will be deleted
-	srcLen  int
+	errCtrl  ErrCtrl
+	paths    []string // absolute path that will be deleted
+	pathsLen int
 
 	roots    []*file          // store all directories and files will delete
 	dirs     map[string]*file // for search dir faster, key is path
@@ -45,11 +45,11 @@ type deleteTask struct {
 }
 
 // NewDeleteTask is used to create a delete task that implement task.Interface.
-func NewDeleteTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, src ...string) *task.Task {
+func NewDeleteTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, paths ...string) *task.Task {
 	dt := deleteTask{
 		errCtrl:    errCtrl,
-		src:        src,
-		srcLen:     len(src),
+		paths:      paths,
+		pathsLen:   len(paths),
 		current:    big.NewFloat(0),
 		total:      big.NewFloat(0),
 		stopSignal: make(chan struct{}),
@@ -59,62 +59,59 @@ func NewDeleteTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, src ...string) *tas
 
 // Prepare is used to check directory about source paths is same.
 func (dt *deleteTask) Prepare(context.Context) error {
-	if dt.srcLen == 0 {
+	if dt.pathsLen == 0 {
 		return errors.New("empty path")
 	}
 	// check path is valid
-	paths := make(map[string]struct{}, dt.srcLen)
+	paths := make(map[string]struct{}, dt.pathsLen)
 	var basePath string
-	for i := 0; i < dt.srcLen; i++ {
-		if dt.src[i] == "" {
+	for i := 0; i < dt.pathsLen; i++ {
+		if dt.paths[i] == "" {
 			return errors.New("appear empty path in source paths")
 		}
 		// make sure all source path is absolute
-		srcAbs, err := filepath.Abs(dt.src[i])
+		absPath, err := filepath.Abs(dt.paths[i])
 		if err != nil {
 			return errors.Wrap(err, "failed to get absolute file path")
 		}
-		dt.src[i] = srcAbs
+		dt.paths[i] = absPath
 		if i == 0 {
-			paths[srcAbs] = struct{}{}
-			basePath = filepath.Dir(srcAbs)
+			paths[absPath] = struct{}{}
+			basePath = filepath.Dir(absPath)
 			continue
 		}
+		// only exist one root path
+		if isRoot(absPath) {
+			return errors.Errorf("appear root path \"%s\"", absPath)
+		}
 		// check file path is already exists
-		_, ok := paths[srcAbs]
+		_, ok := paths[absPath]
 		if ok {
-			return errors.Errorf("appear the same path \"%s\"", srcAbs)
+			return errors.Errorf("appear the same path \"%s\"", absPath)
 		}
 		// compare directory is same
-		dir := filepath.Dir(srcAbs)
+		dir := filepath.Dir(absPath)
 		if dir != basePath {
 			const format = "split directory about source \"%s\" is different with \"%s\""
-			return errors.Errorf(format, srcAbs, dt.src[0])
+			return errors.Errorf(format, absPath, dt.paths[0])
 		}
-		// check path is sub path for prevent special(C:\, C:\sub || C:\sub, C:\)
-		for path := range paths {
-			err = isSub(srcAbs, path)
-			if err != nil {
-				return err
-			}
-		}
-		paths[srcAbs] = struct{}{}
+		paths[absPath] = struct{}{}
 	}
-	dt.roots = make([]*file, dt.srcLen)
-	dt.dirs = make(map[string]*file, dt.srcLen/4)
+	dt.roots = make([]*file, dt.pathsLen)
+	dt.dirs = make(map[string]*file, dt.pathsLen/4)
 	go dt.watcher()
 	return nil
 }
 
 func (dt *deleteTask) Process(ctx context.Context, task *task.Task) error {
 	defer dt.updateDetail("finished")
-	for i := 0; i < dt.srcLen; i++ {
-		err := dt.collectDirInfo(ctx, task, i)
+	for i := 0; i < dt.pathsLen; i++ {
+		err := dt.collectPathInfo(ctx, task, i)
 		if err != nil {
 			return err
 		}
 	}
-	for i := 0; i < dt.srcLen; i++ {
+	for i := 0; i < dt.pathsLen; i++ {
 		err := dt.deleteRoot(ctx, task, dt.roots[i])
 		if err != nil {
 			return err
@@ -123,17 +120,17 @@ func (dt *deleteTask) Process(ctx context.Context, task *task.Task) error {
 	return nil
 }
 
-func (dt *deleteTask) collectDirInfo(ctx context.Context, task *task.Task, i int) error {
-	src := dt.src[i]
+func (dt *deleteTask) collectPathInfo(ctx context.Context, task *task.Task, i int) error {
+	srcPath := dt.paths[i]
 	var (
 		cDir  string // current directory
 		cFile *file  // current file
 	)
-	walkFunc := func(srcAbs string, srcStat os.FileInfo, err error) error {
+	walkFunc := func(path string, stat os.FileInfo, err error) error {
 		if err != nil {
 			const format = "failed to walk \"%s\" in \"%s\": %s"
-			err = fmt.Errorf(format, srcAbs, src, err)
-			skip, ne := noticeFailedToCollect(ctx, task, dt.errCtrl, srcAbs, err)
+			err = fmt.Errorf(format, path, srcPath, err)
+			skip, ne := noticeFailedToCollect(ctx, task, dt.errCtrl, path, err)
 			if skip {
 				return filepath.SkipDir
 			}
@@ -144,10 +141,10 @@ func (dt *deleteTask) collectDirInfo(ctx context.Context, task *task.Task, i int
 			return context.Canceled
 		}
 		f := &file{
-			path: srcAbs,
-			stat: srcStat,
+			path: path,
+			stat: stat,
 		}
-		isDir := srcStat.IsDir()
+		isDir := stat.IsDir()
 		// check is root directory
 		if dt.roots[i] == nil {
 			dt.roots[i] = f
@@ -156,37 +153,38 @@ func (dt *deleteTask) collectDirInfo(ctx context.Context, task *task.Task, i int
 				dt.updateTotal()
 				return nil
 			}
-			dt.dirs[srcAbs] = f
+			dt.dirs[path] = f
 			// set current data
-			cDir = srcAbs
+			cDir = path
 			cFile = f
 			return nil
 		}
-		// update detail and total
-		dir := filepath.Dir(srcAbs)
+		// update current directory and file
+		dir := filepath.Dir(path)
 		if dir != cDir {
 			cDir = dir
 			cFile = dt.dirs[dir]
 		}
 		cFile.files = append(cFile.files, f)
+		// update detail and total
 		if isDir {
-			cDir = srcAbs
+			cDir = path
 			cFile = f
-			dt.dirs[srcAbs] = f
-			// collecting directory information
+			dt.dirs[path] = f
+			// collect directory information
 			// path: C:\testdata\test
 			const format = "collect directory information\npath: %s"
-			dt.updateDetail(fmt.Sprintf(format, srcAbs))
+			dt.updateDetail(fmt.Sprintf(format, path))
 			return nil
 		}
-		// collecting file information
-		// path: C:\testdata\test
+		// collect file information
+		// path: C:\testdata\test.dat
 		const format = "collect file information\npath: %s"
-		dt.updateDetail(fmt.Sprintf(format, srcAbs))
+		dt.updateDetail(fmt.Sprintf(format, path))
 		dt.updateTotal()
 		return nil
 	}
-	return filepath.Walk(src, walkFunc)
+	return filepath.Walk(srcPath, walkFunc)
 }
 
 func (dt *deleteTask) deleteRoot(ctx context.Context, task *task.Task, root *file) error {
@@ -240,7 +238,7 @@ func (dt *deleteTask) deleteDir(ctx context.Context, task *task.Task, dir *file)
 		}
 	}
 	// if delete all files successfully, delete the directory
-	if !skipped {
+	if !skipped && !isRoot(dir.path) {
 		return false, os.Remove(dir.path)
 	}
 	return true, nil
@@ -421,12 +419,12 @@ func (dt *deleteTask) Clean() {
 }
 
 // Delete is used to create a delete task to delete paths.
-func Delete(errCtrl ErrCtrl, src ...string) error {
-	return DeleteWithContext(context.Background(), errCtrl, src...)
+func Delete(errCtrl ErrCtrl, paths ...string) error {
+	return DeleteWithContext(context.Background(), errCtrl, paths...)
 }
 
 // DeleteWithContext is used to create a delete task with context to delete paths.
-func DeleteWithContext(ctx context.Context, errCtrl ErrCtrl, src ...string) error {
-	dt := NewDeleteTask(errCtrl, nil, src...)
+func DeleteWithContext(ctx context.Context, errCtrl ErrCtrl, paths ...string) error {
+	dt := NewDeleteTask(errCtrl, nil, paths...)
 	return startTask(ctx, dt, "Delete")
 }

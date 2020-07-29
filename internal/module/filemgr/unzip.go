@@ -24,8 +24,8 @@ type unZipTask struct {
 	errCtrl  ErrCtrl
 	src      string // zip file absolute  path
 	dst      string // destination path to store extract files
-	files    []string
-	filesLen int
+	paths    []string
+	pathsLen int
 
 	skipDirs []string // store skipped directories
 
@@ -44,13 +44,13 @@ type unZipTask struct {
 
 // NewUnZipTask is used to create a unzip task that implement task.Interface.
 // If files is nil, extract all files from source zip file.
-func NewUnZipTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, src, dst string, files ...string) *task.Task {
+func NewUnZipTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, src, dst string, path ...string) *task.Task {
 	ut := unZipTask{
 		errCtrl:    errCtrl,
 		src:        src,
 		dst:        dst,
-		files:      files,
-		filesLen:   len(files),
+		paths:      path,
+		pathsLen:   len(path),
 		current:    big.NewFloat(0),
 		total:      big.NewFloat(0),
 		stopSignal: make(chan struct{}),
@@ -85,7 +85,7 @@ func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
 		return err
 	}
 	defer func() { _ = zipFile.Close() }()
-	if ut.filesLen == 0 {
+	if ut.pathsLen == 0 {
 		return ut.extractAll(ctx, task)
 	}
 	return ut.extractPart(ctx, task)
@@ -247,12 +247,12 @@ func (ut *unZipTask) Clean() {
 }
 
 // UnZip is used to create a unzip task to extract files from zip file.
-func UnZip(errCtrl ErrCtrl, src, dst string, files ...string) error {
-	return UnZipWithContext(context.Background(), errCtrl, src, dst, files...)
+func UnZip(errCtrl ErrCtrl, src, dst string, paths ...string) error {
+	return UnZipWithContext(context.Background(), errCtrl, src, dst, paths...)
 }
 
 // UnZipWithContext is used to create a unzip task with context to extract files from zip file.
-func UnZipWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string, files ...string) error {
-	ut := NewUnZipTask(errCtrl, nil, src, dst, files...)
+func UnZipWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string, paths ...string) error {
+	ut := NewUnZipTask(errCtrl, nil, src, dst, paths...)
 	return startTask(ctx, ut, "UnZip")
 }

@@ -7,7 +7,6 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/pkg/errors"
 
@@ -41,7 +40,7 @@ const (
 	ErrCtrlSameFile            // two same name file
 	ErrCtrlSameFileDir         // same src file name with dst directory
 	ErrCtrlSameDirFile         // same src directory name with dst file name
-	ErrCtrlCollectFailed       // appear error in collectDirInfo()
+	ErrCtrlCollectFailed       // appear error in collectPathInfo()
 	ErrCtrlCopyDirFailed       // appear error in copyDirFile()
 	ErrCtrlCopyFailed          // appear error in copyFile()
 	ErrCtrlMoveDirFailed       // appear error in moveDirFile()
@@ -91,24 +90,15 @@ func stat(name string) (os.FileInfo, error) {
 
 // isRoot is used to check path is root directory.
 func isRoot(path string) bool {
-	if path == "/" {
+	switch path {
+	case "/", "\\": // Unix
 		return true
-	}
-	if filepath.VolumeName(path)+":\\" == path {
+	case filepath.VolumeName(path) + "\\": // Windows: C:\
+		return true
+	case filepath.VolumeName(path): // UNC: \\host\share
 		return true
 	}
 	return false
-}
-
-// isSub is used to check path a is sub path in b and reverse.
-func isSub(a, b string) error {
-	if strings.HasPrefix(a, b) {
-		return errors.Errorf("\"%s\" is sub path in \"%s\"", a, b)
-	}
-	if strings.HasPrefix(b, a) {
-		return errors.Errorf("\"%s\" is sub path in \"%s\"", b, a)
-	}
-	return nil
 }
 
 // SrcDstStat contains absolute path and file stat about src and dst.
