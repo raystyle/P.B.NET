@@ -194,7 +194,7 @@ func (zt *zipTask) collectPathInfo(ctx context.Context, task *task.Task, srcPath
 		// path: C:\testdata\test.dat
 		const format = "collect file information\npath: %s"
 		zt.updateDetail(fmt.Sprintf(format, path))
-		zt.updateTotal(stat.Size(), true)
+		zt.addTotal(stat.Size())
 		return nil
 	}
 	return filepath.Walk(srcPath, walkFunc)
@@ -204,7 +204,7 @@ func (zt *zipTask) compress(ctx context.Context, task *task.Task, file *fileStat
 	// skip file if it in skipped directories
 	for i := 0; i < len(zt.skipDirs); i++ {
 		if strings.HasPrefix(file.path, zt.skipDirs[i]) {
-			zt.updateCurrent(file.stat.Size(), true)
+			zt.addCurrent(file.stat.Size())
 			return nil
 		}
 	}
@@ -220,8 +220,7 @@ func (zt *zipTask) compress(ctx context.Context, task *task.Task, file *fileStat
 	if file.stat.IsDir() {
 		return zt.mkdir(ctx, task, file.path, relPath)
 	}
-
-	return nil
+	return zt.writeFile(ctx, task, file, relPath)
 }
 
 func (zt *zipTask) mkdir(ctx context.Context, task *task.Task, dirPath, relPath string) error {
@@ -232,12 +231,12 @@ func (zt *zipTask) mkdir(ctx context.Context, task *task.Task, dirPath, relPath 
 	const format = "create directory, name: %s\nsrc: %s\ndst: zip/%s"
 	dirName := filepath.Base(dirPath)
 	zt.updateDetail(fmt.Sprintf(format, dirName, dirPath, relPath))
-	// update modification time
 retry:
 	// check task is canceled
 	if task.Canceled() {
 		return context.Canceled
 	}
+	// update modification time
 	dirStat, err := os.Stat(dirPath)
 	if err != nil {
 		ps := noticePs{
@@ -262,22 +261,81 @@ retry:
 		Modified: dirStat.ModTime(),
 	}
 	_, err = zt.zipWriter.CreateHeader(&header)
+	return err
+}
+
+func (zt *zipTask) writeFile(ctx context.Context, task *task.Task, file *fileStat, relPath string) error {
+	// update current task detail, output:
+	//   compress file, name: test.dat
+	//   src: C:\testdata\test.dat
+	//   dst: zip/testdata/test.dat
+	const format = "compress file, name: %s\nsrc: %s\ndst: zip/%s"
+	fileName := filepath.Base(file.path)
+	zt.updateDetail(fmt.Sprintf(format, fileName, file.path, relPath))
+retry:
+	// check task is canceled
+	if task.Canceled() {
+		return context.Canceled
+	}
+	// open source file
+	srcFile, err := os.Open(file.path)
 	if err != nil {
 		ps := noticePs{
 			ctx:     ctx,
 			task:    task,
 			errCtrl: zt.errCtrl,
 		}
-		retry, ne := noticeFailedToZip(&ps, dirPath, err)
+		retry, ne := noticeFailedToZip(&ps, file.path, err)
 		if retry {
 			goto retry
 		}
 		if ne != nil {
 			return ne
 		}
-		zt.skipDirs = append(zt.skipDirs, dirPath)
+		zt.addCurrent(file.stat.Size())
+		return nil
 	}
-	return nil
+	defer func() { _ = srcFile.Close() }()
+	srcStat, err := srcFile.Stat()
+	if err != nil {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: zt.errCtrl,
+		}
+		retry, ne := noticeFailedToZip(&ps, file.path, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return ne
+		}
+		zt.addCurrent(file.stat.Size())
+		return nil
+	}
+	// create a zip file
+	header := zip.FileHeader{
+		Name:     relPath,
+		Method:   zip.Deflate,
+		Modified: srcStat.ModTime(),
+	}
+	zipFile, err := zt.zipWriter.CreateHeader(&header)
+	if err != nil {
+		return err
+	}
+	// compress file
+	var copied int64
+	size := srcStat.Size()
+	defer func() {
+		// check size after copy
+		if size == copied {
+			return
+		}
+		zt.addCurrent(size - copied)
+	}()
+	lr := io.LimitReader(srcFile, size)
+	copied, err = ioCopy(task, zt.addCurrent, zipFile, lr)
+	return err
 }
 
 // Progress is used to get progress about current zip task.
@@ -326,26 +384,18 @@ func (zt *zipTask) Progress() string {
 	return fmt.Sprintf("%s%%|%s/%s|%s/s", progress, current, total, speed)
 }
 
-func (zt *zipTask) updateCurrent(delta int64, add bool) {
+func (zt *zipTask) addCurrent(delta int64) {
 	zt.rwm.Lock()
 	defer zt.rwm.Unlock()
 	d := new(big.Float).SetInt64(delta)
-	if add {
-		zt.current.Add(zt.current, d)
-	} else {
-		zt.current.Sub(zt.current, d)
-	}
+	zt.current.Add(zt.current, d)
 }
 
-func (zt *zipTask) updateTotal(delta int64, add bool) {
+func (zt *zipTask) addTotal(delta int64) {
 	zt.rwm.Lock()
 	defer zt.rwm.Unlock()
 	d := new(big.Float).SetInt64(delta)
-	if add {
-		zt.total.Add(zt.total, d)
-	} else {
-		zt.total.Sub(zt.total, d)
-	}
+	zt.total.Add(zt.total, d)
 }
 
 // Detail is used to get detail about zip task.
@@ -433,77 +483,4 @@ func Zip(errCtrl ErrCtrl, zipPath string, paths ...string) error {
 func ZipWithContext(ctx context.Context, errCtrl ErrCtrl, zipPath string, paths ...string) error {
 	zt := NewZipTask(errCtrl, nil, zipPath, paths...)
 	return startTask(ctx, zt, "Zip")
-}
-
-// ZipFileToDir is used to decompress zip file to a directory.
-// If appear the same file name, it will return a error.
-func ZipFileToDir(srcZip, dstDir string) error {
-	reader, err := zip.OpenReader(srcZip)
-	if err != nil {
-		return errors.Wrap(err, "failed to open zip file")
-	}
-	dirs := make([]*zip.File, 0, len(reader.File)/5)
-	for _, file := range reader.File {
-		err = zipWriteFile(file, dstDir)
-		if err != nil {
-			return err
-		}
-		if file.Mode().IsDir() {
-			dirs = append(dirs, file)
-		}
-	}
-	for _, dir := range dirs {
-		filename := filepath.Join(dstDir, filepath.Clean(dir.Name))
-		err = os.Chtimes(filename, time.Now(), dir.Modified)
-		if err != nil {
-			return errors.Wrap(err, "failed to change directory \"\" modification time")
-		}
-	}
-	return nil
-}
-
-func zipWriteFile(file *zip.File, dst string) error {
-	filename := filepath.Join(dst, filepath.Clean(file.Name))
-	// check file is already exists
-	exist, err := system.IsExist(filename)
-	if err != nil {
-		return errors.Wrap(err, "failed to check file path")
-	}
-	if exist {
-		return errors.Errorf("file \"%s\" already exists", filename)
-	}
-	mode := file.Mode()
-	perm := mode.Perm()
-	switch {
-	case mode.IsRegular(): // write file
-		// create file
-		osFile, err := system.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-		if err != nil {
-			return errors.Wrap(err, "failed to create file")
-		}
-		defer func() { _ = osFile.Close() }()
-		// write data
-		rc, err := file.Open()
-		if err != nil {
-			return errors.Wrapf(err, "failed to open file \"%s\" in zip file", file.Name)
-		}
-		defer func() { _ = rc.Close() }()
-		_, err = io.Copy(osFile, rc)
-		if err != nil {
-			return errors.Wrap(err, "failed to copy file")
-		}
-	case mode.IsDir(): // create directory
-		err = os.MkdirAll(filename, perm)
-		if err != nil {
-			return errors.Wrap(err, "failed to create directory")
-		}
-	default: // skip unknown mode
-		// add logger
-		return nil
-	}
-	err = os.Chtimes(filename, time.Now(), file.Modified)
-	if err != nil {
-		return errors.Wrap(err, "failed to change modification time")
-	}
-	return nil
 }
