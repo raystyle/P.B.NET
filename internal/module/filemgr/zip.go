@@ -30,10 +30,10 @@ type zipTask struct {
 	paths    []string // absolute path that will be compressed
 	pathsLen int
 
-	zipWriter *zip.Writer
 	basePath  string      // for filepath.Rel() in Process
 	files     []*fileStat // store all files stats that will be compressed
 	skipDirs  []string    // store skipped directories
+	zipWriter *zip.Writer
 
 	// about progress, detail and speed
 	current *big.Float
@@ -126,7 +126,7 @@ func (zt *zipTask) Process(ctx context.Context, task *task.Task) error {
 	defer zt.updateDetail("finished")
 	// must collect files information because the zip file in the same path
 	for i := 0; i < zt.pathsLen; i++ {
-		err := zt.collectPathInfo(ctx, task, i)
+		err := zt.collectPathInfo(ctx, task, zt.paths[i])
 		if err != nil {
 			return err
 		}
@@ -138,13 +138,27 @@ func (zt *zipTask) Process(ctx context.Context, task *task.Task) error {
 	}
 	defer func() { _ = zipFile.Close() }()
 	zt.zipWriter = zip.NewWriter(zipFile)
-	// compress files
-
+	// check files is empty
+	l := len(zt.files)
+	if l == 0 {
+		// set fake progress for pass progress check
+		zt.rwm.Lock()
+		defer zt.rwm.Unlock()
+		zt.current.SetUint64(1)
+		zt.total.SetUint64(1)
+		return nil
+	}
+	// compress files and add directories
+	for i := 0; i < l; i++ {
+		err := zt.compress(ctx, task, zt.files[i])
+		if err != nil {
+			return err
+		}
+	}
 	return zipFile.Sync()
 }
 
-func (zt *zipTask) collectPathInfo(ctx context.Context, task *task.Task, i int) error {
-	srcPath := zt.paths[i]
+func (zt *zipTask) collectPathInfo(ctx context.Context, task *task.Task, srcPath string) error {
 	walkFunc := func(path string, stat os.FileInfo, err error) error {
 		if err != nil {
 			ps := noticePs{
@@ -160,6 +174,7 @@ func (zt *zipTask) collectPathInfo(ctx context.Context, task *task.Task, i int) 
 			}
 			return ne
 		}
+		// check task is canceled
 		if task.Canceled() {
 			return context.Canceled
 		}
@@ -183,6 +198,86 @@ func (zt *zipTask) collectPathInfo(ctx context.Context, task *task.Task, i int) 
 		return nil
 	}
 	return filepath.Walk(srcPath, walkFunc)
+}
+
+func (zt *zipTask) compress(ctx context.Context, task *task.Task, file *fileStat) error {
+	// skip file if it in skipped directories
+	for i := 0; i < len(zt.skipDirs); i++ {
+		if strings.HasPrefix(file.path, zt.skipDirs[i]) {
+			zt.updateCurrent(file.stat.Size(), true)
+			return nil
+		}
+	}
+	// not recovered
+	relPath, err := filepath.Rel(zt.basePath, file.path)
+	if err != nil {
+		return err
+	}
+	// file is root directory
+	if relPath == "." {
+		return nil
+	}
+	if file.stat.IsDir() {
+		return zt.mkdir(ctx, task, file.path, relPath)
+	}
+
+	return nil
+}
+
+func (zt *zipTask) mkdir(ctx context.Context, task *task.Task, dirPath, relPath string) error {
+	// update current task detail, output:
+	//   create directory, name: testdata
+	//   src: C:\testdata
+	//   dst: zip/testdata
+	const format = "create directory, name: %s\nsrc: %s\ndst: zip/%s"
+	dirName := filepath.Base(dirPath)
+	zt.updateDetail(fmt.Sprintf(format, dirName, dirPath, relPath))
+	// update modification time
+retry:
+	// check task is canceled
+	if task.Canceled() {
+		return context.Canceled
+	}
+	dirStat, err := os.Stat(dirPath)
+	if err != nil {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: zt.errCtrl,
+		}
+		retry, ne := noticeFailedToZip(&ps, dirPath, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return ne
+		}
+		zt.skipDirs = append(zt.skipDirs, dirPath)
+		return nil
+	}
+	// create a directory
+	header := zip.FileHeader{
+		Name:     relPath + "/",
+		Method:   zip.Store,
+		Modified: dirStat.ModTime(),
+	}
+	_, err = zt.zipWriter.CreateHeader(&header)
+	if err != nil {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: zt.errCtrl,
+		}
+		retry, ne := noticeFailedToZip(&ps, dirPath, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return ne
+		}
+		zt.skipDirs = append(zt.skipDirs, dirPath)
+	}
+	return nil
 }
 
 // Progress is used to get progress about current zip task.
@@ -256,12 +351,12 @@ func (zt *zipTask) updateTotal(delta int64, add bool) {
 // Detail is used to get detail about zip task.
 // collect file or directory info:
 //   collect file information
-//   path: testdata/test.dat
+//   path: C:\testdata\test.dat
 //
 // compress file:
 //   compress file, name: test.dat
 //   src: C:\testdata\test.dat
-//   dst: testdata/test.dat
+//   dst: zip/testdata/test.dat
 func (zt *zipTask) Detail() string {
 	zt.rwm.RLock()
 	defer zt.rwm.RUnlock()
@@ -274,7 +369,7 @@ func (zt *zipTask) updateDetail(detail string) {
 	zt.detail = detail
 }
 
-// watcher is used to calculate current copy speed.
+// watcher is used to calculate current compress speed.
 func (zt *zipTask) watcher() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -338,91 +433,6 @@ func Zip(errCtrl ErrCtrl, zipPath string, paths ...string) error {
 func ZipWithContext(ctx context.Context, errCtrl ErrCtrl, zipPath string, paths ...string) error {
 	zt := NewZipTask(errCtrl, nil, zipPath, paths...)
 	return startTask(ctx, zt, "Zip")
-}
-
-type dirToZipStat struct {
-	srcAbs string
-	dstAbs string
-}
-
-func zipCheckSrcDst(src, dst string) (string, string, bool, error) {
-	// check the last is "*"
-	var wildcard bool
-	if l := len(src); l != 0 && src[l-1] == '*' {
-		wildcard = true
-		src = src[:l-1]
-	}
-	// get abs path
-	srcAbs, err := filepath.Abs(src)
-	if err != nil {
-		return "", "", false, err
-	}
-	dstAbs, err := filepath.Abs(dst)
-	if err != nil {
-		return "", "", false, err
-	}
-	// check src
-	if wildcard {
-		stat, err := os.Stat(srcAbs)
-		if err != nil {
-			return "", "", false, err
-		}
-		if !stat.IsDir() {
-			return "", "", false, errors.New("use wildcard but src is a file")
-		}
-	}
-	return srcAbs, dstAbs, wildcard, nil
-
-}
-
-// DirToZipFile is used to compress file or directory to a zip file and write.
-// if the src with "*" at the end, it will not create a root directory to the zip file.
-func DirToZipFile(src, dstZip string) error {
-
-	// create zip file
-	zipFile, err := system.OpenFile(src, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = zipFile.Close() }()
-	// if compress failed, delete the zip file.
-	var ok bool
-	defer func() {
-		if !ok {
-			_ = zipFile.Close()
-			_ = os.Remove(dstZip)
-		}
-	}()
-	writer := zip.NewWriter(zipFile)
-	// create root directory
-	// if !wildcard {
-	//
-	// }
-
-	err = filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		fmt.Println(path)
-
-		header := zip.FileHeader{
-			Name:     "",
-			Method:   zip.Deflate,
-			Modified: time.Time{},
-		}
-		_, _ = writer.CreateHeader(&header)
-
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	err = writer.Close()
-	if err != nil {
-		return err
-	}
-	ok = true
-	return nil
 }
 
 // ZipFileToDir is used to decompress zip file to a directory.

@@ -40,6 +40,7 @@ const (
 	ErrCtrlMoveDirFailed       // appear error in moveDirFile()
 	ErrCtrlMoveFailed          // appear error in moveFile()
 	ErrCtrlDeleteFailed        // appear error in deleteDirFile()
+	ErrCtrlZipFailed           // appear error in zipTask.compress()
 )
 
 // operation code about ErrCtrl
@@ -321,6 +322,24 @@ func noticeFailedToDelete(ps *noticePs, path string, extError error) (retry bool
 		err = ErrUserCanceled
 	default:
 		err = errors.Errorf("unknown failed to delete operation code: %d", code)
+	}
+	return
+}
+
+// noticeFailedToZip is used to notice appear some error about zip.
+// stats to errCtrl can only get SrcAbs.
+func noticeFailedToZip(ps *noticePs, path string, extError error) (retry bool, err error) {
+	ps.task.Pause()
+	defer ps.task.Continue()
+	stats := SrcDstStat{SrcAbs: path}
+	switch code := ps.errCtrl(ps.ctx, ErrCtrlZipFailed, extError, &stats); code {
+	case ErrCtrlOpRetry:
+		retry = true
+	case ErrCtrlOpSkip:
+	case ErrCtrlOpCancel:
+		err = ErrUserCanceled
+	default:
+		err = errors.Errorf("unknown failed to zip operation code: %d", code)
 	}
 	return
 }

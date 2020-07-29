@@ -191,7 +191,7 @@ func (ut *unZipTask) updateDetail(detail string) {
 	ut.detail = detail
 }
 
-// watcher is used to calculate current copy speed.
+// watcher is used to calculate current extract speed.
 func (ut *unZipTask) watcher() {
 	defer func() {
 		if r := recover(); r != nil {

@@ -150,7 +150,7 @@ func (dt *deleteTask) collectPathInfo(ctx context.Context, task *task.Task, i in
 			stat: stat,
 		}
 		isDir := stat.IsDir()
-		// check is root directory
+		// check is root path
 		if dt.roots[i] == nil {
 			dt.roots[i] = f
 			// check root is file
@@ -373,7 +373,7 @@ func (dt *deleteTask) updateDetail(detail string) {
 	dt.detail = detail
 }
 
-// watcher is used to calculate current delete speed.
+// watcher is used to calculate current delete file speed.
 func (dt *deleteTask) watcher() {
 	defer func() {
 		if r := recover(); r != nil {
