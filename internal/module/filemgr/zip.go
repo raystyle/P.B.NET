@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -117,7 +118,9 @@ func (zt *zipTask) Prepare(context.Context) error {
 		}
 		paths[absPath] = struct{}{}
 	}
-	zt.files = make([]*fileStat, 0, 64)
+	// sort paths
+	sort.Strings(zt.paths)
+	zt.files = make([]*fileStat, 0, zt.pathsLen*4)
 	go zt.watcher()
 	return nil
 }

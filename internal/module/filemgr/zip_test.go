@@ -129,6 +129,56 @@ func testCheckZipWithDir(t *testing.T) {
 	}
 }
 
+func testCheckZipWithMulti(t *testing.T) {
+	zipFile, err := zip.OpenReader(testZipDst)
+	require.NoError(t, err)
+	defer func() { _ = zipFile.Close() }()
+
+	require.Len(t, zipFile.File, 10+1)
+	for i, item := range [...]*struct {
+		name  string
+		data  []byte
+		isDir bool
+	}{
+		{testZipSrcDir, nil, true},
+		{testZipSrcFile1, testsuite.Bytes(), false},
+		{testZipSrcDir1, nil, true},
+		{testZipSrcFile2, bytes.Repeat(testsuite.Bytes(), 2), false},
+		{testZipSrcDir2, nil, true},
+		{testZipSrcDir3, nil, true},
+		{testZipSrcDir4, nil, true},
+		{testZipSrcFile3, testsuite.Bytes(), false},
+		{testZipSrcFile4, bytes.Repeat(testsuite.Bytes(), 2), false},
+		{testZipSrcFile5, bytes.Repeat(testsuite.Bytes(), 2), false},
+		{testZipSrcFile, testsuite.Bytes(), false},
+	} {
+		file := zipFile.File[i]
+		// check name
+		expectName := strings.ReplaceAll(item.name, testZipDir, "")
+		expectName = strings.ReplaceAll(expectName, "/", "\\")
+		if item.isDir {
+			expectName += "/"
+		}
+		require.Equal(t, expectName, file.Name)
+		// check is dir
+		require.Equal(t, item.isDir, file.FileInfo().IsDir())
+		// check file data
+		if item.isDir {
+			require.Equal(t, file.FileInfo().Size(), int64(0))
+			continue
+		}
+		rc, err := file.Open()
+		require.NoError(t, err)
+
+		data, err := ioutil.ReadAll(rc)
+		require.NoError(t, err)
+		require.Equal(t, item.data, data)
+
+		err = rc.Close()
+		require.NoError(t, err)
+	}
+}
+
 func TestZip(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -162,7 +212,7 @@ func TestZip(t *testing.T) {
 			err := Zip(SkipAll, testZipDst, testZipSrcFile, testZipSrcDir)
 			require.NoError(t, err)
 
-			// verify
+			testCheckZipWithMulti(t)
 		})
 
 		t.Run("directory first", func(t *testing.T) {
@@ -173,7 +223,7 @@ func TestZip(t *testing.T) {
 			err := Zip(SkipAll, testZipDst, testZipSrcDir, testZipSrcFile)
 			require.NoError(t, err)
 
-			// verify
+			testCheckZipWithMulti(t)
 		})
 	})
 
