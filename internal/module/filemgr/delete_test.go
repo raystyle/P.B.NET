@@ -109,21 +109,44 @@ func TestDelete(t *testing.T) {
 		})
 	})
 
+	t.Run("empty path", func(t *testing.T) {
+		err := Delete(SkipAll)
+		require.Error(t, err)
+	})
+
 	t.Run("path doesn't exist", func(t *testing.T) {
 		const path = "not exist"
 
-		count := 0
-		ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-			require.Equal(t, ErrCtrlCollectFailed, typ)
-			require.Error(t, err)
-			count++
-			return ErrCtrlOpSkip
-		}
-		err := Delete(ec, path)
-		require.NoError(t, err)
+		t.Run("cancel", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				count++
+				return ErrCtrlOpCancel
+			}
+			err := Delete(ec, path)
+			require.Equal(t, ErrUserCanceled, err)
 
-		testIsNotExist(t, path)
-		require.Equal(t, 1, count)
+			testIsNotExist(t, path)
+			require.Equal(t, 1, count)
+
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				count++
+				return ErrCtrlOpSkip
+			}
+			err := Delete(ec, path)
+			require.NoError(t, err)
+
+			testIsNotExist(t, path)
+			require.Equal(t, 1, count)
+		})
 	})
 
 	t.Run("failed to remove file", func(t *testing.T) {
