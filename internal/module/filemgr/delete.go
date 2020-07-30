@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -62,6 +63,8 @@ func (dt *deleteTask) Prepare(context.Context) error {
 	if dt.pathsLen == 0 {
 		return errors.New("empty path")
 	}
+	// sort paths
+	sort.Strings(dt.paths)
 	// check path is valid
 	paths := make(map[string]struct{}, dt.pathsLen)
 	var basePath string

@@ -122,6 +122,7 @@ func TestDelete(t *testing.T) {
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
 				require.Equal(t, ErrCtrlCollectFailed, typ)
 				require.Error(t, err)
+				t.Log(err)
 				count++
 				return ErrCtrlOpCancel
 			}
@@ -138,6 +139,7 @@ func TestDelete(t *testing.T) {
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
 				require.Equal(t, ErrCtrlCollectFailed, typ)
 				require.Error(t, err)
+				t.Log(err)
 				count++
 				return ErrCtrlOpSkip
 			}
@@ -163,6 +165,7 @@ func TestDelete(t *testing.T) {
 		ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
 			require.Equal(t, ErrCtrlDeleteFailed, typ)
 			require.Error(t, err)
+			t.Log(err)
 			count++
 			return ErrCtrlOpSkip
 		}

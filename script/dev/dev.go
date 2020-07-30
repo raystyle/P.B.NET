@@ -16,7 +16,6 @@ import (
 	"strconv"
 
 	"project/internal/logger"
-	"project/internal/module/filemgr"
 	"project/internal/system"
 
 	"project/script/internal/config"
@@ -121,10 +120,10 @@ func downloadSourceCode() bool {
 				return
 			}
 			// decompress zip file
-			err = filemgr.ZipFileToDir(filename, "temp/dev")
-			if err != nil {
-				return
-			}
+			// err = filemgr.UnZip(filename, "temp/dev")
+			// if err != nil {
+			// 	return
+			// }
 			log.Printf(logger.Info, "download %s successfully", name)
 		}(item.name, item.url)
 	}
