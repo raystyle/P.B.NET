@@ -15,15 +15,11 @@ import (
 )
 
 const (
-	testDeleteDir = "testdata/delete/"
+	testDeleteDir     = "testdata/delete/"          // delete test root path
+	testDeleteSrcFile = testDeleteDir + "file1.dat" // src is file
+	testDeleteSrcDir  = testDeleteDir + "dir"       // src is directory
 
-	// src is file
-	testDeleteSrcFile = testDeleteDir + "file1.dat"
-
-	// src is directory
-	testDeleteSrcDir = testDeleteDir + "dir"
-
-	// src files in directory
+	// files in the test directory
 	testDeleteSrcFile1 = testDeleteSrcDir + "/afile1.dat"  // testdata/delete/dir/afile1.dat
 	testDeleteSrcDir1  = testDeleteSrcDir + "/dir1"        // testdata/delete/dir/dir1
 	testDeleteSrcFile2 = testDeleteSrcDir1 + "/afile2.dat" // testdata/delete/dir/dir1/afile2.dat

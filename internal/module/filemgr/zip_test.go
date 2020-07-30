@@ -1,8 +1,12 @@
 package filemgr
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -11,7 +15,7 @@ import (
 
 const (
 	testZipDir     = "testdata/zip/"             // zip test root path
-	testZipFile    = testZipDir + "zip_test.zip" // destination zip file path
+	testZipDst     = testZipDir + "zip_test.zip" // destination zip file path
 	testZipSrcFile = testZipDir + "file1.dat"    // path is a file
 	testZipSrcDir  = testZipDir + "dir"          // path is a directory
 
@@ -71,7 +75,7 @@ func TestZip(t *testing.T) {
 		testCreateZipSrcFile(t)
 		defer testRemoveZipDir(t)
 
-		err := Zip(SkipAll, testZipFile, testZipSrcFile)
+		err := Zip(SkipAll, testZipDst, testZipSrcFile)
 		require.NoError(t, err)
 
 		testCheckZipWithFile(t)
@@ -81,8 +85,123 @@ func TestZip(t *testing.T) {
 		testCreateZipSrcDir(t)
 		defer testRemoveZipDir(t)
 
-		err := Zip(SkipAll, testZipFile, testZipSrcDir)
+		err := Zip(SkipAll, testZipDst, testZipSrcDir)
 		require.NoError(t, err)
+
+		testCheckZipWithDir(t)
+	})
+
+	t.Run("multi", func(t *testing.T) {
+		t.Run("file first", func(t *testing.T) {
+			testCreateZipSrcFile(t)
+			testCreateZipSrcDir(t)
+			defer testRemoveZipDir(t)
+
+			err := Zip(SkipAll, testZipDst, testZipSrcFile, testZipSrcDir)
+			require.NoError(t, err)
+
+			// verify
+		})
+
+		t.Run("directory first", func(t *testing.T) {
+			testCreateZipSrcDir(t)
+			testCreateZipSrcFile(t)
+			defer testRemoveZipDir(t)
+
+			err := Zip(SkipAll, testZipDst, testZipSrcDir, testZipSrcFile)
+			require.NoError(t, err)
+
+			// verify
+		})
+	})
+
+	t.Run("empty path", func(t *testing.T) {
+		err := Zip(SkipAll, testZipDst)
+		require.Error(t, err)
+	})
+
+	t.Run("path doesn't exist", func(t *testing.T) {
+		const path = "not exist"
+
+		t.Run("cancel", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				count++
+				return ErrCtrlOpCancel
+			}
+			err := Zip(ec, testZipDst, path)
+			require.Equal(t, ErrUserCanceled, err)
+
+			testIsNotExist(t, testZipDst)
+
+			require.Equal(t, 1, count)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				count++
+				return ErrCtrlOpSkip
+			}
+			err := Zip(ec, testZipDst, path)
+			require.NoError(t, err)
+
+			// it will a create a empty zip file
+			err = os.Remove(testZipDst)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+		})
+	})
+}
+
+func TestZipTask_Progress(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	pg := testPatchTaskCanceled()
+	defer pg.Unpatch()
+
+	t.Run("common", func(t *testing.T) {
+		testCreateZipSrcDir(t)
+		defer testRemoveZipDir(t)
+
+		zt := NewZipTask(SkipAll, nil, testZipDst, testZipSrcDir)
+
+		done := make(chan struct{})
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				fmt.Println("progress:", zt.Progress())
+				fmt.Println("detail:", zt.Detail())
+				fmt.Println()
+				time.Sleep(250 * time.Millisecond)
+			}
+		}()
+
+		err := zt.Start()
+		require.NoError(t, err)
+
+		close(done)
+		wg.Wait()
+
+		fmt.Println("progress:", zt.Progress())
+		fmt.Println("detail:", zt.Detail())
+
+		rzt := zt.Task().(*zipTask)
+		testsuite.IsDestroyed(t, zt)
+		testsuite.IsDestroyed(t, rzt)
 
 		testCheckZipWithDir(t)
 	})
