@@ -24,7 +24,7 @@ func testCreateFile(t *testing.T, name string) {
 }
 
 func testCreateFile2(t *testing.T, name string) {
-	data := append(testsuite.Bytes(), testsuite.Bytes()...)
+	data := bytes.Repeat(testsuite.Bytes(), 2)
 	err := system.WriteFile(name, data)
 	require.NoError(t, err)
 }
