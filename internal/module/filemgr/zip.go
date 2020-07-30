@@ -132,12 +132,11 @@ func (zt *zipTask) Process(ctx context.Context, task *task.Task) error {
 		}
 	}
 	// create zip file
-	zipFile, err := system.OpenFile(zt.zipPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
+	zipFile, err := system.OpenFile(zt.zipPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return errors.Wrap(err, "failed to create zip file")
 	}
 	defer func() { _ = zipFile.Close() }()
-	zt.zipWriter = zip.NewWriter(zipFile)
 	// check files is empty
 	l := len(zt.files)
 	if l == 0 {
@@ -149,11 +148,17 @@ func (zt *zipTask) Process(ctx context.Context, task *task.Task) error {
 		return nil
 	}
 	// compress files and add directories
+	zt.zipWriter = zip.NewWriter(zipFile)
 	for i := 0; i < l; i++ {
 		err := zt.compress(ctx, task, zt.files[i])
 		if err != nil {
 			return err
 		}
+	}
+	// make final zip file
+	err = zt.zipWriter.Close()
+	if err != nil {
+		return err
 	}
 	return zipFile.Sync()
 }
