@@ -480,6 +480,106 @@ func TestZipWithNotice(t *testing.T) {
 		})
 	})
 
+	t.Run("writeFile-srcFile.Stat", func(t *testing.T) {
+		target, err := filepath.Abs(testZipSrcFile1)
+		require.NoError(t, err)
+
+		file := new(os.File)
+		patch := func(file *os.File) (os.FileInfo, error) {
+			if file.Name() == target {
+				return nil, monkey.Error
+			}
+			return os.Stat(file.Name())
+		}
+		pg := monkey.PatchInstanceMethod(file, "Stat", patch)
+		defer pg.Unpatch()
+
+		t.Run("retry", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateZipSrcDir(t)
+			defer testRemoveZipDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlZipFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+
+			err := Zip(ec, testZipDst, testZipSrcDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCheckZipWithDir(t)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateZipSrcDir(t)
+			defer testRemoveZipDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlZipFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpSkip
+			}
+
+			err := Zip(ec, testZipDst, testZipSrcDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateZipSrcDir(t)
+			defer testRemoveZipDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlZipFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpCancel
+			}
+
+			err := Zip(ec, testZipDst, testZipSrcDir)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateZipSrcDir(t)
+			defer testRemoveZipDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlZipFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpInvalid
+			}
+
+			err := Zip(ec, testZipDst, testZipSrcDir)
+			require.EqualError(t, err, "unknown failed to zip operation code: 0")
+
+			require.Equal(t, 1, count)
+		})
+	})
 }
 
 func TestZipTask_Progress(t *testing.T) {
