@@ -118,7 +118,7 @@ func (ut *unZipTask) Progress() string {
 	case 1: // current > total
 		current := ut.current.Text('G', 64)
 		total := ut.total.Text('G', 64)
-		return fmt.Sprintf("err: current %s > total %s", current, total)
+		return fmt.Sprintf("error: current %s > total %s", current, total)
 	}
 	value := new(big.Float).Quo(ut.current, ut.total)
 	// split result
@@ -129,7 +129,7 @@ func (ut *unZipTask) Progress() string {
 	// format result
 	result, err := strconv.ParseFloat(text, 64)
 	if err != nil {
-		return fmt.Sprintf("err: %s", err)
+		return fmt.Sprintf("error: %s", err)
 	}
 	// 0.9999 -> 99.99%
 	progress := strconv.FormatFloat(result*100, 'f', -1, 64)

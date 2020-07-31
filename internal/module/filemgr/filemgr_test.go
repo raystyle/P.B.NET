@@ -116,6 +116,13 @@ func testPatchTaskCanceled() *monkey.PatchGuard {
 	return monkey.PatchInstanceMethod(t, "Canceled", patch)
 }
 
+func testPatchMultiTaskWatcher() *monkey.PatchGuard {
+	patch := func(duration time.Duration) *time.Ticker {
+		panic(monkey.Panic)
+	}
+	return monkey.Patch(time.NewTicker, patch)
+}
+
 func TestIsRoot(t *testing.T) {
 	for _, path := range [...]string{
 		"/", "\\", "C:\\", "\\\\host\\share",

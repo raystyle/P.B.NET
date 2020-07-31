@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -628,4 +629,70 @@ func TestZipTask_Progress(t *testing.T) {
 
 		testCheckZipWithDir(t)
 	})
+
+	t.Run("current > total", func(t *testing.T) {
+		task := NewZipTask(SkipAll, nil, testZipDst, testZipSrcDir)
+		zt := task.Task().(*zipTask)
+
+		zt.current.SetUint64(1000)
+		zt.total.SetUint64(10)
+
+		t.Log(zt.Progress())
+	})
+
+	t.Run("too long value", func(t *testing.T) {
+		task := NewZipTask(SkipAll, nil, testZipDst, testZipSrcDir)
+		zt := task.Task().(*zipTask)
+
+		zt.current.SetUint64(1)
+		zt.total.SetUint64(7)
+
+		t.Log(zt.Progress())
+	})
+
+	t.Run("invalid value", func(t *testing.T) {
+		patch := func(s string, bitSize int) (float64, error) {
+			return 0, monkey.Error
+		}
+		pg := monkey.Patch(strconv.ParseFloat, patch)
+		defer pg.Unpatch()
+
+		task := NewZipTask(SkipAll, nil, testZipDst, testZipSrcDir)
+		zt := task.Task().(*zipTask)
+
+		zt.current.SetUint64(1)
+		zt.total.SetUint64(7)
+
+		t.Log(task.Progress())
+	})
+
+	t.Run("too long progress", func(t *testing.T) {
+		task := NewZipTask(SkipAll, nil, testZipDst, testZipSrcDir)
+		zt := task.Task().(*zipTask)
+
+		// 3% -> 2.98%
+		zt.current.SetUint64(3)
+		zt.total.SetUint64(100)
+
+		t.Log(zt.Progress())
+	})
+}
+
+func TestZipTask_Watcher(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	pg1 := testPatchTaskCanceled()
+	defer pg1.Unpatch()
+
+	pg2 := testPatchMultiTaskWatcher()
+	defer pg2.Unpatch()
+
+	testCreateZipSrcDir(t)
+	defer testRemoveZipDir(t)
+
+	err := Zip(SkipAll, testZipDst, testZipSrcDir)
+	require.NoError(t, err)
+
+	testCheckZipWithDir(t)
 }
