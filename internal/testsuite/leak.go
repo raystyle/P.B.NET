@@ -14,16 +14,10 @@ import (
 
 // GoroutineMark contains testing.TB and then goroutine number.
 type GoroutineMark struct {
-	t testing.TB
-
-	// the number of the goroutine
-	then int
-
-	// goroutine stack record
-	record *bytes.Buffer
-
-	// the number of the goroutine
-	now int
+	t      testing.TB
+	then   int           // the number of the goroutine
+	record *bytes.Buffer // goroutine stack record
+	now    int           // the number of the goroutine
 }
 
 // MarkGoroutines is used to mark the number of the goroutines.
