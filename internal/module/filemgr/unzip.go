@@ -99,7 +99,6 @@ func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
 		return err
 	}
 	defer func() { _ = zipFile.Close() }()
-	sort.Sort(zipFiles(zipFile.File)) // sort zip files
 	// extract files
 	if ut.pathsLen == 0 {
 		err = ut.extractAll(ctx, task)
@@ -111,6 +110,10 @@ func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
 	}
 	// set extracted directory modified time again
 	for _, dir := range ut.dirs {
+		// check task is canceled
+		if task.Canceled() {
+			return context.Canceled
+		}
 		dirPath := filepath.Join(ut.dst, filepath.Clean(dir.Name))
 		err = os.Chtimes(dirPath, time.Now(), dir.Modified)
 		if err != nil {
@@ -121,7 +124,30 @@ func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
 }
 
 func (ut *unZipTask) extractAll(ctx context.Context, task *task.Task) error {
-	files := ut.zipFile.File
+	sort.Sort(zipFiles(ut.zipFile.File)) // sort zip files
+	return ut.extractFiles(ctx, task, ut.zipFile.File)
+}
+
+func (ut *unZipTask) extractPart(ctx context.Context, task *task.Task) error {
+	// check file is in zip
+	files := make([]*zip.File, 0, ut.pathsLen)
+	zipFiles := make(map[string]*zip.File)
+	for _, file := range ut.zipFile.File {
+		zipFiles[filepath.Clean(file.Name)] = file
+	}
+	sort.Strings(ut.paths)
+	// add files
+	for _, path := range ut.paths {
+		if file, ok := zipFiles[filepath.Clean(path)]; ok {
+			files = append(files, file)
+		} else {
+			return errors.Errorf("\"%s\" is not exist in zip file", path)
+		}
+	}
+	return ut.extractFiles(ctx, task, files)
+}
+
+func (ut *unZipTask) extractFiles(ctx context.Context, task *task.Task, files []*zip.File) error {
 	err := ut.collectFilesInfo(task, files)
 	if err != nil {
 		return err
@@ -132,12 +158,6 @@ func (ut *unZipTask) extractAll(ctx context.Context, task *task.Task) error {
 			return err
 		}
 	}
-	return nil
-}
-
-func (ut *unZipTask) extractPart(ctx context.Context, task *task.Task) error {
-	// select files in zip
-
 	return nil
 }
 
@@ -166,7 +186,140 @@ func (ut *unZipTask) collectFilesInfo(task *task.Task, files []*zip.File) error 
 }
 
 func (ut *unZipTask) extractFile(ctx context.Context, task *task.Task, file *zip.File) error {
+	fi := file.FileInfo()
+	path := filepath.Clean(file.Name)
+	// skip file if it in skipped directories
+	for i := 0; i < len(ut.skipDirs); i++ {
+		if strings.HasPrefix(path, ut.skipDirs[i]) {
+			ut.updateCurrent(fi.Size(), true)
+			return nil
+		}
+	}
+	// destination
+	stat := fileStat{
+		path: filepath.Join(ut.dst, path),
+		stat: fi,
+	}
+	if fi.IsDir() {
+		return ut.mkdir(ctx, task, path, &stat)
+	}
+	return ut.writeFile(ctx, task, path, &stat, file)
+}
+
+func (ut *unZipTask) mkdir(ctx context.Context, task *task.Task, src string, dir *fileStat) error {
+	// update current task detail, output:
+	//   create directory, name: testdata
+	//   src: zip/testdata
+	//   dst: C:\testdata
+	const format = "create directory, name: %s\nsrc: zip/%s\ndst: %s"
+	name := filepath.Base(src)
+	ut.updateDetail(fmt.Sprintf(format, name, src, dir.path))
+retry:
+	// check task is canceled
+	if task.Canceled() {
+		return context.Canceled
+	}
+	err := os.MkdirAll(dir.path, dir.stat.Mode().Perm())
+	if err != nil {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: ut.errCtrl,
+		}
+		retry, ne := noticeFailedToUnZip(&ps, src, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return ne
+		}
+		ut.skipDirs = append(ut.skipDirs, src)
+	}
 	return nil
+}
+
+func (ut *unZipTask) writeFile(
+	ctx context.Context,
+	task *task.Task,
+	src string,
+	file *fileStat,
+	zipFile *zip.File,
+) error {
+	// update current task detail, output:
+	//   extract file, name: testdata
+	//   src: zip/testdata/test.dat
+	//   dst: C:\testdata\test.dat
+	const format = "extract file, name: %s\nsrc: zip/%s\ndst: %s"
+	name := filepath.Base(src)
+	ut.updateDetail(fmt.Sprintf(format, name, src, file.path))
+	// check destination
+	skipped, err := ut.checkDst(ctx, task, src, file)
+	if skipped || err != nil {
+		return err
+	}
+	// create file
+	os.OpenFile(file.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.stat.Mode().Perm())
+
+	// set mod time
+
+	return nil
+}
+
+// checkDst is used to check file is exist.
+func (ut *unZipTask) checkDst(ctx context.Context, task *task.Task, src string, file *fileStat) (bool, error) {
+retry:
+	// check task is canceled
+	if task.Canceled() {
+		return false, context.Canceled
+	}
+	dstStat, err := stat(file.path)
+	if err != nil {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: ut.errCtrl,
+		}
+		retry, ne := noticeFailedToUnZip(&ps, file.path, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return false, ne
+		}
+		return true, nil
+	}
+	// destination is not exist
+	if dstStat == nil {
+		return false, nil
+	}
+	ps := noticePs{
+		ctx:     ctx,
+		task:    task,
+		errCtrl: ut.errCtrl,
+	}
+	stats := SrcDstStat{
+		SrcAbs:    src,
+		DstAbs:    file.path,
+		SrcStat:   file.stat,
+		DstStat:   dstStat,
+		SrcIsFile: true,
+	}
+	if dstStat.IsDir() {
+		retry, ne := noticeSameFileDir(&ps, &stats)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return false, ne
+		}
+		return true, nil
+	}
+	replace, ne := noticeSameFile(&ps, &stats)
+	if !replace {
+		ut.updateCurrent(file.stat.Size(), true)
+		return true, ne
+	}
+	return false, nil
 }
 
 // Progress is used to get progress about current unzip task.

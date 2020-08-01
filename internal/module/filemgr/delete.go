@@ -87,8 +87,7 @@ func (dt *deleteTask) Prepare(context.Context) error {
 			return errors.Errorf("appear root path \"%s\"", absPath)
 		}
 		// check file path is already exists
-		_, ok := paths[absPath]
-		if ok {
+		if _, ok := paths[absPath]; ok {
 			return errors.Errorf("appear the same path \"%s\"", absPath)
 		}
 		// compare directory is same
