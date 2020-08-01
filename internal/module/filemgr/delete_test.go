@@ -154,6 +154,41 @@ func TestDelete(t *testing.T) {
 	})
 }
 
+func TestDeleteWithContext(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("common", func(t *testing.T) {
+		testCreateDeleteSrcDir(t)
+		defer testRemoveDeleteDir(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		err := DeleteWithContext(ctx, SkipAll, testDeleteSrcDir)
+		require.NoError(t, err)
+
+		testIsNotExist(t, testDeleteSrcDir)
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		testCreateDeleteSrcDir(t)
+		defer testRemoveDeleteDir(t)
+
+		pg := testPatchTaskCanceled()
+		defer pg.Unpatch()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(time.Second)
+			cancel()
+		}()
+		err := DeleteWithContext(ctx, SkipAll, testDeleteSrcDir)
+		require.Equal(t, context.Canceled, err)
+
+		testIsExist(t, testDeleteSrcDir)
+	})
+}
+
 func TestDeleteWithNotice(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
