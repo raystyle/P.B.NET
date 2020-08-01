@@ -1,6 +1,7 @@
 package filemgr
 
 import (
+	"archive/zip"
 	"context"
 	"fmt"
 	"io"
@@ -165,6 +166,13 @@ type fileStat struct {
 	path string // absolute
 	stat os.FileInfo
 }
+
+// zipFiles is used to sort files by name in zip file.
+type zipFiles []*zip.File
+
+func (zf zipFiles) Len() int           { return len(zf) }
+func (zf zipFiles) Less(i, j int) bool { return zf[i].Name < zf[j].Name }
+func (zf zipFiles) Swap(i, j int)      { zf[i], zf[j] = zf[j], zf[i] }
 
 // noticePs contains three parameters about notice function.
 type noticePs struct {

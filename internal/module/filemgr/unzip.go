@@ -5,6 +5,9 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,16 +21,19 @@ import (
 	"project/internal/xpanic"
 )
 
-// unZipTask implement task.Interface that is used to extract files from one zip file.
+// unZipTask implement task.Interface that is used to extract files from a zip file.
 // It can pause in progress and get current progress and detail information.
 type unZipTask struct {
 	errCtrl  ErrCtrl
-	src      string // zip file absolute  path
-	dst      string // destination path to store extract files
-	paths    []string
+	src      string   // zip file absolute path
+	dst      string   // destination path to store extract files
+	paths    []string // files need extract
 	pathsLen int
 
-	skipDirs []string // store skipped directories
+	stats    *SrcDstStat
+	zipFile  *zip.ReadCloser
+	dirs     []*zip.File // set modified time after extract
+	skipDirs []string    // store skipped directories
 
 	// about progress, detail and speed
 	current *big.Float
@@ -72,31 +78,94 @@ func (ut *unZipTask) Prepare(context.Context) error {
 	}
 	ut.src = stats.SrcAbs
 	ut.dst = stats.DstAbs
+	ut.stats = stats
 	go ut.watcher()
 	return nil
 }
 
 func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
 	defer ut.updateDetail("finished")
+	// create destination directory if it not exists
+	if ut.stats.DstStat == nil {
+		err := os.MkdirAll(ut.stats.DstAbs, 0750)
+		if err != nil {
+			return err
+		}
+	}
 	// open and read zip file
-	ut.updateDetail("open zip file")
+	ut.updateDetail("read zip file")
 	zipFile, err := zip.OpenReader(ut.src)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = zipFile.Close() }()
+	sort.Sort(zipFiles(zipFile.File)) // sort zip files
+	// extract files
 	if ut.pathsLen == 0 {
-		return ut.extractAll(ctx, task)
+		err = ut.extractAll(ctx, task)
+	} else {
+		err = ut.extractPart(ctx, task)
 	}
-	return ut.extractPart(ctx, task)
+	if err != nil {
+		return err
+	}
+	// set extracted directory modified time again
+	for _, dir := range ut.dirs {
+		dirPath := filepath.Join(ut.dst, filepath.Clean(dir.Name))
+		err = os.Chtimes(dirPath, time.Now(), dir.Modified)
+		if err != nil {
+			return errors.Wrap(err, "failed to change directory modification time")
+		}
+	}
+	return nil
 }
 
 func (ut *unZipTask) extractAll(ctx context.Context, task *task.Task) error {
-
+	files := ut.zipFile.File
+	err := ut.collectFilesInfo(task, files)
+	if err != nil {
+		return err
+	}
+	for i := 0; i < len(files); i++ {
+		err = ut.extractFile(ctx, task, files[i])
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (ut *unZipTask) extractPart(ctx context.Context, task *task.Task) error {
+	// select files in zip
+
+	return nil
+}
+
+func (ut *unZipTask) collectFilesInfo(task *task.Task, files []*zip.File) error {
+	for _, file := range files {
+		// check task is canceled
+		if task.Canceled() {
+			return context.Canceled
+		}
+		fi := file.FileInfo()
+		if fi.IsDir() {
+			ut.dirs = append(ut.dirs, file)
+			// collect directory information
+			// path: testdata/test
+			const format = "collect directory information\npath: %s"
+			ut.updateDetail(fmt.Sprintf(format, file.Name))
+			continue
+		}
+		// collect file information
+		// path: testdata/test
+		const format = "collect file information\npath: %s"
+		ut.updateDetail(fmt.Sprintf(format, file.Name))
+		ut.addTotal(fi.Size())
+	}
+	return nil
+}
+
+func (ut *unZipTask) extractFile(ctx context.Context, task *task.Task, file *zip.File) error {
 	return nil
 }
 
@@ -157,20 +226,16 @@ func (ut *unZipTask) updateCurrent(delta int64, add bool) {
 	}
 }
 
-func (ut *unZipTask) updateTotal(delta int64, add bool) {
+func (ut *unZipTask) addTotal(delta int64) {
 	ut.rwm.Lock()
 	defer ut.rwm.Unlock()
 	d := new(big.Float).SetInt64(delta)
-	if add {
-		ut.total.Add(ut.total, d)
-	} else {
-		ut.total.Sub(ut.total, d)
-	}
+	ut.total.Add(ut.total, d)
 }
 
 // Detail is used to get detail about unzip task.
-// open zip file:
-//   open zip file
+// read zip file:
+//   read zip file
 // collect file info:
 //   collect file information
 //   path: testdata/test.dat

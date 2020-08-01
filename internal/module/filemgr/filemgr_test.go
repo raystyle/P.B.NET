@@ -1,11 +1,13 @@
 package filemgr
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -134,6 +136,28 @@ func TestIsRoot(t *testing.T) {
 		require.True(t, isRoot(path))
 	}
 	require.False(t, isRoot("C:\\test.dat"))
+}
+
+func TestZipFiles(t *testing.T) {
+	const (
+		name1 = "a/b.dat"
+		name2 = "a/"
+	)
+
+	var raw []*zip.File
+	file1 := zip.File{}
+	file1.Name = name1
+	file2 := zip.File{}
+	file2.Name = name2
+	raw = append(raw, &file1, &file2)
+
+	require.Equal(t, name1, raw[0].Name)
+	require.Equal(t, name2, raw[1].Name)
+
+	sort.Sort(zipFiles(raw))
+
+	require.Equal(t, name2, raw[0].Name)
+	require.Equal(t, name1, raw[1].Name)
 }
 
 const mockTaskName = "mock task"

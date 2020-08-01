@@ -266,8 +266,9 @@ retry:
 	header := zip.FileHeader{
 		Name:     relPath + "/",
 		Method:   zip.Store,
-		Modified: dirStat.ModTime(),
+		Modified: dirStat.ModTime().UTC(), // Convert to UTC for compatibility
 	}
+	header.SetMode(dirStat.Mode())
 	_, err = zt.zipWriter.CreateHeader(&header)
 	return err
 }
@@ -322,12 +323,10 @@ retry:
 		return nil
 	}
 	// create a zip file
-	header := zip.FileHeader{
-		Name:     relPath,
-		Method:   zip.Deflate,
-		Modified: srcStat.ModTime(),
-	}
-	zipFile, err := zt.zipWriter.CreateHeader(&header)
+	header, _ := zip.FileInfoHeader(srcStat)
+	header.Name = relPath
+	header.Method = zip.Deflate
+	zipFile, err := zt.zipWriter.CreateHeader(header)
 	if err != nil {
 		return err
 	}
