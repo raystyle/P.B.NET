@@ -29,7 +29,6 @@ type mockTask struct {
 
 	ctx    context.Context
 	cancel context.CancelFunc
-	wg     sync.WaitGroup
 }
 
 func testNewMockTask() *mockTask {
@@ -50,8 +49,6 @@ func (mt *mockTask) Prepare(context.Context) error {
 		// }
 		time.Sleep(3 * time.Second)
 	}
-
-	mt.wg.Add(1)
 	go mt.watcher()
 	return nil
 }
@@ -84,23 +81,35 @@ func (mt *mockTask) Process(ctx context.Context, task *Task) error {
 			task.Continue()
 		}
 
+		// do
 		select {
 		case <-time.After(200 * time.Millisecond):
 			fmt.Printf("process %d\n", i)
 			mt.updateProgress()
 			mt.updateDetail(fmt.Sprintf("mock task detail: %d", i))
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-mt.ctx.Done():
+			return mt.ctx.Err()
 		}
 	}
-
 	return nil
+}
+
+func (mt *mockTask) Progress() string {
+	mt.rwm.RLock()
+	defer mt.rwm.RUnlock()
+	return strconv.FormatFloat(mt.progress, 'f', -1, 64)
 }
 
 func (mt *mockTask) updateProgress() {
 	mt.rwm.Lock()
 	defer mt.rwm.Unlock()
 	mt.progress += 0.2
+}
+
+func (mt *mockTask) Detail() string {
+	mt.rwm.RLock()
+	defer mt.rwm.RUnlock()
+	return mt.detail
 }
 
 func (mt *mockTask) updateDetail(detail string) {
@@ -110,7 +119,6 @@ func (mt *mockTask) updateDetail(detail string) {
 }
 
 func (mt *mockTask) watcher() {
-	defer mt.wg.Done()
 	for {
 		select {
 		case <-time.After(time.Second):
@@ -121,21 +129,8 @@ func (mt *mockTask) watcher() {
 	}
 }
 
-func (mt *mockTask) Progress() string {
-	mt.rwm.RLock()
-	defer mt.rwm.RUnlock()
-	return strconv.FormatFloat(mt.progress, 'f', -1, 64)
-}
-
-func (mt *mockTask) Detail() string {
-	mt.rwm.RLock()
-	defer mt.rwm.RUnlock()
-	return mt.detail
-}
-
 func (mt *mockTask) Clean() {
 	mt.cancel()
-	mt.wg.Wait()
 }
 
 func TestTask(t *testing.T) {
