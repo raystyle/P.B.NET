@@ -49,21 +49,22 @@ func testCompareFile(t *testing.T, a, b string) {
 	require.Equal(t, aStat.Mode(), bStat.Mode())
 	require.Equal(t, aStat.IsDir(), bStat.IsDir())
 
-	if !aStat.IsDir() {
-		// compare data
-		aFileData, err := ioutil.ReadAll(aFile)
-		require.NoError(t, err)
-		bFileData, err := ioutil.ReadAll(bFile)
-		require.NoError(t, err)
-		require.Equal(t, aFileData, bFileData)
-
-		// mod time is not equal about wall
-		// directory stat may be changed
-		const format = "2006-01-02 15:04:05"
-		am := aStat.ModTime().Format(format)
-		bm := bStat.ModTime().Format(format)
-		require.Equal(t, am, bm)
+	if aStat.IsDir() {
+		return
 	}
+	// compare data
+	aFileData, err := ioutil.ReadAll(aFile)
+	require.NoError(t, err)
+	bFileData, err := ioutil.ReadAll(bFile)
+	require.NoError(t, err)
+	require.Equal(t, aFileData, bFileData)
+
+	// modification time is not equal about wall,
+	// directory stat may be changed, so only compare file
+	const format = "2006-01-02 15:04:05"
+	am := aStat.ModTime().Format(format)
+	bm := bStat.ModTime().Format(format)
+	require.Equal(t, am, bm)
 }
 
 func testCompareDirectory(t *testing.T, a, b string) {

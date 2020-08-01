@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"context"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -108,7 +109,7 @@ func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
 	if err != nil {
 		return err
 	}
-	// set extracted directory modified time again
+	// set extracted directory modification time again
 	for _, dir := range ut.dirs {
 		// check task is canceled
 		if task.Canceled() {
@@ -125,7 +126,7 @@ func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
 
 func (ut *unZipTask) extractAll(ctx context.Context, task *task.Task) error {
 	sort.Sort(zipFiles(ut.zipFile.File)) // sort zip files
-	return ut.extractFiles(ctx, task, ut.zipFile.File)
+	return ut.extractZipFiles(ctx, task, ut.zipFile.File)
 }
 
 func (ut *unZipTask) extractPart(ctx context.Context, task *task.Task) error {
@@ -144,16 +145,16 @@ func (ut *unZipTask) extractPart(ctx context.Context, task *task.Task) error {
 			return errors.Errorf("\"%s\" is not exist in zip file", path)
 		}
 	}
-	return ut.extractFiles(ctx, task, files)
+	return ut.extractZipFiles(ctx, task, files)
 }
 
-func (ut *unZipTask) extractFiles(ctx context.Context, task *task.Task, files []*zip.File) error {
+func (ut *unZipTask) extractZipFiles(ctx context.Context, task *task.Task, files []*zip.File) error {
 	err := ut.collectFilesInfo(task, files)
 	if err != nil {
 		return err
 	}
 	for i := 0; i < len(files); i++ {
-		err = ut.extractFile(ctx, task, files[i])
+		err = ut.extractZipFile(ctx, task, files[i])
 		if err != nil {
 			return err
 		}
@@ -185,7 +186,7 @@ func (ut *unZipTask) collectFilesInfo(task *task.Task, files []*zip.File) error 
 	return nil
 }
 
-func (ut *unZipTask) extractFile(ctx context.Context, task *task.Task, file *zip.File) error {
+func (ut *unZipTask) extractZipFile(ctx context.Context, task *task.Task, file *zip.File) error {
 	fi := file.FileInfo()
 	path := filepath.Clean(file.Name)
 	// skip file if it in skipped directories
@@ -203,7 +204,7 @@ func (ut *unZipTask) extractFile(ctx context.Context, task *task.Task, file *zip
 	if fi.IsDir() {
 		return ut.mkdir(ctx, task, path, &stat)
 	}
-	return ut.writeFile(ctx, task, path, &stat, file)
+	return ut.extractFile(ctx, task, path, &stat, file)
 }
 
 func (ut *unZipTask) mkdir(ctx context.Context, task *task.Task, src string, dir *fileStat) error {
@@ -238,7 +239,7 @@ retry:
 	return nil
 }
 
-func (ut *unZipTask) writeFile(
+func (ut *unZipTask) extractFile(
 	ctx context.Context,
 	task *task.Task,
 	src string,
@@ -257,12 +258,32 @@ func (ut *unZipTask) writeFile(
 	if skipped || err != nil {
 		return err
 	}
+retry:
+	// check task is canceled
+	if task.Canceled() {
+		return context.Canceled
+	}
 	// create file
-	os.OpenFile(file.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.stat.Mode().Perm())
-
-	// set mod time
-
-	return nil
+	perm := file.stat.Mode().Perm()
+	dstFile, err := os.OpenFile(file.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: ut.errCtrl,
+		}
+		retry, ne := noticeFailedToUnZip(&ps, src, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return ne
+		}
+		ut.updateCurrent(file.stat.Size(), true)
+		return nil
+	}
+	defer func() { _ = dstFile.Close() }()
+	return ut.writeFile(ctx, task, dstFile, zipFile)
 }
 
 // checkDst is used to check file is exist.
@@ -279,7 +300,7 @@ retry:
 			task:    task,
 			errCtrl: ut.errCtrl,
 		}
-		retry, ne := noticeFailedToUnZip(&ps, file.path, err)
+		retry, ne := noticeFailedToUnZip(&ps, src, err)
 		if retry {
 			goto retry
 		}
@@ -320,6 +341,72 @@ retry:
 		return true, ne
 	}
 	return false, nil
+}
+
+func (ut *unZipTask) writeFile(ctx context.Context, task *task.Task, dst *os.File, src *zip.File) (err error) {
+	// check extract file error, and maybe retry extract file.
+	var copied int64
+	defer func() {
+		if err != nil && err != context.Canceled {
+			ps := noticePs{
+				ctx:     ctx,
+				task:    task,
+				errCtrl: ut.errCtrl,
+			}
+			var retry bool
+			retry, err = noticeFailedToUnZip(&ps, src.Name, err)
+			if retry {
+				// reset current progress
+				ut.updateCurrent(copied, false)
+				err = ut.retry(ctx, task, dst, src)
+			} else if err == nil { // skipped
+				ut.updateCurrent(src.FileInfo().Size(), true)
+			}
+		}
+	}()
+	// failed to open zip file can't recover
+	rc, err := src.Open()
+	if err != nil {
+		return
+	}
+	defer func() { _ = rc.Close() }()
+	// if failed to extract, delete destination file
+	dstPath := dst.Name()
+	var ok bool
+	defer func() {
+		_ = dst.Close()
+		if !ok {
+			_ = os.Remove(dstPath)
+		}
+	}()
+	copied, err = ioCopy(task, ut.addCurrent, dst, rc)
+	if err != nil {
+		return
+	}
+	// set the modification time about the destination file
+	err = os.Chtimes(dstPath, time.Now(), src.Modified)
+	if err != nil {
+		return
+	}
+	ok = true
+	return
+}
+
+func (ut *unZipTask) addCurrent(delta int64) {
+	ut.updateCurrent(delta, true)
+}
+
+func (ut *unZipTask) retry(ctx context.Context, task *task.Task, dst *os.File, src *zip.File) error {
+	// check task is canceled
+	if task.Canceled() {
+		return context.Canceled
+	}
+	// reset offset about opened destination file
+	_, err := dst.Seek(0, io.SeekStart)
+	if err != nil {
+		return err
+	}
+	return ut.writeFile(ctx, task, dst, src)
 }
 
 // Progress is used to get progress about current unzip task.

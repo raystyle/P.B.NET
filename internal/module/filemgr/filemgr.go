@@ -67,6 +67,11 @@ var (
 	SkipAll = func(context.Context, uint8, error, *SrcDstStat) uint8 {
 		return ErrCtrlOpSkip
 	}
+
+	// Cancel is used to cancel current task if appear some error
+	Cancel = func(context.Context, uint8, error, *SrcDstStat) uint8 {
+		return ErrCtrlOpCancel
+	}
 )
 
 // for calculate task progress
