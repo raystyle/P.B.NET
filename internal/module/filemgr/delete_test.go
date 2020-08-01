@@ -271,12 +271,12 @@ func TestDeleteTask_Progress(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	pg := testPatchTaskCanceled()
-	defer pg.Unpatch()
-
 	t.Run("common", func(t *testing.T) {
 		testCreateDeleteSrcDir(t)
 		defer testRemoveDeleteDir(t)
+
+		pg := testPatchTaskCanceled()
+		defer pg.Unpatch()
 
 		dt := NewDeleteTask(SkipAll, nil, testDeleteSrcDir)
 

@@ -277,6 +277,41 @@ func TestZip(t *testing.T) {
 	})
 }
 
+func TestZipWithContext(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("common", func(t *testing.T) {
+		testCreateZipSrcDir(t)
+		defer testRemoveZipDir(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		err := ZipWithContext(ctx, SkipAll, testZipDst, testZipSrcDir)
+		require.NoError(t, err)
+
+		testCheckZipWithDir(t)
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		testCreateZipSrcDir(t)
+		defer testRemoveZipDir(t)
+
+		pg := testPatchTaskCanceled()
+		defer pg.Unpatch()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(time.Second)
+			cancel()
+		}()
+		err := ZipWithContext(ctx, SkipAll, testZipDst, testZipSrcDir)
+		require.Equal(t, context.Canceled, err)
+
+		testIsNotExist(t, testZipDst)
+	})
+}
+
 func TestZipWithNotice(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -587,12 +622,12 @@ func TestZipTask_Progress(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	pg := testPatchTaskCanceled()
-	defer pg.Unpatch()
-
 	t.Run("common", func(t *testing.T) {
 		testCreateZipSrcDir(t)
 		defer testRemoveZipDir(t)
+
+		pg := testPatchTaskCanceled()
+		defer pg.Unpatch()
 
 		zt := NewZipTask(SkipAll, nil, testZipDst, testZipSrcDir)
 

@@ -109,11 +109,15 @@ func testIsNotExist(t *testing.T, path string) {
 
 func testPatchTaskCanceled() *monkey.PatchGuard {
 	t := new(task.Task)
-	patch := func(interface{}) bool {
+	var pg *monkey.PatchGuard
+	patch := func(task *task.Task) bool {
 		time.Sleep(200 * time.Millisecond)
-		return false
+		pg.Unpatch()
+		defer pg.Restore()
+		return task.Canceled()
 	}
-	return monkey.PatchInstanceMethod(t, "Canceled", patch)
+	pg = monkey.PatchInstanceMethod(t, "Canceled", patch)
+	return pg
 }
 
 func testPatchMultiTaskWatcher() *monkey.PatchGuard {
