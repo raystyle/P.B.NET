@@ -28,9 +28,8 @@ type deleteTask struct {
 	paths    []string // absolute path that will be deleted
 	pathsLen int
 
-	roots    []*file          // store all directories and files will delete
-	dirs     map[string]*file // for search dir faster, key is path
-	skipDirs []string         // store skipped directories
+	roots []*file          // store all directories and files will delete
+	dirs  map[string]*file // for search dir faster, key is path
 
 	// about progress, detail and speed
 	current *big.Float
@@ -254,13 +253,6 @@ func (dt *deleteTask) deleteDir(ctx context.Context, task *task.Task, dir *file)
 
 // returned bool is skipped this file.
 func (dt *deleteTask) deleteDirFile(ctx context.Context, task *task.Task, file *file) (bool, error) {
-	// skip file if it in skipped directories
-	for i := 0; i < len(dt.skipDirs); i++ {
-		if strings.HasPrefix(file.path, dt.skipDirs[i]) {
-			dt.updateCurrent()
-			return true, nil
-		}
-	}
 	// update current task detail, output:
 	//   delete file, name: test.dat
 	//   path: C:\testdata\test.dat
