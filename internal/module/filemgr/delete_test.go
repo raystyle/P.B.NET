@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -237,4 +238,70 @@ func TestDeleteTask_Progress(t *testing.T) {
 
 		testIsNotExist(t, testDeleteSrcDir)
 	})
+
+	t.Run("current > total", func(t *testing.T) {
+		task := NewDeleteTask(SkipAll, nil, testDeleteSrcDir)
+		dt := task.Task().(*deleteTask)
+
+		dt.current.SetUint64(1000)
+		dt.total.SetUint64(10)
+
+		t.Log(dt.Progress())
+	})
+
+	t.Run("too long value", func(t *testing.T) {
+		task := NewDeleteTask(SkipAll, nil, testDeleteSrcDir)
+		dt := task.Task().(*deleteTask)
+
+		dt.current.SetUint64(1)
+		dt.total.SetUint64(7)
+
+		t.Log(dt.Progress())
+	})
+
+	t.Run("invalid value", func(t *testing.T) {
+		patch := func(s string, bitSize int) (float64, error) {
+			return 0, monkey.Error
+		}
+		pg := monkey.Patch(strconv.ParseFloat, patch)
+		defer pg.Unpatch()
+
+		task := NewDeleteTask(SkipAll, nil, testDeleteSrcDir)
+		dt := task.Task().(*deleteTask)
+
+		dt.current.SetUint64(1)
+		dt.total.SetUint64(7)
+
+		t.Log(dt.Progress())
+	})
+
+	t.Run("too long progress", func(t *testing.T) {
+		task := NewDeleteTask(SkipAll, nil, testDeleteSrcDir)
+		dt := task.Task().(*deleteTask)
+
+		// 3% -> 2.98%
+		dt.current.SetUint64(3)
+		dt.total.SetUint64(100)
+
+		t.Log(dt.Progress())
+	})
+}
+
+func TestDeleteTask_Watcher(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	pg1 := testPatchTaskCanceled()
+	defer pg1.Unpatch()
+
+	pg2 := testPatchMultiTaskWatcher()
+	defer pg2.Unpatch()
+
+	testCreateDeleteSrcDir(t)
+	defer testRemoveDeleteDir(t)
+
+	err := Delete(SkipAll, testDeleteSrcDir)
+	require.NoError(t, err)
+
+	testIsNotExist(t, testDeleteSrcDir)
 }
