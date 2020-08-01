@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
@@ -151,29 +152,103 @@ func TestDelete(t *testing.T) {
 			require.Equal(t, 1, count)
 		})
 	})
+}
 
-	t.Run("failed to remove file", func(t *testing.T) {
-		testCreateDeleteSrcFile(t)
-		defer testRemoveDeleteDir(t)
+func TestDeleteWithNotice(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	t.Run("deleteDirFile-os.Remove", func(t *testing.T) {
 		patch := func(string) error {
 			return monkey.Error
 		}
 		pg := monkey.Patch(os.Remove, patch)
 		defer pg.Unpatch()
 
-		count := 0
-		ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-			require.Equal(t, ErrCtrlDeleteFailed, typ)
-			require.Error(t, err)
-			t.Log(err)
-			count++
-			return ErrCtrlOpSkip
-		}
-		err := Delete(ec, testDeleteSrcFile)
-		require.NoError(t, err)
+		t.Run("retry", func(t *testing.T) {
+			defer pg.Restore()
 
-		testIsExist(t, testDeleteSrcFile)
+			testCreateDeleteSrcDir(t)
+			defer testRemoveDeleteDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlDeleteFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+			err := Delete(ec, testDeleteSrcDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+			testIsNotExist(t, testDeleteSrcDir)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateDeleteSrcDir(t)
+			defer testRemoveDeleteDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlDeleteFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpSkip
+			}
+			err := Delete(ec, testDeleteSrcDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+			testIsExist(t, testDeleteSrcDir)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateDeleteSrcDir(t)
+			defer testRemoveDeleteDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlDeleteFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpCancel
+			}
+			err := Delete(ec, testDeleteSrcDir)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+			testIsExist(t, testDeleteSrcDir)
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateDeleteSrcDir(t)
+			defer testRemoveDeleteDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlDeleteFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpInvalid
+			}
+			err := Delete(ec, testDeleteSrcDir)
+			errStr := "failed to delete directory: unknown failed to delete operation code: 0"
+			require.EqualError(t, err, errStr)
+
+			require.Equal(t, 1, count)
+			testIsExist(t, testDeleteSrcDir)
+		})
 	})
 }
 
