@@ -64,7 +64,7 @@ func testCompareFile(t *testing.T, a, b string) {
 	const format = "2006-01-02 15:04:05"
 	am := aStat.ModTime().Format(format)
 	bm := bStat.ModTime().Format(format)
-	require.Equal(t, am, bm)
+	require.Equal(t, am, bm, a)
 }
 
 func testCompareDirectory(t *testing.T, a, b string) {

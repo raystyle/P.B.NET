@@ -101,6 +101,7 @@ func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
 	}
 	defer func() { _ = zipFile.Close() }()
 	// extract files
+	ut.zipFile = zipFile
 	if ut.pathsLen == 0 {
 		err = ut.extractAll(ctx, task)
 	} else {
@@ -130,21 +131,41 @@ func (ut *unZipTask) extractAll(ctx context.Context, task *task.Task) error {
 }
 
 func (ut *unZipTask) extractPart(ctx context.Context, task *task.Task) error {
-	// check file is in zip
 	files := make([]*zip.File, 0, ut.pathsLen)
-	zipFiles := make(map[string]*zip.File)
+	// check file is in zip
+	filesMap := make(map[string]*zip.File)
 	for _, file := range ut.zipFile.File {
-		zipFiles[filepath.Clean(file.Name)] = file
+		filesMap[filepath.Clean(file.Name)] = file
 	}
 	sort.Strings(ut.paths)
+	// prevent add a dir and a file is sub file in dir
+	dirs := make(map[string]struct{})
 	// add files
+next:
 	for _, path := range ut.paths {
-		if file, ok := zipFiles[filepath.Clean(path)]; ok {
+		cPath := filepath.Clean(path)
+		// check is added(already add dir that include this file)
+		for dir := range dirs {
+			if strings.HasPrefix(cPath, dir) {
+				continue next
+			}
+		}
+		if file, ok := filesMap[cPath]; ok {
+			if file.FileInfo().IsDir() {
+				// add all sub files in this directory
+				for path, file := range filesMap {
+					if strings.HasPrefix(path, cPath) {
+						files = append(files, file)
+					}
+				}
+				dirs[cPath] = struct{}{}
+			}
 			files = append(files, file)
 		} else {
-			return errors.Errorf("\"%s\" is not exist in zip file", path)
+			return errors.Errorf("\"%s\" doesn't exist in zip file", path)
 		}
 	}
+	sort.Sort(zipFiles(files)) // sort zip files
 	return ut.extractZipFiles(ctx, task, files)
 }
 

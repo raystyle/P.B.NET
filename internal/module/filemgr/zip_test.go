@@ -191,7 +191,7 @@ func TestZip(t *testing.T) {
 		testCreateZipSrcFile(t)
 		defer testRemoveZipDir(t)
 
-		err := Zip(SkipAll, testZipDst, testZipSrcFile)
+		err := Zip(Cancel, testZipDst, testZipSrcFile)
 		require.NoError(t, err)
 
 		testCheckZipWithFile(t)
@@ -201,7 +201,7 @@ func TestZip(t *testing.T) {
 		testCreateZipSrcDir(t)
 		defer testRemoveZipDir(t)
 
-		err := Zip(SkipAll, testZipDst, testZipSrcDir)
+		err := Zip(Cancel, testZipDst, testZipSrcDir)
 		require.NoError(t, err)
 
 		testCheckZipWithDir(t)
@@ -213,7 +213,7 @@ func TestZip(t *testing.T) {
 			testCreateZipSrcDir(t)
 			defer testRemoveZipDir(t)
 
-			err := Zip(SkipAll, testZipDst, testZipSrcFile, testZipSrcDir)
+			err := Zip(Cancel, testZipDst, testZipSrcFile, testZipSrcDir)
 			require.NoError(t, err)
 
 			testCheckZipWithMulti(t)
@@ -224,7 +224,7 @@ func TestZip(t *testing.T) {
 			testCreateZipSrcFile(t)
 			defer testRemoveZipDir(t)
 
-			err := Zip(SkipAll, testZipDst, testZipSrcDir, testZipSrcFile)
+			err := Zip(Cancel, testZipDst, testZipSrcDir, testZipSrcFile)
 			require.NoError(t, err)
 
 			testCheckZipWithMulti(t)
@@ -232,7 +232,7 @@ func TestZip(t *testing.T) {
 	})
 
 	t.Run("empty path", func(t *testing.T) {
-		err := Zip(SkipAll, testZipDst)
+		err := Zip(Cancel, testZipDst)
 		require.Error(t, err)
 	})
 
@@ -287,7 +287,7 @@ func TestZipWithContext(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		err := ZipWithContext(ctx, SkipAll, testZipDst, testZipSrcDir)
+		err := ZipWithContext(ctx, Cancel, testZipDst, testZipSrcDir)
 		require.NoError(t, err)
 
 		testCheckZipWithDir(t)
@@ -305,7 +305,7 @@ func TestZipWithContext(t *testing.T) {
 			time.Sleep(time.Second)
 			cancel()
 		}()
-		err := ZipWithContext(ctx, SkipAll, testZipDst, testZipSrcDir)
+		err := ZipWithContext(ctx, Cancel, testZipDst, testZipSrcDir)
 		require.Equal(t, context.Canceled, err)
 
 		testIsNotExist(t, testZipDst)
@@ -629,7 +629,7 @@ func TestZipTask_Progress(t *testing.T) {
 		pg := testPatchTaskCanceled()
 		defer pg.Unpatch()
 
-		zt := NewZipTask(SkipAll, nil, testZipDst, testZipSrcDir)
+		zt := NewZipTask(Cancel, nil, testZipDst, testZipSrcDir)
 
 		done := make(chan struct{})
 		wg := sync.WaitGroup{}
@@ -666,7 +666,7 @@ func TestZipTask_Progress(t *testing.T) {
 	})
 
 	t.Run("current > total", func(t *testing.T) {
-		task := NewZipTask(SkipAll, nil, testZipDst, testZipSrcDir)
+		task := NewZipTask(Cancel, nil, testZipDst, testZipSrcDir)
 		zt := task.Task().(*zipTask)
 
 		zt.current.SetUint64(1000)
@@ -676,7 +676,7 @@ func TestZipTask_Progress(t *testing.T) {
 	})
 
 	t.Run("too long value", func(t *testing.T) {
-		task := NewZipTask(SkipAll, nil, testZipDst, testZipSrcDir)
+		task := NewZipTask(Cancel, nil, testZipDst, testZipSrcDir)
 		zt := task.Task().(*zipTask)
 
 		zt.current.SetUint64(1)
@@ -692,7 +692,7 @@ func TestZipTask_Progress(t *testing.T) {
 		pg := monkey.Patch(strconv.ParseFloat, patch)
 		defer pg.Unpatch()
 
-		task := NewZipTask(SkipAll, nil, testZipDst, testZipSrcDir)
+		task := NewZipTask(Cancel, nil, testZipDst, testZipSrcDir)
 		zt := task.Task().(*zipTask)
 
 		zt.current.SetUint64(1)
@@ -702,7 +702,7 @@ func TestZipTask_Progress(t *testing.T) {
 	})
 
 	t.Run("too long progress", func(t *testing.T) {
-		task := NewZipTask(SkipAll, nil, testZipDst, testZipSrcDir)
+		task := NewZipTask(Cancel, nil, testZipDst, testZipSrcDir)
 		zt := task.Task().(*zipTask)
 
 		// 3% -> 2.98%
@@ -726,7 +726,7 @@ func TestZipTask_Watcher(t *testing.T) {
 	testCreateZipSrcDir(t)
 	defer testRemoveZipDir(t)
 
-	err := Zip(SkipAll, testZipDst, testZipSrcDir)
+	err := Zip(Cancel, testZipDst, testZipSrcDir)
 	require.NoError(t, err)
 
 	testCheckZipWithDir(t)

@@ -69,7 +69,7 @@ func TestDelete(t *testing.T) {
 		testCreateDeleteSrcFile(t)
 		defer testRemoveDeleteDir(t)
 
-		err := Delete(SkipAll, testDeleteSrcFile)
+		err := Delete(Cancel, testDeleteSrcFile)
 		require.NoError(t, err)
 
 		testIsNotExist(t, testDeleteSrcFile)
@@ -79,7 +79,7 @@ func TestDelete(t *testing.T) {
 		testCreateDeleteSrcDir(t)
 		defer testRemoveDeleteDir(t)
 
-		err := Delete(SkipAll, testDeleteSrcDir)
+		err := Delete(Cancel, testDeleteSrcDir)
 		require.NoError(t, err)
 
 		testIsNotExist(t, testDeleteSrcDir)
@@ -91,7 +91,7 @@ func TestDelete(t *testing.T) {
 			testCreateDeleteSrcDir(t)
 			defer testRemoveDeleteDir(t)
 
-			err := Delete(SkipAll, testDeleteSrcFile, testDeleteSrcDir)
+			err := Delete(Cancel, testDeleteSrcFile, testDeleteSrcDir)
 			require.NoError(t, err)
 
 			testIsNotExist(t, testDeleteSrcFile)
@@ -103,7 +103,7 @@ func TestDelete(t *testing.T) {
 			testCreateDeleteSrcFile(t)
 			defer testRemoveDeleteDir(t)
 
-			err := Delete(SkipAll, testDeleteSrcDir, testDeleteSrcFile)
+			err := Delete(Cancel, testDeleteSrcDir, testDeleteSrcFile)
 			require.NoError(t, err)
 
 			testIsNotExist(t, testDeleteSrcDir)
@@ -112,7 +112,7 @@ func TestDelete(t *testing.T) {
 	})
 
 	t.Run("empty path", func(t *testing.T) {
-		err := Delete(SkipAll)
+		err := Delete(Cancel)
 		require.Error(t, err)
 	})
 
@@ -164,7 +164,7 @@ func TestDeleteWithContext(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		err := DeleteWithContext(ctx, SkipAll, testDeleteSrcDir)
+		err := DeleteWithContext(ctx, Cancel, testDeleteSrcDir)
 		require.NoError(t, err)
 
 		testIsNotExist(t, testDeleteSrcDir)
@@ -182,7 +182,7 @@ func TestDeleteWithContext(t *testing.T) {
 			time.Sleep(time.Second)
 			cancel()
 		}()
-		err := DeleteWithContext(ctx, SkipAll, testDeleteSrcDir)
+		err := DeleteWithContext(ctx, Cancel, testDeleteSrcDir)
 		require.Equal(t, context.Canceled, err)
 
 		testIsExist(t, testDeleteSrcDir)
@@ -313,7 +313,7 @@ func TestDeleteTask_Progress(t *testing.T) {
 		pg := testPatchTaskCanceled()
 		defer pg.Unpatch()
 
-		dt := NewDeleteTask(SkipAll, nil, testDeleteSrcDir)
+		dt := NewDeleteTask(Cancel, nil, testDeleteSrcDir)
 
 		done := make(chan struct{})
 		wg := sync.WaitGroup{}
@@ -350,7 +350,7 @@ func TestDeleteTask_Progress(t *testing.T) {
 	})
 
 	t.Run("current > total", func(t *testing.T) {
-		task := NewDeleteTask(SkipAll, nil, testDeleteSrcDir)
+		task := NewDeleteTask(Cancel, nil, testDeleteSrcDir)
 		dt := task.Task().(*deleteTask)
 
 		dt.current.SetUint64(1000)
@@ -360,7 +360,7 @@ func TestDeleteTask_Progress(t *testing.T) {
 	})
 
 	t.Run("too long value", func(t *testing.T) {
-		task := NewDeleteTask(SkipAll, nil, testDeleteSrcDir)
+		task := NewDeleteTask(Cancel, nil, testDeleteSrcDir)
 		dt := task.Task().(*deleteTask)
 
 		dt.current.SetUint64(1)
@@ -376,7 +376,7 @@ func TestDeleteTask_Progress(t *testing.T) {
 		pg := monkey.Patch(strconv.ParseFloat, patch)
 		defer pg.Unpatch()
 
-		task := NewDeleteTask(SkipAll, nil, testDeleteSrcDir)
+		task := NewDeleteTask(Cancel, nil, testDeleteSrcDir)
 		dt := task.Task().(*deleteTask)
 
 		dt.current.SetUint64(1)
@@ -386,7 +386,7 @@ func TestDeleteTask_Progress(t *testing.T) {
 	})
 
 	t.Run("too long progress", func(t *testing.T) {
-		task := NewDeleteTask(SkipAll, nil, testDeleteSrcDir)
+		task := NewDeleteTask(Cancel, nil, testDeleteSrcDir)
 		dt := task.Task().(*deleteTask)
 
 		// 3% -> 2.98%
@@ -410,7 +410,7 @@ func TestDeleteTask_Watcher(t *testing.T) {
 	testCreateDeleteSrcDir(t)
 	defer testRemoveDeleteDir(t)
 
-	err := Delete(SkipAll, testDeleteSrcDir)
+	err := Delete(Cancel, testDeleteSrcDir)
 	require.NoError(t, err)
 
 	testIsNotExist(t, testDeleteSrcDir)

@@ -69,7 +69,8 @@ var (
 	}
 
 	// Cancel is used to cancel current task if appear some error
-	Cancel = func(context.Context, uint8, error, *SrcDstStat) uint8 {
+	Cancel = func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+		fmt.Println(typ, err)
 		return ErrCtrlOpCancel
 	}
 )
