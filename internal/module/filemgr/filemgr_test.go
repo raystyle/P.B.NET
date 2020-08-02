@@ -63,7 +63,7 @@ func testCompareFile(t *testing.T, a, b string) {
 	// directory stat may be changed, so only compare file
 	am := aStat.ModTime()
 	bm := bStat.ModTime()
-	require.True(t, bm.Sub(am) < 2*time.Second, am, bm)
+	require.Truef(t, bm.Sub(am) < 2*time.Second, "a: %s\nb: %s", am, bm)
 }
 
 func testCompareDirectory(t *testing.T, a, b string) {

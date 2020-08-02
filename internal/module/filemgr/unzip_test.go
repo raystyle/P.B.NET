@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -265,4 +267,71 @@ func TestUnZipTask_Progress(t *testing.T) {
 		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
 	})
+
+	t.Run("current > total", func(t *testing.T) {
+		task := NewUnZipTask(Cancel, nil, testUnZipMultiZip, testUnZipDst)
+		ut := task.Task().(*unZipTask)
+
+		ut.current.SetUint64(1000)
+		ut.total.SetUint64(10)
+
+		t.Log(task.Progress())
+	})
+
+	t.Run("too long value", func(t *testing.T) {
+		task := NewUnZipTask(Cancel, nil, testUnZipMultiZip, testUnZipDst)
+		ut := task.Task().(*unZipTask)
+
+		ut.current.SetUint64(1)
+		ut.total.SetUint64(7)
+
+		t.Log(task.Progress())
+	})
+
+	t.Run("invalid value", func(t *testing.T) {
+		patch := func(s string, bitSize int) (float64, error) {
+			return 0, monkey.Error
+		}
+		pg := monkey.Patch(strconv.ParseFloat, patch)
+		defer pg.Unpatch()
+
+		task := NewUnZipTask(Cancel, nil, testUnZipMultiZip, testUnZipDst)
+		ut := task.Task().(*unZipTask)
+
+		ut.current.SetUint64(1)
+		ut.total.SetUint64(7)
+
+		t.Log(task.Progress())
+	})
+
+	t.Run("too long progress", func(t *testing.T) {
+		task := NewUnZipTask(Cancel, nil, testUnZipMultiZip, testUnZipDst)
+		ut := task.Task().(*unZipTask)
+
+		// 3% -> 2.98%
+		ut.current.SetUint64(3)
+		ut.total.SetUint64(100)
+
+		t.Log(task.Progress())
+	})
+}
+
+func TestUnZipTask_Watcher(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	testCreateUnZipMultiZip(t)
+	defer testRemoveUnZipDir(t)
+
+	pg1 := testPatchTaskCanceled()
+	defer pg1.Unpatch()
+
+	pg2 := testPatchMultiTaskWatcher()
+	defer pg2.Unpatch()
+
+	err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst)
+	require.NoError(t, err)
+
+	testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+	testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
 }

@@ -670,7 +670,7 @@ func TestZipTask_Progress(t *testing.T) {
 		zt.current.SetUint64(1000)
 		zt.total.SetUint64(10)
 
-		t.Log(zt.Progress())
+		t.Log(task.Progress())
 	})
 
 	t.Run("too long value", func(t *testing.T) {
@@ -680,7 +680,7 @@ func TestZipTask_Progress(t *testing.T) {
 		zt.current.SetUint64(1)
 		zt.total.SetUint64(7)
 
-		t.Log(zt.Progress())
+		t.Log(task.Progress())
 	})
 
 	t.Run("invalid value", func(t *testing.T) {
@@ -707,7 +707,7 @@ func TestZipTask_Progress(t *testing.T) {
 		zt.current.SetUint64(3)
 		zt.total.SetUint64(100)
 
-		t.Log(zt.Progress())
+		t.Log(task.Progress())
 	})
 }
 

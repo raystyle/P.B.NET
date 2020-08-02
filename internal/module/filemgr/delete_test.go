@@ -356,7 +356,7 @@ func TestDeleteTask_Progress(t *testing.T) {
 		dt.current.SetUint64(1000)
 		dt.total.SetUint64(10)
 
-		t.Log(dt.Progress())
+		t.Log(task.Progress())
 	})
 
 	t.Run("too long value", func(t *testing.T) {
@@ -366,7 +366,7 @@ func TestDeleteTask_Progress(t *testing.T) {
 		dt.current.SetUint64(1)
 		dt.total.SetUint64(7)
 
-		t.Log(dt.Progress())
+		t.Log(task.Progress())
 	})
 
 	t.Run("invalid value", func(t *testing.T) {
@@ -382,7 +382,7 @@ func TestDeleteTask_Progress(t *testing.T) {
 		dt.current.SetUint64(1)
 		dt.total.SetUint64(7)
 
-		t.Log(dt.Progress())
+		t.Log(task.Progress())
 	})
 
 	t.Run("too long progress", func(t *testing.T) {
@@ -393,7 +393,7 @@ func TestDeleteTask_Progress(t *testing.T) {
 		dt.current.SetUint64(3)
 		dt.total.SetUint64(100)
 
-		t.Log(dt.Progress())
+		t.Log(task.Progress())
 	})
 }
 
