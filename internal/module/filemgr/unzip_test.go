@@ -297,6 +297,8 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
+
+			testIsNotExist(t, target)
 		})
 
 		t.Run("user cancel", func(t *testing.T) {
@@ -318,6 +320,10 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
+
+			testIsExist(t, testUnZipDstDir)
+			testIsNotExist(t, target)
+			testIsNotExist(t, testUnZipDstFile)
 		})
 
 		t.Run("unknown operation", func(t *testing.T) {
@@ -339,6 +345,10 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.EqualError(t, err, "unknown failed to unzip operation code: 0")
 
 			require.Equal(t, 1, count)
+
+			testIsExist(t, testUnZipDstDir)
+			testIsNotExist(t, target)
+			testIsNotExist(t, testUnZipDstFile)
 		})
 	})
 
@@ -402,6 +412,7 @@ func TestUnZipWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 
+			testIsNotExist(t, testUnZipDstFile)
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
 		})
 
@@ -424,6 +435,8 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
+
+			testIsNotExist(t, testUnZipDstFile)
 		})
 
 		t.Run("unknown operation", func(t *testing.T) {
@@ -445,6 +458,8 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.EqualError(t, err, "unknown failed to unzip operation code: 0")
 
 			require.Equal(t, 1, count)
+
+			testIsNotExist(t, testUnZipDstFile)
 		})
 	})
 
@@ -761,6 +776,122 @@ func TestUnZipWithNotice(t *testing.T) {
 	})
 }
 
+func TestUnZipWithRetry(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	target, err := filepath.Abs(testUnZipDstFile)
+	require.NoError(t, err)
+
+	var pg *monkey.PatchGuard
+	patch := func(name string, aTime, mTime time.Time) error {
+		if name == target {
+			return monkey.Error
+		}
+		pg.Unpatch()
+		defer pg.Restore()
+		return os.Chtimes(name, aTime, mTime)
+	}
+	pg = monkey.Patch(os.Chtimes, patch)
+	defer pg.Unpatch()
+
+	t.Run("retry", func(t *testing.T) {
+		defer pg.Restore()
+
+		testCreateUnZipMultiZip(t)
+		defer testRemoveUnZipDir(t)
+
+		count := 0
+		ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+			require.Equal(t, ErrCtrlUnZipFailed, typ)
+			monkey.IsMonkeyError(t, err)
+			count++
+			pg.Unpatch()
+			return ErrCtrlOpRetry
+		}
+
+		err := UnZip(ec, testUnZipMultiZip, testUnZipDst)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, count)
+
+		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+	})
+
+	t.Run("skip", func(t *testing.T) {
+		defer pg.Restore()
+
+		testCreateUnZipMultiZip(t)
+		defer testRemoveUnZipDir(t)
+
+		count := 0
+		ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+			require.Equal(t, ErrCtrlUnZipFailed, typ)
+			monkey.IsMonkeyError(t, err)
+			count++
+			pg.Unpatch()
+			return ErrCtrlOpSkip
+		}
+
+		err := UnZip(ec, testUnZipMultiZip, testUnZipDst)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, count)
+
+		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+		testIsNotExist(t, testUnZipDstFile)
+	})
+
+	t.Run("user cancel", func(t *testing.T) {
+		defer pg.Restore()
+
+		testCreateUnZipMultiZip(t)
+		defer testRemoveUnZipDir(t)
+
+		count := 0
+		ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+			require.Equal(t, ErrCtrlUnZipFailed, typ)
+			monkey.IsMonkeyError(t, err)
+			count++
+			pg.Unpatch()
+			return ErrCtrlOpCancel
+		}
+
+		err := UnZip(ec, testUnZipMultiZip, testUnZipDst)
+		require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+		require.Equal(t, 1, count)
+
+		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+		testIsNotExist(t, testUnZipDstFile)
+	})
+
+	t.Run("unknown operation", func(t *testing.T) {
+		defer pg.Restore()
+
+		testCreateUnZipMultiZip(t)
+		defer testRemoveUnZipDir(t)
+
+		count := 0
+		ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+			require.Equal(t, ErrCtrlUnZipFailed, typ)
+			monkey.IsMonkeyError(t, err)
+			count++
+			pg.Unpatch()
+			return ErrCtrlOpInvalid
+		}
+
+		err := UnZip(ec, testUnZipMultiZip, testUnZipDst)
+		require.EqualError(t, err, "unknown failed to unzip operation code: 0")
+
+		require.Equal(t, 1, count)
+
+		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+		testIsNotExist(t, testUnZipDstFile)
+	})
+}
+
 func TestUnZipTask_Progress(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -804,8 +935,8 @@ func TestUnZipTask_Progress(t *testing.T) {
 		testsuite.IsDestroyed(t, ut)
 		testsuite.IsDestroyed(t, rut)
 
-		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 	})
 
 	t.Run("current > total", func(t *testing.T) {
@@ -872,6 +1003,6 @@ func TestUnZipTask_Watcher(t *testing.T) {
 	err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst)
 	require.NoError(t, err)
 
-	testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 	testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+	testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 }

@@ -375,7 +375,7 @@ retry:
 }
 
 func (ut *unZipTask) writeFile(ctx context.Context, task *task.Task, dst *os.File, src *zip.File) (err error) {
-	// check extract file error, and maybe retry extract file.
+	dstPath := dst.Name()
 	var copied int64
 	defer func() {
 		if err != nil && err != context.Canceled {
@@ -390,9 +390,17 @@ func (ut *unZipTask) writeFile(ctx context.Context, task *task.Task, dst *os.Fil
 				// reset current progress
 				ut.updateCurrent(copied, false)
 				err = ut.retry(ctx, task, dst, src)
-			} else if err == nil { // skipped
-				ut.updateCurrent(src.FileInfo().Size(), true)
+				return
 			}
+			// if failed to extract, delete destination file
+			_ = dst.Close()
+			_ = os.Remove(dstPath)
+			// user cancel
+			if err != nil {
+				return
+			}
+			// skipped
+			ut.updateCurrent(src.FileInfo().Size()-copied, true)
 		}
 	}()
 	// failed to open zip file can't recover
@@ -401,26 +409,12 @@ func (ut *unZipTask) writeFile(ctx context.Context, task *task.Task, dst *os.Fil
 		return
 	}
 	defer func() { _ = rc.Close() }()
-	// if failed to extract, delete destination file
-	dstPath := dst.Name()
-	var ok bool
-	defer func() {
-		_ = dst.Close()
-		if !ok {
-			_ = os.Remove(dstPath)
-		}
-	}()
 	copied, err = ioCopy(task, ut.addCurrent, dst, rc)
 	if err != nil {
 		return
 	}
 	// set the modification time about the destination file
-	err = os.Chtimes(dstPath, time.Now(), src.Modified)
-	if err != nil {
-		return
-	}
-	ok = true
-	return
+	return os.Chtimes(dstPath, time.Now(), src.Modified)
 }
 
 func (ut *unZipTask) addCurrent(delta int64) {
