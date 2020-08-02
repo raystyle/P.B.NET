@@ -200,14 +200,12 @@ func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 			mt.dirs[srcAbs] = f
 			// collecting directory information
 			// path: C:\testdata\test
-			const format = "collect directory information\npath: %s"
-			mt.updateDetail(fmt.Sprintf(format, srcAbs))
+			mt.updateDetail("collect directory information\npath: " + srcAbs)
 			return nil
 		}
 		// collecting file information
 		// path: C:\testdata\test
-		const format = "collect file information\npath: %s"
-		mt.updateDetail(fmt.Sprintf(format, srcAbs))
+		mt.updateDetail("collect file information\npath: " + srcAbs)
 		mt.updateTotal(srcStat.Size(), true)
 		return nil
 	}

@@ -193,14 +193,12 @@ func (zt *zipTask) collectPathInfo(ctx context.Context, task *task.Task, srcPath
 		if stat.IsDir() {
 			// collect directory information
 			// path: C:\testdata\test
-			const format = "collect directory information\npath: %s"
-			zt.updateDetail(fmt.Sprintf(format, path))
+			zt.updateDetail("collect directory information\npath: " + path)
 			return nil
 		}
 		// collect file information
 		// path: C:\testdata\test.dat
-		const format = "collect file information\npath: %s"
-		zt.updateDetail(fmt.Sprintf(format, path))
+		zt.updateDetail("collect file information\npath: " + path)
 		zt.addTotal(stat.Size())
 		return nil
 	}
@@ -220,6 +218,7 @@ func (zt *zipTask) compress(ctx context.Context, task *task.Task, file *fileStat
 	if err != nil {
 		return err
 	}
+	relPath = strings.ReplaceAll(relPath, "\\", "/")
 	// file is root directory
 	if relPath == "." {
 		return nil

@@ -190,18 +190,17 @@ func (ut *unZipTask) collectFilesInfo(task *task.Task, files []*zip.File) error 
 			return context.Canceled
 		}
 		fi := file.FileInfo()
+		path := strings.ReplaceAll(file.Name, "\\", "/")
 		if fi.IsDir() {
 			ut.dirs = append(ut.dirs, file)
 			// collect directory information
 			// path: testdata/test
-			const format = "collect directory information\npath: %s"
-			ut.updateDetail(fmt.Sprintf(format, file.Name))
+			ut.updateDetail("collect directory information\npath: " + path)
 			continue
 		}
 		// collect file information
 		// path: testdata/test
-		const format = "collect file information\npath: %s"
-		ut.updateDetail(fmt.Sprintf(format, file.Name))
+		ut.updateDetail("collect file information\npath: " + path)
 		ut.addTotal(fi.Size())
 	}
 	return nil
@@ -209,7 +208,7 @@ func (ut *unZipTask) collectFilesInfo(task *task.Task, files []*zip.File) error 
 
 func (ut *unZipTask) extractZipFile(ctx context.Context, task *task.Task, file *zip.File) error {
 	fi := file.FileInfo()
-	path := filepath.Clean(file.Name)
+	path := strings.ReplaceAll(filepath.Clean(file.Name), "\\", "/")
 	// skip file if it in skipped directories
 	for i := 0; i < len(ut.skipDirs); i++ {
 		if strings.HasPrefix(path, ut.skipDirs[i]) {

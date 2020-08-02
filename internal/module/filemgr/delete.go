@@ -179,14 +179,12 @@ func (dt *deleteTask) collectPathInfo(ctx context.Context, task *task.Task, i in
 			dt.dirs[path] = f
 			// collect directory information
 			// path: C:\testdata\test
-			const format = "collect directory information\npath: %s"
-			dt.updateDetail(fmt.Sprintf(format, path))
+			dt.updateDetail("collect directory information\npath: " + path)
 			return nil
 		}
 		// collect file information
 		// path: C:\testdata\test.dat
-		const format = "collect file information\npath: %s"
-		dt.updateDetail(fmt.Sprintf(format, path))
+		dt.updateDetail("collect file information\npath: " + path)
 		dt.updateTotal()
 		return nil
 	}

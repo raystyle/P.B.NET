@@ -61,15 +61,15 @@ func testCompareFile(t *testing.T, a, b string) {
 
 	// modification time is not equal about wall,
 	// directory stat may be changed, so only compare file
-	const format = "2006-01-02 15:04:05"
-	am := aStat.ModTime().Format(format)
-	bm := bStat.ModTime().Format(format)
-	require.Equal(t, am, bm, a)
+	am := aStat.ModTime()
+	bm := bStat.ModTime()
+	require.True(t, bm.Sub(am) < 2*time.Second, am, bm)
 }
 
 func testCompareDirectory(t *testing.T, a, b string) {
 	aFiles := make([]string, 0, 4)
 	bFiles := make([]string, 0, 4)
+
 	err := filepath.Walk(a, func(path string, info os.FileInfo, err error) error {
 		require.NoError(t, err)
 		if path != a {
@@ -78,6 +78,7 @@ func testCompareDirectory(t *testing.T, a, b string) {
 		return nil
 	})
 	require.NoError(t, err)
+
 	err = filepath.Walk(b, func(path string, info os.FileInfo, err error) error {
 		require.NoError(t, err)
 		if path != b {

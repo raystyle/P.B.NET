@@ -175,14 +175,12 @@ func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 		if srcStat.IsDir() {
 			// collecting directory information
 			// path: C:\testdata\test
-			const format = "collect directory information\npath: %s"
-			ct.updateDetail(fmt.Sprintf(format, srcAbs))
+			ct.updateDetail("collect directory information\npath: " + srcAbs)
 			return nil
 		}
 		// collecting file information
 		// path: C:\testdata\test
-		const format = "collect file information\npath: %s"
-		ct.updateDetail(fmt.Sprintf(format, srcAbs))
+		ct.updateDetail("collect file information\npath: " + srcAbs)
 		ct.updateTotal(srcStat.Size(), true)
 		return nil
 	}

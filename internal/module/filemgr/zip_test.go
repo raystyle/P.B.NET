@@ -111,7 +111,6 @@ func testCheckZipWithDir(t *testing.T) {
 		require.Equal(t, item.isDir, file.FileInfo().IsDir())
 		// check name
 		expectName := strings.ReplaceAll(item.name, testZipDir, "")
-		expectName = strings.ReplaceAll(expectName, "/", "\\")
 		if item.isDir {
 			expectName += "/"
 		}
@@ -159,7 +158,6 @@ func testCheckZipWithMulti(t *testing.T) {
 		file := zipFile.File[i]
 		// check name
 		expectName := strings.ReplaceAll(item.name, testZipDir, "")
-		expectName = strings.ReplaceAll(expectName, "/", "\\")
 		if item.isDir {
 			expectName += "/"
 		}

@@ -1,8 +1,12 @@
 package filemgr
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -170,6 +174,95 @@ func TestUnZip(t *testing.T) {
 
 			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "not exist")
 			require.EqualError(t, err, "\"not exist\" doesn't exist in zip file")
+
+			testIsNotExist(t, testUnZipDstFile)
+			testIsNotExist(t, testUnZipDstDir)
 		})
+	})
+}
+
+func TestUnZipWithContext(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("common", func(t *testing.T) {
+		testCreateUnZipMultiZip(t)
+		defer testRemoveUnZipDir(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		err := UnZipWithContext(ctx, Cancel, testUnZipMultiZip, testUnZipDst)
+		require.NoError(t, err)
+
+		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		testCreateUnZipMultiZip(t)
+		defer testRemoveUnZipDir(t)
+
+		pg := testPatchTaskCanceled()
+		defer pg.Unpatch()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(time.Second)
+			cancel()
+		}()
+		err := UnZipWithContext(ctx, Cancel, testUnZipMultiZip, testUnZipDst)
+		require.Equal(t, context.Canceled, err)
+
+		testIsNotExist(t, testUnZipDstFile)
+		testIsNotExist(t, testUnZipDstDir)
+	})
+}
+
+func TestUnZipTask_Progress(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("common", func(t *testing.T) {
+		testCreateUnZipMultiZip(t)
+		defer testRemoveUnZipDir(t)
+
+		pg := testPatchTaskCanceled()
+		defer pg.Unpatch()
+
+		ut := NewUnZipTask(Cancel, nil, testUnZipMultiZip, testUnZipDst)
+
+		done := make(chan struct{})
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				fmt.Println("progress:", ut.Progress())
+				fmt.Println("detail:", ut.Detail())
+				fmt.Println()
+				time.Sleep(250 * time.Millisecond)
+			}
+		}()
+
+		err := ut.Start()
+		require.NoError(t, err)
+
+		close(done)
+		wg.Wait()
+
+		fmt.Println("progress:", ut.Progress())
+		fmt.Println("detail:", ut.Detail())
+
+		rut := ut.Task().(*unZipTask)
+		testsuite.IsDestroyed(t, ut)
+		testsuite.IsDestroyed(t, rut)
+
+		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
 	})
 }
