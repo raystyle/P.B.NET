@@ -249,7 +249,48 @@ retry:
 	if task.Canceled() {
 		return context.Canceled
 	}
-	err := os.MkdirAll(dir.path, dir.stat.Mode().Perm())
+	// check destination directory is exist
+	dstStat, err := stat(dir.path)
+	if err != nil {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: ut.errCtrl,
+		}
+		retry, ne := noticeFailedToUnZip(&ps, src, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return ne
+		}
+		ut.skipDirs = append(ut.skipDirs, src)
+		return nil
+	}
+	// appear same name file with directory
+	if dstStat != nil && !dstStat.IsDir() {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: ut.errCtrl,
+		}
+		stats := SrcDstStat{
+			SrcAbs:  src,
+			DstAbs:  dir.path,
+			SrcStat: dir.stat,
+			DstStat: dstStat,
+		}
+		retry, ne := noticeSameDirFile(&ps, &stats)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return ne
+		}
+		ut.skipDirs = append(ut.skipDirs, src)
+		return nil
+	}
+	err = os.MkdirAll(dir.path, dir.stat.Mode().Perm())
 	if err != nil {
 		ps := noticePs{
 			ctx:     ctx,

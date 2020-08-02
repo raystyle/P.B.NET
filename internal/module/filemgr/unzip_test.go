@@ -124,8 +124,8 @@ func TestUnZip(t *testing.T) {
 		err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst)
 		require.NoError(t, err)
 
-		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 	})
 
 	t.Run("select", func(t *testing.T) {
@@ -136,11 +136,11 @@ func TestUnZip(t *testing.T) {
 			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "file1.dat")
 			require.NoError(t, err)
 
-			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 			testIsNotExist(t, testUnZipDstDir)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		})
 
-		t.Run("only dir", func(t *testing.T) {
+		t.Run("only directory", func(t *testing.T) {
 			testCreateUnZipMultiZip(t)
 			defer testRemoveUnZipDir(t)
 
@@ -158,30 +158,30 @@ func TestUnZip(t *testing.T) {
 			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "file1.dat", "dir")
 			require.NoError(t, err)
 
-			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		})
 
-		t.Run("repeat dir", func(t *testing.T) {
+		t.Run("repeat directory", func(t *testing.T) {
 			testCreateUnZipMultiZip(t)
 			defer testRemoveUnZipDir(t)
 
 			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "dir", "file1.dat", "dir")
 			require.NoError(t, err)
 
-			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		})
 
-		t.Run("repeat file in dir", func(t *testing.T) {
+		t.Run("repeat file in directory", func(t *testing.T) {
 			testCreateUnZipMultiZip(t)
 			defer testRemoveUnZipDir(t)
 
 			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "dir", "dir/afile1.dat")
 			require.NoError(t, err)
 
-			testIsNotExist(t, testUnZipDstFile)
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsNotExist(t, testUnZipDstFile)
 		})
 
 		t.Run("not exist", func(t *testing.T) {
@@ -191,8 +191,8 @@ func TestUnZip(t *testing.T) {
 			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "not exist")
 			require.EqualError(t, err, "\"not exist\" doesn't exist in zip file")
 
-			testIsNotExist(t, testUnZipDstFile)
 			testIsNotExist(t, testUnZipDstDir)
+			testIsNotExist(t, testUnZipDstFile)
 		})
 	})
 }
@@ -210,8 +210,8 @@ func TestUnZipWithContext(t *testing.T) {
 		err := UnZipWithContext(ctx, Cancel, testUnZipMultiZip, testUnZipDst)
 		require.NoError(t, err)
 
-		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 	})
 
 	t.Run("cancel", func(t *testing.T) {
@@ -229,8 +229,8 @@ func TestUnZipWithContext(t *testing.T) {
 		err := UnZipWithContext(ctx, Cancel, testUnZipMultiZip, testUnZipDst)
 		require.Equal(t, context.Canceled, err)
 
-		testIsNotExist(t, testUnZipDstFile)
 		testIsNotExist(t, testUnZipDstDir)
+		testIsNotExist(t, testUnZipDstFile)
 	})
 }
 
@@ -274,8 +274,8 @@ func TestUnZipWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 
-			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		})
 
 		t.Run("skip", func(t *testing.T) {
@@ -298,7 +298,9 @@ func TestUnZipWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 
+			testIsExist(t, testUnZipDstDir)
 			testIsNotExist(t, target)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		})
 
 		t.Run("user cancel", func(t *testing.T) {
@@ -388,8 +390,8 @@ func TestUnZipWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 
-			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		})
 
 		t.Run("skip", func(t *testing.T) {
@@ -412,8 +414,8 @@ func TestUnZipWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 
-			testIsNotExist(t, testUnZipDstFile)
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsNotExist(t, testUnZipDstFile)
 		})
 
 		t.Run("user cancel", func(t *testing.T) {
@@ -436,6 +438,7 @@ func TestUnZipWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
 			testIsNotExist(t, testUnZipDstFile)
 		})
 
@@ -459,6 +462,7 @@ func TestUnZipWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
 			testIsNotExist(t, testUnZipDstFile)
 		})
 	})
@@ -489,8 +493,8 @@ func TestUnZipWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 
-			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		})
 
 		t.Run("skip", func(t *testing.T) {
@@ -517,6 +521,7 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.Equal(t, 1, count)
 
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsExist(t, testUnZipDstFile)
 		})
 
 		t.Run("user cancel", func(t *testing.T) {
@@ -541,6 +546,9 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
+
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsExist(t, testUnZipDstFile)
 		})
 
 		t.Run("unknown operation", func(t *testing.T) {
@@ -565,6 +573,9 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.EqualError(t, err, "unknown same file dir operation code: 0")
 
 			require.Equal(t, 1, count)
+
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsExist(t, testUnZipDstFile)
 		})
 	})
 
@@ -593,8 +604,8 @@ func TestUnZipWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 
-			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		})
 
 		t.Run("skip", func(t *testing.T) {
@@ -620,6 +631,7 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.Equal(t, 1, count)
 
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsExist(t, testUnZipDstFile)
 		})
 
 		t.Run("user cancel", func(t *testing.T) {
@@ -643,6 +655,9 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
+
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsExist(t, testUnZipDstFile)
 		})
 
 		t.Run("unknown operation", func(t *testing.T) {
@@ -666,6 +681,9 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.EqualError(t, err, "unknown same file operation code: 0")
 
 			require.Equal(t, 1, count)
+
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsExist(t, testUnZipDstFile)
 		})
 	})
 
@@ -705,8 +723,8 @@ func TestUnZipWithNotice(t *testing.T) {
 
 			require.Equal(t, 1, count)
 
-			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		})
 
 		t.Run("skip", func(t *testing.T) {
@@ -730,6 +748,7 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.Equal(t, 1, count)
 
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsNotExist(t, testUnZipDstFile)
 		})
 
 		t.Run("user cancel", func(t *testing.T) {
@@ -751,6 +770,9 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
+
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsNotExist(t, testUnZipDstFile)
 		})
 
 		t.Run("unknown operation", func(t *testing.T) {
@@ -772,6 +794,9 @@ func TestUnZipWithNotice(t *testing.T) {
 			require.EqualError(t, err, "unknown failed to unzip operation code: 0")
 
 			require.Equal(t, 1, count)
+
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsNotExist(t, testUnZipDstFile)
 		})
 	})
 }
