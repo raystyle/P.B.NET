@@ -268,10 +268,7 @@ retry:
 		return nil
 	}
 	// appear same name file with directory
-	if dstStat != nil {
-		if dstStat.IsDir() {
-			return nil
-		}
+	if dstStat != nil && !dstStat.IsDir() {
 		ps := noticePs{
 			ctx:     ctx,
 			task:    task,

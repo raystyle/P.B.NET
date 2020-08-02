@@ -354,6 +354,117 @@ func TestUnZipWithNotice(t *testing.T) {
 		})
 	})
 
+	t.Run("mkdir-SameDirFile", func(t *testing.T) {
+		t.Run("retry", func(t *testing.T) {
+			// create same name file with directory
+			target, err := filepath.Abs(testUnZipDstDir + "/dir1")
+			require.NoError(t, err)
+			testCreateFile(t, target)
+
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameDirFile, typ)
+				require.NoError(t, err)
+				count++
+				err = os.Remove(target)
+				require.NoError(t, err)
+				return ErrCtrlOpRetry
+			}
+
+			err = UnZip(ec, testUnZipMultiZip, testUnZipDst)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			// create same name file with directory
+			target, err := filepath.Abs(testUnZipDstDir + "/dir1")
+			require.NoError(t, err)
+			testCreateFile(t, target)
+
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameDirFile, typ)
+				require.NoError(t, err)
+				count++
+				return ErrCtrlOpSkip
+			}
+
+			err = UnZip(ec, testUnZipMultiZip, testUnZipDst)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testIsExist(t, testUnZipDstDir)
+			testIsExist(t, target)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			// create same name file with directory
+			target, err := filepath.Abs(testUnZipDstDir + "/dir1")
+			require.NoError(t, err)
+			testCreateFile(t, target)
+
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameDirFile, typ)
+				require.NoError(t, err)
+				count++
+				return ErrCtrlOpCancel
+			}
+
+			err = UnZip(ec, testUnZipMultiZip, testUnZipDst)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+
+			testIsExist(t, testUnZipDstDir)
+			testIsExist(t, target)
+			testIsNotExist(t, testUnZipDstFile)
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			// create same name file with directory
+			target, err := filepath.Abs(testUnZipDstDir + "/dir1")
+			require.NoError(t, err)
+			testCreateFile(t, target)
+
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameDirFile, typ)
+				require.NoError(t, err)
+				count++
+				return ErrCtrlOpInvalid
+			}
+
+			err = UnZip(ec, testUnZipMultiZip, testUnZipDst)
+			require.EqualError(t, err, "unknown same dir file operation code: 0")
+
+			require.Equal(t, 1, count)
+
+			testIsExist(t, testUnZipDstDir)
+			testIsExist(t, target)
+			testIsNotExist(t, testUnZipDstFile)
+		})
+	})
+
 	t.Run("mkdir-os.MkdirAll", func(t *testing.T) {
 		target, err := filepath.Abs(testUnZipDstDir + "/dir1")
 		require.NoError(t, err)
