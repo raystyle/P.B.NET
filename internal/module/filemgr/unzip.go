@@ -336,6 +336,7 @@ retry:
 		if ne != nil {
 			return false, ne
 		}
+		ut.updateCurrent(file.stat.Size(), true)
 		return true, nil
 	}
 	// destination is not exist
@@ -362,6 +363,7 @@ retry:
 		if ne != nil {
 			return false, ne
 		}
+		ut.updateCurrent(file.stat.Size(), true)
 		return true, nil
 	}
 	replace, ne := noticeSameFile(&ps, &stats)
