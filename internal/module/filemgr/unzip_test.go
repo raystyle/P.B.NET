@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
@@ -159,7 +161,7 @@ func TestUnZip(t *testing.T) {
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
 		})
 
-		t.Run("repeat", func(t *testing.T) {
+		t.Run("repeat dir", func(t *testing.T) {
 			testCreateUnZipMultiZip(t)
 			defer testRemoveUnZipDir(t)
 
@@ -167,6 +169,17 @@ func TestUnZip(t *testing.T) {
 			require.NoError(t, err)
 
 			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+		})
+
+		t.Run("repeat file in dir", func(t *testing.T) {
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "dir", "dir/afile1.dat")
+			require.NoError(t, err)
+
+			testIsNotExist(t, testUnZipDstFile)
 			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
 		})
 
@@ -220,6 +233,118 @@ func TestUnZipWithContext(t *testing.T) {
 	})
 }
 
+func TestUnZipWithNotice(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("mkdir-os.MkdirAll", func(t *testing.T) {
+		target, err := filepath.Abs(testUnZipDstDir + "/dir1")
+		require.NoError(t, err)
+
+		var pg *monkey.PatchGuard
+		patch := func(name string, perm os.FileMode) error {
+			if name == target {
+				return monkey.Error
+			}
+			pg.Unpatch()
+			defer pg.Restore()
+			return os.MkdirAll(name, perm)
+		}
+		pg = monkey.Patch(os.MkdirAll, patch)
+		defer pg.Unpatch()
+
+		t.Run("retry", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlUnZipFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+
+			err := UnZip(ec, testUnZipMultiZip, testUnZipDst)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlUnZipFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpSkip
+			}
+
+			err := UnZip(ec, testUnZipMultiZip, testUnZipDst)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlUnZipFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpCancel
+			}
+
+			err := UnZip(ec, testUnZipMultiZip, testUnZipDst)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlUnZipFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpInvalid
+			}
+
+			err := UnZip(ec, testUnZipMultiZip, testUnZipDst)
+			require.EqualError(t, err, "unknown failed to unzip operation code: 0")
+			require.Equal(t, 1, count)
+		})
+	})
+
+	t.Run("checkDst-stat", func(t *testing.T) {
+
+	})
+}
+
 func TestUnZipTask_Progress(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -239,15 +364,14 @@ func TestUnZipTask_Progress(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for {
-				select {
-				case <-done:
-					return
-				default:
-				}
 				fmt.Println("progress:", ut.Progress())
 				fmt.Println("detail:", ut.Detail())
 				fmt.Println()
-				time.Sleep(250 * time.Millisecond)
+				select {
+				case <-done:
+					return
+				case <-time.After(250 * time.Millisecond):
+				}
 			}
 		}()
 

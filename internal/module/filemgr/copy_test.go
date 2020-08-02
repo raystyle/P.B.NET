@@ -1592,15 +1592,14 @@ func TestCopyTask_Progress(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for {
-				select {
-				case <-done:
-					return
-				default:
-				}
 				fmt.Println("progress:", ct.Progress())
 				fmt.Println("detail:", ct.Detail())
 				fmt.Println()
-				time.Sleep(250 * time.Millisecond)
+				select {
+				case <-done:
+					return
+				case <-time.After(250 * time.Millisecond):
+				}
 			}
 		}()
 

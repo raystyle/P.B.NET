@@ -19,6 +19,7 @@ import (
 
 	"project/internal/convert"
 	"project/internal/module/task"
+	"project/internal/system"
 	"project/internal/xpanic"
 )
 
@@ -72,10 +73,10 @@ func (ut *unZipTask) Prepare(context.Context) error {
 		return err
 	}
 	if stats.SrcStat.IsDir() {
-		return errors.Errorf("source path %s is a directory", stats.SrcAbs)
+		return errors.Errorf("source path \"%s\" is a directory", stats.SrcAbs)
 	}
 	if stats.DstStat != nil && !stats.DstStat.IsDir() {
-		return errors.Errorf("destination path %s is a file", stats.DstAbs)
+		return errors.Errorf("destination path \"%s\" is a file", stats.DstAbs)
 	}
 	ut.src = stats.SrcAbs
 	ut.dst = stats.DstAbs
@@ -111,13 +112,21 @@ func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
 		return err
 	}
 	// set extracted directory modification time again
+next:
 	for _, dir := range ut.dirs {
 		// check task is canceled
 		if task.Canceled() {
 			return context.Canceled
 		}
-		dirPath := filepath.Join(ut.dst, filepath.Clean(dir.Name))
-		err = os.Chtimes(dirPath, time.Now(), dir.Modified)
+		dirPath := filepath.Clean(dir.Name)
+		// skip file if it in skipped directories
+		for i := 0; i < len(ut.skipDirs); i++ {
+			dirPath := strings.ReplaceAll(dirPath, "\\", "/")
+			if strings.HasPrefix(dirPath, ut.skipDirs[i]) {
+				continue next
+			}
+		}
+		err = os.Chtimes(filepath.Join(ut.dst, dirPath), time.Now(), dir.Modified)
 		if err != nil {
 			return errors.Wrap(err, "failed to change directory modification time")
 		}
@@ -285,7 +294,7 @@ retry:
 	}
 	// create file
 	perm := file.stat.Mode().Perm()
-	dstFile, err := os.OpenFile(file.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	dstFile, err := system.OpenFile(file.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
 		ps := noticePs{
 			ctx:     ctx,

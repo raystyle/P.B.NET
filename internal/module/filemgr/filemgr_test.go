@@ -111,6 +111,7 @@ func testIsNotExist(t *testing.T, path string) {
 	require.True(t, notExist)
 }
 
+// testPatchTaskCanceled is used to simulate current task is slow.
 func testPatchTaskCanceled() *monkey.PatchGuard {
 	t := new(task.Task)
 	var pg *monkey.PatchGuard
