@@ -34,7 +34,7 @@ func main() {
 	flag.BoolVar(&skipTLSVerify, "skip-tls-verify", false, usage)
 	flag.Parse()
 
-	log.SetSource("dev")
+	log.SetSource("develop")
 	for _, step := range []func() bool{
 		downloadSourceCode,
 		buildSourceCode,
@@ -66,7 +66,7 @@ func downloadSourceCode() bool {
 	if skipTLSVerify {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec
 	}
-	return true
+	// return true
 
 	// download source
 	items := [...]*struct {
@@ -114,13 +114,13 @@ func downloadSourceCode() bool {
 				return
 			}
 			// write file
-			filename := fmt.Sprintf("temp/dev/%s.zip", name)
+			filename := fmt.Sprintf("temp/develop/%s.zip", name)
 			err = system.WriteFile(filename, buf.Bytes())
 			if err != nil {
 				return
 			}
 			// decompress zip file
-			// err = filemgr.UnZip(filename, "temp/dev")
+			// err = filemgr.UnZip(filename, "temp/develop")
 			// if err != nil {
 			// 	return
 			// }
@@ -175,7 +175,7 @@ func buildSourceCode() bool {
 			args := []string{"build", "-v", "-i", "-ldflags", "-s -w", "-o", binName}
 			cmd := exec.Command("go", args...) // #nosec
 
-			cmd.Dir = filepath.Join("F:/dev", path) // TODO replace it
+			cmd.Dir = filepath.Join("F:/develop", path) // TODO replace it
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				err = fmt.Errorf("%s\n%s", err, output)
