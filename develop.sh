@@ -1,1 +1,1 @@
-go run script/dev/dev.go $1 $2 $3 $4 $5 $6 $7 $8
+go run script/develop/develop.go $1 $2 $3 $4 $5 $6 $7 $8

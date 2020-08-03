@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"flag"
@@ -16,11 +17,14 @@ import (
 	"strconv"
 
 	"project/internal/logger"
+	"project/internal/module/filemgr"
 	"project/internal/system"
 
 	"project/script/internal/config"
 	"project/script/internal/log"
 )
+
+const developDir = "temp/develop"
 
 var (
 	proxyURL      string
@@ -37,6 +41,7 @@ func main() {
 	log.SetSource("develop")
 	for _, step := range []func() bool{
 		downloadSourceCode,
+		extractSourceCode,
 		buildSourceCode,
 	} {
 		if !step() {
@@ -56,7 +61,7 @@ func downloadSourceCode() bool {
 			return false
 		}
 		tr.Proxy = http.ProxyURL(URL)
-		// set os environment
+		// set os environment for build
 		err = os.Setenv("HTTP_PROXY", proxyURL)
 		if err != nil {
 			log.Println(logger.Error, "failed to set os environment:", err)
@@ -66,8 +71,6 @@ func downloadSourceCode() bool {
 	if skipTLSVerify {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec
 	}
-	// return true
-
 	// download source
 	items := [...]*struct {
 		name string
@@ -108,22 +111,17 @@ func downloadSourceCode() bool {
 			}
 			buf := bytes.NewBuffer(make([]byte, 0, size))
 			// download file
-			log.Printf(logger.Info, "downloading %s, url: %s", name, url)
+			log.Printf(logger.Info, "downloading %s url: %s", name, url)
 			_, err = io.Copy(buf, resp.Body)
 			if err != nil {
 				return
 			}
 			// write file
-			filename := fmt.Sprintf("temp/develop/%s.zip", name)
+			filename := fmt.Sprintf(developDir+"/%s.zip", name)
 			err = system.WriteFile(filename, buf.Bytes())
 			if err != nil {
 				return
 			}
-			// decompress zip file
-			// err = filemgr.UnZip(filename, "temp/develop")
-			// if err != nil {
-			// 	return
-			// }
 			log.Printf(logger.Info, "download %s successfully", name)
 		}(item.name, item.url)
 	}
@@ -134,7 +132,64 @@ func downloadSourceCode() bool {
 			return false
 		}
 	}
-	log.Println(logger.Info, "download source code successfully")
+	log.Println(logger.Info, "download all source code successfully")
+	return true
+}
+
+func extractSourceCode() bool {
+	items := [...]*struct {
+		name string
+		dir  string
+	}{
+		{name: "golint", dir: "lint-master"},
+		{name: "gocyclo", dir: "gocyclo-master"},
+		{name: "gosec", dir: "gosec-master"},
+		{name: "golangci-lint", dir: "golangci-lint-master"},
+	}
+	itemsLen := len(items)
+	errCh := make(chan error, itemsLen)
+	for _, item := range items {
+		go func(name, dir string) {
+			var err error
+			defer func() { errCh <- err }()
+			// clean directory
+			dir = filepath.Join(developDir, dir)
+			exist, err := system.IsExist(dir)
+			if err != nil {
+				return
+			}
+			if exist {
+				err = os.RemoveAll(dir)
+				if err != nil {
+					return
+				}
+			}
+			src := developDir + "/" + name + ".zip"
+			// extract files
+			ec := func(_ context.Context, typ uint8, e error, _ *filemgr.SrcDstStat) uint8 {
+				err = e
+				return filemgr.ErrCtrlOpCancel
+			}
+			err = filemgr.UnZip(ec, src, developDir)
+			if err != nil {
+				return
+			}
+			// delete zip file
+			err = os.Remove(src)
+			if err != nil {
+				return
+			}
+			log.Printf(logger.Info, "extract %s.zip successfully", name)
+		}(item.name, item.dir)
+	}
+	for i := 0; i < itemsLen; i++ {
+		err := <-errCh
+		if err != nil {
+			log.Println(logger.Error, "failed to extract source code:", err)
+			return false
+		}
+	}
+	log.Println(logger.Info, "extract all source code successfully")
 	return true
 }
 
@@ -147,18 +202,19 @@ func buildSourceCode() bool {
 	goRoot = filepath.Join(goRoot, "bin")
 	// start build
 	items := [...]*struct {
-		name string
-		path string
+		name  string
+		dir   string
+		build string
 	}{
-		{name: "golint", path: "lint-master/golint"},
-		{name: "gocyclo", path: "gocyclo-master/cmd/gocyclo"},
-		{name: "gosec", path: "gosec-master/cmd/gosec"},
-		{name: "golangci-lint", path: "golangci-lint-master/cmd/golangci-lint"},
+		{name: "golint", dir: "lint-master", build: "golint"},
+		{name: "gocyclo", dir: "gocyclo-master", build: "cmd/gocyclo"},
+		{name: "gosec", dir: "gosec-master", build: "cmd/gosec"},
+		{name: "golangci-lint", dir: "golangci-lint-master", build: "cmd/golangci-lint"},
 	}
 	itemsLen := len(items)
 	errCh := make(chan error, itemsLen)
 	for _, item := range items {
-		go func(name, path string) {
+		go func(name, dir, build string) {
 			var err error
 			defer func() { errCh <- err }()
 			var binName string
@@ -171,34 +227,40 @@ func buildSourceCode() bool {
 				err = errors.New("unsupported platform: " + runtime.GOOS)
 				return
 			}
+			buildPath := filepath.Join(developDir, dir, build)
 			// go build -v -i -ldflags "-s -w" -o lint.exe
 			args := []string{"build", "-v", "-i", "-ldflags", "-s -w", "-o", binName}
 			cmd := exec.Command("go", args...) // #nosec
-
-			cmd.Dir = filepath.Join("F:/develop", path) // TODO replace it
-			output, err := cmd.CombinedOutput()
+			cmd.Dir = buildPath
+			writer := logger.Wrap(logger.Info, "develop", logger.Common).Writer()
+			cmd.Stdout = writer
+			cmd.Stderr = writer
+			err = cmd.Run()
 			if err != nil {
-				err = fmt.Errorf("%s\n%s", err, output)
 				return
 			}
-
-			fmt.Println(goRoot)
-
-			// err = os.Rename(filepath.Join(cmd.Dir, ), filepath.Join(goRoot, binName))
-			// if err != nil {
-			// 	return
-			// }
-
-			log.Printf(logger.Info, "build %s successfully", name)
-		}(item.name, item.path)
+			// move binary file to GOROOT
+			binPath := filepath.Join(buildPath, binName)
+			// TODO use filemgr.Move()
+			err = os.Rename(binPath, filepath.Join(developDir, binName))
+			if err != nil {
+				return
+			}
+			// delete source code directory
+			err = os.RemoveAll(filepath.Join(developDir, dir))
+			if err != nil {
+				return
+			}
+			log.Printf(logger.Info, "build development tool %s successfully", name)
+		}(item.name, item.dir, item.build)
 	}
 	for i := 0; i < itemsLen; i++ {
 		err := <-errCh
 		if err != nil {
-			log.Println(logger.Error, "failed to build tool:", err)
+			log.Println(logger.Error, "failed to build development tool:", err)
 			return false
 		}
 	}
-	log.Println(logger.Info, "build tools successfully")
+	log.Println(logger.Info, "build all development tools successfully")
 	return true
 }
