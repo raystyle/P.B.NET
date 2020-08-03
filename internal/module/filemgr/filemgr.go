@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/pkg/errors"
 
@@ -148,6 +149,47 @@ func checkSrcDstPath(src, dst string) (*SrcDstStat, error) {
 		DstStat:   dstStat,
 		SrcIsFile: !srcIsDir,
 	}, nil
+}
+
+// validatePaths is used to make sure all paths is in the same directory,
+// if passed, it will sort paths and return base path.
+func validatePaths(paths []string) (string, error) {
+	pathsLen := len(paths)
+	pathsMap := make(map[string]struct{}, pathsLen)
+	var basePath string
+	for i := 0; i < pathsLen; i++ {
+		if paths[i] == "" {
+			return "", errors.New("appear empty path in source paths")
+		}
+		// make sure all source path is absolute
+		absPath, err := filepath.Abs(paths[i])
+		if err != nil {
+			return "", errors.Wrap(err, "failed to get absolute file path")
+		}
+		paths[i] = absPath
+		if i == 0 {
+			pathsMap[absPath] = struct{}{}
+			basePath = filepath.Dir(absPath)
+			continue
+		}
+		// if appear root path, that must only one in paths
+		if isRoot(absPath) {
+			return "", errors.Errorf("appear root path \"%s\"", absPath)
+		}
+		// check file path is already exists
+		if _, ok := pathsMap[absPath]; ok {
+			return "", errors.Errorf("appear the same path \"%s\"", absPath)
+		}
+		// compare directory is same as the first path
+		dir := filepath.Dir(absPath)
+		if dir != basePath {
+			const format = "\"%s\" and \"%s\" are not in the same directory"
+			return "", errors.Errorf(format, absPath, paths[0])
+		}
+		pathsMap[absPath] = struct{}{}
+	}
+	sort.Strings(paths)
+	return basePath, nil
 }
 
 // isRoot is used to check path is root directory.
