@@ -8,7 +8,6 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -67,7 +66,11 @@ func NewZipTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, zipPath string, paths 
 
 // Prepare is used to check destination file path is not exist.
 func (zt *zipTask) Prepare(context.Context) error {
-	// check destination path
+	// check paths
+	if zt.pathsLen == 0 {
+		return errors.New("empty path")
+	}
+	// check destination path is not exist
 	dstAbs, err := filepath.Abs(zt.zipPath)
 	if err != nil {
 		return errors.Wrap(err, "failed to get absolute file path")
@@ -79,46 +82,12 @@ func (zt *zipTask) Prepare(context.Context) error {
 	if dstStat != nil {
 		return errors.Errorf("destination path %s is already exists", dstAbs)
 	}
+	// check paths is valid
+	zt.basePath, err = validatePaths(zt.paths)
+	if err != nil {
+		return err
+	}
 	zt.zipPath = dstAbs
-	// check files
-	if zt.pathsLen == 0 {
-		return errors.New("empty path")
-	}
-	// check path is valid
-	paths := make(map[string]struct{}, zt.pathsLen)
-	for i := 0; i < zt.pathsLen; i++ {
-		if zt.paths[i] == "" {
-			return errors.New("appear empty path in source path")
-		}
-		// make sure all source path is absolute
-		absPath, err := filepath.Abs(zt.paths[i])
-		if err != nil {
-			return errors.Wrap(err, "failed to get absolute file path")
-		}
-		zt.paths[i] = absPath
-		if i == 0 {
-			paths[absPath] = struct{}{}
-			zt.basePath = filepath.Dir(absPath)
-			continue
-		}
-		// only exist one root path
-		if isRoot(absPath) {
-			return errors.Errorf("appear root path \"%s\"", absPath)
-		}
-		// check file path is already exists
-		if _, ok := paths[absPath]; ok {
-			return errors.Errorf("appear the same path \"%s\"", absPath)
-		}
-		// compare directory is same as the first path
-		dir := filepath.Dir(absPath)
-		if dir != zt.basePath {
-			const format = "split directory about source \"%s\" is different with \"%s\""
-			return errors.Errorf(format, absPath, zt.paths[0])
-		}
-		paths[absPath] = struct{}{}
-	}
-	// sort paths
-	sort.Strings(zt.paths)
 	zt.files = make([]*fileStat, 0, zt.pathsLen*4)
 	go zt.watcher()
 	return nil
@@ -154,6 +123,7 @@ func (zt *zipTask) Process(ctx context.Context, task *task.Task) error {
 	for i := 0; i < l; i++ {
 		err := zt.compress(ctx, task, zt.files[i])
 		if err != nil {
+			_ = zt.zipWriter.Close()
 			return err
 		}
 	}

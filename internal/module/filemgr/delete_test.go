@@ -116,6 +116,11 @@ func TestDelete(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("sub file in directory", func(t *testing.T) {
+		err := Delete(Cancel, testDeleteSrcDir, testDeleteSrcFile1)
+		require.Error(t, err)
+	})
+
 	t.Run("path doesn't exist", func(t *testing.T) {
 		const path = "not exist"
 

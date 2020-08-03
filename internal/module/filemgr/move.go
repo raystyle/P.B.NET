@@ -23,12 +23,18 @@ import (
 // moveTask implement task.Interface that is used to move source to destination.
 // It can pause in progress and get current progress and detail information.
 type moveTask struct {
-	errCtrl ErrCtrl
-	src     string
-	dst     string
-	stats   *SrcDstStat
+	errCtrl  ErrCtrl
+	dst      string
+	paths    []string // absolute path that will be compressed
+	pathsLen int
 
-	root     *file            // store all directories and files will move
+	// TODO delete these
+	stats *SrcDstStat
+	root  *file
+
+	dstStat  os.FileInfo
+	basePath string           // for filepath.Rel() in Process
+	roots    []*file          // store all directories and files will move
 	dirs     map[string]*file // for search dir faster, key is path
 	skipDirs []string         // store skipped directories
 
@@ -47,11 +53,12 @@ type moveTask struct {
 
 // NewMoveTask is used to create a move task that implement task.Interface.
 // Files must in the same directory.
-func NewMoveTask(errCtrl ErrCtrl, src, dst string, callbacks fsm.Callbacks) *task.Task {
+func NewMoveTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, dst string, paths ...string) *task.Task {
 	mt := moveTask{
 		errCtrl:    errCtrl,
-		src:        src,
 		dst:        dst,
+		paths:      paths,
+		pathsLen:   len(paths),
 		current:    big.NewFloat(0),
 		total:      big.NewFloat(0),
 		stopSignal: make(chan struct{}),
@@ -61,7 +68,33 @@ func NewMoveTask(errCtrl ErrCtrl, src, dst string, callbacks fsm.Callbacks) *tas
 
 // Prepare will check source and destination path.
 func (mt *moveTask) Prepare(context.Context) error {
-	stats, err := checkSrcDstPath(mt.src, mt.dst)
+	// check paths
+	if mt.pathsLen == 0 {
+		return errors.New("empty path")
+	}
+	// check destination is not exist or a file.
+	dstAbs, err := filepath.Abs(mt.dst)
+	if err != nil {
+		return errors.Wrap(err, "failed to get absolute file path")
+	}
+	dstStat, err := stat(dstAbs)
+	if err != nil {
+		return err
+	}
+	if dstStat != nil && !dstStat.IsDir() {
+		return errors.Errorf("destination path \"%s\" is a file", dstAbs)
+	}
+	// check paths is valid
+	// check paths is valid
+	mt.basePath, err = validatePaths(mt.paths)
+	if err != nil {
+		return err
+	}
+	mt.dst = dstAbs
+	mt.dstStat = dstStat
+	mt.roots = make([]*file, mt.pathsLen)
+
+	stats, err := checkSrcDstPath(mt.paths[0], mt.dst)
 	if err != nil {
 		return err
 	}
@@ -719,12 +752,12 @@ func (mt *moveTask) Clean() {
 }
 
 // Move is used to create a move task to move paths to destination.
-func Move(errCtrl ErrCtrl, src, dst string) error {
-	return MoveWithContext(context.Background(), errCtrl, src, dst)
+func Move(errCtrl ErrCtrl, dst string, paths ...string) error {
+	return MoveWithContext(context.Background(), errCtrl, dst, paths...)
 }
 
 // MoveWithContext is used to create a move task with context to move paths to destination.
-func MoveWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string) error {
-	mt := NewMoveTask(errCtrl, src, dst, nil)
+func MoveWithContext(ctx context.Context, errCtrl ErrCtrl, dst string, paths ...string) error {
+	mt := NewMoveTask(errCtrl, nil, dst, paths...)
 	return startTask(ctx, mt, "Move")
 }

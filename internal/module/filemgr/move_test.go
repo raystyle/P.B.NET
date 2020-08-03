@@ -87,7 +87,7 @@ func TestMove(t *testing.T) {
 					testRemoveMoveDir(t)
 				}()
 
-				err := Move(ReplaceAll, testMoveSrcDir, testMoveDstDir)
+				err := Move(ReplaceAll, testMoveDstDir, testMoveSrcDir)
 				require.NoError(t, err)
 
 			})

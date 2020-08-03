@@ -234,6 +234,11 @@ func TestZip(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("sub file in directory", func(t *testing.T) {
+		err := Zip(Cancel, testZipDst, testZipSrcDir, testZipSrcFile1)
+		require.Error(t, err)
+	})
+
 	t.Run("path doesn't exist", func(t *testing.T) {
 		const path = "not exist"
 

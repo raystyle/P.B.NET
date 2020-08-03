@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -59,44 +58,14 @@ func NewDeleteTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, paths ...string) *t
 
 // Prepare is used to check directory about source paths is same.
 func (dt *deleteTask) Prepare(context.Context) error {
+	// check paths
 	if dt.pathsLen == 0 {
 		return errors.New("empty path")
 	}
-	// sort paths
-	sort.Strings(dt.paths)
-	// check path is valid
-	paths := make(map[string]struct{}, dt.pathsLen)
-	var basePath string
-	for i := 0; i < dt.pathsLen; i++ {
-		if dt.paths[i] == "" {
-			return errors.New("appear empty path in source paths")
-		}
-		// make sure all source path is absolute
-		absPath, err := filepath.Abs(dt.paths[i])
-		if err != nil {
-			return errors.Wrap(err, "failed to get absolute file path")
-		}
-		dt.paths[i] = absPath
-		if i == 0 {
-			paths[absPath] = struct{}{}
-			basePath = filepath.Dir(absPath)
-			continue
-		}
-		// only exist one root path
-		if isRoot(absPath) {
-			return errors.Errorf("appear root path \"%s\"", absPath)
-		}
-		// check file path is already exists
-		if _, ok := paths[absPath]; ok {
-			return errors.Errorf("appear the same path \"%s\"", absPath)
-		}
-		// compare directory is same
-		dir := filepath.Dir(absPath)
-		if dir != basePath {
-			const format = "split directory about source \"%s\" is different with \"%s\""
-			return errors.Errorf(format, absPath, dt.paths[0])
-		}
-		paths[absPath] = struct{}{}
+	// check paths is valid
+	_, err := validatePaths(dt.paths)
+	if err != nil {
+		return err
 	}
 	dt.roots = make([]*file, dt.pathsLen)
 	dt.dirs = make(map[string]*file, dt.pathsLen/4)
