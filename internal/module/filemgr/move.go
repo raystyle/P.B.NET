@@ -25,14 +25,13 @@ import (
 type moveTask struct {
 	errCtrl  ErrCtrl
 	dst      string
-	paths    []string // absolute path that will be compressed
+	paths    []string // absolute path that will be moved
 	pathsLen int
 
 	// TODO delete these
 	stats *SrcDstStat
-	root  *file
 
-	dstStat  os.FileInfo
+	dstStat  os.FileInfo      // for record destination folder is created
 	basePath string           // for filepath.Rel() in Process
 	roots    []*file          // store all directories and files will move
 	dirs     map[string]*file // for search dir faster, key is path
@@ -85,7 +84,6 @@ func (mt *moveTask) Prepare(context.Context) error {
 		return errors.Errorf("destination path \"%s\" is a file", dstAbs)
 	}
 	// check paths is valid
-	// check paths is valid
 	mt.basePath, err = validatePaths(mt.paths)
 	if err != nil {
 		return err
@@ -93,101 +91,51 @@ func (mt *moveTask) Prepare(context.Context) error {
 	mt.dst = dstAbs
 	mt.dstStat = dstStat
 	mt.roots = make([]*file, mt.pathsLen)
-
+	mt.dirs = make(map[string]*file, mt.pathsLen/4)
+	// TODO delete these
 	stats, err := checkSrcDstPath(mt.paths[0], mt.dst)
 	if err != nil {
 		return err
 	}
 	mt.stats = stats
+
 	go mt.watcher()
 	return nil
 }
 
 func (mt *moveTask) Process(ctx context.Context, task *task.Task) error {
 	defer mt.updateDetail("finished")
-	if mt.stats.SrcIsFile {
-		return mt.moveSrcFile(ctx, task)
-	}
-	return mt.moveSrcDir(ctx, task)
-}
-
-// moveSrcFile is used to move single file to a path.
-//
-// new path is a dir  and exist
-// new path is a file and exist
-// new path is a dir  and not exist
-// new path is a file and not exist
-func (mt *moveTask) moveSrcFile(ctx context.Context, task *task.Task) error {
-	srcFileName := filepath.Base(mt.stats.SrcAbs)
-	var (
-		dstFileName string
-		dstStat     os.FileInfo
-	)
-	if mt.stats.DstStat != nil { // dst is exists
-		// moveFile will handle the same file, dir
-		//
-		// move "a.exe" -> "C:\ExistDir"
-		// "a.exe" -> "C:\ExistDir\a.exe"
-		if mt.stats.DstStat.IsDir() {
-			dstFileName = filepath.Join(mt.stats.DstAbs, srcFileName)
-			s, err := stat(dstFileName)
-			if err != nil {
-				return err
-			}
-			dstStat = s
-		} else {
-			dstFileName = mt.stats.DstAbs
-			dstStat = mt.stats.DstStat
-		}
-	} else { // dst is doesn't exists
-		dstRunes := []rune(mt.dst)
-		last := string(dstRunes[len(dstRunes)-1])[0]
-		if os.IsPathSeparator(last) { // is a directory path
-			err := os.MkdirAll(mt.stats.DstAbs, 0750)
-			if err != nil {
-				return err
-			}
-			dstFileName = filepath.Join(mt.stats.DstAbs, srcFileName)
-		} else { // is a file path
-			dir := filepath.Dir(mt.stats.DstAbs)
-			err := os.MkdirAll(dir, 0750)
-			if err != nil {
-				return err
-			}
-			dstFileName = mt.stats.DstAbs
+	// must collect files information because the zip file maybe in the same path
+	for i := 0; i < mt.pathsLen; i++ {
+		err := mt.collectPathInfo(ctx, task, i)
+		if err != nil {
+			return err
 		}
 	}
-	stats := &SrcDstStat{
-		SrcAbs:  mt.stats.SrcAbs,
-		DstAbs:  dstFileName,
-		SrcStat: mt.stats.SrcStat,
-		DstStat: dstStat,
+	// create destination directory if it not exists
+	if mt.dstStat == nil {
+		err := os.MkdirAll(mt.dst, 0750)
+		if err != nil {
+			return err
+		}
 	}
-	// update progress
-	mt.updateTotal(mt.stats.SrcStat.Size(), true)
-	_, err := mt.moveFile(ctx, task, stats)
-	return err
+	// move roots
+	for i := 0; i < mt.pathsLen; i++ {
+		err := mt.moveRoot(ctx, task, mt.roots[i])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// moveSrcDir is used to move directory to a path.
-//
-// move dir  C:\test -> D:\test2
-// move file C:\test\file.dat -> C:\test2\file.dat
-func (mt *moveTask) moveSrcDir(ctx context.Context, task *task.Task) error {
-	err := mt.collectDirInfo(ctx, task)
-	if err != nil {
-		return errors.WithMessage(err, "failed to collect directory information")
-	}
-	return mt.moveRoot(ctx, task)
-}
-
-// collectDirInfo will collect directory information for calculate total size.
-func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
+func (mt *moveTask) collectPathInfo(ctx context.Context, task *task.Task, i int) error {
+	srcPath := mt.paths[i]
 	var (
 		cDir  string // current directory
 		cFile *file  // current file
 	)
-	walkFunc := func(srcAbs string, srcStat os.FileInfo, err error) error {
+	walkFunc := func(path string, stat os.FileInfo, err error) error {
 		if err != nil {
 			ps := noticePs{
 				ctx:     ctx,
@@ -195,82 +143,88 @@ func (mt *moveTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 				errCtrl: mt.errCtrl,
 			}
 			const format = "failed to walk \"%s\" in \"%s\": %s"
-			err = fmt.Errorf(format, srcAbs, mt.stats.SrcAbs, err)
-			skip, ne := noticeFailedToCollect(&ps, srcAbs, err)
+			err = fmt.Errorf(format, path, srcPath, err)
+			skip, ne := noticeFailedToCollect(&ps, path, err)
 			if skip {
 				return filepath.SkipDir
 			}
 			return ne
 		}
+		// check task is canceled
 		if task.Canceled() {
 			return context.Canceled
 		}
 		f := &file{
-			path: srcAbs,
-			stat: srcStat,
+			path: path,
+			stat: stat,
 		}
-		// check is root directory
-		if mt.root == nil {
-			// initialize task structure
-			mt.root = f
-			mt.dirs = make(map[string]*file)
-			mt.dirs[srcAbs] = f
+		isDir := stat.IsDir()
+		// check is root path
+		if mt.roots[i] == nil {
+			mt.roots[i] = f
+			// check root is file
+			if !isDir {
+				mt.addTotal(stat.Size())
+				return nil
+			}
+			mt.dirs[path] = f
 			// set current data
-			cDir = srcAbs
+			cDir = path
 			cFile = f
 			return nil
 		}
-		// update detail and total size
-		dir := filepath.Dir(srcAbs)
+		// update current directory and file
+		dir := filepath.Dir(path)
 		if dir != cDir {
 			cDir = dir
 			cFile = mt.dirs[dir]
 		}
 		cFile.files = append(cFile.files, f)
-		if srcStat.IsDir() {
-			cDir = srcAbs
+		// update detail and total
+		if isDir {
+			cDir = path
 			cFile = f
-			mt.dirs[srcAbs] = f
-			// collecting directory information
+			mt.dirs[path] = f
+			// collect directory information
 			// path: C:\testdata\test
-			mt.updateDetail("collect directory information\npath: " + srcAbs)
+			mt.updateDetail("collect directory information\npath: " + path)
 			return nil
 		}
-		// collecting file information
-		// path: C:\testdata\test
-		mt.updateDetail("collect file information\npath: " + srcAbs)
-		mt.updateTotal(srcStat.Size(), true)
+		// collect file information
+		// path: C:\testdata\test.dat
+		mt.updateDetail("collect file information\npath: " + path)
+		mt.addTotal(stat.Size())
 		return nil
 	}
-	return filepath.Walk(mt.stats.SrcAbs, walkFunc)
+	return filepath.Walk(srcPath, walkFunc)
 }
 
-func (mt *moveTask) moveRoot(ctx context.Context, task *task.Task) error {
-	// skip root directory
-	// set fake progress for pass progress check
-	if mt.root == nil {
+func (mt *moveTask) moveRoot(ctx context.Context, task *task.Task, root *file) error {
+	// if skip root directory, set fake progress for pass progress check
+	if root == nil {
 		mt.rwm.Lock()
 		defer mt.rwm.Unlock()
-		mt.current.SetUint64(1)
-		mt.total.SetUint64(1)
+		mt.current.Add(mt.current, deleteDelta)
+		mt.total.Add(mt.total, deleteDelta)
 		return nil
 	}
-	// check root path, and make directory if target path is not exists
-	// C:\test -> D:\test[exist]
-	if mt.stats.DstStat == nil {
-		err := os.MkdirAll(mt.stats.DstAbs, mt.stats.SrcStat.Mode().Perm())
+	// check root is directory
+	if !root.stat.IsDir() {
+		_, err := mt.moveDirFile(ctx, task, root)
 		if err != nil {
-			return errors.Wrap(err, "failed to create destination directory")
+			return errors.WithMessage(err, "failed to move file")
 		}
+		return nil
 	}
-	_, err := mt.moveDir(ctx, task, mt.root)
+	// delete all directories and files in root directory
+	_, err := mt.moveDir(ctx, task, root)
 	if err != nil {
 		return errors.WithMessage(err, "failed to move directory")
 	}
 	return nil
 }
 
-// returned bool is skipped this file.
+// returned bool is skipped this directory.
 func (mt *moveTask) moveDir(ctx context.Context, task *task.Task, dir *file) (bool, error) {
 	var (
 		skipped bool
@@ -299,7 +253,7 @@ func (mt *moveTask) moveDir(ctx context.Context, task *task.Task, dir *file) (bo
 		}
 	}
 	// if move all files successfully, remove the directory
-	if !skipped {
+	if !skipped && !isRoot(dir.path) {
 		return false, os.Remove(dir.path)
 	}
 	return true, nil
@@ -586,7 +540,7 @@ func (mt *moveTask) updateSrcFileStat(srcFile *os.File, stats *SrcDstStat) error
 	oldSize := stats.SrcStat.Size()
 	if newSize != oldSize {
 		delta := newSize - oldSize
-		mt.updateTotal(delta, true)
+		mt.addTotal(delta)
 	}
 	stats.SrcStat = srcStat
 	return nil
@@ -663,15 +617,11 @@ func (mt *moveTask) updateCurrent(delta int64, add bool) {
 	}
 }
 
-func (mt *moveTask) updateTotal(delta int64, add bool) {
+func (mt *moveTask) addTotal(delta int64) {
 	mt.rwm.Lock()
 	defer mt.rwm.Unlock()
 	d := new(big.Float).SetInt64(delta)
-	if add {
-		mt.total.Add(mt.total, d)
-	} else {
-		mt.total.Sub(mt.total, d)
-	}
+	mt.total.Add(mt.total, d)
 }
 
 // Detail is used to get detail about move task.

@@ -125,7 +125,7 @@ func (dt *deleteTask) collectPathInfo(ctx context.Context, task *task.Task, i in
 			dt.roots[i] = f
 			// check root is file
 			if !isDir {
-				dt.updateTotal()
+				dt.addTotal()
 				return nil
 			}
 			dt.dirs[path] = f
@@ -154,15 +154,14 @@ func (dt *deleteTask) collectPathInfo(ctx context.Context, task *task.Task, i in
 		// collect file information
 		// path: C:\testdata\test.dat
 		dt.updateDetail("collect file information\npath: " + path)
-		dt.updateTotal()
+		dt.addTotal()
 		return nil
 	}
 	return filepath.Walk(srcPath, walkFunc)
 }
 
 func (dt *deleteTask) deleteRoot(ctx context.Context, task *task.Task, root *file) error {
-	// skip root directory
-	// set fake progress for pass progress check
+	// if skip root directory, set fake progress for pass progress check
 	if root == nil {
 		dt.rwm.Lock()
 		defer dt.rwm.Unlock()
@@ -186,7 +185,7 @@ func (dt *deleteTask) deleteRoot(ctx context.Context, task *task.Task, root *fil
 	return nil
 }
 
-// returned bool is skipped this file.
+// returned bool is skipped this directory.
 func (dt *deleteTask) deleteDir(ctx context.Context, task *task.Task, dir *file) (bool, error) {
 	var (
 		skipped bool
@@ -247,10 +246,10 @@ retry:
 		if ne != nil {
 			return false, ne
 		}
-		dt.updateCurrent()
+		dt.addCurrent()
 		return true, nil
 	}
-	dt.updateCurrent()
+	dt.addCurrent()
 	return false, nil
 }
 
@@ -300,13 +299,13 @@ func (dt *deleteTask) Progress() string {
 	return fmt.Sprintf("%s%%|%s/%s|%s file/s", progress, current, total, speed)
 }
 
-func (dt *deleteTask) updateCurrent() {
+func (dt *deleteTask) addCurrent() {
 	dt.rwm.Lock()
 	defer dt.rwm.Unlock()
 	dt.current.Add(dt.current, deleteDelta)
 }
 
-func (dt *deleteTask) updateTotal() {
+func (dt *deleteTask) addTotal() {
 	dt.rwm.Lock()
 	defer dt.rwm.Unlock()
 	dt.total.Add(dt.total, deleteDelta)

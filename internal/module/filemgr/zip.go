@@ -95,7 +95,7 @@ func (zt *zipTask) Prepare(context.Context) error {
 
 func (zt *zipTask) Process(ctx context.Context, task *task.Task) error {
 	defer zt.updateDetail("finished")
-	// must collect files information because the zip file in the same path
+	// must collect files information because the zip file maybe in the same path
 	for i := 0; i < zt.pathsLen; i++ {
 		err := zt.collectPathInfo(ctx, task, zt.paths[i])
 		if err != nil {
