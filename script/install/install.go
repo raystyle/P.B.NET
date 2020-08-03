@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"strings"
 
@@ -17,17 +18,12 @@ import (
 )
 
 var (
-	downloadAll bool
-	configFile  string
-
-	cfg config.Config
+	cfgPath string
+	cfg     config.Config
 )
 
 func main() {
-	usage := "run \"go mod download\" to download dependencies about all modules"
-	flag.BoolVar(&downloadAll, "download-all", false, usage)
-	usage = "configuration file path"
-	flag.StringVar(&configFile, "config", "config.toml", usage)
+	flag.StringVar(&cfgPath, "config", "config.toml", "configuration file path")
 	flag.Parse()
 
 	log.SetSource("install")
@@ -53,12 +49,12 @@ func printCurrentDirectory() bool {
 		log.Println(logger.Error, err)
 		return false
 	}
-	log.Printf(logger.Info, "current directory: \"%s\"", dir)
+	log.Println(logger.Info, "current directory:", dir)
 	return true
 }
 
 func loadConfigFile() bool {
-	data, err := ioutil.ReadFile("config.toml")
+	data, err := ioutil.ReadFile(cfgPath) // #nosec
 	if err != nil {
 		log.Println(logger.Error, "failed to load config file:", err)
 		return false
@@ -68,14 +64,31 @@ func loadConfigFile() bool {
 		log.Println(logger.Error, "failed to load config:", err)
 		return false
 	}
-	log.Println(logger.Info, "load config file successfully")
-	log.Println(logger.Info, "Go latest root path:", cfg.GoRootLatest)
-	log.Println(logger.Info, "Go 1.10.8 root path:", cfg.GoRoot1108)
+	log.Println(logger.Info, "load configuration file successfully")
+	log.Println(logger.Info, "Go latest root path:", cfg.Common.GoRootLatest)
+	log.Println(logger.Info, "Go 1.10.8 root path:", cfg.Common.GoRoot1108)
+	// set proxy and TLS configuration
+	proxyURL := cfg.Common.ProxyURL
+	if proxyURL != "" {
+		// check proxy url
+		_, err = url.Parse(proxyURL)
+		if err != nil {
+			log.Println(logger.Error, "invalid proxy url:", err)
+			return false
+		}
+		// set os environment for build
+		err = os.Setenv("HTTP_PROXY", proxyURL)
+		if err != nil {
+			log.Println(logger.Error, "failed to set os env:", err)
+			return false
+		}
+		log.Println(logger.Info, "set proxy url:", proxyURL)
+	}
 	return true
 }
 
 func installPatchFiles() bool {
-	for _, val := range [...]*struct {
+	for _, item := range [...]*struct {
 		src  string // patch file in project/patch
 		dst  string // relative file path about go root
 		note string // error information
@@ -86,21 +99,21 @@ func installPatchFiles() bool {
 			note: "crypto/x509/cert_pool.go",
 		},
 	} {
-		latest := fmt.Sprintf("%s/src/%s", cfg.GoRootLatest, val.dst)
-		err := copyFileToGoRoot(val.src, latest)
+		latest := fmt.Sprintf("%s/src/%s", cfg.Common.GoRootLatest, item.dst)
+		err := copyFileToGoRoot(item.src, latest)
 		if err != nil {
 			const format = "failed to install patch file %s to go latest root path: %s"
-			log.Printf(logger.Error, format, val.note, err)
+			log.Printf(logger.Error, format, item.note, err)
 			return false
 		}
-		go1108 := fmt.Sprintf("%s/src/%s", cfg.GoRoot1108, val.dst)
-		err = copyFileToGoRoot(val.src, go1108)
+		go1108 := fmt.Sprintf("%s/src/%s", cfg.Common.GoRoot1108, item.dst)
+		err = copyFileToGoRoot(item.src, go1108)
 		if err != nil {
 			const format = "failed to install patch file %s to go 1.10.8 root path: %s"
-			log.Printf(logger.Error, format, val.note, err)
+			log.Printf(logger.Error, format, item.note, err)
 			return false
 		}
-		log.Printf(logger.Info, "install patch file %s", val.src)
+		log.Printf(logger.Info, "install patch file %s", item.src)
 	}
 	log.Println(logger.Info, "install all patch files to go root path")
 	return true
@@ -134,7 +147,7 @@ func listModule() bool {
 }
 
 func downloadAllModules() bool {
-	if !downloadAll {
+	if !cfg.Install.DownloadAll {
 		return true
 	}
 	log.Println(logger.Info, "download all modules")

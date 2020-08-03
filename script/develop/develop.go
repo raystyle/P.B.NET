@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,6 +19,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/module/filemgr"
+	"project/internal/patch/toml"
 	"project/internal/system"
 
 	"project/script/internal/config"
@@ -27,19 +29,18 @@ import (
 const developDir = "temp/develop"
 
 var (
-	proxyURL      string
-	skipTLSVerify bool
+	cfgPath string
+	cfg     config.Config
 )
 
 func main() {
-	usage := "proxy url e.g. \"http://127.0.0.1:8080/\" \"socks5://127.0.0.1:1080/\""
-	flag.StringVar(&proxyURL, "proxy-url", "", usage)
-	usage = "skip TLS verify"
-	flag.BoolVar(&skipTLSVerify, "skip-tls-verify", false, usage)
+	flag.StringVar(&cfgPath, "config", "config.toml", "configuration file path")
 	flag.Parse()
 
 	log.SetSource("develop")
 	for _, step := range []func() bool{
+		printCurrentDirectory,
+		loadConfigFile,
 		downloadSourceCode,
 		extractSourceCode,
 		buildSourceCode,
@@ -51,9 +52,33 @@ func main() {
 	log.Println(logger.Info, "install development tools successfully")
 }
 
-func downloadSourceCode() bool {
-	// set proxy and TLS config
+func printCurrentDirectory() bool {
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Println(logger.Error, err)
+		return false
+	}
+	log.Println(logger.Info, "current directory:", dir)
+	return true
+}
+
+func loadConfigFile() bool {
+	data, err := ioutil.ReadFile(cfgPath) // #nosec
+	if err != nil {
+		log.Println(logger.Error, "failed to load config file:", err)
+		return false
+	}
+	err = toml.Unmarshal(data, &cfg)
+	if err != nil {
+		log.Println(logger.Error, "failed to load config:", err)
+		return false
+	}
+	log.Println(logger.Info, "load configuration file successfully")
+	log.Println(logger.Info, "Go latest root path:", cfg.Common.GoRootLatest)
+	log.Println(logger.Info, "Go 1.10.8 root path:", cfg.Common.GoRoot1108)
+	// set proxy and TLS configuration
 	tr := http.DefaultTransport.(*http.Transport)
+	proxyURL := cfg.Common.ProxyURL
 	if proxyURL != "" {
 		URL, err := url.Parse(proxyURL)
 		if err != nil {
@@ -64,14 +89,19 @@ func downloadSourceCode() bool {
 		// set os environment for build
 		err = os.Setenv("HTTP_PROXY", proxyURL)
 		if err != nil {
-			log.Println(logger.Error, "failed to set os environment:", err)
+			log.Println(logger.Error, "failed to set os env:", err)
 			return false
 		}
+		log.Println(logger.Info, "set proxy url:", proxyURL)
 	}
-	if skipTLSVerify {
+	if cfg.Common.SkipTLSVerify {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec
+		log.Println(logger.Warning, "skip tls verify")
 	}
-	// download source
+	return true
+}
+
+func downloadSourceCode() bool {
 	items := [...]*struct {
 		name string
 		url  string
