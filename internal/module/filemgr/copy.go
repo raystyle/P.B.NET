@@ -70,11 +70,17 @@ func (ct *copyTask) Prepare(context.Context) error {
 }
 
 func (ct *copyTask) Process(ctx context.Context, task *task.Task) error {
-	defer ct.updateDetail("finished")
-	if ct.stats.SrcIsFile {
-		return ct.copySrcFile(ctx, task)
+	var err error
+	if ct.stats.SrcStat.IsDir() {
+		err = ct.copySrcDir(ctx, task)
+	} else {
+		err = ct.copySrcFile(ctx, task)
 	}
-	return ct.copySrcDir(ctx, task)
+	if err != nil {
+		return err
+	}
+	ct.updateDetail("finished")
+	return nil
 }
 
 // copySrcFile is used to copy single file to a path.

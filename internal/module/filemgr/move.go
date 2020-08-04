@@ -28,14 +28,10 @@ type moveTask struct {
 	paths    []string // absolute path that will be moved
 	pathsLen int
 
-	// TODO delete these
-	stats *SrcDstStat
-
-	dstStat  os.FileInfo      // for record destination folder is created
-	basePath string           // for filepath.Rel() in Process
-	roots    []*file          // store all directories and files will move
-	dirs     map[string]*file // for search dir faster, key is path
-	skipDirs []string         // store skipped directories
+	dstStat  os.FileInfo // for record destination folder is created
+	basePath string      // for filepath.Rel() in Process
+	roots    []*file     // store all directories and files will move
+	skipDirs []string    // store skipped directories
 
 	// about progress, detail and speed
 	current *big.Float
@@ -91,20 +87,11 @@ func (mt *moveTask) Prepare(context.Context) error {
 	mt.dst = dstAbs
 	mt.dstStat = dstStat
 	mt.roots = make([]*file, mt.pathsLen)
-	mt.dirs = make(map[string]*file, mt.pathsLen/4)
-	// TODO delete these
-	stats, err := checkSrcDstPath(mt.paths[0], mt.dst)
-	if err != nil {
-		return err
-	}
-	mt.stats = stats
-
 	go mt.watcher()
 	return nil
 }
 
 func (mt *moveTask) Process(ctx context.Context, task *task.Task) error {
-	defer mt.updateDetail("finished")
 	// must collect files information because the zip file maybe in the same path
 	for i := 0; i < mt.pathsLen; i++ {
 		err := mt.collectPathInfo(ctx, task, i)
@@ -126,15 +113,18 @@ func (mt *moveTask) Process(ctx context.Context, task *task.Task) error {
 			return err
 		}
 	}
+	mt.updateDetail("finished")
 	return nil
 }
 
 func (mt *moveTask) collectPathInfo(ctx context.Context, task *task.Task, i int) error {
-	srcPath := mt.paths[i]
 	var (
 		cDir  string // current directory
 		cFile *file  // current file
 	)
+	srcPath := mt.paths[i]
+	// for search dir faster, key is path
+	dirs := make(map[string]*file, mt.pathsLen/4)
 	walkFunc := func(path string, stat os.FileInfo, err error) error {
 		if err != nil {
 			ps := noticePs{
@@ -167,7 +157,7 @@ func (mt *moveTask) collectPathInfo(ctx context.Context, task *task.Task, i int)
 				mt.addTotal(stat.Size())
 				return nil
 			}
-			mt.dirs[path] = f
+			dirs[path] = f
 			// set current data
 			cDir = path
 			cFile = f
@@ -177,14 +167,14 @@ func (mt *moveTask) collectPathInfo(ctx context.Context, task *task.Task, i int)
 		dir := filepath.Dir(path)
 		if dir != cDir {
 			cDir = dir
-			cFile = mt.dirs[dir]
+			cFile = dirs[dir]
 		}
 		cFile.files = append(cFile.files, f)
 		// update detail and total
 		if isDir {
 			cDir = path
 			cFile = f
-			mt.dirs[path] = f
+			dirs[path] = f
 			// collect directory information
 			// path: C:\testdata\test
 			mt.updateDetail("collect directory information\npath: " + path)
@@ -204,8 +194,8 @@ func (mt *moveTask) moveRoot(ctx context.Context, task *task.Task, root *file) e
 	if root == nil {
 		mt.rwm.Lock()
 		defer mt.rwm.Unlock()
-		mt.current.Add(mt.current, deleteDelta)
-		mt.total.Add(mt.total, deleteDelta)
+		mt.current.Add(mt.current, oneFloat)
+		mt.total.Add(mt.total, oneFloat)
 		return nil
 	}
 	// check root is directory
@@ -259,6 +249,7 @@ func (mt *moveTask) moveDir(ctx context.Context, task *task.Task, dir *file) (bo
 	return true, nil
 }
 
+// mkdir is used to create destination directory if it is not exists.
 func (mt *moveTask) mkdir(ctx context.Context, task *task.Task, dir *file) error {
 	// skip dir if it in skipped directories
 	for i := 0; i < len(mt.skipDirs); i++ {
@@ -266,12 +257,23 @@ func (mt *moveTask) mkdir(ctx context.Context, task *task.Task, dir *file) error
 			return nil
 		}
 	}
-	// calculate destination absolute path
-	// C:\test\a.exe -> a.exe
-	// C:\test\dir\a.exe -> dir\a.exe
-	relativePath := strings.Replace(dir.path, mt.stats.SrcAbs, "", 1)
-	relativePath = string([]rune(relativePath)[1:]) // remove the first "\" or "/"
-	dstAbs := filepath.Join(mt.stats.DstAbs, relativePath)
+	// can't recover
+	relPath, err := filepath.Rel(mt.basePath, dir.path)
+	if err != nil {
+		return err
+	}
+	// is root directory
+	if relPath == "." {
+		return nil
+	}
+	dstAbs := filepath.Join(mt.dst, relPath)
+	// update current task detail, output:
+	//   create directory, name: testdata
+	//   src: C:\testdata
+	//   dst: D:\testdata
+	const format = "create directory, name: %s\nsrc: %s\ndst: %s"
+	dirName := filepath.Base(dstAbs)
+	mt.updateDetail(fmt.Sprintf(format, dirName, dir.path, dstAbs))
 retry:
 	// check task is canceled
 	if task.Canceled() {
@@ -285,7 +287,13 @@ retry:
 			task:    task,
 			errCtrl: mt.errCtrl,
 		}
-		retry, ne := noticeFailedToMoveDir(&ps, nil, err) // TODO stats
+		stats := SrcDstStat{
+			SrcAbs:  dir.path,
+			DstAbs:  dstAbs,
+			SrcStat: dir.stat,
+			DstStat: nil,
+		}
+		retry, ne := noticeFailedToMove(&ps, &stats, err)
 		if retry {
 			goto retry
 		}
@@ -327,7 +335,13 @@ retry:
 			task:    task,
 			errCtrl: mt.errCtrl,
 		}
-		retry, ne := noticeFailedToMoveDir(&ps, nil, err) // TODO stats
+		stats := SrcDstStat{
+			SrcAbs:  dir.path,
+			DstAbs:  dstAbs,
+			SrcStat: dir.stat,
+			DstStat: nil,
+		}
+		retry, ne := noticeFailedToMove(&ps, &stats, err)
 		if retry {
 			goto retry
 		}
@@ -348,12 +362,12 @@ func (mt *moveTask) moveDirFile(ctx context.Context, task *task.Task, file *file
 			return true, nil
 		}
 	}
-	// calculate destination absolute path
-	// C:\test\a.exe -> a.exe
-	// C:\test\dir\a.exe -> dir\a.exe
-	relativePath := strings.Replace(file.path, mt.stats.SrcAbs, "", 1)
-	relativePath = string([]rune(relativePath)[1:]) // remove the first "\" or "/"
-	dstAbs := filepath.Join(mt.stats.DstAbs, relativePath)
+	// can't recover
+	relPath, err := filepath.Rel(mt.basePath, file.path)
+	if err != nil {
+		return false, err
+	}
+	dstAbs := filepath.Join(mt.dst, relPath)
 retry:
 	// check task is canceled
 	if task.Canceled() {
@@ -367,7 +381,7 @@ retry:
 			task:    task,
 			errCtrl: mt.errCtrl,
 		}
-		retry, ne := noticeFailedToMoveDir(&ps, nil, err) // TODO stats
+		retry, ne := noticeFailedToMove(&ps, nil, err) // TODO stats
 		if retry {
 			goto retry
 		}

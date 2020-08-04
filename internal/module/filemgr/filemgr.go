@@ -36,14 +36,13 @@ const (
 	ErrCtrlSameFile            // two same name file
 	ErrCtrlSameFileDir         // same src file name with dst directory
 	ErrCtrlSameDirFile         // same src directory name with dst file name
-	ErrCtrlCollectFailed       // appear error in collectPathInfo()
+	ErrCtrlCollectFailed       // appear error in collect path information
 	ErrCtrlCopyDirFailed       // appear error in copyDirFile()
-	ErrCtrlCopyFailed          // appear error in copyFile()
-	ErrCtrlMoveDirFailed       // appear error in moveDirFile()
-	ErrCtrlMoveFailed          // appear error in moveFile()
-	ErrCtrlDeleteFailed        // appear error in deleteDirFile()
-	ErrCtrlZipFailed           // appear error in zipTask.compress()
-	ErrCtrlUnZipFailed         // appear error in unZipTask.decompress()
+	ErrCtrlCopyFailed          // appear error in copy task
+	ErrCtrlMoveFailed          // appear error in move task
+	ErrCtrlDeleteFailed        // appear error in delete task
+	ErrCtrlZipFailed           // appear error in zip task
+	ErrCtrlUnZipFailed         // appear error in unzip task
 )
 
 // operation code about ErrCtrl
@@ -78,8 +77,8 @@ var (
 
 // for calculate task progress
 var (
-	zeroFloat   = big.NewFloat(0)
-	deleteDelta = big.NewFloat(1)
+	zeroFloat = big.NewFloat(0)
+	oneFloat  = big.NewFloat(1)
 )
 
 // stat is used to get file stat, if err is NotExist, it will return nil
@@ -100,8 +99,6 @@ type SrcDstStat struct {
 	DstAbs  string
 	SrcStat os.FileInfo
 	DstStat os.FileInfo // check destination file or directory is exists
-
-	SrcIsFile bool
 }
 
 // src path [file], dst path [file] --valid
@@ -137,17 +134,15 @@ func checkSrcDstPath(src, dst string) (*SrcDstStat, error) {
 	if err != nil {
 		return nil, err
 	}
-	srcIsDir := srcStat.IsDir()
-	if srcIsDir && dstStat != nil && !dstStat.IsDir() {
+	if srcStat.IsDir() && dstStat != nil && !dstStat.IsDir() {
 		const format = "\"%s\" is a directory but \"%s\" is a file"
 		return nil, fmt.Errorf(format, srcAbs, dstAbs)
 	}
 	return &SrcDstStat{
-		SrcAbs:    srcAbs,
-		DstAbs:    dstAbs,
-		SrcStat:   srcStat,
-		DstStat:   dstStat,
-		SrcIsFile: !srcIsDir,
+		SrcAbs:  srcAbs,
+		DstAbs:  dstAbs,
+		SrcStat: srcStat,
+		DstStat: dstStat,
 	}, nil
 }
 
@@ -328,23 +323,6 @@ func noticeFailedToCopy(ps *noticePs, stats *SrcDstStat, extError error) (retry 
 		err = ErrUserCanceled
 	default:
 		err = errors.Errorf("unknown failed to copy operation code: %d", code)
-	}
-	return
-}
-
-// noticeFailedToMoveDir is used to notice appear some error about moveDirFile.
-// stats.DstStat maybe nil.
-func noticeFailedToMoveDir(ps *noticePs, stats *SrcDstStat, extError error) (retry bool, err error) {
-	ps.task.Pause()
-	defer ps.task.Continue()
-	switch code := ps.errCtrl(ps.ctx, ErrCtrlMoveDirFailed, extError, stats); code {
-	case ErrCtrlOpRetry:
-		retry = true
-	case ErrCtrlOpSkip:
-	case ErrCtrlOpCancel:
-		err = ErrUserCanceled
-	default:
-		err = errors.Errorf("unknown failed to move dir operation code: %d", code)
 	}
 	return
 }

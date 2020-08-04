@@ -27,8 +27,7 @@ type deleteTask struct {
 	paths    []string // absolute path that will be deleted
 	pathsLen int
 
-	roots []*file          // store all directories and files will delete
-	dirs  map[string]*file // for search dir faster, key is path
+	roots []*file // store all directories and files will delete
 
 	// about progress, detail and speed
 	current *big.Float
@@ -68,13 +67,11 @@ func (dt *deleteTask) Prepare(context.Context) error {
 		return err
 	}
 	dt.roots = make([]*file, dt.pathsLen)
-	dt.dirs = make(map[string]*file, dt.pathsLen/4)
 	go dt.watcher()
 	return nil
 }
 
 func (dt *deleteTask) Process(ctx context.Context, task *task.Task) error {
-	defer dt.updateDetail("finished")
 	for i := 0; i < dt.pathsLen; i++ {
 		err := dt.collectPathInfo(ctx, task, i)
 		if err != nil {
@@ -87,15 +84,18 @@ func (dt *deleteTask) Process(ctx context.Context, task *task.Task) error {
 			return err
 		}
 	}
+	dt.updateDetail("finished")
 	return nil
 }
 
 func (dt *deleteTask) collectPathInfo(ctx context.Context, task *task.Task, i int) error {
-	srcPath := dt.paths[i]
 	var (
 		cDir  string // current directory
 		cFile *file  // current file
 	)
+	srcPath := dt.paths[i]
+	// for search dir faster, key is path
+	dirs := make(map[string]*file, dt.pathsLen/4)
 	walkFunc := func(path string, stat os.FileInfo, err error) error {
 		if err != nil {
 			ps := noticePs{
@@ -128,7 +128,7 @@ func (dt *deleteTask) collectPathInfo(ctx context.Context, task *task.Task, i in
 				dt.addTotal()
 				return nil
 			}
-			dt.dirs[path] = f
+			dirs[path] = f
 			// set current data
 			cDir = path
 			cFile = f
@@ -138,14 +138,14 @@ func (dt *deleteTask) collectPathInfo(ctx context.Context, task *task.Task, i in
 		dir := filepath.Dir(path)
 		if dir != cDir {
 			cDir = dir
-			cFile = dt.dirs[dir]
+			cFile = dirs[dir]
 		}
 		cFile.files = append(cFile.files, f)
 		// update detail and total
 		if isDir {
 			cDir = path
 			cFile = f
-			dt.dirs[path] = f
+			dirs[path] = f
 			// collect directory information
 			// path: C:\testdata\test
 			dt.updateDetail("collect directory information\npath: " + path)
@@ -165,8 +165,8 @@ func (dt *deleteTask) deleteRoot(ctx context.Context, task *task.Task, root *fil
 	if root == nil {
 		dt.rwm.Lock()
 		defer dt.rwm.Unlock()
-		dt.current.Add(dt.current, deleteDelta)
-		dt.total.Add(dt.total, deleteDelta)
+		dt.current.Add(dt.current, oneFloat)
+		dt.total.Add(dt.total, oneFloat)
 		return nil
 	}
 	// check root is directory
@@ -302,13 +302,13 @@ func (dt *deleteTask) Progress() string {
 func (dt *deleteTask) addCurrent() {
 	dt.rwm.Lock()
 	defer dt.rwm.Unlock()
-	dt.current.Add(dt.current, deleteDelta)
+	dt.current.Add(dt.current, oneFloat)
 }
 
 func (dt *deleteTask) addTotal() {
 	dt.rwm.Lock()
 	defer dt.rwm.Unlock()
-	dt.total.Add(dt.total, deleteDelta)
+	dt.total.Add(dt.total, oneFloat)
 }
 
 // Detail is used to get detail about delete task.

@@ -86,7 +86,6 @@ func (ut *unZipTask) Prepare(context.Context) error {
 }
 
 func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
-	defer ut.updateDetail("finished")
 	// create destination directory if it not exists
 	if ut.stats.DstStat == nil {
 		err := os.MkdirAll(ut.stats.DstAbs, 0750)
@@ -121,8 +120,8 @@ next:
 		dirPath := filepath.Clean(dir.Name)
 		// skip file if it in skipped directories
 		for i := 0; i < len(ut.skipDirs); i++ {
-			dirPath := strings.ReplaceAll(dirPath, "\\", "/")
-			if strings.HasPrefix(dirPath, ut.skipDirs[i]) {
+			path := strings.ReplaceAll(dirPath, "\\", "/")
+			if strings.HasPrefix(path, ut.skipDirs[i]) {
 				continue next
 			}
 		}
@@ -131,6 +130,7 @@ next:
 			return errors.Wrap(err, "failed to change directory modification time")
 		}
 	}
+	ut.updateDetail("finished")
 	return nil
 }
 
@@ -198,8 +198,8 @@ func (ut *unZipTask) collectFilesInfo(task *task.Task, files []*zip.File) error 
 		if task.Canceled() {
 			return context.Canceled
 		}
-		fi := file.FileInfo()
 		path := strings.ReplaceAll(file.Name, "\\", "/")
+		fi := file.FileInfo()
 		if fi.IsDir() {
 			ut.dirs = append(ut.dirs, file)
 			// collect directory information
@@ -216,8 +216,8 @@ func (ut *unZipTask) collectFilesInfo(task *task.Task, files []*zip.File) error 
 }
 
 func (ut *unZipTask) extractZipFile(ctx context.Context, task *task.Task, file *zip.File) error {
-	fi := file.FileInfo()
 	path := strings.ReplaceAll(filepath.Clean(file.Name), "\\", "/")
+	fi := file.FileInfo()
 	// skip file if it in skipped directories
 	for i := 0; i < len(ut.skipDirs); i++ {
 		if strings.HasPrefix(path, ut.skipDirs[i]) {
@@ -236,14 +236,15 @@ func (ut *unZipTask) extractZipFile(ctx context.Context, task *task.Task, file *
 	return ut.extractFile(ctx, task, path, &stat, file)
 }
 
+// mkdir is used to create destination directory if it is not exists.
 func (ut *unZipTask) mkdir(ctx context.Context, task *task.Task, src string, dir *fileStat) error {
 	// update current task detail, output:
 	//   create directory, name: testdata
 	//   src: zip/testdata
 	//   dst: C:\testdata
 	const format = "create directory, name: %s\nsrc: zip/%s\ndst: %s"
-	name := filepath.Base(src)
-	ut.updateDetail(fmt.Sprintf(format, name, src, dir.path))
+	dirName := filepath.Base(src)
+	ut.updateDetail(fmt.Sprintf(format, dirName, src, dir.path))
 retry:
 	// check task is canceled
 	if task.Canceled() {
@@ -268,7 +269,10 @@ retry:
 		return nil
 	}
 	// appear same name file with directory
-	if dstStat != nil && !dstStat.IsDir() {
+	if dstStat != nil {
+		if dstStat.IsDir() {
+			return nil
+		}
 		ps := noticePs{
 			ctx:     ctx,
 			task:    task,
@@ -390,11 +394,10 @@ retry:
 		errCtrl: ut.errCtrl,
 	}
 	stats := SrcDstStat{
-		SrcAbs:    src,
-		DstAbs:    file.path,
-		SrcStat:   file.stat,
-		DstStat:   dstStat,
-		SrcIsFile: true,
+		SrcAbs:  src,
+		DstAbs:  file.path,
+		SrcStat: file.stat,
+		DstStat: dstStat,
 	}
 	if dstStat.IsDir() {
 		retry, ne := noticeSameFileDir(&ps, &stats)

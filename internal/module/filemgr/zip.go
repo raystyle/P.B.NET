@@ -94,7 +94,6 @@ func (zt *zipTask) Prepare(context.Context) error {
 }
 
 func (zt *zipTask) Process(ctx context.Context, task *task.Task) error {
-	defer zt.updateDetail("finished")
 	// must collect files information because the zip file maybe in the same path
 	for i := 0; i < zt.pathsLen; i++ {
 		err := zt.collectPathInfo(ctx, task, zt.paths[i])
@@ -132,7 +131,12 @@ func (zt *zipTask) Process(ctx context.Context, task *task.Task) error {
 	if err != nil {
 		return err
 	}
-	return zipFile.Sync()
+	err = zipFile.Sync()
+	if err != nil {
+		return err
+	}
+	zt.updateDetail("finished")
+	return nil
 }
 
 func (zt *zipTask) collectPathInfo(ctx context.Context, task *task.Task, srcPath string) error {
@@ -183,16 +187,16 @@ func (zt *zipTask) compress(ctx context.Context, task *task.Task, file *fileStat
 			return nil
 		}
 	}
-	// not recovered
+	// can't recover or file is root directory
 	relPath, err := filepath.Rel(zt.basePath, file.path)
 	if err != nil {
 		return err
 	}
-	relPath = strings.ReplaceAll(relPath, "\\", "/")
-	// file is root directory
+	// is root directory
 	if relPath == "." {
 		return nil
 	}
+	relPath = strings.ReplaceAll(relPath, "\\", "/")
 	if file.stat.IsDir() {
 		return zt.mkdir(ctx, task, file.path, relPath)
 	}
