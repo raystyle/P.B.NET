@@ -17,6 +17,7 @@ import (
 
 	"project/internal/convert"
 	"project/internal/module/task"
+	"project/internal/system"
 	"project/internal/xpanic"
 )
 
@@ -28,6 +29,7 @@ type moveTask struct {
 	paths    []string // absolute path that will be moved
 	pathsLen int
 
+	fastMode bool        // source and destination in the same volume
 	dstStat  os.FileInfo // for record destination folder is created
 	basePath string      // for filepath.Rel() in Process
 	roots    []*file     // store all directories and files will move
@@ -80,11 +82,17 @@ func (mt *moveTask) Prepare(context.Context) error {
 		return errors.Errorf("destination path \"%s\" is a file", dstAbs)
 	}
 	// check paths is valid
-	mt.basePath, err = validatePaths(mt.paths)
+	basePath, err := validatePaths(mt.paths)
 	if err != nil {
 		return err
 	}
+	// check can use fast mode
+	vol := filepath.VolumeName(basePath)
+	if vol != "" && vol == filepath.VolumeName(dstAbs) {
+		mt.fastMode = true
+	}
 	mt.dst = dstAbs
+	mt.basePath = basePath
 	mt.dstStat = dstStat
 	mt.roots = make([]*file, mt.pathsLen)
 	go mt.watcher()
@@ -399,8 +407,36 @@ func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, file *file) (
 		mt.updateCurrent(file.stat.Size(), true)
 		return true, nil
 	}
-
-	return mt.moveFileOld(ctx, task, stats)
+	// try to use fast mode first
+	if mt.fastMode {
+		return mt.moveFileFast(ctx, task, stats)
+	}
+retry:
+	// check task is canceled
+	if task.Canceled() {
+		return false, context.Canceled
+	}
+	// create file
+	perm := file.stat.Mode().Perm()
+	dstFile, err := system.OpenFile(dstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		ps := noticePs{
+			ctx:     ctx,
+			task:    task,
+			errCtrl: mt.errCtrl,
+		}
+		retry, ne := noticeFailedToMove(&ps, stats, err)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return false, ne
+		}
+		mt.updateCurrent(file.stat.Size(), true)
+		return true, nil
+	}
+	defer func() { _ = dstFile.Close() }()
+	return mt.moveFileCommon(ctx, task, stats, dstFile)
 }
 
 // checkDstFile is used to check destination file is already exists.
@@ -453,13 +489,15 @@ retry:
 	return false, nil
 }
 
-// returned bool is skipped this file.
-func (mt *moveTask) moveFileOld(ctx context.Context, task *task.Task, stats *SrcDstStat) (bool, error) {
+// moveFileFast will use os.Rename() to move file, it can move faster if two file in
+// the same volume. Windows is finished, other platform need thinking.
+func (mt *moveTask) moveFileFast(ctx context.Context, task *task.Task, stats *SrcDstStat) (bool, error) {
+retry:
+	// check task is canceled
 	if task.Canceled() {
 		return false, context.Canceled
 	}
-	// check src file is become directory
-	srcStat, err := os.Stat(stats.SrcAbs)
+	err := os.Rename(stats.SrcAbs, stats.DstAbs)
 	if err != nil {
 		ps := noticePs{
 			ctx:     ctx,
@@ -468,7 +506,7 @@ func (mt *moveTask) moveFileOld(ctx context.Context, task *task.Task, stats *Src
 		}
 		retry, ne := noticeFailedToMove(&ps, stats, err)
 		if retry {
-			return mt.retryMoveFile(ctx, task, stats)
+			goto retry
 		}
 		if ne != nil {
 			return false, ne
@@ -476,33 +514,21 @@ func (mt *moveTask) moveFileOld(ctx context.Context, task *task.Task, stats *Src
 		mt.updateCurrent(stats.SrcStat.Size(), true)
 		return true, nil
 	}
-	if srcStat.IsDir() {
-		ps := noticePs{
-			ctx:     ctx,
-			task:    task,
-			errCtrl: mt.errCtrl,
-		}
-		err = errors.New("source file become directory")
-		retry, ne := noticeFailedToMove(&ps, stats, err)
-		if retry {
-			return mt.retryMoveFile(ctx, task, stats)
-		}
-		if ne != nil {
-			return false, ne
-		}
-		mt.updateCurrent(stats.SrcStat.Size(), true)
-		return true, nil
-	}
-	return mt.ioMove(ctx, task, stats)
+	mt.updateCurrent(stats.SrcStat.Size(), true)
+	return false, nil
 }
 
-func (mt *moveTask) ioMove(ctx context.Context, task *task.Task, stats *SrcDstStat) (skipped bool, err error) {
-	// check move file error, and maybe retry move file.
-	var moved int64
+// moveFileCommon is used to use common mode to move file: first copy file, then delete source file.
+func (mt *moveTask) moveFileCommon(
+	ctx context.Context,
+	task *task.Task,
+	stats *SrcDstStat,
+	dst *os.File,
+) (skip bool, err error) {
+	dstPath := dst.Name()
+	var copied int64
 	defer func() {
 		if err != nil && err != context.Canceled {
-			// reset current progress
-			mt.updateCurrent(moved, false)
 			ps := noticePs{
 				ctx:     ctx,
 				task:    task,
@@ -511,120 +537,56 @@ func (mt *moveTask) ioMove(ctx context.Context, task *task.Task, stats *SrcDstSt
 			var retry bool
 			retry, err = noticeFailedToMove(&ps, stats, err)
 			if retry {
-				skipped, err = mt.retryMoveFile(ctx, task, stats)
-			} else if err == nil { // skipped
-				mt.updateCurrent(stats.SrcStat.Size(), true)
+				skip, err = mt.retry(ctx, task, stats, dst)
+				return
 			}
+			// if failed to extract, delete destination file
+			_ = dst.Close()
+			_ = os.Remove(dstPath)
+			// user cancel
+			if err != nil {
+				return
+			}
+			// skipped
+			mt.updateCurrent(stats.SrcStat.Size()-copied, true)
 		}
 	}()
-	// use fast mode firstly
-	enabled, err := mt.ioMoveFast(stats)
-	if enabled {
-		if err != nil {
-			return
-		}
-		mt.updateCurrent(stats.SrcStat.Size(), true)
-		return
-	}
-	return
-	// return mt.ioMoveCommon(task, stats, &moved)
-}
-
-// ioMoveFast will use syscall to move file, it can move faster if two file in the same volume.
-// Windows is finished, other platform need thinking.
-func (mt *moveTask) ioMoveFast(stats *SrcDstStat) (bool, error) {
-	srcVol := filepath.VolumeName(stats.SrcAbs)
-	if srcVol == "" {
-		return false, nil
-	}
-	dstVol := filepath.VolumeName(stats.DstAbs)
-	if srcVol != dstVol {
-		return false, nil
-	}
-	return true, os.Rename(stats.SrcAbs, stats.DstAbs)
-}
-
-func (mt *moveTask) ioMoveCommon(task *task.Task, stats *SrcDstStat, moved *int64) error {
-	// open src file
 	srcFile, err := os.Open(stats.SrcAbs)
 	if err != nil {
-		return err
+		return
 	}
-	var ok bool
-	defer func() {
-		_ = srcFile.Close()
-		if ok {
-			err = os.Remove(stats.SrcAbs)
-		}
-	}()
-	// update progress(actual size maybe changed)
-	err = mt.updateSrcFileStat(srcFile, stats)
-	if err != nil {
-		return err
-	}
-	perm := stats.SrcStat.Mode().Perm()
-	// open dst file
-	dstFile, err := os.OpenFile(stats.DstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm) // #nosec
-	if err != nil {
-		return err
-	}
-	// if failed to move, delete dst file
-	defer func() {
-		_ = dstFile.Close()
-		if !ok {
-			_ = os.Remove(stats.DstAbs)
-		}
-	}()
-	// move file
+	defer func() { _ = srcFile.Close() }()
+
 	lr := io.LimitReader(srcFile, stats.SrcStat.Size())
-	*moved, err = ioCopy(task, mt.ioMoveAdd, dstFile, lr)
+	copied, err = ioCopy(task, mt.addCurrent, dst, lr)
 	if err != nil {
-		return err
+		return
 	}
-	// sync
-	err = dstFile.Sync()
-	if err != nil {
-		return err
-	}
-	// set the modification time about the dst file
-	modTime := stats.SrcStat.ModTime()
-	err = os.Chtimes(stats.DstAbs, modTime, modTime)
-	if err != nil {
-		return err
-	}
-	ok = true
-	return nil
+	// set the modification time about the destination file
+	err = os.Chtimes(dstPath, time.Now(), stats.SrcStat.ModTime())
+	return
 }
 
-func (mt *moveTask) updateSrcFileStat(srcFile *os.File, stats *SrcDstStat) error {
-	srcStat, err := srcFile.Stat()
-	if err != nil {
-		return err
-	}
-	// update total(must update in one operation)
-	// total - old size + new size = total + (new size - old size)
-	newSize := srcStat.Size()
-	oldSize := stats.SrcStat.Size()
-	if newSize != oldSize {
-		delta := newSize - oldSize
-		mt.addTotal(delta)
-	}
-	stats.SrcStat = srcStat
-	return nil
-}
-
-func (mt *moveTask) ioMoveAdd(delta int64) {
+func (mt *moveTask) addCurrent(delta int64) {
 	mt.updateCurrent(delta, true)
 }
 
-// retryMoveFile will update source and destination file stat.
-func (mt *moveTask) retryMoveFile(ctx context.Context, task *task.Task, stats *SrcDstStat) (bool, error) {
-	dstStat, err := stat(stats.DstAbs)
+func (mt *moveTask) retry(
+	ctx context.Context,
+	task *task.Task,
+	stats *SrcDstStat,
+	dst *os.File,
+) (bool, error) {
+	// check task is canceled
+	if task.Canceled() {
+		return false, context.Canceled
+	}
+	// reset offset about opened destination file
+	_, err := dst.Seek(0, io.SeekStart)
 	if err != nil {
 		return false, err
 	}
-	stats.DstStat = dstStat
-	return mt.moveFileOld(ctx, task, stats)
+	return mt.moveFileCommon(ctx, task, stats, dst)
 }
 
 // Progress is used to get progress about current move task.
