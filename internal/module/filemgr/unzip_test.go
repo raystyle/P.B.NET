@@ -195,6 +195,20 @@ func TestUnZip(t *testing.T) {
 			testIsNotExist(t, testUnZipDstFile)
 		})
 	})
+
+	t.Run("destination directory already exists", func(t *testing.T) {
+		testCreateUnZipMultiZip(t)
+		defer testRemoveUnZipDir(t)
+
+		err := os.MkdirAll(testUnZipDstDir, 0750)
+		require.NoError(t, err)
+
+		err = UnZip(Cancel, testUnZipMultiZip, testUnZipDst)
+		require.NoError(t, err)
+
+		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+	})
 }
 
 func TestUnZipWithContext(t *testing.T) {

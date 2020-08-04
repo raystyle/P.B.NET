@@ -200,7 +200,7 @@ func (mt *moveTask) moveRoot(ctx context.Context, task *task.Task, root *file) e
 	}
 	// check root is directory
 	if !root.stat.IsDir() {
-		_, err := mt.moveDirFile(ctx, task, root)
+		_, err := mt.moveFile(ctx, task, root)
 		if err != nil {
 			return errors.WithMessage(err, "failed to move file")
 		}
@@ -233,7 +233,7 @@ func (mt *moveTask) moveDir(ctx context.Context, task *task.Task, dir *file) (bo
 			}
 			skip, err = mt.moveDir(ctx, task, file)
 		} else {
-			skip, err = mt.moveDirFile(ctx, task, file)
+			skip, err = mt.moveFile(ctx, task, file)
 		}
 		if err != nil {
 			return false, err
@@ -251,20 +251,9 @@ func (mt *moveTask) moveDir(ctx context.Context, task *task.Task, dir *file) (bo
 
 // mkdir is used to create destination directory if it is not exists.
 func (mt *moveTask) mkdir(ctx context.Context, task *task.Task, dir *file) error {
-	// skip dir if it in skipped directories
-	for i := 0; i < len(mt.skipDirs); i++ {
-		if strings.HasPrefix(dir.path, mt.skipDirs[i]) {
-			return nil
-		}
-	}
-	// can't recover
-	relPath, err := filepath.Rel(mt.basePath, dir.path)
-	if err != nil {
+	skip, relPath, err := mt.checkDstDir(dir)
+	if skip || err != nil {
 		return err
-	}
-	// is root directory
-	if relPath == "." {
-		return nil
 	}
 	dstAbs := filepath.Join(mt.dst, relPath)
 	// update current task detail, output:
@@ -353,8 +342,28 @@ retry:
 	return nil
 }
 
+// checkDstDir is used to check destination directory is need to create.
+func (mt *moveTask) checkDstDir(dir *file) (bool, string, error) {
+	// skip dir if it in skipped directories
+	for i := 0; i < len(mt.skipDirs); i++ {
+		if strings.HasPrefix(dir.path, mt.skipDirs[i]) {
+			return true, "", nil
+		}
+	}
+	// can't recover
+	relPath, err := filepath.Rel(mt.basePath, dir.path)
+	if err != nil {
+		return false, "", err
+	}
+	// is root directory
+	if relPath == "." {
+		return true, "", nil
+	}
+	return false, relPath, nil
+}
+
 // returned bool is skipped this file.
-func (mt *moveTask) moveDirFile(ctx context.Context, task *task.Task, file *file) (bool, error) {
+func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, file *file) (bool, error) {
 	// skip file if it in skipped directories
 	for i := 0; i < len(mt.skipDirs); i++ {
 		if strings.HasPrefix(file.path, mt.skipDirs[i]) {
@@ -368,40 +377,84 @@ func (mt *moveTask) moveDirFile(ctx context.Context, task *task.Task, file *file
 		return false, err
 	}
 	dstAbs := filepath.Join(mt.dst, relPath)
+	// update current task detail, output:
+	//   move file, name: test.dat
+	//   src: C:\testdata\test.dat
+	//   dst: D:\testdata\test.dat
+	const format = "move file, name: %s\nsrc: %s\ndst: %s"
+	fileName := filepath.Base(dstAbs)
+	mt.updateDetail(fmt.Sprintf(format, fileName, file.path, dstAbs))
+	// check destination file
+	stats := &SrcDstStat{
+		SrcAbs:  file.path,
+		DstAbs:  dstAbs,
+		SrcStat: file.stat,
+		DstStat: nil,
+	}
+	skipped, err := mt.checkDstFile(ctx, task, stats)
+	if err != nil {
+		return false, err
+	}
+	if skipped {
+		mt.updateCurrent(file.stat.Size(), true)
+		return true, nil
+	}
+
+	return mt.moveFileOld(ctx, task, stats)
+}
+
+// checkDstFile is used to check destination file is already exists.
+func (mt *moveTask) checkDstFile(ctx context.Context, task *task.Task, stats *SrcDstStat) (bool, error) {
 retry:
 	// check task is canceled
 	if task.Canceled() {
 		return false, context.Canceled
 	}
-	// dstStat maybe updated
-	dstStat, err := stat(dstAbs)
+	dstStat, err := stat(stats.DstAbs)
 	if err != nil {
 		ps := noticePs{
 			ctx:     ctx,
 			task:    task,
 			errCtrl: mt.errCtrl,
 		}
-		retry, ne := noticeFailedToMove(&ps, nil, err) // TODO stats
+		retry, ne := noticeFailedToMove(&ps, stats, err)
 		if retry {
 			goto retry
 		}
 		if ne != nil {
 			return false, ne
 		}
-		mt.updateCurrent(file.stat.Size(), true)
 		return true, nil
 	}
-	stats := &SrcDstStat{
-		SrcAbs:  file.path,
-		DstAbs:  dstAbs,
-		SrcStat: file.stat,
-		DstStat: dstStat,
+	// destination is not exist
+	if dstStat == nil {
+		return false, nil
 	}
-	return mt.moveFile(ctx, task, stats)
+	stats.DstStat = dstStat
+	ps := noticePs{
+		ctx:     ctx,
+		task:    task,
+		errCtrl: mt.errCtrl,
+	}
+	if dstStat.IsDir() {
+		retry, ne := noticeSameFileDir(&ps, stats)
+		if retry {
+			goto retry
+		}
+		if ne != nil {
+			return false, ne
+		}
+		return true, nil
+	}
+	replace, ne := noticeSameFile(&ps, stats)
+	if !replace {
+		return true, ne
+	}
+	return false, nil
 }
 
 // returned bool is skipped this file.
-func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, stats *SrcDstStat) (bool, error) {
+func (mt *moveTask) moveFileOld(ctx context.Context, task *task.Task, stats *SrcDstStat) (bool, error) {
 	if task.Canceled() {
 		return false, context.Canceled
 	}
@@ -571,7 +624,7 @@ func (mt *moveTask) retryMoveFile(ctx context.Context, task *task.Task, stats *S
 		return false, err
 	}
 	stats.DstStat = dstStat
-	return mt.moveFile(ctx, task, stats)
+	return mt.moveFileOld(ctx, task, stats)
 }
 
 // Progress is used to get progress about current move task.

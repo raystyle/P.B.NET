@@ -198,7 +198,7 @@ func TestDeleteWithNotice(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("deleteDirFile-os.Remove", func(t *testing.T) {
+	t.Run("deleteFile-os.Remove", func(t *testing.T) {
 		patch := func(string) error {
 			return monkey.Error
 		}

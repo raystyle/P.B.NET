@@ -171,7 +171,7 @@ func (dt *deleteTask) deleteRoot(ctx context.Context, task *task.Task, root *fil
 	}
 	// check root is directory
 	if !root.stat.IsDir() {
-		_, err := dt.deleteDirFile(ctx, task, root)
+		_, err := dt.deleteFile(ctx, task, root)
 		if err != nil {
 			return errors.WithMessage(err, "failed to delete file")
 		}
@@ -200,7 +200,7 @@ func (dt *deleteTask) deleteDir(ctx context.Context, task *task.Task, dir *file)
 		if file.stat.IsDir() {
 			skip, err = dt.deleteDir(ctx, task, file)
 		} else {
-			skip, err = dt.deleteDirFile(ctx, task, file)
+			skip, err = dt.deleteFile(ctx, task, file)
 		}
 		if err != nil {
 			return false, err
@@ -217,7 +217,7 @@ func (dt *deleteTask) deleteDir(ctx context.Context, task *task.Task, dir *file)
 }
 
 // returned bool is skipped this file.
-func (dt *deleteTask) deleteDirFile(ctx context.Context, task *task.Task, file *file) (bool, error) {
+func (dt *deleteTask) deleteFile(ctx context.Context, task *task.Task, file *file) (bool, error) {
 	// update current task detail, output:
 	//   delete file, name: test.dat
 	//   path: C:\testdata\test.dat

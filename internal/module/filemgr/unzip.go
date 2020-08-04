@@ -325,12 +325,16 @@ func (ut *unZipTask) extractFile(
 	//   src: zip/testdata/test.dat
 	//   dst: C:\testdata\test.dat
 	const format = "extract file, name: %s\nsrc: zip/%s\ndst: %s"
-	name := filepath.Base(src)
-	ut.updateDetail(fmt.Sprintf(format, name, src, file.path))
+	fileName := filepath.Base(src)
+	ut.updateDetail(fmt.Sprintf(format, fileName, src, file.path))
 	// check destination
 	skipped, err := ut.checkDst(ctx, task, src, file)
-	if skipped || err != nil {
+	if err != nil {
 		return err
+	}
+	if skipped {
+		ut.updateCurrent(file.stat.Size(), true)
+		return nil
 	}
 retry:
 	// check task is canceled
@@ -360,7 +364,7 @@ retry:
 	return ut.writeFile(ctx, task, dstFile, zipFile)
 }
 
-// checkDst is used to check file is exist.
+// checkDst is used to check destination file is already exists.
 func (ut *unZipTask) checkDst(ctx context.Context, task *task.Task, src string, file *fileStat) (bool, error) {
 retry:
 	// check task is canceled
@@ -381,7 +385,6 @@ retry:
 		if ne != nil {
 			return false, ne
 		}
-		ut.updateCurrent(file.stat.Size(), true)
 		return true, nil
 	}
 	// destination is not exist
@@ -407,12 +410,10 @@ retry:
 		if ne != nil {
 			return false, ne
 		}
-		ut.updateCurrent(file.stat.Size(), true)
 		return true, nil
 	}
 	replace, ne := noticeSameFile(&ps, &stats)
 	if !replace {
-		ut.updateCurrent(file.stat.Size(), true)
 		return true, ne
 	}
 	return false, nil
