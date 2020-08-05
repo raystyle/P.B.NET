@@ -1,9 +1,14 @@
 package filemgr
 
 import (
+	"bytes"
+	"context"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -72,13 +77,56 @@ func testCheckMoveDstFile(t *testing.T) {
 	stat, err := file.Stat()
 	require.NoError(t, err)
 
-	require.Equal(t, int64(256), stat.Size())
+	require.Equal(t, int64(testsuite.TestDataSize), stat.Size())
 	require.Equal(t, false, stat.IsDir())
+
+	data, err := ioutil.ReadAll(file)
+	require.NoError(t, err)
+	require.Equal(t, testsuite.Bytes(), data)
 }
 
 func testCheckMoveDstDir(t *testing.T) {
 	testIsNotExist(t, testMoveSrcDir)
 
+	fileData1 := testsuite.Bytes()
+	fileData2 := bytes.Repeat(testsuite.Bytes(), 2)
+
+	for _, item := range [...]*struct {
+		path  string
+		size  int
+		isDir bool
+		data  []byte
+	}{
+		{testMoveSrcFile1, testsuite.TestDataSize, false, fileData1},
+		{testMoveSrcDir1, 0, true, nil},
+		{testMoveSrcFile2, testsuite.TestDataSize * 2, false, fileData2},
+		{testMoveSrcDir2, 0, true, nil},
+		{testMoveSrcDir3, 0, true, nil},
+		{testMoveSrcDir4, 0, true, nil},
+		{testMoveSrcFile3, testsuite.TestDataSize, false, fileData1},
+		{testMoveSrcFile4, testsuite.TestDataSize * 2, false, fileData2},
+		{testMoveSrcFile5, testsuite.TestDataSize * 2, false, fileData2},
+	} {
+		path := strings.ReplaceAll(item.path, testMoveSrcDir, testMoveDstDir)
+
+		file, err := os.Open(path)
+		require.NoError(t, err)
+
+		stat, err := file.Stat()
+		require.NoError(t, err)
+
+		require.Equal(t, int64(item.size), stat.Size())
+		require.Equal(t, item.isDir, stat.IsDir())
+
+		if !item.isDir {
+			data, err := ioutil.ReadAll(file)
+			require.NoError(t, err)
+			require.Equal(t, item.data, data)
+		}
+
+		err = file.Close()
+		require.NoError(t, err)
+	}
 }
 
 func testCheckMoveDstMulti(t *testing.T) {
@@ -189,4 +237,58 @@ func TestMove(t *testing.T) {
 			})
 		})
 	})
+}
+
+func TestMoveWithContext(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("common", func(t *testing.T) {
+		testCreateMoveSrcDir(t)
+		defer testRemoveMoveDir(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		err := MoveWithContext(ctx, Cancel, testMoveDst, testMoveSrcDir)
+		require.NoError(t, err)
+
+		testCheckMoveDstDir(t)
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		testCreateMoveSrcDir(t)
+		defer testRemoveMoveDir(t)
+
+		pg := testPatchTaskCanceled()
+		defer pg.Unpatch()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(time.Second)
+			cancel()
+		}()
+		err := MoveWithContext(ctx, Cancel, testMoveDst, testMoveSrcDir)
+		require.Equal(t, context.Canceled, err)
+
+		testIsNotExist(t, testMoveDst)
+	})
+}
+
+func TestMoveTask_Watcher(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	pg1 := testPatchTaskCanceled()
+	defer pg1.Unpatch()
+
+	pg2 := testPatchMultiTaskWatcher()
+	defer pg2.Unpatch()
+
+	testCreateMoveSrcDir(t)
+	defer testRemoveMoveDir(t)
+
+	err := Move(Cancel, testMoveDst, testMoveSrcDir)
+	require.NoError(t, err)
+
+	testCheckMoveDstDir(t)
 }
