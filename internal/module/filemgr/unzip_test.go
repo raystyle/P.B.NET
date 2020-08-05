@@ -24,9 +24,9 @@ const (
 	testUnZipFileZip  = testUnZipDir + "unzip_file.zip"  // source zip file include a file
 	testUnZipDirZip   = testUnZipDir + "unzip_dir.zip"   // source zip file include a directory
 	testUnZipMultiZip = testUnZipDir + "unzip_multi.zip" // source zip file include a file and directory
-	testUnZipDst      = testUnZipDir + "dst"             // store extracted file
 
 	// destination path
+	testUnZipDst     = testUnZipDir + "dst"        // store extracted file
 	testUnZipDstFile = testUnZipDst + "/file1.dat" // testdata/unzip/dst/file1.dat
 	testUnZipDstDir  = testUnZipDst + "/dir"       // testdata/unzip/dst/dir
 

@@ -12,10 +12,15 @@ import (
 )
 
 const (
-	testMoveDir     = "testdata/move/"          // move test root path
-	testMoveDstDir  = testMoveDir + "dst"       // destination directory path
-	testMoveSrcFile = testMoveDir + "file1.dat" // src is file
-	testMoveSrcDir  = testMoveDir + "dir"       // src is directory
+	testMoveDir = "testdata/move/" // move test root path
+
+	testMoveSrcFile = testMoveDir + "file1.dat" // source path is a file
+	testMoveSrcDir  = testMoveDir + "dir"       // source path is a directory
+
+	// destination path
+	testMoveDst     = testMoveDir + "dst"        // store extracted file
+	testMoveDstFile = testMoveDst + "/file1.dat" // testdata/move/dst/file1.dat
+	testMoveDstDir  = testMoveDst + "/dir"       // testdata/move/dst/dir
 
 	// src files in directory
 	testMoveSrcFile1 = testMoveSrcDir + "/afile1.dat"  // testdata/move/dir/afile1.dat
@@ -52,6 +57,35 @@ func testCreateMoveSrcDir(t *testing.T) {
 	testCreateFile2(t, testMoveSrcFile5)
 }
 
+func testCreateMoveSrcMulti(t *testing.T) {
+	testCreateMoveSrcFile(t)
+	testCreateMoveSrcDir(t)
+}
+
+func testCheckMoveDstFile(t *testing.T) {
+	testIsNotExist(t, testMoveSrcFile)
+
+	file, err := os.Open(testMoveDstFile)
+	require.NoError(t, err)
+	defer func() { _ = file.Close() }()
+
+	stat, err := file.Stat()
+	require.NoError(t, err)
+
+	require.Equal(t, int64(256), stat.Size())
+	require.Equal(t, false, stat.IsDir())
+}
+
+func testCheckMoveDstDir(t *testing.T) {
+	testIsNotExist(t, testMoveSrcDir)
+
+}
+
+func testCheckMoveDstMulti(t *testing.T) {
+	testCheckMoveDstFile(t)
+	testCheckMoveDstDir(t)
+}
+
 func testRemoveMoveDir(t *testing.T) {
 	err := os.RemoveAll(testMoveDir)
 	require.NoError(t, err)
@@ -66,16 +100,42 @@ func TestMove(t *testing.T) {
 			testCreateMoveSrcFile(t)
 			defer testRemoveMoveDir(t)
 
-			err := Move(Cancel, testMoveDstDir, testMoveSrcFile)
+			err := Move(Cancel, testMoveDst, testMoveSrcFile)
 			require.NoError(t, err)
+
+			testCheckMoveDstFile(t)
 		})
 
 		t.Run("directory", func(t *testing.T) {
 			testCreateMoveSrcDir(t)
 			defer testRemoveMoveDir(t)
 
-			err := Move(Cancel, testMoveDstDir, testMoveSrcDir)
+			err := Move(Cancel, testMoveDst, testMoveSrcDir)
 			require.NoError(t, err)
+
+			testCheckMoveDstDir(t)
+		})
+
+		t.Run("multi", func(t *testing.T) {
+			t.Run("file first", func(t *testing.T) {
+				testCreateMoveSrcMulti(t)
+				defer testRemoveMoveDir(t)
+
+				err := Move(Cancel, testMoveDst, testMoveSrcFile, testMoveSrcDir)
+				require.NoError(t, err)
+
+				testCheckMoveDstMulti(t)
+			})
+
+			t.Run("directory first", func(t *testing.T) {
+				testCreateMoveSrcMulti(t)
+				defer testRemoveMoveDir(t)
+
+				err := Move(Cancel, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+				require.NoError(t, err)
+
+				testCheckMoveDstMulti(t)
+			})
 		})
 	})
 
@@ -91,16 +151,42 @@ func TestMove(t *testing.T) {
 			testCreateMoveSrcFile(t)
 			defer testRemoveMoveDir(t)
 
-			err := Move(Cancel, testMoveDstDir, testMoveSrcFile)
+			err := Move(Cancel, testMoveDst, testMoveSrcFile)
 			require.NoError(t, err)
+
+			testCheckMoveDstFile(t)
 		})
 
 		t.Run("directory", func(t *testing.T) {
 			testCreateMoveSrcDir(t)
 			defer testRemoveMoveDir(t)
 
-			err := Move(Cancel, testMoveDstDir, testMoveSrcDir)
+			err := Move(Cancel, testMoveDst, testMoveSrcDir)
 			require.NoError(t, err)
+
+			testCheckMoveDstDir(t)
+		})
+
+		t.Run("multi", func(t *testing.T) {
+			t.Run("file first", func(t *testing.T) {
+				testCreateMoveSrcMulti(t)
+				defer testRemoveMoveDir(t)
+
+				err := Move(Cancel, testMoveDst, testMoveSrcFile, testMoveSrcDir)
+				require.NoError(t, err)
+
+				testCheckMoveDstMulti(t)
+			})
+
+			t.Run("directory first", func(t *testing.T) {
+				testCreateMoveSrcMulti(t)
+				defer testRemoveMoveDir(t)
+
+				err := Move(Cancel, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+				require.NoError(t, err)
+
+				testCheckMoveDstMulti(t)
+			})
 		})
 	})
 }
