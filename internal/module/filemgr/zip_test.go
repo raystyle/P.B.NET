@@ -273,6 +273,46 @@ func TestZipWithNotice(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	t.Run("failed to collect", func(t *testing.T) {
+		const path = "not exist"
+
+		t.Run("cancel", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				t.Log(err)
+				count++
+				return ErrCtrlOpCancel
+			}
+			err := Zip(ec, testZipDst, path)
+			require.Equal(t, ErrUserCanceled, err)
+
+			testIsNotExist(t, testZipDst)
+
+			require.Equal(t, 1, count)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				t.Log(err)
+				count++
+				return ErrCtrlOpSkip
+			}
+			err := Zip(ec, testZipDst, path)
+			require.NoError(t, err)
+
+			// it will a create a empty zip file
+			err = os.Remove(testZipDst)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+		})
+	})
+
 	t.Run("mkdir-os.Stat", func(t *testing.T) {
 		target, err := filepath.Abs(testZipSrcDir1)
 		require.NoError(t, err)
@@ -593,46 +633,6 @@ func TestZipTask_Prepare(t *testing.T) {
 func TestZipTask_Process(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
-
-	t.Run("path doesn't exist", func(t *testing.T) {
-		const path = "not exist"
-
-		t.Run("cancel", func(t *testing.T) {
-			count := 0
-			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCollectFailed, typ)
-				require.Error(t, err)
-				t.Log(err)
-				count++
-				return ErrCtrlOpCancel
-			}
-			err := Zip(ec, testZipDst, path)
-			require.Equal(t, ErrUserCanceled, err)
-
-			testIsNotExist(t, testZipDst)
-
-			require.Equal(t, 1, count)
-		})
-
-		t.Run("skip", func(t *testing.T) {
-			count := 0
-			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCollectFailed, typ)
-				require.Error(t, err)
-				t.Log(err)
-				count++
-				return ErrCtrlOpSkip
-			}
-			err := Zip(ec, testZipDst, path)
-			require.NoError(t, err)
-
-			// it will a create a empty zip file
-			err = os.Remove(testZipDst)
-			require.NoError(t, err)
-
-			require.Equal(t, 1, count)
-		})
-	})
 }
 
 func TestZipTask_Progress(t *testing.T) {

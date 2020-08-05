@@ -151,6 +151,44 @@ func TestDeleteWithNotice(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	t.Run("failed to collect", func(t *testing.T) {
+		const path = "not exist"
+
+		t.Run("cancel", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				t.Log(err)
+				count++
+				return ErrCtrlOpCancel
+			}
+			err := Delete(ec, path)
+			require.Equal(t, ErrUserCanceled, err)
+
+			require.Equal(t, 1, count)
+
+			testIsNotExist(t, path)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				t.Log(err)
+				count++
+				return ErrCtrlOpSkip
+			}
+			err := Delete(ec, path)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testIsNotExist(t, path)
+		})
+	})
+
 	t.Run("deleteFile-os.Remove", func(t *testing.T) {
 		patch := func(string) error {
 			return monkey.Error
@@ -263,43 +301,6 @@ func TestDeleteTask_Prepare(t *testing.T) {
 func TestDeleteTask_Process(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
-
-	t.Run("path doesn't exist", func(t *testing.T) {
-		const path = "not exist"
-
-		t.Run("cancel", func(t *testing.T) {
-			count := 0
-			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCollectFailed, typ)
-				require.Error(t, err)
-				t.Log(err)
-				count++
-				return ErrCtrlOpCancel
-			}
-			err := Delete(ec, path)
-			require.Equal(t, ErrUserCanceled, err)
-
-			testIsNotExist(t, path)
-			require.Equal(t, 1, count)
-
-		})
-
-		t.Run("skip", func(t *testing.T) {
-			count := 0
-			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCollectFailed, typ)
-				require.Error(t, err)
-				t.Log(err)
-				count++
-				return ErrCtrlOpSkip
-			}
-			err := Delete(ec, path)
-			require.NoError(t, err)
-
-			testIsNotExist(t, path)
-			require.Equal(t, 1, count)
-		})
-	})
 }
 
 func TestDeleteTask_Progress(t *testing.T) {

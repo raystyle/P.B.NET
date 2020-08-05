@@ -277,6 +277,111 @@ func TestMoveWithContext(t *testing.T) {
 	})
 }
 
+func TestMoveWithNotice(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("failed to collect", func(t *testing.T) {
+		const path = "not exist"
+
+		t.Run("cancel", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				t.Log(err)
+				count++
+				return ErrCtrlOpCancel
+			}
+			err := Move(ec, testMoveDst, path)
+			require.Equal(t, ErrUserCanceled, err)
+
+			require.Equal(t, 1, count)
+
+			testIsNotExist(t, path)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				t.Log(err)
+				count++
+				return ErrCtrlOpSkip
+			}
+			err := Move(ec, testMoveDst, path)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testIsNotExist(t, path)
+		})
+	})
+
+	t.Run("mkdir-stat", func(t *testing.T) {
+		target, err := filepath.Abs(testMoveDstDir + "/dir1")
+		require.NoError(t, err)
+
+		var pg *monkey.PatchGuard
+		patch := func(name string) (os.FileInfo, error) {
+			if name == target {
+				return nil, monkey.Error
+			}
+			pg.Unpatch()
+			defer pg.Restore()
+			return stat(name)
+		}
+		pg = monkey.Patch(stat, patch)
+		defer pg.Unpatch()
+
+		t.Run("retry", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlMoveFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+
+			err := Move(ec, testMoveDst, testMoveSrcFile, testMoveSrcDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCheckMoveDstMulti(t)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+
+		})
+	})
+}
+
+func TestMoveTask_Prepare(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+}
+
+func TestMoveTask_Process(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+}
+
 func TestMoveTask_Progress(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
