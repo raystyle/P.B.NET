@@ -3,10 +3,13 @@ package filemgr
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -271,6 +274,100 @@ func TestMoveWithContext(t *testing.T) {
 		require.Equal(t, context.Canceled, err)
 
 		testIsNotExist(t, testMoveDst)
+	})
+}
+
+func TestMoveTask_Progress(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("common", func(t *testing.T) {
+		testCreateMoveSrcDir(t)
+		defer testRemoveMoveDir(t)
+
+		pg := testPatchTaskCanceled()
+		defer pg.Unpatch()
+
+		mt := NewMoveTask(Cancel, nil, testMoveDst, testMoveSrcDir)
+
+		done := make(chan struct{})
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				fmt.Println("progress:", mt.Progress())
+				fmt.Println("detail:", mt.Detail())
+				fmt.Println()
+				select {
+				case <-done:
+					return
+				case <-time.After(250 * time.Millisecond):
+				}
+			}
+		}()
+
+		err := mt.Start()
+		require.NoError(t, err)
+
+		close(done)
+		wg.Wait()
+
+		fmt.Println("progress:", mt.Progress())
+		fmt.Println("detail:", mt.Detail())
+
+		rmt := mt.Task().(*moveTask)
+		testsuite.IsDestroyed(t, mt)
+		testsuite.IsDestroyed(t, rmt)
+
+		testCheckMoveDstDir(t)
+	})
+
+	t.Run("current > total", func(t *testing.T) {
+		task := NewMoveTask(Cancel, nil, testMoveDst, testMoveSrcDir)
+		mt := task.Task().(*moveTask)
+
+		mt.current.SetUint64(1000)
+		mt.total.SetUint64(10)
+
+		t.Log(task.Progress())
+	})
+
+	t.Run("too long value", func(t *testing.T) {
+		task := NewMoveTask(Cancel, nil, testMoveDst, testMoveSrcDir)
+		mt := task.Task().(*moveTask)
+
+		mt.current.SetUint64(1)
+		mt.total.SetUint64(7)
+
+		t.Log(task.Progress())
+	})
+
+	t.Run("invalid value", func(t *testing.T) {
+		patch := func(s string, bitSize int) (float64, error) {
+			return 0, monkey.Error
+		}
+		pg := monkey.Patch(strconv.ParseFloat, patch)
+		defer pg.Unpatch()
+
+		task := NewMoveTask(Cancel, nil, testMoveDst, testMoveSrcDir)
+		mt := task.Task().(*moveTask)
+
+		mt.current.SetUint64(1)
+		mt.total.SetUint64(7)
+
+		t.Log(task.Progress())
+	})
+
+	t.Run("too long progress", func(t *testing.T) {
+		task := NewMoveTask(Cancel, nil, testMoveDst, testMoveSrcDir)
+		mt := task.Task().(*moveTask)
+
+		// 3% -> 2.98%
+		mt.current.SetUint64(3)
+		mt.total.SetUint64(100)
+
+		t.Log(task.Progress())
 	})
 }
 

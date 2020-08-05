@@ -346,7 +346,7 @@ func (zt *zipTask) Progress() string {
 	// format result
 	result, err := strconv.ParseFloat(text, 64)
 	if err != nil {
-		return fmt.Sprintf("error: %s", err)
+		return "error: " + err.Error()
 	}
 	// 0.9999 -> 99.99%
 	progress := strconv.FormatFloat(result*100, 'f', -1, 64)
