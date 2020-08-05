@@ -127,88 +127,6 @@ func TestUnZip(t *testing.T) {
 		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
 		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 	})
-
-	t.Run("select", func(t *testing.T) {
-		t.Run("only file", func(t *testing.T) {
-			testCreateUnZipMultiZip(t)
-			defer testRemoveUnZipDir(t)
-
-			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "file1.dat")
-			require.NoError(t, err)
-
-			testIsNotExist(t, testUnZipDstDir)
-			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
-		})
-
-		t.Run("only directory", func(t *testing.T) {
-			testCreateUnZipMultiZip(t)
-			defer testRemoveUnZipDir(t)
-
-			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "dir")
-			require.NoError(t, err)
-
-			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
-			testIsNotExist(t, testUnZipDstFile)
-		})
-
-		t.Run("all", func(t *testing.T) {
-			testCreateUnZipMultiZip(t)
-			defer testRemoveUnZipDir(t)
-
-			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "file1.dat", "dir")
-			require.NoError(t, err)
-
-			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
-			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
-		})
-
-		t.Run("repeat directory", func(t *testing.T) {
-			testCreateUnZipMultiZip(t)
-			defer testRemoveUnZipDir(t)
-
-			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "dir", "file1.dat", "dir")
-			require.NoError(t, err)
-
-			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
-			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
-		})
-
-		t.Run("repeat file in directory", func(t *testing.T) {
-			testCreateUnZipMultiZip(t)
-			defer testRemoveUnZipDir(t)
-
-			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "dir", "dir/afile1.dat")
-			require.NoError(t, err)
-
-			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
-			testIsNotExist(t, testUnZipDstFile)
-		})
-
-		t.Run("not exist", func(t *testing.T) {
-			testCreateUnZipMultiZip(t)
-			defer testRemoveUnZipDir(t)
-
-			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "not exist")
-			require.EqualError(t, err, "\"not exist\" doesn't exist in zip file")
-
-			testIsNotExist(t, testUnZipDstDir)
-			testIsNotExist(t, testUnZipDstFile)
-		})
-	})
-
-	t.Run("destination directory already exists", func(t *testing.T) {
-		testCreateUnZipMultiZip(t)
-		defer testRemoveUnZipDir(t)
-
-		err := os.MkdirAll(testUnZipDstDir, 0750)
-		require.NoError(t, err)
-
-		err = UnZip(Cancel, testUnZipMultiZip, testUnZipDst)
-		require.NoError(t, err)
-
-		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
-		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
-	})
 }
 
 func TestUnZipWithContext(t *testing.T) {
@@ -1155,6 +1073,98 @@ func TestUnZipWithRetry(t *testing.T) {
 
 		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
 		testIsNotExist(t, testUnZipDstFile)
+	})
+}
+
+func TestUnZipTask_Prepare(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+}
+
+func TestUnZipTask_Process(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("select", func(t *testing.T) {
+		t.Run("only file", func(t *testing.T) {
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "file1.dat")
+			require.NoError(t, err)
+
+			testIsNotExist(t, testUnZipDstDir)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+		})
+
+		t.Run("only directory", func(t *testing.T) {
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "dir")
+			require.NoError(t, err)
+
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsNotExist(t, testUnZipDstFile)
+		})
+
+		t.Run("all", func(t *testing.T) {
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "file1.dat", "dir")
+			require.NoError(t, err)
+
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+		})
+
+		t.Run("repeat directory", func(t *testing.T) {
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "dir", "file1.dat", "dir")
+			require.NoError(t, err)
+
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+		})
+
+		t.Run("repeat file in directory", func(t *testing.T) {
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "dir", "dir/afile1.dat")
+			require.NoError(t, err)
+
+			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+			testIsNotExist(t, testUnZipDstFile)
+		})
+
+		t.Run("not exist", func(t *testing.T) {
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "not exist")
+			require.EqualError(t, err, "\"not exist\" doesn't exist in zip file")
+
+			testIsNotExist(t, testUnZipDstDir)
+			testIsNotExist(t, testUnZipDstFile)
+		})
+	})
+
+	t.Run("destination directory already exists", func(t *testing.T) {
+		testCreateUnZipMultiZip(t)
+		defer testRemoveUnZipDir(t)
+
+		err := os.MkdirAll(testUnZipDstDir, 0750)
+		require.NoError(t, err)
+
+		err = UnZip(Cancel, testUnZipMultiZip, testUnZipDst)
+		require.NoError(t, err)
+
+		testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
+		testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 	})
 }
 

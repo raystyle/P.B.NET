@@ -232,56 +232,6 @@ func TestZip(t *testing.T) {
 			testCheckZipWithMulti(t)
 		})
 	})
-
-	t.Run("empty path", func(t *testing.T) {
-		err := Zip(Cancel, testZipDst)
-		require.Error(t, err)
-	})
-
-	t.Run("sub file in directory", func(t *testing.T) {
-		err := Zip(Cancel, testZipDst, testZipSrcDir, testZipSrcFile1)
-		require.Error(t, err)
-	})
-
-	t.Run("path doesn't exist", func(t *testing.T) {
-		const path = "not exist"
-
-		t.Run("cancel", func(t *testing.T) {
-			count := 0
-			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCollectFailed, typ)
-				require.Error(t, err)
-				t.Log(err)
-				count++
-				return ErrCtrlOpCancel
-			}
-			err := Zip(ec, testZipDst, path)
-			require.Equal(t, ErrUserCanceled, err)
-
-			testIsNotExist(t, testZipDst)
-
-			require.Equal(t, 1, count)
-		})
-
-		t.Run("skip", func(t *testing.T) {
-			count := 0
-			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCollectFailed, typ)
-				require.Error(t, err)
-				t.Log(err)
-				count++
-				return ErrCtrlOpSkip
-			}
-			err := Zip(ec, testZipDst, path)
-			require.NoError(t, err)
-
-			// it will a create a empty zip file
-			err = os.Remove(testZipDst)
-			require.NoError(t, err)
-
-			require.Equal(t, 1, count)
-		})
-	})
 }
 
 func TestZipWithContext(t *testing.T) {
@@ -619,6 +569,66 @@ func TestZipWithNotice(t *testing.T) {
 
 			err := Zip(ec, testZipDst, testZipSrcDir)
 			require.EqualError(t, err, "unknown failed to zip operation code: 0")
+
+			require.Equal(t, 1, count)
+		})
+	})
+}
+
+func TestZipTask_Prepare(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("empty path", func(t *testing.T) {
+		err := Zip(Cancel, testZipDst)
+		require.Error(t, err)
+	})
+
+	t.Run("paths not in same directory", func(t *testing.T) {
+		err := Zip(Cancel, testZipDst, testZipSrcDir, testZipSrcFile1)
+		require.Error(t, err)
+	})
+}
+
+func TestZipTask_Process(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("path doesn't exist", func(t *testing.T) {
+		const path = "not exist"
+
+		t.Run("cancel", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				t.Log(err)
+				count++
+				return ErrCtrlOpCancel
+			}
+			err := Zip(ec, testZipDst, path)
+			require.Equal(t, ErrUserCanceled, err)
+
+			testIsNotExist(t, testZipDst)
+
+			require.Equal(t, 1, count)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				t.Log(err)
+				count++
+				return ErrCtrlOpSkip
+			}
+			err := Zip(ec, testZipDst, path)
+			require.NoError(t, err)
+
+			// it will a create a empty zip file
+			err = os.Remove(testZipDst)
+			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
 		})
