@@ -2,22 +2,20 @@ package filemgr
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
 const (
-	testMoveDir = "testdata/move/"
-
-	// src is file
-	testMoveSrcFile = testMoveDir + "file1.dat"
-
-	// src is directory
-	testMoveSrcDir = testMoveDir + "dir"
-	testMoveDstDir = testMoveDir + "dir-dir"
+	testMoveDir     = "testdata/move/"          // move test root path
+	testMoveDstDir  = testMoveDir + "dst"       // destination directory path
+	testMoveSrcFile = testMoveDir + "file1.dat" // src is file
+	testMoveSrcDir  = testMoveDir + "dir"       // src is directory
 
 	// src files in directory
 	testMoveSrcFile1 = testMoveSrcDir + "/afile1.dat"  // testdata/move/dir/afile1.dat
@@ -54,11 +52,6 @@ func testCreateMoveSrcDir(t *testing.T) {
 	testCreateFile2(t, testMoveSrcFile5)
 }
 
-func testRemoveMoveDstDir(t *testing.T) {
-	err := os.RemoveAll(testMoveDstDir)
-	require.NoError(t, err)
-}
-
 func testRemoveMoveDir(t *testing.T) {
 	err := os.RemoveAll(testMoveDir)
 	require.NoError(t, err)
@@ -68,37 +61,46 @@ func TestMove(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("src is file", func(t *testing.T) {
-		t.Run("to file path", func(t *testing.T) {
+	t.Run("fast mode", func(t *testing.T) {
+		t.Run("file", func(t *testing.T) {
+			testCreateMoveSrcFile(t)
+			defer testRemoveMoveDir(t)
 
+			err := Move(Cancel, testMoveDstDir, testMoveSrcFile)
+			require.NoError(t, err)
 		})
 
-		t.Run("to directory path", func(t *testing.T) {
+		t.Run("directory", func(t *testing.T) {
+			testCreateMoveSrcDir(t)
+			defer testRemoveMoveDir(t)
 
+			err := Move(Cancel, testMoveDstDir, testMoveSrcDir)
+			require.NoError(t, err)
 		})
 	})
 
-	t.Run("src is directory", func(t *testing.T) {
-		t.Run("to directory path", func(t *testing.T) {
-			t.Run("dst doesn't exist", func(t *testing.T) {
-				testCreateMoveSrcDir(t)
-				defer func() {
-					testRemoveMoveDstDir(t)
-					testRemoveMoveDir(t)
-				}()
+	t.Run("common mode", func(t *testing.T) {
+		// force in common mode
+		patch := func(string) string {
+			return ""
+		}
+		pg := monkey.Patch(filepath.VolumeName, patch)
+		defer pg.Unpatch()
 
-				err := Move(ReplaceAll, testMoveDstDir, testMoveSrcDir)
-				require.NoError(t, err)
+		t.Run("file", func(t *testing.T) {
+			testCreateMoveSrcFile(t)
+			defer testRemoveMoveDir(t)
 
-			})
-
-			t.Run("dst already exists", func(t *testing.T) {
-
-			})
+			err := Move(Cancel, testMoveDstDir, testMoveSrcFile)
+			require.NoError(t, err)
 		})
 
-		t.Run("to file path", func(t *testing.T) {
+		t.Run("directory", func(t *testing.T) {
+			testCreateMoveSrcDir(t)
+			defer testRemoveMoveDir(t)
 
+			err := Move(Cancel, testMoveDstDir, testMoveSrcDir)
+			require.NoError(t, err)
 		})
 	})
 }

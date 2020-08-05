@@ -224,10 +224,11 @@ func (mt *moveTask) moveRoot(ctx context.Context, task *task.Task, root *file) e
 
 // returned bool is skipped this directory.
 func (mt *moveTask) moveDir(ctx context.Context, task *task.Task, dir *file) (bool, error) {
-	var (
-		skipped bool
-		err     error
-	)
+	err := mt.mkdir(ctx, task, dir)
+	if err != nil {
+		return false, err
+	}
+	var skipped bool
 	for _, file := range dir.files {
 		// check task is canceled
 		if task.Canceled() {
@@ -235,10 +236,6 @@ func (mt *moveTask) moveDir(ctx context.Context, task *task.Task, dir *file) (bo
 		}
 		var skip bool
 		if file.stat.IsDir() {
-			err = mt.mkdir(ctx, task, file)
-			if err != nil {
-				return false, err
-			}
 			skip, err = mt.moveDir(ctx, task, file)
 		} else {
 			skip, err = mt.moveFile(ctx, task, file)
@@ -518,7 +515,8 @@ retry:
 	return false, nil
 }
 
-// moveFileCommon is used to use common mode to move file: first copy file, then delete source file.
+// moveFileCommon is used to use common mode to move file: first copy source file to
+// destination, then delete source file.
 func (mt *moveTask) moveFileCommon(
 	ctx context.Context,
 	task *task.Task,
@@ -555,16 +553,55 @@ func (mt *moveTask) moveFileCommon(
 	if err != nil {
 		return
 	}
-	defer func() { _ = srcFile.Close() }()
-
-	lr := io.LimitReader(srcFile, stats.SrcStat.Size())
+	var ok bool
+	defer func() {
+		_ = srcFile.Close()
+		if ok {
+			err = os.Remove(stats.SrcAbs)
+		}
+	}()
+	err = mt.updateSrcFileStat(srcFile, stats)
+	if err != nil {
+		return
+	}
+	// prevent file become big
+	srcSize := stats.SrcStat.Size()
+	lr := io.LimitReader(srcFile, srcSize)
 	copied, err = ioCopy(task, mt.addCurrent, dst, lr)
 	if err != nil {
 		return
 	}
+	// prevent file become small
+	copied += srcSize - copied
 	// set the modification time about the destination file
 	err = os.Chtimes(dstPath, time.Now(), stats.SrcStat.ModTime())
+	if err != nil {
+		return
+	}
+	// prevent data lost
+	err = dst.Sync()
+	if err != nil {
+		return
+	}
+	ok = true
 	return
+}
+
+func (mt *moveTask) updateSrcFileStat(srcFile *os.File, stats *SrcDstStat) error {
+	srcStat, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+	// update total(must update in one operation)
+	// total - old size + new size = total + (new size - old size)
+	newSize := srcStat.Size()
+	oldSize := stats.SrcStat.Size()
+	if newSize != oldSize {
+		delta := newSize - oldSize
+		mt.addTotal(delta)
+	}
+	stats.SrcStat = srcStat
+	return nil
 }
 
 func (mt *moveTask) addCurrent(delta int64) {
