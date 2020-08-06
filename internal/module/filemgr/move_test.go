@@ -434,6 +434,117 @@ func TestMoveWithNotice(t *testing.T) {
 			testIsNotExist(t, testMoveDstFile)
 		})
 	})
+
+	t.Run("mkdir-SameDirFile", func(t *testing.T) {
+		t.Run("retry", func(t *testing.T) {
+			// create same name file with directory
+			target, err := filepath.Abs(testMoveDstDir + "/dir1")
+			require.NoError(t, err)
+			testCreateFile(t, target)
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameDirFile, typ)
+				require.NoError(t, err)
+				count++
+				err = os.Remove(target)
+				require.NoError(t, err)
+				return ErrCtrlOpRetry
+			}
+
+			err = Move(ec, testMoveDst, testMoveSrcFile, testMoveSrcDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCheckMoveDstMulti(t)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			// create same name file with directory
+			target, err := filepath.Abs(testMoveDstDir + "/dir1")
+			require.NoError(t, err)
+			testCreateFile(t, target)
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameDirFile, typ)
+				require.NoError(t, err)
+				count++
+				return ErrCtrlOpSkip
+			}
+
+			err = Move(ec, testMoveDst, testMoveSrcFile, testMoveSrcDir)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testIsExist(t, testMoveDst)
+			testIsExist(t, target)
+			testIsExist(t, testMoveDstFile)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			// create same name file with directory
+			target, err := filepath.Abs(testMoveDstDir + "/dir1")
+			require.NoError(t, err)
+			testCreateFile(t, target)
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameDirFile, typ)
+				require.NoError(t, err)
+				count++
+				return ErrCtrlOpCancel
+			}
+
+			err = Move(ec, testMoveDst, testMoveSrcFile, testMoveSrcDir)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+
+			testIsExist(t, testMoveDst)
+			testIsExist(t, target)
+			testIsNotExist(t, testMoveDstFile)
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			// create same name file with directory
+			target, err := filepath.Abs(testMoveDstDir + "/dir1")
+			require.NoError(t, err)
+			testCreateFile(t, target)
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameDirFile, typ)
+				require.NoError(t, err)
+				count++
+				return ErrCtrlOpInvalid
+			}
+
+			err = Move(ec, testMoveDst, testMoveSrcFile, testMoveSrcDir)
+			require.EqualError(t, errors.Cause(err), "unknown same dir file operation code: 0")
+
+			require.Equal(t, 1, count)
+
+			testIsExist(t, testMoveDst)
+			testIsExist(t, target)
+			testIsNotExist(t, testMoveDstFile)
+		})
+	})
+
 }
 
 func TestMoveTask_Prepare(t *testing.T) {
