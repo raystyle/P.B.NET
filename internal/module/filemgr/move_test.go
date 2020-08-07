@@ -139,8 +139,11 @@ func testCheckMoveDstMulti(t *testing.T) {
 }
 
 // testPatchFilePathVolume is used to force enter common mode.
-func testPatchFilePathVolume() *monkey.PatchGuard {
+func testPatchFilePathVolume(fast bool) *monkey.PatchGuard {
 	patch := func(string) string {
+		if fast {
+			return "C:"
+		}
 		return ""
 	}
 	return monkey.Patch(filepath.VolumeName, patch)
@@ -200,7 +203,7 @@ func TestMove(t *testing.T) {
 	})
 
 	t.Run("common mode", func(t *testing.T) {
-		pg := testPatchFilePathVolume()
+		pg := testPatchFilePathVolume(false)
 		defer pg.Unpatch()
 
 		t.Run("file", func(t *testing.T) {
@@ -970,7 +973,114 @@ func TestMoveWithNotice(t *testing.T) {
 	})
 
 	t.Run("moveFileFast-os.Rename", func(t *testing.T) {
+		target, err := filepath.Abs(testMoveDstFile)
+		require.NoError(t, err)
 
+		pgp := testPatchFilePathVolume(true)
+		defer pgp.Unpatch()
+
+		var pg *monkey.PatchGuard
+		patch := func(oldPath, newPath string) error {
+			if newPath == target {
+				return monkey.Error
+			}
+			pg.Unpatch()
+			defer pg.Restore()
+			return os.Rename(oldPath, newPath)
+		}
+		pg = monkey.Patch(os.Rename, patch)
+		defer pg.Unpatch()
+
+		t.Run("retry", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlMoveFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCheckMoveDstMulti(t)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlMoveFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpSkip
+			}
+			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCheckMoveDstDir(t)
+			testIsNotExist(t, testMoveDstFile)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlMoveFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpCancel
+			}
+			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+
+			testCheckMoveDstDir(t)
+			testIsNotExist(t, testMoveDstFile)
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlMoveFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpInvalid
+			}
+			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			require.EqualError(t, errors.Cause(err), "unknown failed to move operation code: 0")
+
+			require.Equal(t, 1, count)
+
+			testCheckMoveDstDir(t)
+			testIsNotExist(t, testMoveDstFile)
+		})
 	})
 
 	t.Run("moveFile-os.OpenFile", func(t *testing.T) {
@@ -978,12 +1088,8 @@ func TestMoveWithNotice(t *testing.T) {
 	})
 
 	t.Run("moveFileCommon-retry", func(t *testing.T) {
-		pgp := testPatchFilePathVolume()
-		defer pgp.Unpatch()
-
 		target, err := filepath.Abs(testMoveDstFile)
 		require.NoError(t, err)
-
 		var pg *monkey.PatchGuard
 		patch := func(name string, aTime, mTime time.Time) error {
 			if name == target {
@@ -995,6 +1101,9 @@ func TestMoveWithNotice(t *testing.T) {
 		}
 		pg = monkey.Patch(os.Chtimes, patch)
 		defer pg.Unpatch()
+
+		pgp := testPatchFilePathVolume(false)
+		defer pgp.Unpatch()
 
 		t.Run("retry", func(t *testing.T) {
 			defer pg.Restore()
