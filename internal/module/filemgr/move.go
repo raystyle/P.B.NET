@@ -17,7 +17,6 @@ import (
 
 	"project/internal/convert"
 	"project/internal/module/task"
-	"project/internal/system"
 	"project/internal/xpanic"
 )
 
@@ -415,7 +414,7 @@ retry:
 	}
 	// create file
 	perm := file.stat.Mode().Perm()
-	dstFile, err := system.OpenFile(dstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	dstFile, err := os.OpenFile(dstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm) // #nosec
 	if err != nil {
 		ps := noticePs{
 			ctx:     ctx,
