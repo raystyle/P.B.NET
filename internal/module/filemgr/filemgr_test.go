@@ -19,6 +19,22 @@ import (
 	"project/internal/testsuite"
 )
 
+// clean testdata directory before test
+func TestMain(m *testing.M) {
+	for _, path := range []string{
+		TaskNameCopy,
+		TaskNameMove,
+		TaskNameDelete,
+		TaskNameZip,
+		TaskNameUnZip,
+	} {
+		err := os.RemoveAll("testdata/" + path)
+		testsuite.CheckErrorInTestMain(err)
+	}
+
+	m.Run()
+}
+
 func testCreateFile(t *testing.T, name string) {
 	data := testsuite.Bytes()
 	err := system.WriteFile(name, data)
