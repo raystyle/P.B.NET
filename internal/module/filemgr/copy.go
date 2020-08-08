@@ -23,10 +23,13 @@ import (
 // copyTask implement task.Interface that is used to copy source to destination.
 // It can pause in progress and get current progress and detail information.
 type copyTask struct {
-	errCtrl ErrCtrl
-	src     string
-	dst     string
-	stats   *SrcDstStat
+	errCtrl  ErrCtrl
+	dst      string
+	paths    []string // absolute path that will be moved
+	pathsLen int
+
+	src   string
+	stats *SrcDstStat
 
 	files    []*fileStat // store all files will copy
 	skipDirs []string    // store skipped directories
@@ -46,11 +49,12 @@ type copyTask struct {
 
 // NewCopyTask is used to create a copy task that implement task.Interface.
 // Files must in the same directory.
-func NewCopyTask(errCtrl ErrCtrl, src, dst string, callbacks fsm.Callbacks) *task.Task {
+func NewCopyTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, dst string, paths ...string) *task.Task {
 	ct := copyTask{
 		errCtrl:    errCtrl,
-		src:        src,
 		dst:        dst,
+		paths:      paths,
+		pathsLen:   len(paths),
 		current:    big.NewFloat(0),
 		total:      big.NewFloat(0),
 		stopSignal: make(chan struct{}),
@@ -60,11 +64,11 @@ func NewCopyTask(errCtrl ErrCtrl, src, dst string, callbacks fsm.Callbacks) *tas
 
 // Prepare will check source and destination path.
 func (ct *copyTask) Prepare(context.Context) error {
-	stats, err := checkSrcDstPath(ct.src, ct.dst)
-	if err != nil {
-		return err
-	}
-	ct.stats = stats
+	// stats, err := checkSrcDstPath(ct.src, ct.dst)
+	// if err != nil {
+	// 	return err
+	// }
+	// ct.stats = stats
 	go ct.watcher()
 	return nil
 }
@@ -136,7 +140,7 @@ func (ct *copyTask) copySrcFile(ctx context.Context, task *task.Task) error {
 		DstStat: dstStat,
 	}
 	// update progress
-	ct.updateTotal(ct.stats.SrcStat.Size(), true)
+	ct.addTotal(ct.stats.SrcStat.Size())
 	return ct.copyFile(ctx, task, stats)
 }
 
@@ -187,7 +191,7 @@ func (ct *copyTask) collectDirInfo(ctx context.Context, task *task.Task) error {
 		// collecting file information
 		// path: C:\testdata\test
 		ct.updateDetail("collect file information\npath: " + srcAbs)
-		ct.updateTotal(srcStat.Size(), true)
+		ct.addTotal(srcStat.Size())
 		return nil
 	}
 	return filepath.Walk(ct.stats.SrcAbs, walkFunc)
@@ -393,12 +397,12 @@ func (ct *copyTask) copyFile(ctx context.Context, task *task.Task, stats *SrcDst
 		return nil
 	}
 	// update current task detail, output:
-	//   copying file, name: test.dat size: 1.127MB
+	//   copy file, name: test.dat, size: 1.127MB
 	//   src: C:\testdata\test.dat
-	//   dst: D:\test\test.dat
+	//   dst: D:\testdata\test.dat
 	srcFileName := filepath.Base(stats.SrcAbs)
 	srcSize := convert.FormatByte(uint64(stats.SrcStat.Size()))
-	const format = "copy file, name: %s size: %s\nsrc: %s\ndst: %s"
+	const format = "copy file, name: %s, size: %s\nsrc: %s\ndst: %s"
 	ct.updateDetail(fmt.Sprintf(format, srcFileName, srcSize, stats.SrcAbs, stats.DstAbs))
 	// check dst file is exist
 	if stats.DstStat != nil {
@@ -497,7 +501,7 @@ func (ct *copyTask) updateSrcFileStat(srcFile *os.File, stats *SrcDstStat) error
 	oldSize := stats.SrcStat.Size()
 	if newSize != oldSize {
 		delta := newSize - oldSize
-		ct.updateTotal(delta, true)
+		ct.addTotal(delta)
 	}
 	stats.SrcStat = srcStat
 	return nil
@@ -540,7 +544,8 @@ func (ct *copyTask) Progress() string {
 	value := new(big.Float).Quo(ct.current, ct.total)
 	// split result
 	text := value.Text('G', 64)
-	if len(text) > 6 { // 0.999999999...999 -> 0.9999
+	// 0.999999999...999 -> 0.9999
+	if len(text) > 6 {
 		text = text[:6]
 	}
 	// format result
@@ -564,9 +569,9 @@ func (ct *copyTask) Progress() string {
 }
 
 func (ct *copyTask) updateCurrent(delta int64, add bool) {
+	d := new(big.Float).SetInt64(delta)
 	ct.rwm.Lock()
 	defer ct.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
 	if add {
 		ct.current.Add(ct.current, d)
 	} else {
@@ -574,15 +579,11 @@ func (ct *copyTask) updateCurrent(delta int64, add bool) {
 	}
 }
 
-func (ct *copyTask) updateTotal(delta int64, add bool) {
+func (ct *copyTask) addTotal(delta int64) {
+	d := new(big.Float).SetInt64(delta)
 	ct.rwm.Lock()
 	defer ct.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
-	if add {
-		ct.total.Add(ct.total, d)
-	} else {
-		ct.total.Sub(ct.total, d)
-	}
+	ct.total.Add(ct.total, d)
 }
 
 // Detail is used to get detail about copy task.
@@ -592,7 +593,7 @@ func (ct *copyTask) updateTotal(delta int64, add bool) {
 //   path: C:\testdata\test
 //
 // copy file:
-//   copy file, name: test.dat size: 1.127MB
+//   copy file, name: test.dat, size: 1.127 MB
 //   src: C:\testdata\test.dat
 //   dst: D:\test\test.dat
 func (ct *copyTask) Detail() string {
@@ -663,12 +664,12 @@ func (ct *copyTask) Clean() {
 }
 
 // Copy is used to create a copy task to copy paths to destination.
-func Copy(errCtrl ErrCtrl, src, dst string) error {
-	return CopyWithContext(context.Background(), errCtrl, src, dst)
+func Copy(errCtrl ErrCtrl, dst string, paths ...string) error {
+	return CopyWithContext(context.Background(), errCtrl, dst, paths...)
 }
 
 // CopyWithContext is used to create a copy task with context to copy paths to destination.
-func CopyWithContext(ctx context.Context, errCtrl ErrCtrl, src, dst string) error {
-	ct := NewCopyTask(errCtrl, src, dst, nil)
+func CopyWithContext(ctx context.Context, errCtrl ErrCtrl, dst string, paths ...string) error {
+	ct := NewCopyTask(errCtrl, nil, dst, paths...)
 	return startTask(ctx, ct, "Copy")
 }

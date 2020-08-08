@@ -382,12 +382,13 @@ func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, file *file) (
 	}
 	dstAbs := filepath.Join(mt.dst, relPath)
 	// update current task detail, output:
-	//   move file, name: test.dat
+	//   move file, name: test.dat, size: 1.127 MB
 	//   src: C:\testdata\test.dat
 	//   dst: D:\testdata\test.dat
-	const format = "move file, name: %s\nsrc: %s\ndst: %s"
+	const format = "move file, name: %s, size: %s\nsrc: %s\ndst: %s"
 	fileName := filepath.Base(dstAbs)
-	mt.updateDetail(fmt.Sprintf(format, fileName, file.path, dstAbs))
+	fileSize := convert.FormatByte(uint64(file.stat.Size()))
+	mt.updateDetail(fmt.Sprintf(format, fileName, fileSize, file.path, dstAbs))
 	// check destination file
 	stats := &SrcDstStat{
 		SrcAbs:  file.path,
@@ -650,7 +651,8 @@ func (mt *moveTask) Progress() string {
 	value := new(big.Float).Quo(mt.current, mt.total)
 	// split result
 	text := value.Text('G', 64)
-	if len(text) > 6 { // 0.999999999...999 -> 0.9999
+	// 0.999999999...999 -> 0.9999
+	if len(text) > 6 {
 		text = text[:6]
 	}
 	// format result
@@ -674,9 +676,9 @@ func (mt *moveTask) Progress() string {
 }
 
 func (mt *moveTask) updateCurrent(delta int64, add bool) {
+	d := new(big.Float).SetInt64(delta)
 	mt.rwm.Lock()
 	defer mt.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
 	if add {
 		mt.current.Add(mt.current, d)
 	} else {
@@ -685,9 +687,9 @@ func (mt *moveTask) updateCurrent(delta int64, add bool) {
 }
 
 func (mt *moveTask) addTotal(delta int64) {
+	d := new(big.Float).SetInt64(delta)
 	mt.rwm.Lock()
 	defer mt.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
 	mt.total.Add(mt.total, d)
 }
 
@@ -698,7 +700,7 @@ func (mt *moveTask) addTotal(delta int64) {
 //   path: C:\testdata\test
 //
 // move file:
-//   move file, name: test.dat size: 1.127MB
+//   move file, name: test.dat, size: 1.127 MB
 //   src: C:\testdata\test.dat
 //   dst: D:\test\test.dat
 func (mt *moveTask) Detail() string {

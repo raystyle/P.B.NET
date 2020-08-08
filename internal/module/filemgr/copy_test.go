@@ -44,7 +44,7 @@ func TestCopy(t *testing.T) {
 					require.NoError(t, err)
 				}()
 
-				err := Copy(ReplaceAll, src, dstFile)
+				err := Copy(ReplaceAll, dstFile, src)
 				require.NoError(t, err)
 
 				testCompareFile(t, src, dstFile)
@@ -70,7 +70,7 @@ func TestCopy(t *testing.T) {
 						count++
 						return ErrCtrlOpReplace
 					}
-					err := Copy(ec, src, dstFile)
+					err := Copy(ec, dstFile, src)
 					require.NoError(t, err)
 
 					testCompareFile(t, src, dstFile)
@@ -86,7 +86,7 @@ func TestCopy(t *testing.T) {
 						require.NoError(t, err)
 					}()
 
-					err = Copy(ReplaceAll, src, dstFile)
+					err = Copy(ReplaceAll, dstFile, src)
 					require.NoError(t, err)
 				})
 			})
@@ -99,7 +99,7 @@ func TestCopy(t *testing.T) {
 					require.NoError(t, err)
 				}()
 
-				err := Copy(ReplaceAll, src, dstDir)
+				err := Copy(ReplaceAll, dstDir, src)
 				require.NoError(t, err)
 
 				testCompareFile(t, src, dstFile)
@@ -125,7 +125,7 @@ func TestCopy(t *testing.T) {
 						count++
 						return ErrCtrlOpReplace
 					}
-					err := Copy(ec, src, dstDir)
+					err := Copy(ec, dstDir, src)
 					require.NoError(t, err)
 
 					testCompareFile(t, src, dstFile)
@@ -147,7 +147,7 @@ func TestCopy(t *testing.T) {
 						count++
 						return ErrCtrlOpSkip
 					}
-					err = Copy(ec, src, dstDir)
+					err = Copy(ec, dstDir, src)
 					require.NoError(t, err)
 
 					require.Equal(t, 1, count)
@@ -188,7 +188,7 @@ func TestCopy(t *testing.T) {
 					require.NoError(t, err)
 				}()
 
-				err = Copy(ReplaceAll, srcDir, dstDir)
+				err = Copy(ReplaceAll, dstDir, srcDir)
 				require.NoError(t, err)
 
 				testCompareDirectory(t, srcDir, dstDir)
@@ -202,7 +202,7 @@ func TestCopy(t *testing.T) {
 					require.NoError(t, err)
 				}()
 
-				err = Copy(ReplaceAll, srcDir, dstDir)
+				err = Copy(ReplaceAll, dstDir, srcDir)
 				require.NoError(t, err)
 
 				testCompareDirectory(t, srcDir, dstDir)
@@ -218,7 +218,7 @@ func TestCopy(t *testing.T) {
 					require.NoError(t, err)
 				}()
 
-				err := Copy(ReplaceAll, srcDir, dstDir)
+				err := Copy(ReplaceAll, dstDir, srcDir)
 				require.NoError(t, err)
 
 				testCompareDirectory(t, srcDir, dstDir)
@@ -238,7 +238,7 @@ func TestCopy(t *testing.T) {
 						require.NoError(t, err)
 					}()
 
-					err := Copy(ReplaceAll, srcDir, dstDir)
+					err := Copy(ReplaceAll, dstDir, srcDir)
 					require.Error(t, err)
 				})
 
@@ -250,7 +250,7 @@ func TestCopy(t *testing.T) {
 						require.NoError(t, err)
 					}()
 
-					err = Copy(ReplaceAll, srcDir, dstDir)
+					err = Copy(ReplaceAll, dstDir, srcDir)
 					require.NoError(t, err)
 
 					testCompareDirectory(t, srcDir, dstDir)
@@ -282,7 +282,7 @@ func TestCopy(t *testing.T) {
 					count++
 					return ErrCtrlOpSkip
 				}
-				err = Copy(ec, srcDir, dstDir)
+				err = Copy(ec, dstDir, srcDir)
 				require.NoError(t, err)
 
 				require.Equal(t, 1, count)
@@ -311,7 +311,7 @@ func TestCopy(t *testing.T) {
 					count++
 					return ErrCtrlOpSkip
 				}
-				err := Copy(ec, srcDir, dstDir)
+				err := Copy(ec, dstDir, srcDir)
 				require.NoError(t, err)
 
 				require.Equal(t, 1, count)
@@ -340,7 +340,7 @@ func TestCopyWithContext(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		err := CopyWithContext(ctx, ReplaceAll, src, dst)
+		err := CopyWithContext(ctx, ReplaceAll, dst, src)
 		require.NoError(t, err)
 
 		exist, err := system.IsExist(dir)
@@ -377,7 +377,7 @@ func TestCopyWithContext(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		err = CopyWithContext(ctx, SkipAll, srcDir, dstDir)
+		err = CopyWithContext(ctx, SkipAll, dstDir, srcDir)
 		require.NoError(t, err)
 
 		exist, err := system.IsExist(dstDir)
@@ -413,7 +413,7 @@ func TestCopyWithContext(t *testing.T) {
 			time.Sleep(time.Second)
 			return ErrCtrlOpReplace
 		}
-		err := CopyWithContext(ctx, ec, src, dst)
+		err := CopyWithContext(ctx, ec, dst, src)
 		require.Equal(t, context.Canceled, errors.Cause(err))
 
 		exist, err := system.IsExist(dir)
@@ -475,7 +475,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpSkip
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -501,7 +501,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpCancel
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
@@ -523,7 +523,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpInvalid
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
@@ -564,7 +564,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpRetry
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -590,7 +590,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpSkip
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 2, count)
@@ -616,7 +616,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpCancel
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
@@ -638,7 +638,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpInvalid
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
@@ -678,7 +678,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpRetry
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -712,7 +712,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpSkip
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -746,7 +746,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpCancel
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
@@ -780,7 +780,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpInvalid
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
@@ -810,7 +810,7 @@ func TestCopyWithNotice(t *testing.T) {
 				require.NoError(t, err)
 				return ErrCtrlOpRetry
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -836,7 +836,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpSkip
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -862,7 +862,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpCancel
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
@@ -888,7 +888,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpInvalid
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
@@ -925,7 +925,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpRetry
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -951,7 +951,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpSkip
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -977,7 +977,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpCancel
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
@@ -1003,7 +1003,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpInvalid
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
@@ -1059,7 +1059,7 @@ func TestCopyWithNotice(t *testing.T) {
 				testCreateFile(t, src)
 				return ErrCtrlOpRetry
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -1106,7 +1106,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpSkip
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -1153,7 +1153,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpCancel
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
@@ -1200,7 +1200,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpInvalid
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
@@ -1230,7 +1230,7 @@ func TestCopyWithNotice(t *testing.T) {
 				require.NoError(t, err)
 				return ErrCtrlOpRetry
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -1258,7 +1258,7 @@ func TestCopyWithNotice(t *testing.T) {
 				require.NoError(t, err)
 				return ErrCtrlOpSkip
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -1286,7 +1286,7 @@ func TestCopyWithNotice(t *testing.T) {
 				require.NoError(t, err)
 				return ErrCtrlOpCancel
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
@@ -1314,7 +1314,7 @@ func TestCopyWithNotice(t *testing.T) {
 				require.NoError(t, err)
 				return ErrCtrlOpInvalid
 			}
-			err = Copy(ec, srcDir, dstDir)
+			err = Copy(ec, dstDir, srcDir)
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
@@ -1342,7 +1342,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpReplace
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -1368,7 +1368,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpSkip
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -1394,7 +1394,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpCancel
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
@@ -1420,7 +1420,7 @@ func TestCopyWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpInvalid
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
@@ -1452,7 +1452,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpRetry
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -1478,7 +1478,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpSkip
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -1504,7 +1504,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpCancel
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
@@ -1530,7 +1530,7 @@ func TestCopyWithNotice(t *testing.T) {
 				pg.Unpatch()
 				return ErrCtrlOpInvalid
 			}
-			err := Copy(ec, srcDir, dstDir)
+			err := Copy(ec, dstDir, srcDir)
 			require.Error(t, err)
 
 			require.Equal(t, 1, count)
@@ -1584,7 +1584,7 @@ func TestCopyTask_Progress(t *testing.T) {
 			time.Sleep(2 * time.Second)
 			return ErrCtrlOpReplace
 		}
-		ct := NewCopyTask(ec, srcDir, dstDir, nil)
+		ct := NewCopyTask(ec, nil, dstDir, srcDir)
 
 		done := make(chan struct{})
 		wg := sync.WaitGroup{}

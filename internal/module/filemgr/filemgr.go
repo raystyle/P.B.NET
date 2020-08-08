@@ -93,59 +93,6 @@ func stat(name string) (os.FileInfo, error) {
 	return stat, nil
 }
 
-// SrcDstStat contains absolute path and file stat about src and dst.
-type SrcDstStat struct {
-	SrcAbs  string // "E:\file.dat" "E:\file", last will not be "/ or "\"
-	DstAbs  string
-	SrcStat os.FileInfo
-	DstStat os.FileInfo // check destination file or directory is exists
-}
-
-// src path [file], dst path [file] --valid
-// src path [file], dst path [dir]  --valid
-// src path [dir],  dst path [dir]  --valid
-// src path [dir],  dst path [file] --invalid
-func checkSrcDstPath(src, dst string) (*SrcDstStat, error) {
-	if src == "" {
-		return nil, errors.New("empty src path")
-	}
-	if dst == "" {
-		return nil, errors.New("empty dst path")
-	}
-	// replace the relative path to the absolute path for
-	// prevent change current directory.
-	srcAbs, err := filepath.Abs(src)
-	if err != nil {
-		return nil, err
-	}
-	dstAbs, err := filepath.Abs(dst)
-	if err != nil {
-		return nil, err
-	}
-	if srcAbs == dstAbs {
-		return nil, errors.New("src path as same as the dst path")
-	}
-	// check two path is valid
-	srcStat, err := os.Stat(srcAbs)
-	if err != nil {
-		return nil, err
-	}
-	dstStat, err := stat(dstAbs)
-	if err != nil {
-		return nil, err
-	}
-	if srcStat.IsDir() && dstStat != nil && !dstStat.IsDir() {
-		const format = "\"%s\" is a directory but \"%s\" is a file"
-		return nil, fmt.Errorf(format, srcAbs, dstAbs)
-	}
-	return &SrcDstStat{
-		SrcAbs:  srcAbs,
-		DstAbs:  dstAbs,
-		SrcStat: srcStat,
-		DstStat: dstStat,
-	}, nil
-}
-
 // validatePaths is used to make sure all paths is in the same directory,
 // if passed, it will sort paths and return base path.
 func validatePaths(paths []string) (string, error) {
@@ -223,6 +170,14 @@ type noticePs struct {
 	ctx     context.Context
 	task    *task.Task
 	errCtrl ErrCtrl
+}
+
+// SrcDstStat contains absolute path and file stat about src and dst.
+type SrcDstStat struct {
+	SrcAbs  string // "E:\file.dat" "E:\file", last will not be "/ or "\"
+	DstAbs  string
+	SrcStat os.FileInfo
+	DstStat os.FileInfo // check destination file or directory is exists
 }
 
 // ErrUserCanceled is an error about user cancel task.

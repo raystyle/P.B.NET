@@ -276,7 +276,8 @@ func (dt *deleteTask) Progress() string {
 	value := new(big.Float).Quo(dt.current, dt.total)
 	// split result
 	text := value.Text('G', 64)
-	if len(text) > 6 { // 0.999999999...999 -> 0.9999
+	// 0.999999999...999 -> 0.9999
+	if len(text) > 6 {
 		text = text[:6]
 	}
 	// format result

@@ -32,10 +32,10 @@ type unZipTask struct {
 	paths    []string // files need extract
 	pathsLen int
 
-	createDst bool            // if destination directory is not exist, create it
-	zipFile   *zip.ReadCloser // zip reader and *os.File
-	dirs      []*zip.File     // set modified time after extract
-	skipDirs  []string        // store skipped directories
+	dstStat  os.FileInfo     // for record destination folder is created
+	zipFile  *zip.ReadCloser // zip reader and *os.File
+	dirs     []*zip.File     // set modified time after extract files
+	skipDirs []string        // store skipped directories
 
 	// about progress, detail and speed
 	current *big.Float
@@ -90,22 +90,19 @@ func (ut *unZipTask) Prepare(context.Context) error {
 	if srcStat.IsDir() {
 		return errors.Errorf("source path \"%s\" is a directory", srcAbs)
 	}
-	if dstStat != nil {
-		if !dstStat.IsDir() {
-			return errors.Errorf("destination path \"%s\" is a file", dstAbs)
-		}
-	} else {
-		ut.createDst = true
+	if dstStat != nil && !dstStat.IsDir() {
+		return errors.Errorf("destination path \"%s\" is a file", dstAbs)
 	}
 	ut.src = srcAbs
 	ut.dst = dstAbs
+	ut.dstStat = dstStat
 	go ut.watcher()
 	return nil
 }
 
 func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
 	// create destination directory if it not exists
-	if ut.createDst {
+	if ut.dstStat == nil {
 		err := os.MkdirAll(ut.dst, 0750)
 		if err != nil {
 			return err
@@ -345,12 +342,13 @@ func (ut *unZipTask) extractFile(
 	zipFile *zip.File,
 ) error {
 	// update current task detail, output:
-	//   extract file, name: testdata
+	//   extract file, name: test.dat, size: 1.127 MB
 	//   src: zip/testdata/test.dat
 	//   dst: C:\testdata\test.dat
-	const format = "extract file, name: %s\nsrc: zip/%s\ndst: %s"
+	const format = "extract file, name: %s, size: %s\nsrc: zip/%s\ndst: %s"
 	fileName := filepath.Base(src)
-	ut.updateDetail(fmt.Sprintf(format, fileName, src, file.path))
+	fileSize := convert.FormatByte(uint64(file.stat.Size()))
+	ut.updateDetail(fmt.Sprintf(format, fileName, fileSize, src, file.path))
 	// check destination
 	skipped, err := ut.checkDst(ctx, task, src, file)
 	if err != nil {
@@ -529,7 +527,8 @@ func (ut *unZipTask) Progress() string {
 	value := new(big.Float).Quo(ut.current, ut.total)
 	// split result
 	text := value.Text('G', 64)
-	if len(text) > 6 { // 0.999999999...999 -> 0.9999
+	// 0.999999999...999 -> 0.9999
+	if len(text) > 6 {
 		text = text[:6]
 	}
 	// format result
@@ -553,9 +552,9 @@ func (ut *unZipTask) Progress() string {
 }
 
 func (ut *unZipTask) updateCurrent(delta int64, add bool) {
+	d := new(big.Float).SetInt64(delta)
 	ut.rwm.Lock()
 	defer ut.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
 	if add {
 		ut.current.Add(ut.current, d)
 	} else {
@@ -564,9 +563,9 @@ func (ut *unZipTask) updateCurrent(delta int64, add bool) {
 }
 
 func (ut *unZipTask) addTotal(delta int64) {
+	d := new(big.Float).SetInt64(delta)
 	ut.rwm.Lock()
 	defer ut.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
 	ut.total.Add(ut.total, d)
 }
 
@@ -578,7 +577,7 @@ func (ut *unZipTask) addTotal(delta int64) {
 //   path: testdata/test.dat
 //
 // extract file:
-//   extract file, name: test.dat
+//   extract file, name: test.dat, size: 1.127 MB
 //   src: testdata/test.dat
 //   dst: C:\testdata\test.dat
 func (ut *unZipTask) Detail() string {

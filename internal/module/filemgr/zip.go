@@ -247,12 +247,13 @@ retry:
 
 func (zt *zipTask) writeFile(ctx context.Context, task *task.Task, file *fileStat, relPath string) error {
 	// update current task detail, output:
-	//   compress file, name: test.dat
+	//   compress file, name: test.dat, size: 1.127 MB
 	//   src: C:\testdata\test.dat
 	//   dst: zip/testdata/test.dat
-	const format = "compress file, name: %s\nsrc: %s\ndst: zip/%s"
+	const format = "compress file, name: %s, size: %s\nsrc: %s\ndst: zip/%s"
 	fileName := filepath.Base(file.path)
-	zt.updateDetail(fmt.Sprintf(format, fileName, file.path, relPath))
+	fileSize := convert.FormatByte(uint64(file.stat.Size()))
+	zt.updateDetail(fmt.Sprintf(format, fileName, fileSize, file.path, relPath))
 retry:
 	// check task is canceled
 	if task.Canceled() {
@@ -344,7 +345,8 @@ func (zt *zipTask) Progress() string {
 	value := new(big.Float).Quo(zt.current, zt.total)
 	// split result
 	text := value.Text('G', 64)
-	if len(text) > 6 { // 0.999999999...999 -> 0.9999
+	// 0.999999999...999 -> 0.9999
+	if len(text) > 6 {
 		text = text[:6]
 	}
 	// format result
@@ -368,16 +370,16 @@ func (zt *zipTask) Progress() string {
 }
 
 func (zt *zipTask) addCurrent(delta int64) {
+	d := new(big.Float).SetInt64(delta)
 	zt.rwm.Lock()
 	defer zt.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
 	zt.current.Add(zt.current, d)
 }
 
 func (zt *zipTask) addTotal(delta int64) {
+	d := new(big.Float).SetInt64(delta)
 	zt.rwm.Lock()
 	defer zt.rwm.Unlock()
-	d := new(big.Float).SetInt64(delta)
 	zt.total.Add(zt.total, d)
 }
 
@@ -387,7 +389,7 @@ func (zt *zipTask) addTotal(delta int64) {
 //   path: C:\testdata\test.dat
 //
 // compress file:
-//   compress file, name: test.dat
+//   compress file, name: test.dat, size: 1.127 MB
 //   src: C:\testdata\test.dat
 //   dst: zip/testdata/test.dat
 func (zt *zipTask) Detail() string {
