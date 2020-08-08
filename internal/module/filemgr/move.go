@@ -91,15 +91,15 @@ func (mt *moveTask) Prepare(context.Context) error {
 		mt.fastMode = true
 	}
 	mt.dst = dstAbs
-	mt.basePath = basePath
 	mt.dstStat = dstStat
+	mt.basePath = basePath
 	mt.roots = make([]*file, mt.pathsLen)
 	go mt.watcher()
 	return nil
 }
 
 func (mt *moveTask) Process(ctx context.Context, task *task.Task) error {
-	// must collect files information because the zip file maybe in the same path
+	// must collect files information because the destination maybe in the same path
 	for i := 0; i < mt.pathsLen; i++ {
 		err := mt.collectPathInfo(ctx, task, i)
 		if err != nil {
@@ -296,6 +296,7 @@ retry:
 		mt.skipDirs = append(mt.skipDirs, dir.path)
 		return nil
 	}
+	// destination already exists
 	if dstStat != nil {
 		if dstStat.IsDir() {
 			return nil
@@ -321,6 +322,7 @@ retry:
 		mt.skipDirs = append(mt.skipDirs, dir.path)
 		return nil
 	}
+	// create directory
 	err = os.Mkdir(dstAbs, dir.stat.Mode().Perm())
 	if err != nil {
 		ps := noticePs{

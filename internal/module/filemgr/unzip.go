@@ -289,7 +289,7 @@ retry:
 		ut.skipDirs = append(ut.skipDirs, src)
 		return nil
 	}
-	// appear same name file with directory
+	// destination already exists
 	if dstStat != nil {
 		if dstStat.IsDir() {
 			return nil
@@ -315,6 +315,8 @@ retry:
 		ut.skipDirs = append(ut.skipDirs, src)
 		return nil
 	}
+	// create directory, must use os.MkdirAll, not os.Mkdir
+	// because the target's parent directory maybe not exist.
 	err = os.MkdirAll(dir.path, dir.stat.Mode().Perm())
 	if err != nil {
 		ps := noticePs{
