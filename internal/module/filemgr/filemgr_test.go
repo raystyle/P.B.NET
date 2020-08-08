@@ -64,7 +64,7 @@ func testCompareFile(t *testing.T, a, b string) {
 	am := aStat.ModTime()
 	bm := bStat.ModTime()
 	const format = "name: %s\na: %s\nb: %s"
-	require.Truef(t, bm.Sub(am) < 2*time.Second, format, a, am, bm)
+	require.Truef(t, bm.Sub(am) < time.Second, format, a, am, bm)
 }
 
 func testCompareDirectory(t *testing.T, a, b string) {

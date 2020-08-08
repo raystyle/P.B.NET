@@ -1325,6 +1325,8 @@ func TestMoveTask_Progress(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	testPatchFilePathVolume(false)
+
 	t.Run("common", func(t *testing.T) {
 		testCreateMoveSrcDir(t)
 		defer testRemoveMoveDir(t)

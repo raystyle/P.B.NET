@@ -458,7 +458,10 @@ func (ut *unZipTask) writeFile(ctx context.Context, task *task.Task, dst *os.Fil
 	if err != nil {
 		return
 	}
-	// set the modification time about the destination file
+	err = dst.Sync()
+	if err != nil {
+		return
+	}
 	return os.Chtimes(dstPath, time.Now(), src.Modified)
 }
 

@@ -574,13 +574,13 @@ func (mt *moveTask) moveFileCommon(
 	}
 	// prevent file become small
 	copied += srcSize - copied
-	// set the modification time about the destination file
-	err = os.Chtimes(dstPath, time.Now(), stats.SrcStat.ModTime())
+	// prevent data lost
+	err = dst.Sync()
 	if err != nil {
 		return
 	}
-	// prevent data lost
-	err = dst.Sync()
+	// set the modification time about the destination file
+	err = os.Chtimes(dstPath, time.Now(), stats.SrcStat.ModTime())
 	if err != nil {
 		return
 	}

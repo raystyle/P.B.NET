@@ -71,15 +71,24 @@ func testCheckZipWithFile(t *testing.T) {
 	zipFile, err := zip.OpenReader(testZipDst)
 	require.NoError(t, err)
 	defer func() { _ = zipFile.Close() }()
-
 	require.Len(t, zipFile.File, 1)
-	rc, err := zipFile.File[0].Open()
-	require.NoError(t, err)
 
+	file := zipFile.File[0]
+	// check name
+	require.Equal(t, "file1.dat", file.Name)
+	// check modification time
+	stat, err := os.Stat(testZipSrcFile)
+	require.NoError(t, err)
+	am := stat.ModTime()
+	bm := file.Modified
+	const format = "name: %s\na: %s\nb: %s"
+	require.Truef(t, am.Sub(bm) < time.Second, format, testZipSrcFile, am, bm)
+	// check file data
+	rc, err := file.Open()
+	require.NoError(t, err)
 	data, err := ioutil.ReadAll(rc)
 	require.NoError(t, err)
 	require.Equal(t, testsuite.Bytes(), data)
-
 	err = rc.Close()
 	require.NoError(t, err)
 }
@@ -88,7 +97,6 @@ func testCheckZipWithDir(t *testing.T) {
 	zipFile, err := zip.OpenReader(testZipDst)
 	require.NoError(t, err)
 	defer func() { _ = zipFile.Close() }()
-
 	require.Len(t, zipFile.File, 10)
 
 	fileData1 := testsuite.Bytes()
@@ -111,7 +119,7 @@ func testCheckZipWithDir(t *testing.T) {
 		{testZipSrcFile5, fileData2, false},
 	} {
 		file := zipFile.File[i]
-		// check is dir
+		// check is directory
 		require.Equal(t, item.isDir, file.FileInfo().IsDir())
 		// check name
 		expectName := strings.ReplaceAll(item.name, testZipDir, "")
@@ -119,6 +127,13 @@ func testCheckZipWithDir(t *testing.T) {
 			expectName += "/"
 		}
 		require.Equal(t, expectName, file.Name)
+		// check modification time
+		stat, err := os.Stat(item.name)
+		require.NoError(t, err)
+		am := stat.ModTime()
+		bm := file.Modified
+		const format = "name: %s\na: %s\nb: %s"
+		require.Truef(t, am.Sub(bm) < time.Second, format, item.name, am, bm)
 		// check file data
 		if item.isDir {
 			require.Equal(t, file.FileInfo().Size(), int64(0))
@@ -126,11 +141,9 @@ func testCheckZipWithDir(t *testing.T) {
 		}
 		rc, err := file.Open()
 		require.NoError(t, err)
-
 		data, err := ioutil.ReadAll(rc)
 		require.NoError(t, err)
 		require.Equal(t, item.data, data)
-
 		err = rc.Close()
 		require.NoError(t, err)
 	}

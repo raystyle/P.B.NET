@@ -294,11 +294,15 @@ retry:
 		zt.addCurrent(file.stat.Size())
 		return nil
 	}
-	// create a zip file
-	header, _ := zip.FileInfoHeader(srcStat)
-	header.Name = relPath
-	header.Method = zip.Deflate
-	zipFile, err := zt.zipWriter.CreateHeader(header)
+	// create a file
+	header := zip.FileHeader{
+		Name:               relPath,
+		Method:             zip.Deflate,
+		Modified:           srcStat.ModTime().UTC(), // Convert to UTC for compatibility
+		UncompressedSize64: uint64(srcStat.Size()),
+	}
+	header.SetMode(srcStat.Mode())
+	zipFile, err := zt.zipWriter.CreateHeader(&header)
 	if err != nil {
 		return err
 	}
