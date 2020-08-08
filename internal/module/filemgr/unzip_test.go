@@ -173,7 +173,6 @@ func TestUnZipWithNotice(t *testing.T) {
 	t.Run("mkdir-stat", func(t *testing.T) {
 		target, err := filepath.Abs(testUnZipDstDir + "/dir1")
 		require.NoError(t, err)
-
 		var pg *monkey.PatchGuard
 		patch := func(name string) (os.FileInfo, error) {
 			if name == target {
@@ -287,10 +286,11 @@ func TestUnZipWithNotice(t *testing.T) {
 	})
 
 	t.Run("mkdir-SameDirFile", func(t *testing.T) {
+		target, err := filepath.Abs(testUnZipDstDir + "/dir1")
+		require.NoError(t, err)
+
 		t.Run("retry", func(t *testing.T) {
 			// create same name file with directory
-			target, err := filepath.Abs(testUnZipDstDir + "/dir1")
-			require.NoError(t, err)
 			testCreateFile(t, target)
 
 			testCreateUnZipMultiZip(t)
@@ -317,8 +317,6 @@ func TestUnZipWithNotice(t *testing.T) {
 
 		t.Run("skip", func(t *testing.T) {
 			// create same name file with directory
-			target, err := filepath.Abs(testUnZipDstDir + "/dir1")
-			require.NoError(t, err)
 			testCreateFile(t, target)
 
 			testCreateUnZipMultiZip(t)
@@ -344,8 +342,6 @@ func TestUnZipWithNotice(t *testing.T) {
 
 		t.Run("user cancel", func(t *testing.T) {
 			// create same name file with directory
-			target, err := filepath.Abs(testUnZipDstDir + "/dir1")
-			require.NoError(t, err)
 			testCreateFile(t, target)
 
 			testCreateUnZipMultiZip(t)
@@ -371,8 +367,6 @@ func TestUnZipWithNotice(t *testing.T) {
 
 		t.Run("unknown operation", func(t *testing.T) {
 			// create same name file with directory
-			target, err := filepath.Abs(testUnZipDstDir + "/dir1")
-			require.NoError(t, err)
 			testCreateFile(t, target)
 
 			testCreateUnZipMultiZip(t)
@@ -400,7 +394,6 @@ func TestUnZipWithNotice(t *testing.T) {
 	t.Run("mkdir-os.MkdirAll", func(t *testing.T) {
 		target, err := filepath.Abs(testUnZipDstDir + "/dir1")
 		require.NoError(t, err)
-
 		var pg *monkey.PatchGuard
 		patch := func(name string, perm os.FileMode) error {
 			if name == target {
@@ -516,7 +509,6 @@ func TestUnZipWithNotice(t *testing.T) {
 	t.Run("checkDst-stat", func(t *testing.T) {
 		target, err := filepath.Abs(testUnZipDstFile)
 		require.NoError(t, err)
-
 		var pg *monkey.PatchGuard
 		patch := func(name string) (os.FileInfo, error) {
 			if name == target {
@@ -629,9 +621,7 @@ func TestUnZipWithNotice(t *testing.T) {
 	t.Run("checkDst-SameFileDir", func(t *testing.T) {
 		t.Run("retry", func(t *testing.T) {
 			// create same name directory with file
-			target, err := filepath.Abs(testUnZipDstFile)
-			require.NoError(t, err)
-			err = os.MkdirAll(target, 0750)
+			err := os.MkdirAll(testUnZipDstFile, 0750)
 			require.NoError(t, err)
 
 			testCreateUnZipMultiZip(t)
@@ -642,7 +632,7 @@ func TestUnZipWithNotice(t *testing.T) {
 				require.Equal(t, ErrCtrlSameFileDir, typ)
 				require.NoError(t, err)
 				count++
-				err = os.Remove(target)
+				err = os.Remove(testUnZipDstFile)
 				require.NoError(t, err)
 				return ErrCtrlOpRetry
 			}
@@ -658,9 +648,7 @@ func TestUnZipWithNotice(t *testing.T) {
 
 		t.Run("skip", func(t *testing.T) {
 			// create same name directory with file
-			target, err := filepath.Abs(testUnZipDstFile)
-			require.NoError(t, err)
-			err = os.MkdirAll(target, 0750)
+			err := os.MkdirAll(testUnZipDstFile, 0750)
 			require.NoError(t, err)
 
 			testCreateUnZipMultiZip(t)
@@ -685,9 +673,7 @@ func TestUnZipWithNotice(t *testing.T) {
 
 		t.Run("user cancel", func(t *testing.T) {
 			// create same name directory with file
-			target, err := filepath.Abs(testUnZipDstFile)
-			require.NoError(t, err)
-			err = os.MkdirAll(target, 0750)
+			err := os.MkdirAll(testUnZipDstFile, 0750)
 			require.NoError(t, err)
 
 			testCreateUnZipMultiZip(t)
@@ -712,9 +698,7 @@ func TestUnZipWithNotice(t *testing.T) {
 
 		t.Run("unknown operation", func(t *testing.T) {
 			// create same name directory with file
-			target, err := filepath.Abs(testUnZipDstFile)
-			require.NoError(t, err)
-			err = os.MkdirAll(target, 0750)
+			err := os.MkdirAll(testUnZipDstFile, 0750)
 			require.NoError(t, err)
 
 			testCreateUnZipMultiZip(t)
@@ -741,9 +725,7 @@ func TestUnZipWithNotice(t *testing.T) {
 	t.Run("checkDst-SameFile", func(t *testing.T) {
 		t.Run("replace", func(t *testing.T) {
 			// create same name file
-			target, err := filepath.Abs(testUnZipDstFile)
-			require.NoError(t, err)
-			testCreateFile(t, target)
+			testCreateFile(t, testUnZipDstFile)
 
 			testCreateUnZipMultiZip(t)
 			defer testRemoveUnZipDir(t)
@@ -753,12 +735,12 @@ func TestUnZipWithNotice(t *testing.T) {
 				require.Equal(t, ErrCtrlSameFile, typ)
 				require.NoError(t, err)
 				count++
-				err = os.Remove(target)
+				err = os.Remove(testUnZipDstFile)
 				require.NoError(t, err)
 				return ErrCtrlOpReplace
 			}
 
-			err = UnZip(ec, testUnZipMultiZip, testUnZipDst)
+			err := UnZip(ec, testUnZipMultiZip, testUnZipDst)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -769,9 +751,7 @@ func TestUnZipWithNotice(t *testing.T) {
 
 		t.Run("skip", func(t *testing.T) {
 			// create same name file
-			target, err := filepath.Abs(testUnZipDstFile)
-			require.NoError(t, err)
-			testCreateFile(t, target)
+			testCreateFile(t, testUnZipDstFile)
 
 			testCreateUnZipMultiZip(t)
 			defer testRemoveUnZipDir(t)
@@ -784,7 +764,7 @@ func TestUnZipWithNotice(t *testing.T) {
 				return ErrCtrlOpSkip
 			}
 
-			err = UnZip(ec, testUnZipMultiZip, testUnZipDst)
+			err := UnZip(ec, testUnZipMultiZip, testUnZipDst)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -795,9 +775,7 @@ func TestUnZipWithNotice(t *testing.T) {
 
 		t.Run("user cancel", func(t *testing.T) {
 			// create same name file
-			target, err := filepath.Abs(testUnZipDstFile)
-			require.NoError(t, err)
-			testCreateFile(t, target)
+			testCreateFile(t, testUnZipDstFile)
 
 			testCreateUnZipMultiZip(t)
 			defer testRemoveUnZipDir(t)
@@ -810,7 +788,7 @@ func TestUnZipWithNotice(t *testing.T) {
 				return ErrCtrlOpCancel
 			}
 
-			err = UnZip(ec, testUnZipMultiZip, testUnZipDst)
+			err := UnZip(ec, testUnZipMultiZip, testUnZipDst)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
@@ -821,9 +799,7 @@ func TestUnZipWithNotice(t *testing.T) {
 
 		t.Run("unknown operation", func(t *testing.T) {
 			// create same name file
-			target, err := filepath.Abs(testUnZipDstFile)
-			require.NoError(t, err)
-			testCreateFile(t, target)
+			testCreateFile(t, testUnZipDstFile)
 
 			testCreateUnZipMultiZip(t)
 			defer testRemoveUnZipDir(t)
@@ -836,7 +812,7 @@ func TestUnZipWithNotice(t *testing.T) {
 				return ErrCtrlOpInvalid
 			}
 
-			err = UnZip(ec, testUnZipMultiZip, testUnZipDst)
+			err := UnZip(ec, testUnZipMultiZip, testUnZipDst)
 			require.EqualError(t, err, "unknown same file operation code: 0")
 
 			require.Equal(t, 1, count)
@@ -849,7 +825,6 @@ func TestUnZipWithNotice(t *testing.T) {
 	t.Run("extractFile-system.OpenFile", func(t *testing.T) {
 		target, err := filepath.Abs(testUnZipDstFile)
 		require.NoError(t, err)
-
 		var pg *monkey.PatchGuard
 		patch := func(name string, flag int, perm os.FileMode) (*os.File, error) {
 			if name == target {
@@ -962,7 +937,6 @@ func TestUnZipWithNotice(t *testing.T) {
 	t.Run("writeFile-retry", func(t *testing.T) {
 		target, err := filepath.Abs(testUnZipDstFile)
 		require.NoError(t, err)
-
 		var pg *monkey.PatchGuard
 		patch := func(name string, aTime, mTime time.Time) error {
 			if name == target {
@@ -1269,14 +1243,14 @@ func TestUnZipTask_Watcher(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	testCreateUnZipMultiZip(t)
-	defer testRemoveUnZipDir(t)
-
 	pg1 := testPatchTaskCanceled()
 	defer pg1.Unpatch()
 
 	pg2 := testPatchMultiTaskWatcher()
 	defer pg2.Unpatch()
+
+	testCreateUnZipMultiZip(t)
+	defer testRemoveUnZipDir(t)
 
 	err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst)
 	require.NoError(t, err)

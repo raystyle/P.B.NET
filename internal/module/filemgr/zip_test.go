@@ -316,7 +316,6 @@ func TestZipWithNotice(t *testing.T) {
 	t.Run("mkdir-os.Stat", func(t *testing.T) {
 		target, err := filepath.Abs(testZipSrcDir1)
 		require.NoError(t, err)
-
 		patch := func(name string) (os.FileInfo, error) {
 			if name == target {
 				return nil, monkey.Error
@@ -416,7 +415,6 @@ func TestZipWithNotice(t *testing.T) {
 	t.Run("writeFile-os.Open", func(t *testing.T) {
 		target, err := filepath.Abs(testZipSrcFile1)
 		require.NoError(t, err)
-
 		patch := func(name string) (*os.File, error) {
 			if name == target {
 				return nil, monkey.Error
@@ -516,7 +514,6 @@ func TestZipWithNotice(t *testing.T) {
 	t.Run("writeFile-srcFile.Stat", func(t *testing.T) {
 		target, err := filepath.Abs(testZipSrcFile1)
 		require.NoError(t, err)
-
 		file := new(os.File)
 		patch := func(file *os.File) (os.FileInfo, error) {
 			if file.Name() == target {

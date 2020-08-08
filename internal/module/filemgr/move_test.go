@@ -330,7 +330,6 @@ func TestMoveWithNotice(t *testing.T) {
 	t.Run("mkdir-stat", func(t *testing.T) {
 		target, err := filepath.Abs(testMoveDstDir + "/dir1")
 		require.NoError(t, err)
-
 		var pg *monkey.PatchGuard
 		patch := func(name string) (os.FileInfo, error) {
 			if name == target {
@@ -443,10 +442,11 @@ func TestMoveWithNotice(t *testing.T) {
 	})
 
 	t.Run("mkdir-SameDirFile", func(t *testing.T) {
+		target, err := filepath.Abs(testMoveDstDir + "/dir1")
+		require.NoError(t, err)
+
 		t.Run("retry", func(t *testing.T) {
 			// create same name file with directory
-			target, err := filepath.Abs(testMoveDstDir + "/dir1")
-			require.NoError(t, err)
 			testCreateFile(t, target)
 
 			testCreateMoveSrcMulti(t)
@@ -472,8 +472,6 @@ func TestMoveWithNotice(t *testing.T) {
 
 		t.Run("skip", func(t *testing.T) {
 			// create same name file with directory
-			target, err := filepath.Abs(testMoveDstDir + "/dir1")
-			require.NoError(t, err)
 			testCreateFile(t, target)
 
 			testCreateMoveSrcMulti(t)
@@ -499,8 +497,6 @@ func TestMoveWithNotice(t *testing.T) {
 
 		t.Run("user cancel", func(t *testing.T) {
 			// create same name file with directory
-			target, err := filepath.Abs(testMoveDstDir + "/dir1")
-			require.NoError(t, err)
 			testCreateFile(t, target)
 
 			testCreateMoveSrcMulti(t)
@@ -526,8 +522,6 @@ func TestMoveWithNotice(t *testing.T) {
 
 		t.Run("unknown operation", func(t *testing.T) {
 			// create same name file with directory
-			target, err := filepath.Abs(testMoveDstDir + "/dir1")
-			require.NoError(t, err)
 			testCreateFile(t, target)
 
 			testCreateMoveSrcMulti(t)
@@ -555,7 +549,6 @@ func TestMoveWithNotice(t *testing.T) {
 	t.Run("mkdir-os.Mkdir", func(t *testing.T) {
 		target, err := filepath.Abs(testMoveDstDir + "/dir1")
 		require.NoError(t, err)
-
 		var pg *monkey.PatchGuard
 		patch := func(name string, perm os.FileMode) error {
 			if name == target {
@@ -667,7 +660,6 @@ func TestMoveWithNotice(t *testing.T) {
 	t.Run("checkDstFile-stat", func(t *testing.T) {
 		target, err := filepath.Abs(testMoveDstFile)
 		require.NoError(t, err)
-
 		var pg *monkey.PatchGuard
 		patch := func(name string) (os.FileInfo, error) {
 			if name == target {
@@ -722,7 +714,7 @@ func TestMoveWithNotice(t *testing.T) {
 			require.Equal(t, 1, count)
 
 			testCheckMoveDstDir(t)
-			testIsNotExist(t, target)
+			testIsNotExist(t, testMoveDstFile)
 		})
 
 		t.Run("user cancel", func(t *testing.T) {
@@ -745,7 +737,7 @@ func TestMoveWithNotice(t *testing.T) {
 			require.Equal(t, 1, count)
 
 			testCheckMoveDstDir(t)
-			testIsNotExist(t, target)
+			testIsNotExist(t, testMoveDstFile)
 		})
 
 		t.Run("unknown operation", func(t *testing.T) {
@@ -768,17 +760,14 @@ func TestMoveWithNotice(t *testing.T) {
 			require.Equal(t, 1, count)
 
 			testCheckMoveDstDir(t)
-			testIsNotExist(t, target)
+			testIsNotExist(t, testMoveDstFile)
 		})
 	})
 
 	t.Run("checkDstFile-SameFileDir", func(t *testing.T) {
-		target, err := filepath.Abs(testMoveDstFile)
-		require.NoError(t, err)
-
 		t.Run("retry", func(t *testing.T) {
 			// create same name directory with file
-			err = os.MkdirAll(target, 0750)
+			err := os.MkdirAll(testMoveDstFile, 0750)
 			require.NoError(t, err)
 
 			testCreateMoveSrcMulti(t)
@@ -789,7 +778,7 @@ func TestMoveWithNotice(t *testing.T) {
 				require.Equal(t, ErrCtrlSameFileDir, typ)
 				require.NoError(t, err)
 				count++
-				err = os.Remove(target)
+				err = os.Remove(testMoveDstFile)
 				require.NoError(t, err)
 				return ErrCtrlOpRetry
 			}
@@ -803,7 +792,7 @@ func TestMoveWithNotice(t *testing.T) {
 
 		t.Run("skip", func(t *testing.T) {
 			// create same name directory with file
-			err = os.MkdirAll(target, 0750)
+			err := os.MkdirAll(testMoveDstFile, 0750)
 			require.NoError(t, err)
 
 			testCreateMoveSrcMulti(t)
@@ -822,12 +811,12 @@ func TestMoveWithNotice(t *testing.T) {
 			require.Equal(t, 1, count)
 
 			testCheckMoveDstDir(t)
-			testIsExist(t, target)
+			testIsExist(t, testMoveDstFile)
 		})
 
 		t.Run("user cancel", func(t *testing.T) {
 			// create same name directory with file
-			err = os.MkdirAll(target, 0750)
+			err := os.MkdirAll(testMoveDstFile, 0750)
 			require.NoError(t, err)
 
 			testCreateMoveSrcMulti(t)
@@ -846,12 +835,12 @@ func TestMoveWithNotice(t *testing.T) {
 			require.Equal(t, 1, count)
 
 			testCheckMoveDstDir(t)
-			testIsExist(t, target)
+			testIsExist(t, testMoveDstFile)
 		})
 
 		t.Run("unknown operation", func(t *testing.T) {
 			// create same name directory with file
-			err = os.MkdirAll(target, 0750)
+			err := os.MkdirAll(testMoveDstFile, 0750)
 			require.NoError(t, err)
 
 			testCreateMoveSrcMulti(t)
@@ -864,23 +853,20 @@ func TestMoveWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpInvalid
 			}
-			err := Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
 			require.EqualError(t, errors.Cause(err), "unknown same file dir operation code: 0")
 
 			require.Equal(t, 1, count)
 
 			testCheckMoveDstDir(t)
-			testIsExist(t, target)
+			testIsExist(t, testMoveDstFile)
 		})
 	})
 
 	t.Run("checkDstFile-SameFile", func(t *testing.T) {
-		target, err := filepath.Abs(testMoveDstFile)
-		require.NoError(t, err)
-
 		t.Run("replace", func(t *testing.T) {
 			// create same name file
-			testCreateFile(t, target)
+			testCreateFile(t, testMoveDstFile)
 
 			testCreateMoveSrcMulti(t)
 			defer testRemoveMoveDir(t)
@@ -890,11 +876,11 @@ func TestMoveWithNotice(t *testing.T) {
 				require.Equal(t, ErrCtrlSameFile, typ)
 				require.NoError(t, err)
 				count++
-				err = os.Remove(target)
+				err = os.Remove(testMoveDstFile)
 				require.NoError(t, err)
 				return ErrCtrlOpReplace
 			}
-			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			err := Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
@@ -904,7 +890,7 @@ func TestMoveWithNotice(t *testing.T) {
 
 		t.Run("skip", func(t *testing.T) {
 			// create same name file
-			testCreateFile(t, target)
+			testCreateFile(t, testMoveDstFile)
 
 			testCreateMoveSrcMulti(t)
 			defer testRemoveMoveDir(t)
@@ -916,18 +902,18 @@ func TestMoveWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpSkip
 			}
-			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			err := Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
 			require.NoError(t, err)
 
 			require.Equal(t, 1, count)
 
 			testCheckMoveDstDir(t)
-			testIsExist(t, target)
+			testIsExist(t, testMoveDstFile)
 		})
 
 		t.Run("user cancel", func(t *testing.T) {
 			// create same name file
-			testCreateFile(t, target)
+			testCreateFile(t, testMoveDstFile)
 
 			testCreateMoveSrcMulti(t)
 			defer testRemoveMoveDir(t)
@@ -939,18 +925,18 @@ func TestMoveWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpCancel
 			}
-			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			err := Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
 			require.Equal(t, ErrUserCanceled, errors.Cause(err))
 
 			require.Equal(t, 1, count)
 
 			testCheckMoveDstDir(t)
-			testIsExist(t, target)
+			testIsExist(t, testMoveDstFile)
 		})
 
 		t.Run("unknown operation", func(t *testing.T) {
 			// create same name file
-			testCreateFile(t, target)
+			testCreateFile(t, testMoveDstFile)
 
 			testCreateMoveSrcMulti(t)
 			defer testRemoveMoveDir(t)
@@ -962,23 +948,19 @@ func TestMoveWithNotice(t *testing.T) {
 				count++
 				return ErrCtrlOpInvalid
 			}
-			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			err := Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
 			require.EqualError(t, errors.Cause(err), "unknown same file operation code: 0")
 
 			require.Equal(t, 1, count)
 
 			testCheckMoveDstDir(t)
-			testIsExist(t, target)
+			testIsExist(t, testMoveDstFile)
 		})
 	})
 
 	t.Run("moveFileFast-os.Rename", func(t *testing.T) {
 		target, err := filepath.Abs(testMoveDstFile)
 		require.NoError(t, err)
-
-		pgp := testPatchFilePathVolume(true)
-		defer pgp.Unpatch()
-
 		var pg *monkey.PatchGuard
 		patch := func(oldPath, newPath string) error {
 			if newPath == target {
@@ -990,6 +972,9 @@ func TestMoveWithNotice(t *testing.T) {
 		}
 		pg = monkey.Patch(os.Rename, patch)
 		defer pg.Unpatch()
+
+		pgp := testPatchFilePathVolume(true)
+		defer pgp.Unpatch()
 
 		t.Run("retry", func(t *testing.T) {
 			defer pg.Restore()
