@@ -270,9 +270,11 @@ func buildSourceCode() bool {
 				return
 			}
 			// move binary file to GOROOT
-			binPath := filepath.Join(buildPath, binName)
-			// TODO use filemgr.Move()
-			err = os.Rename(binPath, filepath.Join(developDir, binName))
+			ec := func(_ context.Context, typ uint8, e error, _ *filemgr.SrcDstStat) uint8 {
+				err = e
+				return filemgr.ErrCtrlOpCancel
+			}
+			err = filemgr.Move(ec, goRoot, filepath.Join(buildPath, binName))
 			if err != nil {
 				return
 			}
