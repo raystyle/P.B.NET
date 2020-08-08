@@ -37,7 +37,6 @@ const (
 	ErrCtrlSameFileDir         // same src file name with dst directory
 	ErrCtrlSameDirFile         // same src directory name with dst file name
 	ErrCtrlCollectFailed       // appear error in collect path information
-	ErrCtrlCopyDirFailed       // appear error in copyDirFile()
 	ErrCtrlCopyFailed          // appear error in copy task
 	ErrCtrlMoveFailed          // appear error in move task
 	ErrCtrlDeleteFailed        // appear error in delete task
@@ -244,23 +243,6 @@ func noticeFailedToCollect(ps *noticePs, path string, extError error) (skip bool
 		err = ErrUserCanceled
 	default:
 		err = errors.Errorf("unknown failed to collect operation code: %d", code)
-	}
-	return
-}
-
-// noticeFailedToCopyDir is used to notice appear some error about copyDirFile.
-// stats.DstStat maybe nil.
-func noticeFailedToCopyDir(ps *noticePs, stats *SrcDstStat, extError error) (retry bool, err error) {
-	ps.task.Pause()
-	defer ps.task.Continue()
-	switch code := ps.errCtrl(ps.ctx, ErrCtrlCopyDirFailed, extError, stats); code {
-	case ErrCtrlOpRetry:
-		retry = true
-	case ErrCtrlOpSkip:
-	case ErrCtrlOpCancel:
-		err = ErrUserCanceled
-	default:
-		err = errors.Errorf("unknown failed to copy dir operation code: %d", code)
 	}
 	return
 }

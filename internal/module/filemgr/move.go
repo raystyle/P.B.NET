@@ -410,12 +410,12 @@ func (mt *moveTask) moveFile(ctx context.Context, task *task.Task, file *file) (
 	if mt.fastMode {
 		return mt.moveFileFast(ctx, task, stats)
 	}
+	// create destination file
 retry:
 	// check task is canceled
 	if task.Canceled() {
 		return false, context.Canceled
 	}
-	// create file
 	perm := file.stat.Mode().Perm()
 	dstFile, err := os.OpenFile(dstAbs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm) // #nosec
 	if err != nil {
@@ -523,9 +523,8 @@ func (mt *moveTask) moveFileCommon(
 	ctx context.Context,
 	task *task.Task,
 	stats *SrcDstStat,
-	dst *os.File,
+	dstFile *os.File,
 ) (skip bool, err error) {
-	dstPath := dst.Name()
 	var copied int64
 	defer func() {
 		if err != nil && err != context.Canceled {
@@ -539,12 +538,12 @@ func (mt *moveTask) moveFileCommon(
 			if retry {
 				// reset current progress
 				mt.updateCurrent(copied, false)
-				skip, err = mt.retry(ctx, task, stats, dst)
+				skip, err = mt.retry(ctx, task, stats, dstFile)
 				return
 			}
-			// if failed to extract, delete destination file
-			_ = dst.Close()
-			_ = os.Remove(dstPath)
+			// if failed to move, delete destination file
+			_ = dstFile.Close()
+			_ = os.Remove(stats.DstAbs)
 			// user cancel
 			if err != nil {
 				return
@@ -571,19 +570,19 @@ func (mt *moveTask) moveFileCommon(
 	// prevent file become big
 	srcSize := stats.SrcStat.Size()
 	lr := io.LimitReader(srcFile, srcSize)
-	copied, err = ioCopy(task, mt.addCurrent, dst, lr)
+	copied, err = ioCopy(task, mt.addCurrent, dstFile, lr)
 	if err != nil {
 		return
 	}
 	// prevent file become small
 	copied += srcSize - copied
 	// prevent data lost
-	err = dst.Sync()
+	err = dstFile.Sync()
 	if err != nil {
 		return
 	}
 	// set the modification time about the destination file
-	err = os.Chtimes(dstPath, time.Now(), stats.SrcStat.ModTime())
+	err = os.Chtimes(stats.DstAbs, time.Now(), stats.SrcStat.ModTime())
 	if err != nil {
 		return
 	}
@@ -612,12 +611,7 @@ func (mt *moveTask) addCurrent(delta int64) {
 	mt.updateCurrent(delta, true)
 }
 
-func (mt *moveTask) retry(
-	ctx context.Context,
-	task *task.Task,
-	stats *SrcDstStat,
-	dst *os.File,
-) (bool, error) {
+func (mt *moveTask) retry(ctx context.Context, task *task.Task, stats *SrcDstStat, dst *os.File) (bool, error) {
 	// check task is canceled
 	if task.Canceled() {
 		return false, context.Canceled

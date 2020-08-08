@@ -558,7 +558,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 			count := 0
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Equal(t, ErrCtrlCopyFailed, typ)
 				require.Error(t, err)
 				count++
 				pg.Unpatch()
@@ -585,7 +585,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 			count := 0
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Equal(t, ErrCtrlCopyFailed, typ)
 				require.Error(t, err)
 				count++
 				return ErrCtrlOpSkip
@@ -610,7 +610,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 			count := 0
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Equal(t, ErrCtrlCopyFailed, typ)
 				require.Error(t, err)
 				count++
 				pg.Unpatch()
@@ -632,7 +632,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 			count := 0
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Equal(t, ErrCtrlCopyFailed, typ)
 				require.Error(t, err)
 				count++
 				pg.Unpatch()
@@ -672,7 +672,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 			count := 0
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Equal(t, ErrCtrlCopyFailed, typ)
 				require.Error(t, err)
 				count++
 				pg.Unpatch()
@@ -706,7 +706,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 			count := 0
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Equal(t, ErrCtrlCopyFailed, typ)
 				require.Error(t, err)
 				count++
 				pg.Unpatch()
@@ -740,7 +740,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 			count := 0
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Equal(t, ErrCtrlCopyFailed, typ)
 				require.Error(t, err)
 				count++
 				pg.Unpatch()
@@ -774,7 +774,7 @@ func TestCopyWithNotice(t *testing.T) {
 
 			count := 0
 			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
-				require.Equal(t, ErrCtrlCopyDirFailed, typ)
+				require.Equal(t, ErrCtrlCopyFailed, typ)
 				require.Error(t, err)
 				count++
 				pg.Unpatch()

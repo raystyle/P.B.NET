@@ -360,12 +360,12 @@ func (ut *unZipTask) extractFile(
 		ut.updateCurrent(file.stat.Size(), true)
 		return nil
 	}
+	// create destination file
 retry:
 	// check task is canceled
 	if task.Canceled() {
 		return context.Canceled
 	}
-	// create file
 	perm := file.stat.Mode().Perm()
 	dstFile, err := system.OpenFile(file.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
