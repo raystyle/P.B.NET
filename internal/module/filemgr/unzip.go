@@ -32,10 +32,10 @@ type unZipTask struct {
 	paths    []string // files need extract
 	pathsLen int
 
-	stats    *SrcDstStat
-	zipFile  *zip.ReadCloser
-	dirs     []*zip.File // set modified time after extract
-	skipDirs []string    // store skipped directories
+	createDst bool            // if destination directory is not exist, create it
+	zipFile   *zip.ReadCloser // zip reader and *os.File
+	dirs      []*zip.File     // set modified time after extract
+	skipDirs  []string        // store skipped directories
 
 	// about progress, detail and speed
 	current *big.Float
@@ -68,27 +68,45 @@ func NewUnZipTask(errCtrl ErrCtrl, callbacks fsm.Callbacks, src, dst string, pat
 
 // Prepare is used to check destination is not exist or a file.
 func (ut *unZipTask) Prepare(context.Context) error {
-	stats, err := checkSrcDstPath(ut.src, ut.dst)
+	// replace the relative path to the absolute path for
+	// prevent program change current directory.
+	srcAbs, err := filepath.Abs(ut.src)
 	if err != nil {
 		return err
 	}
-	if stats.SrcStat.IsDir() {
-		return errors.Errorf("source path \"%s\" is a directory", stats.SrcAbs)
+	dstAbs, err := filepath.Abs(ut.dst)
+	if err != nil {
+		return err
 	}
-	if stats.DstStat != nil && !stats.DstStat.IsDir() {
-		return errors.Errorf("destination path \"%s\" is a file", stats.DstAbs)
+	// check two path is valid
+	srcStat, err := os.Stat(srcAbs)
+	if err != nil {
+		return err
 	}
-	ut.src = stats.SrcAbs
-	ut.dst = stats.DstAbs
-	ut.stats = stats
+	dstStat, err := stat(dstAbs)
+	if err != nil {
+		return err
+	}
+	if srcStat.IsDir() {
+		return errors.Errorf("source path \"%s\" is a directory", srcAbs)
+	}
+	if dstStat != nil {
+		if !dstStat.IsDir() {
+			return errors.Errorf("destination path \"%s\" is a file", dstAbs)
+		}
+	} else {
+		ut.createDst = true
+	}
+	ut.src = srcAbs
+	ut.dst = dstAbs
 	go ut.watcher()
 	return nil
 }
 
 func (ut *unZipTask) Process(ctx context.Context, task *task.Task) error {
 	// create destination directory if it not exists
-	if ut.stats.DstStat == nil {
-		err := os.MkdirAll(ut.stats.DstAbs, 0750)
+	if ut.createDst {
+		err := os.MkdirAll(ut.dst, 0750)
 		if err != nil {
 			return err
 		}
@@ -140,19 +158,24 @@ func (ut *unZipTask) extractAll(ctx context.Context, task *task.Task) error {
 }
 
 func (ut *unZipTask) extractPart(ctx context.Context, task *task.Task) error {
-	files := make([]*zip.File, 0, ut.pathsLen)
 	// check file is in zip
 	filesMap := make(map[string]*zip.File)
 	for _, file := range ut.zipFile.File {
 		filesMap[filepath.Clean(file.Name)] = file
 	}
-	sort.Strings(ut.paths)
-	// prevent add a dir and a file is sub file in dir
+	// prevent add the same file or directory
+	extFiles := make(map[string]struct{})
+	// prevent add a directory or a file is sub file in directory
 	dirs := make(map[string]struct{})
 	// add files
+	sort.Strings(ut.paths)
+	files := make([]*zip.File, 0, ut.pathsLen)
 next:
 	for _, path := range ut.paths {
 		cPath := filepath.Clean(path)
+		if _, ok := extFiles[cPath]; ok {
+			return errors.Errorf("appear the same path \"%s\"", cPath)
+		}
 		// check is added(already add dir that include this file)
 		for dir := range dirs {
 			if strings.HasPrefix(cPath, dir) {
@@ -170,6 +193,7 @@ next:
 				dirs[cPath] = struct{}{}
 			}
 			files = append(files, file)
+			extFiles[cPath] = struct{}{}
 		} else {
 			return errors.Errorf("\"%s\" doesn't exist in zip file", path)
 		}

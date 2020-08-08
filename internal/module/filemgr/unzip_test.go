@@ -1095,15 +1095,26 @@ func TestUnZipTask_Process(t *testing.T) {
 			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
 		})
 
+		t.Run("repeat file", func(t *testing.T) {
+			testCreateUnZipMultiZip(t)
+			defer testRemoveUnZipDir(t)
+
+			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "dir", "file1.dat", "file1.dat")
+			require.EqualError(t, err, "appear the same path \"file1.dat\"")
+
+			testIsNotExist(t, testUnZipDstDir)
+			testIsNotExist(t, testUnZipDstFile)
+		})
+
 		t.Run("repeat directory", func(t *testing.T) {
 			testCreateUnZipMultiZip(t)
 			defer testRemoveUnZipDir(t)
 
 			err := UnZip(Cancel, testUnZipMultiZip, testUnZipDst, "dir", "file1.dat", "dir")
-			require.NoError(t, err)
+			require.EqualError(t, err, "appear the same path \"dir\"")
 
-			testCompareDirectory(t, testUnZipSrcDir, testUnZipDstDir)
-			testCompareFile(t, testUnZipSrcFile, testUnZipDstFile)
+			testIsNotExist(t, testUnZipDstDir)
+			testIsNotExist(t, testUnZipDstFile)
 		})
 
 		t.Run("repeat file in directory", func(t *testing.T) {
