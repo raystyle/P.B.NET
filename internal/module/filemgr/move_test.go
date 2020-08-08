@@ -27,7 +27,7 @@ const (
 	testMoveSrcDir  = testMoveDir + "dir"       // source path is a directory
 
 	// destination path
-	testMoveDst     = testMoveDir + "dst"        // store extracted file
+	testMoveDst     = testMoveDir + "dst"        // store moved files
 	testMoveDstFile = testMoveDst + "/file1.dat" // testdata/move/dst/file1.dat
 	testMoveDstDir  = testMoveDst + "/dir"       // testdata/move/dst/dir
 

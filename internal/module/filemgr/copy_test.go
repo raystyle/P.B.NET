@@ -19,10 +19,123 @@ import (
 	"project/internal/testsuite"
 )
 
+const (
+	testCopyDir = "testdata/copy/" // copy test root path
+
+	testCopySrcFile = testCopyDir + "file1.dat" // source path is a file
+	testCopySrcDir  = testCopyDir + "dir"       // source path is a directory
+
+	// destination path
+	testCopyDst     = testCopyDir + "dst"        // store copied files
+	testCopyDstFile = testCopyDst + "/file1.dat" // testdata/copy/dst/file1.dat
+	testCopyDstDir  = testCopyDst + "/dir"       // testdata/copy/dst/dir
+
+	// src files in directory
+	testCopySrcFile1 = testCopySrcDir + "/afile1.dat"  // testdata/copy/dir/afile1.dat
+	testCopySrcDir1  = testCopySrcDir + "/dir1"        // testdata/copy/dir/dir1
+	testCopySrcFile2 = testCopySrcDir1 + "/afile2.dat" // testdata/copy/dir/dir1/afile2.dat
+	testCopySrcDir2  = testCopySrcDir1 + "/dir2"       // testdata/copy/dir/dir1/dir2
+	testCopySrcDir3  = testCopySrcDir + "/dir3"        // testdata/copy/dir/dir3
+	testCopySrcDir4  = testCopySrcDir3 + "/dir4"       // testdata/copy/dir/dir3/dir4
+	testCopySrcFile3 = testCopySrcDir4 + "/file3.dat"  // testdata/copy/dir/dir3/dir4/file3.dat
+	testCopySrcFile4 = testCopySrcDir3 + "/file4.dat"  // testdata/copy/dir/dir3/file4.dat
+	testCopySrcFile5 = testCopySrcDir + "/file5.dat"   // testdata/copy/dir/file5.dat
+)
+
+func testCreateCopySrcFile(t *testing.T) {
+	testCreateFile(t, testCopySrcFile)
+}
+
+func testCreateCopySrcDir(t *testing.T) {
+	err := os.MkdirAll(testCopySrcDir, 0750)
+	require.NoError(t, err)
+
+	testCreateFile(t, testCopySrcFile1)
+	err = os.Mkdir(testCopySrcDir1, 0750)
+	require.NoError(t, err)
+	testCreateFile2(t, testCopySrcFile2)
+	err = os.Mkdir(testCopySrcDir2, 0750)
+	require.NoError(t, err)
+	err = os.Mkdir(testCopySrcDir3, 0750)
+	require.NoError(t, err)
+	err = os.Mkdir(testCopySrcDir4, 0750)
+	require.NoError(t, err)
+	testCreateFile(t, testCopySrcFile3)
+	testCreateFile2(t, testCopySrcFile4)
+	testCreateFile2(t, testCopySrcFile5)
+}
+
+func testCreateCopySrcMulti(t *testing.T) {
+	testCreateCopySrcFile(t)
+	testCreateCopySrcDir(t)
+}
+
+func testCheckCopyDstFile(t *testing.T) {
+	testCompareFile(t, testCopySrcFile, testCopyDstFile)
+}
+
+func testCheckCopyDstDir(t *testing.T) {
+	testCompareDirectory(t, testCopySrcDir, testCopyDstDir)
+}
+
+func testCheckCopyDstMulti(t *testing.T) {
+	testCheckCopyDstFile(t)
+	testCheckCopyDstDir(t)
+}
+
+func testRemoveCopyDir(t *testing.T) {
+	err := os.RemoveAll(testCopyDir)
+	require.NoError(t, err)
+}
+
 func TestCopy(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	t.Run("file", func(t *testing.T) {
+		testCreateCopySrcFile(t)
+		defer testRemoveCopyDir(t)
+
+		err := Copy(Cancel, testCopyDst, testCopySrcFile)
+		require.NoError(t, err)
+
+		testCheckCopyDstFile(t)
+	})
+
+	t.Run("directory", func(t *testing.T) {
+		testCreateCopySrcDir(t)
+		defer testRemoveCopyDir(t)
+
+		err := Copy(Cancel, testCopyDst, testCopySrcDir)
+		require.NoError(t, err)
+
+		testCheckCopyDstDir(t)
+	})
+
+	t.Run("multi", func(t *testing.T) {
+		t.Run("file first", func(t *testing.T) {
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			err := Copy(Cancel, testCopyDst, testCopySrcFile, testCopySrcDir)
+			require.NoError(t, err)
+
+			testCheckCopyDstMulti(t)
+		})
+
+		t.Run("directory first", func(t *testing.T) {
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			err := Copy(Cancel, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.NoError(t, err)
+
+			testCheckCopyDstMulti(t)
+		})
+	})
+}
+
+func TestCopyTemp(t *testing.T) {
 	t.Run("src is file", func(t *testing.T) {
 		const (
 			src     = "testdata/file.dat"
@@ -320,7 +433,7 @@ func TestCopy(t *testing.T) {
 	})
 }
 
-func TestCopyWithContext(t *testing.T) {
+func TestCopyTempWithContext(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
