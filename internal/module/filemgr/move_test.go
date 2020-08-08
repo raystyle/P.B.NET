@@ -1084,7 +1084,113 @@ func TestMoveWithNotice(t *testing.T) {
 	})
 
 	t.Run("moveFile-os.OpenFile", func(t *testing.T) {
+		target, err := filepath.Abs(testMoveDstFile)
+		require.NoError(t, err)
+		var pg *monkey.PatchGuard
+		patch := func(name string, flag int, perm os.FileMode) (*os.File, error) {
+			if name == target {
+				return nil, monkey.Error
+			}
+			pg.Unpatch()
+			defer pg.Restore()
+			return os.OpenFile(name, flag, perm)
+		}
+		pg = monkey.Patch(os.OpenFile, patch)
+		defer pg.Unpatch()
 
+		pgp := testPatchFilePathVolume(false)
+		defer pgp.Unpatch()
+
+		t.Run("retry", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlMoveFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCheckMoveDstMulti(t)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlMoveFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpSkip
+			}
+			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCheckMoveDstDir(t)
+			testIsNotExist(t, testMoveDstFile)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlMoveFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpCancel
+			}
+			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+
+			testCheckMoveDstDir(t)
+			testIsNotExist(t, testMoveDstFile)
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateMoveSrcMulti(t)
+			defer testRemoveMoveDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlMoveFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpInvalid
+			}
+			err = Move(ec, testMoveDst, testMoveSrcDir, testMoveSrcFile)
+			require.EqualError(t, errors.Cause(err), "unknown failed to move operation code: 0")
+
+			require.Equal(t, 1, count)
+
+			testCheckMoveDstDir(t)
+			testIsNotExist(t, testMoveDstFile)
+		})
 	})
 
 	t.Run("moveFileCommon-retry", func(t *testing.T) {
