@@ -749,6 +749,101 @@ func TestCopyWithNotice(t *testing.T) {
 		})
 	})
 
+	t.Run("checkDstFile-SameFile", func(t *testing.T) {
+		t.Run("replace", func(t *testing.T) {
+			// create same name file
+			testCreateFile(t, testCopyDstFile)
+
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameFile, typ)
+				require.NoError(t, err)
+				count++
+				err = os.Remove(testCopyDstFile)
+				require.NoError(t, err)
+				return ErrCtrlOpReplace
+			}
+			err := Copy(ec, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCheckCopyDstMulti(t)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			// create same name file
+			testCreateFile(t, testCopyDstFile)
+
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameFile, typ)
+				require.NoError(t, err)
+				count++
+				return ErrCtrlOpSkip
+			}
+			err := Copy(ec, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCheckCopyDstDir(t)
+			testIsExist(t, testCopyDstFile)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			// create same name file
+			testCreateFile(t, testCopyDstFile)
+
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameFile, typ)
+				require.NoError(t, err)
+				count++
+				return ErrCtrlOpCancel
+			}
+			err := Copy(ec, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+
+			testCheckCopyDstDir(t)
+			testIsExist(t, testCopyDstFile)
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			// create same name file
+			testCreateFile(t, testCopyDstFile)
+
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlSameFile, typ)
+				require.NoError(t, err)
+				count++
+				return ErrCtrlOpInvalid
+			}
+			err := Copy(ec, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.EqualError(t, errors.Cause(err), "unknown same file operation code: 0")
+
+			require.Equal(t, 1, count)
+
+			testCheckCopyDstDir(t)
+			testIsExist(t, testCopyDstFile)
+		})
+	})
+
 	return
 
 	const (
