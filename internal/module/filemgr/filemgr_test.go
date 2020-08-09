@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 		testsuite.CheckErrorInTestMain(err)
 	}
 
-	m.Run()
+	os.Exit(m.Run())
 }
 
 func testCreateFile(t *testing.T, name string) {
