@@ -113,7 +113,8 @@ func (ct *copyTask) Process(ctx context.Context, task *task.Task) error {
 		defer ct.rwm.Unlock()
 		ct.current.Add(ct.current, oneFloat)
 		ct.total.Add(ct.total, oneFloat)
-		ct.updateDetail("finished")
+		// already locked, can't use ct.updateDetail
+		ct.detail = "finished"
 		return nil
 	}
 	for i := 0; i < filesLen; i++ {

@@ -142,6 +142,7 @@ func testPatchTaskCanceled() *monkey.PatchGuard {
 	return pg
 }
 
+// testPatchMultiTaskWatcher is used to simulate panic in task.watcher().
 func testPatchMultiTaskWatcher() *monkey.PatchGuard {
 	patch := func(duration time.Duration) *time.Ticker {
 		panic(monkey.Panic)

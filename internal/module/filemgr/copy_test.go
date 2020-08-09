@@ -175,6 +175,160 @@ func TestCopyWithNotice(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	t.Run("failed to collect", func(t *testing.T) {
+		const path = "not exist"
+
+		t.Run("cancel", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				t.Log(err)
+				count++
+				return ErrCtrlOpCancel
+			}
+			err := Copy(ec, testCopyDst, path)
+			require.Equal(t, ErrUserCanceled, err)
+
+			require.Equal(t, 1, count)
+
+			testIsNotExist(t, path)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCollectFailed, typ)
+				require.Error(t, err)
+				t.Log(err)
+				count++
+				return ErrCtrlOpSkip
+			}
+			err := Copy(ec, testCopyDst, path)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testIsNotExist(t, path)
+		})
+	})
+
+	t.Run("mkdir-stat", func(t *testing.T) {
+		target, err := filepath.Abs(testCopyDstDir + "/dir1")
+		require.NoError(t, err)
+		var pg *monkey.PatchGuard
+		patch := func(name string) (os.FileInfo, error) {
+			if name == target {
+				return nil, monkey.Error
+			}
+			pg.Unpatch()
+			defer pg.Restore()
+			return stat(name)
+		}
+		pg = monkey.Patch(stat, patch)
+		defer pg.Unpatch()
+
+		t.Run("retry", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+
+			err := Copy(ec, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCheckCopyDstMulti(t)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpSkip
+			}
+
+			err := Copy(ec, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testIsExist(t, testCopyDst)
+			testIsNotExist(t, target)
+			testCheckCopyDstFile(t)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpCancel
+			}
+
+			err := Copy(ec, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+
+			testIsExist(t, testCopyDst)
+			testIsNotExist(t, target)
+			testIsNotExist(t, testCopyDstFile)
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpInvalid
+			}
+
+			err := Copy(ec, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.EqualError(t, errors.Cause(err), "unknown failed to copy operation code: 0")
+
+			require.Equal(t, 1, count)
+
+			testIsExist(t, testCopyDst)
+			testIsNotExist(t, target)
+			testIsNotExist(t, testCopyDstFile)
+		})
+	})
+
+	return
+
 	const (
 		srcDir   = "testdata/dir"
 		srcFile1 = "file1.dat"
@@ -1286,6 +1440,11 @@ func TestCopyWithNotice(t *testing.T) {
 			require.True(t, exist)
 		})
 	})
+}
+
+func TestCopyWithRetry(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 }
 
 func TestCopyTask_Prepare(t *testing.T) {
