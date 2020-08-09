@@ -844,6 +844,113 @@ func TestCopyWithNotice(t *testing.T) {
 		})
 	})
 
+	t.Run("copyFile-os.OpenFile", func(t *testing.T) {
+		target, err := filepath.Abs(testCopyDstFile)
+		require.NoError(t, err)
+		var pg *monkey.PatchGuard
+		patch := func(name string, flag int, perm os.FileMode) (*os.File, error) {
+			if name == target {
+				return nil, monkey.Error
+			}
+			pg.Unpatch()
+			defer pg.Restore()
+			return os.OpenFile(name, flag, perm)
+		}
+		pg = monkey.Patch(os.OpenFile, patch)
+		defer pg.Unpatch()
+
+		t.Run("retry", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpRetry
+			}
+			err = Copy(ec, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCheckCopyDstMulti(t)
+		})
+
+		t.Run("skip", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpSkip
+			}
+			err = Copy(ec, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, count)
+
+			testCheckCopyDstDir(t)
+			testIsNotExist(t, testCopyDstFile)
+		})
+
+		t.Run("user cancel", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpCancel
+			}
+			err = Copy(ec, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.Equal(t, ErrUserCanceled, errors.Cause(err))
+
+			require.Equal(t, 1, count)
+
+			testCheckCopyDstDir(t)
+			testIsNotExist(t, testCopyDstFile)
+		})
+
+		t.Run("unknown operation", func(t *testing.T) {
+			defer pg.Restore()
+
+			testCreateCopySrcMulti(t)
+			defer testRemoveCopyDir(t)
+
+			count := 0
+			ec := func(_ context.Context, typ uint8, err error, _ *SrcDstStat) uint8 {
+				require.Equal(t, ErrCtrlCopyFailed, typ)
+				monkey.IsMonkeyError(t, err)
+				count++
+				pg.Unpatch()
+				return ErrCtrlOpInvalid
+			}
+			err = Copy(ec, testCopyDst, testCopySrcDir, testCopySrcFile)
+			require.EqualError(t, errors.Cause(err), "unknown failed to copy operation code: 0")
+
+			require.Equal(t, 1, count)
+
+			testCheckCopyDstDir(t)
+			testIsNotExist(t, testCopyDstFile)
+		})
+	})
+
 	return
 
 	const (
