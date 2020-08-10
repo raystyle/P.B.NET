@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"project/internal/system"
+	"project/internal/xpanic"
 )
 
 // Level is the log level.
@@ -243,6 +244,7 @@ func (lg *MultiLogger) Close() error {
 	return nil
 }
 
+// wrapWriter will print stack trace to inner logger.
 type wrapWriter struct {
 	level  Level
 	src    string
@@ -250,8 +252,14 @@ type wrapWriter struct {
 }
 
 func (w *wrapWriter) Write(p []byte) (int, error) {
-	w.logger.Println(w.level, w.src, string(p[:len(p)-1]))
-	return len(p), nil
+	l := len(p)
+	buf := bytes.NewBuffer(make([]byte, 0, l+256))
+	buf.Write(p)
+	buf.WriteString("--------------------------stack trace---------------------------\n")
+	xpanic.PrintStack(buf, 2)
+	buf.WriteString("\n----------------------------------------------------------------")
+	w.logger.Println(w.level, w.src, buf)
+	return l, nil
 }
 
 // Wrap is used to convert Logger to go internal logger like http.Server.ErrorLog.
@@ -265,13 +273,13 @@ func Wrap(lv Level, src string, logger Logger) *log.Logger {
 }
 
 // HijackLogWriter is used to hijack all packages that use log.Print().
-func HijackLogWriter(lv Level, src string, logger Logger, flag int) {
+func HijackLogWriter(lv Level, src string, logger Logger) {
 	w := &wrapWriter{
 		level:  lv,
 		src:    src,
 		logger: logger,
 	}
-	log.SetFlags(flag)
+	log.SetFlags(0)
 	log.SetOutput(w)
 }
 
@@ -283,7 +291,7 @@ func SetErrorLogger(name string) (*os.File, error) {
 		return nil, err
 	}
 	mLogger := NewMultiLogger(Error, os.Stdout, file)
-	HijackLogWriter(Error, "init", mLogger, 0)
+	HijackLogWriter(Error, "init", mLogger)
 	return file, nil
 }
 

@@ -100,11 +100,15 @@ func TestMultiLogger(t *testing.T) {
 
 func TestWrap(t *testing.T) {
 	l := Wrap(Debug, "test wrap", Test)
+	l.Printf("Printf")
+	l.Print("Print")
 	l.Println("Println")
 }
 
 func TestHijackLogWriter(t *testing.T) {
-	HijackLogWriter(Error, "test", Test, log.Llongfile)
+	HijackLogWriter(Error, "test", Test)
+	log.Printf("Printf")
+	log.Print("Print")
 	log.Println("Println")
 }
 
