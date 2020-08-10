@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"sync"
@@ -169,7 +168,7 @@ func NewMSFRPC(address, username, password string, lg logger.Logger, opts *Optio
 
 // HijackLogWriter is used to hijack all packages that use log.Print().
 func (msf *MSFRPC) HijackLogWriter() {
-	logger.HijackLogWriter(logger.Error, "pkg", msf.logger, log.Llongfile)
+	logger.HijackLogWriter(logger.Error, "pkg", msf.logger)
 }
 
 // SetToken is used to set token to current client.

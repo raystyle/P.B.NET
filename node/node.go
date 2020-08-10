@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
@@ -116,7 +115,7 @@ func New(cfg *Config) (*Node, error) {
 
 // HijackLogWriter is used to hijack all packages that use log.Print().
 func (node *Node) HijackLogWriter() {
-	logger.HijackLogWriter(logger.Error, "pkg", node.logger, log.Llongfile)
+	logger.HijackLogWriter(logger.Error, "pkg", node.logger)
 }
 
 func (node *Node) fatal(err error, msg string) error {

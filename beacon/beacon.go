@@ -2,7 +2,6 @@ package beacon
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
@@ -98,7 +97,7 @@ func New(cfg *Config) (*Beacon, error) {
 
 // HijackLogWriter is used to hijack all packages that use log.Print().
 func (beacon *Beacon) HijackLogWriter() {
-	logger.HijackLogWriter(logger.Error, "pkg", beacon.logger, log.Llongfile)
+	logger.HijackLogWriter(logger.Error, "pkg", beacon.logger)
 }
 
 func (beacon *Beacon) fatal(err error, msg string) error {
