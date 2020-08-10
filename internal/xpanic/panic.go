@@ -69,9 +69,9 @@ func PrintPanic(panic interface{}, title string, skip int) *bytes.Buffer {
 	buf.WriteString(title)
 	buf.WriteString(":\n")
 	_, _ = fmt.Fprintln(buf, panic)
-	buf.WriteString("----------------stack trace----------------\n")
+	buf.WriteString("--------------------------stack trace---------------------------\n")
 	PrintStack(buf, skip) // skip about defer
-	buf.WriteString("\n-------------------------------------------")
+	buf.WriteString("\n----------------------------------------------------------------")
 	return buf
 }
 
