@@ -115,10 +115,10 @@ func (t *Terminal) Interrupt() error {
 
 func (t *Terminal) close() {
 	t.closeOnce.Do(func() {
-		_ = t.iPr.Close()
 		_ = t.iPw.Close()
-		_ = t.oPr.Close()
+		_ = t.iPr.Close()
 		_ = t.oPw.Close()
+		_ = t.oPr.Close()
 	})
 }
 
