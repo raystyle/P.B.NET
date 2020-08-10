@@ -255,7 +255,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 func (c *Client) ResolveContext(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	result, err := c.resolveContext(ctx, domain, opts)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "failed to resolve domain name %s", domain)
+		return nil, errors.WithMessagef(err, "failed to resolve domain name \"%s\"", domain)
 	}
 	return result, nil
 }
@@ -325,6 +325,34 @@ func (c *Client) selectType(ctx context.Context, domain string, opts *Options) (
 	return nil, errors.New("network unavailable")
 }
 
+func (c *Client) customResolve(ctx context.Context, domain string, opts *Options) ([]string, error) {
+	// query cache
+	if c.isEnableCache() {
+		cache := c.queryCache(domain, opts.Type)
+		if len(cache) != 0 {
+			return cache, nil
+		}
+	}
+	// resolve
+	var (
+		result []string
+		err    error
+	)
+	if opts.ServerTag != "" {
+		result, err = c.useSelectedServer(ctx, domain, opts)
+	} else {
+		result, err = c.useRandomServer(ctx, domain, opts)
+	}
+	if len(result) == 0 {
+		return nil, err
+	}
+	// update cache
+	if c.isEnableCache() {
+		c.updateCache(domain, opts.Type, result)
+	}
+	return result, nil
+}
+
 func (c *Client) setCertPoolAndProxy(opts *Options) error {
 	// set certificate pool
 	if opts.TLSConfig.CertPool == nil {
@@ -354,58 +382,37 @@ func (c *Client) setCertPoolAndProxy(opts *Options) error {
 	return nil
 }
 
-func (c *Client) customResolve(ctx context.Context, domain string, opts *Options) ([]string, error) {
-	// query cache
-	if c.isEnableCache() {
-		cache := c.queryCache(domain, opts.Type)
-		if len(cache) != 0 {
-			return cache, nil
-		}
-	}
-	// resolve
-	var (
-		result []string
-		err    error
-	)
-	if opts.ServerTag != "" { // use selected DNS server
-		if server, ok := c.Servers()[opts.ServerTag]; ok {
-			opts.Method = server.Method
-			err = c.setCertPoolAndProxy(opts)
-			if err != nil {
-				return nil, err
-			}
-			result, err = resolve(ctx, server.Address, domain, opts)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, errors.Errorf("dns server: %s doesn't exist", opts.ServerTag)
-		}
-	} else { // query domain name from random DNS server
-		if opts.Method == "" {
-			opts.Method = defaultMethod
-		}
-		err = c.setCertPoolAndProxy(opts)
+func (c *Client) useSelectedServer(ctx context.Context, domain string, opts *Options) ([]string, error) {
+	if server, ok := c.Servers()[opts.ServerTag]; ok {
+		opts.Method = server.Method
+		err := c.setCertPoolAndProxy(opts)
 		if err != nil {
 			return nil, err
 		}
-		for _, server := range c.Servers() {
-			if server.Method == opts.Method {
-				result, err = resolve(ctx, server.Address, domain, opts)
-				if err == nil {
-					break
-				}
-			}
-		}
+		return resolve(ctx, server.Address, domain, opts)
 	}
-	if len(result) == 0 {
+	return nil, errors.Errorf("dns server: \"%s\" doesn't exist", opts.ServerTag)
+}
+
+func (c *Client) useRandomServer(ctx context.Context, domain string, opts *Options) ([]string, error) {
+	if opts.Method == "" {
+		opts.Method = defaultMethod
+	}
+	err := c.setCertPoolAndProxy(opts)
+	if err != nil {
 		return nil, err
 	}
-	// update cache
-	if c.isEnableCache() {
-		c.updateCache(domain, opts.Type, result)
+	var result []string
+	for _, server := range c.Servers() {
+		if server.Method != opts.Method {
+			continue
+		}
+		result, err = resolve(ctx, server.Address, domain, opts)
+		if err == nil {
+			break
+		}
 	}
-	return result, nil
+	return result, err
 }
 
 func (c *Client) systemResolve(ctx context.Context, domain string, opts *Options) ([]string, error) {
@@ -475,7 +482,7 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 			opts.ServerTag = tag
 			result, err := c.ResolveContext(ctx, domain, opts)
 			if err != nil {
-				err = errors.WithMessagef(err, "failed to test dns server %s", tag)
+				err = errors.WithMessagef(err, "failed to test dns server \"%s\"", tag)
 				return
 			}
 			resultsMu.Lock()
@@ -504,7 +511,7 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 	return result, nil
 }
 
-// TestOption is used to test single resolve options.
+// TestOption is used to test single resolve option.
 func (c *Client) TestOption(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	if opts.SkipTest {
 		return nil, nil
@@ -517,7 +524,7 @@ func (c *Client) TestOption(ctx context.Context, domain string, opts *Options) (
 	}
 	result, err := c.ResolveContext(ctx, domain, opts)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to test resolve option")
+		return nil, errors.WithMessage(err, "failed to test option")
 	}
 	return result, nil
 }

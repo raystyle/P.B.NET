@@ -97,6 +97,17 @@ func TestClient_Delete(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
+func testAddAllDNSServers(t *testing.T, client *Client) {
+	if testsuite.IPv4Enabled {
+		testAddDNSServers(t, client, "dns_ipv4.toml")
+	}
+	if testsuite.IPv6Enabled {
+		testAddDNSServers(t, client, "dns_ipv6.toml")
+	}
+	// ds: double stack
+	testAddDNSServers(t, client, "dns_ds.toml")
+}
+
 func testAddDNSServers(t *testing.T, client *Client, filename string) {
 	servers := make(map[string]*Server)
 	data, err := ioutil.ReadFile("testdata/" + filename)
@@ -107,17 +118,6 @@ func testAddDNSServers(t *testing.T, client *Client, filename string) {
 		err = client.Add(tag, server)
 		require.NoError(t, err)
 	}
-}
-
-func testAddAllDNSServers(t *testing.T, client *Client) {
-	if testsuite.IPv4Enabled {
-		testAddDNSServers(t, client, "dns_ipv4.toml")
-	}
-	if testsuite.IPv6Enabled {
-		testAddDNSServers(t, client, "dns_ipv6.toml")
-	}
-	// DS: double stack
-	testAddDNSServers(t, client, "dns_ds.toml")
 }
 
 func TestClient_Resolve(t *testing.T) {
@@ -541,7 +541,7 @@ func TestClient_TestServers(t *testing.T) {
 	})
 }
 
-func TestClient_TestOptions(t *testing.T) {
+func TestClient_TestOption(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -602,7 +602,7 @@ func TestClient_TestOptions(t *testing.T) {
 		result, err := client.TestOption(ctx, testDomain, opts)
 		require.Error(t, err)
 		require.Empty(t, result)
-		t.Log(err)
+		t.Log("test option:", err)
 	})
 
 	t.Run("unknown mode", func(t *testing.T) {
