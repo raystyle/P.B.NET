@@ -299,6 +299,9 @@ func TestFailedToAcceptStream(t *testing.T) {
 	err = client.Close()
 	require.NoError(t, err)
 
+	// make sure connection is closed
+	time.Sleep(time.Second)
+
 	err = client.SetDeadline(time.Time{})
 	require.Error(t, err)
 
