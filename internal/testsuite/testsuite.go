@@ -263,6 +263,8 @@ func RunMultiTimes(times int, fns ...func()) {
 			go func(i int) {
 				defer wg.Done()
 				fns[i]()
+				// trigger data race better
+				time.Sleep(10 * time.Millisecond)
 			}(i)
 		}
 	}
@@ -291,6 +293,8 @@ func RunParallel(times int, init, cleanup func(), fns ...func()) {
 			go func(j int) {
 				defer wg.Done()
 				fns[j]()
+				// trigger data race better
+				time.Sleep(10 * time.Millisecond)
 			}(j)
 		}
 		wg.Wait()
