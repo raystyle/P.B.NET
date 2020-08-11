@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
+	"project/internal/patch/toml"
+	"project/internal/testsuite"
 )
 
 func TestLoadWordsFromZipFile(t *testing.T) {
@@ -55,4 +57,28 @@ func TestLoadWordsFromZipFile(t *testing.T) {
 		monkey.IsMonkeyError(t, err)
 		require.Nil(t, sb)
 	})
+}
+
+func TestOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/options.toml")
+	require.NoError(t, err)
+
+	// check unnecessary field
+	opts := Options{}
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, opts)
+
+	for _, testdata := range [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: true, actual: opts.DisablePrefix},
+		{expected: true, actual: opts.DisableStem},
+		{expected: true, actual: opts.DisableSuffix},
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
+	}
 }
