@@ -102,7 +102,7 @@ func TestEnglish_Load(t *testing.T) {
 		english := NewEnglish()
 
 		err := english.Load(resource)
-		require.Error(t, err)
+		monkey.IsMonkeyError(t, err)
 
 		testsuite.IsDestroyed(t, english)
 	})
@@ -112,6 +112,38 @@ func TestEnglish_Generate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	t.Run("failed to check word number", func(t *testing.T) {
+		english := NewEnglish()
+		english.prefix = security.NewBytes(nil)
+		english.stem = security.NewBytes(nil)
+		english.suffix = security.NewBytes(nil)
+
+		word, err := english.Generate(nil)
+		require.EqualError(t, err, "empty prefix")
+		require.Zero(t, word)
+
+		testsuite.IsDestroyed(t, english)
+	})
+
+	t.Run("generate empty word", func(t *testing.T) {
+		resource := testGenerateEnglishResource(t)
+
+		english := NewEnglish()
+
+		err := english.Load(resource)
+		require.NoError(t, err)
+
+		opts := Options{
+			DisablePrefix: true,
+			DisableStem:   true,
+			DisableSuffix: true,
+		}
+		word, err := english.Generate(&opts)
+		require.EqualError(t, err, "generated a empty word")
+		require.Zero(t, word)
+
+		testsuite.IsDestroyed(t, english)
+	})
 }
 
 func TestEnglish_checkWordNumber(t *testing.T) {
