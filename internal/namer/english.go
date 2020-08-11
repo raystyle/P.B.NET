@@ -29,15 +29,12 @@ func NewEnglish() *English {
 
 // Load is used to load prefix.txt, stem.txt and suffix.txt from a zip file.
 func (eng *English) Load(data []byte) error {
-	size := int64(len(data))
-	reader, err := zip.NewReader(bytes.NewReader(data), size)
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return errors.WithStack(err)
 	}
-
 	eng.rwm.Lock()
 	defer eng.rwm.Unlock()
-
 	items := map[string]**security.Bytes{
 		"prefix.txt": &eng.prefix,
 		"stem.txt":   &eng.stem,
@@ -48,12 +45,12 @@ func (eng *English) Load(data []byte) error {
 		if item == nil {
 			continue
 		}
-		*item, err = loadWordFromZipFile(file)
+		*item, err = loadWordsFromZipFile(file)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	}
-	return eng.checkNumber()
+	return eng.checkWordNumber()
 }
 
 // Generate is used to generate a word.
@@ -65,7 +62,7 @@ func (eng *English) Generate(opts *Options) (string, error) {
 	eng.rwm.RLock()
 	defer eng.rwm.RUnlock()
 
-	err := eng.checkNumber()
+	err := eng.checkWordNumber()
 	if err != nil {
 		return "", err
 	}
@@ -75,14 +72,13 @@ func (eng *English) Generate(opts *Options) (string, error) {
 		stem   string
 		suffix string
 	)
-
 	// select prefix
 	if !opts.DisablePrefix {
-		// map is include random, but we with random.Rand.
+		// map is include random, but we use random.Rand.
 		times := 10 + eng.rand.Int(10)
 		counter := 0
 
-		prefixes := loadWordFromSecurityBytes(eng.prefix)
+		prefixes := loadWordsFromSecurityBytes(eng.prefix)
 		defer security.CoverStringMap(prefixes)
 
 		for prefix = range prefixes {
@@ -94,11 +90,11 @@ func (eng *English) Generate(opts *Options) (string, error) {
 	}
 	// select stem
 	if !opts.DisableStem {
-		// map is include random, but we with random.Rand.
+		// map is include random, but we use random.Rand.
 		times := 10 + eng.rand.Int(10)
 		counter := 0
 
-		stems := loadWordFromSecurityBytes(eng.stem)
+		stems := loadWordsFromSecurityBytes(eng.stem)
 		defer security.CoverStringMap(stems)
 
 		for stem = range stems {
@@ -110,11 +106,11 @@ func (eng *English) Generate(opts *Options) (string, error) {
 	}
 	// select suffix
 	if !opts.DisableSuffix {
-		// map is include random, but we with random.Rand.
+		// map is include random, but we use random.Rand.
 		times := 10 + eng.rand.Int(10)
 		counter := 0
 
-		suffixes := loadWordFromSecurityBytes(eng.suffix)
+		suffixes := loadWordsFromSecurityBytes(eng.suffix)
 		defer security.CoverStringMap(suffixes)
 
 		for suffix = range suffixes {
@@ -124,15 +120,15 @@ func (eng *English) Generate(opts *Options) (string, error) {
 			counter++
 		}
 	}
-
+	// merge
 	word := prefix + stem + suffix
 	if word == "" {
-		return "", errors.New("generate a empty word")
+		return "", errors.New("generated a empty word")
 	}
 	return word, nil
 }
 
-func (eng *English) checkNumber() error {
+func (eng *English) checkWordNumber() error {
 	for _, item := range [...]*struct {
 		sb   *security.Bytes
 		name string
@@ -142,6 +138,9 @@ func (eng *English) checkNumber() error {
 		{eng.suffix, "suffix"},
 	} {
 		err := func() error {
+			if item.sb == nil {
+				return errors.New("not load " + item.name)
+			}
 			data := item.sb.Get()
 			defer item.sb.Put(data)
 			if len(data) == 0 {

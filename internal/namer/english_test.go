@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/monkey"
+	"project/internal/security"
 	"project/internal/testsuite"
 )
 
@@ -57,4 +59,95 @@ func TestEnglish(t *testing.T) {
 	}
 
 	testsuite.IsDestroyed(t, english)
+}
+
+func TestEnglish_Load(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("failed to read zip", func(t *testing.T) {
+		english := NewEnglish()
+
+		err := english.Load(nil)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, english)
+	})
+
+	t.Run("read useless file", func(t *testing.T) {
+		buf := bytes.NewBuffer(make([]byte, 0, 4096))
+		writer := zip.NewWriter(buf)
+		_, err := writer.Create("test.txt")
+		require.NoError(t, err)
+		err = writer.Close()
+		require.NoError(t, err)
+
+		english := NewEnglish()
+
+		err = english.Load(buf.Bytes())
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, english)
+	})
+
+	t.Run("failed to load words", func(t *testing.T) {
+		patch := func(file *zip.File) (*security.Bytes, error) {
+			return nil, monkey.Error
+		}
+		pg := monkey.Patch(loadWordsFromZipFile, patch)
+		defer pg.Unpatch()
+
+		resource := testGenerateEnglishResource(t)
+
+		english := NewEnglish()
+
+		err := english.Load(resource)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, english)
+	})
+}
+
+func TestEnglish_Generate(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+}
+
+func TestEnglish_checkWordNumber(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("empty prefix", func(t *testing.T) {
+		english := NewEnglish()
+		english.prefix = security.NewBytes(nil)
+
+		err := english.checkWordNumber()
+		require.EqualError(t, err, "empty prefix")
+
+		testsuite.IsDestroyed(t, english)
+	})
+
+	t.Run("empty stem", func(t *testing.T) {
+		english := NewEnglish()
+		english.prefix = security.NewBytes([]byte{0})
+		english.stem = security.NewBytes(nil)
+
+		err := english.checkWordNumber()
+		require.EqualError(t, err, "empty stem")
+
+		testsuite.IsDestroyed(t, english)
+	})
+
+	t.Run("empty suffix", func(t *testing.T) {
+		english := NewEnglish()
+		english.prefix = security.NewBytes([]byte{0})
+		english.stem = security.NewBytes([]byte{0})
+		english.suffix = security.NewBytes(nil)
+
+		err := english.checkWordNumber()
+		require.EqualError(t, err, "empty suffix")
+
+		testsuite.IsDestroyed(t, english)
+	})
 }

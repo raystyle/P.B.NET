@@ -20,14 +20,14 @@ type Namer interface {
 	Generate(opts *Options) (string, error)
 }
 
-// Options include options about all namer.
+// Options contains options about all namer.
 type Options struct {
 	DisablePrefix bool `toml:"disable_prefix"`
 	DisableStem   bool `toml:"disable_stem"`
 	DisableSuffix bool `toml:"disable_suffix"`
 }
 
-func loadWordFromZipFile(file *zip.File) (*security.Bytes, error) {
+func loadWordsFromZipFile(file *zip.File) (*security.Bytes, error) {
 	rc, err := file.Open()
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -41,7 +41,7 @@ func loadWordFromZipFile(file *zip.File) (*security.Bytes, error) {
 	return security.NewBytes(data), nil
 }
 
-func loadWordFromSecurityBytes(sb *security.Bytes) map[string]struct{} {
+func loadWordsFromSecurityBytes(sb *security.Bytes) map[string]struct{} {
 	data := sb.Get()
 	defer sb.Put(data)
 	words := make(map[string]struct{}, 256)
