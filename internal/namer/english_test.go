@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
@@ -179,6 +180,102 @@ func TestEnglish_checkWordNumber(t *testing.T) {
 
 		err := english.checkWordNumber()
 		require.EqualError(t, err, "empty suffix")
+
+		testsuite.IsDestroyed(t, english)
+	})
+}
+
+func TestEnglish_Load_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	resource := testGenerateEnglishResource(t)
+
+	t.Run("part", func(t *testing.T) {
+		english := NewEnglish()
+
+		load := func() {
+			err := english.Load(resource)
+			assert.NoError(t, err)
+		}
+		cleanup := func() {
+			err := english.checkWordNumber()
+			assert.NoError(t, err)
+		}
+		testsuite.RunParallel(100, nil, cleanup, load, load)
+
+		testsuite.IsDestroyed(t, english)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var english *English
+
+		init := func() {
+			english = NewEnglish()
+		}
+		load := func() {
+			err := english.Load(resource)
+			assert.NoError(t, err)
+		}
+		cleanup := func() {
+			err := english.checkWordNumber()
+			assert.NoError(t, err)
+		}
+		testsuite.RunParallel(100, init, cleanup, load, load)
+
+		testsuite.IsDestroyed(t, english)
+	})
+}
+
+func TestEnglish_Generate_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	resource := testGenerateEnglishResource(t)
+
+	t.Run("part", func(t *testing.T) {
+		english := NewEnglish()
+
+		err := english.Load(resource)
+		assert.NoError(t, err)
+
+		gen := func() {
+			word, err := english.Generate(nil)
+			assert.NoError(t, err)
+			assert.NotZero(t, word)
+
+			t.Log(word)
+		}
+		cleanup := func() {
+			err := english.checkWordNumber()
+			assert.NoError(t, err)
+		}
+		testsuite.RunParallel(100, nil, cleanup, gen, gen)
+
+		testsuite.IsDestroyed(t, english)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var english *English
+
+		init := func() {
+			english = NewEnglish()
+
+			err := english.Load(resource)
+			assert.NoError(t, err)
+		}
+		gen := func() {
+			word, err := english.Generate(nil)
+			assert.NoError(t, err)
+			assert.NotZero(t, word)
+
+			t.Log(word)
+		}
+		cleanup := func() {
+			err := english.checkWordNumber()
+			assert.NoError(t, err)
+		}
+		testsuite.RunParallel(100, init, cleanup, gen, gen)
 
 		testsuite.IsDestroyed(t, english)
 	})
