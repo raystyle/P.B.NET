@@ -71,6 +71,7 @@ func CoverBytes(bytes []byte) {
 }
 
 // CoverString is used to cover string if string has secret.
+// Don't cover string about map key, or maybe trigger data race.
 func CoverString(str string) {
 	stringHeader := (*reflect.StringHeader)(unsafe.Pointer(&str)) // #nosec
 	slice := make([]byte, stringHeader.Len)
@@ -78,13 +79,6 @@ func CoverString(str string) {
 	sliceHeader.Data = stringHeader.Data
 	CoverBytes(slice)
 	runtime.KeepAlive(&str)
-}
-
-// CoverStringMap is used to cover string map.
-func CoverStringMap(m map[string]struct{}) {
-	for str := range m {
-		CoverString(str)
-	}
 }
 
 // Bytes make byte slice discontinuous, it safe for use by multiple goroutines.

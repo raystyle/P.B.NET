@@ -107,25 +107,6 @@ func TestRandomEqual(t *testing.T) {
 	}
 }
 
-func BenchmarkNew(b *testing.B) {
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		NewRand()
-	}
-}
-
-func BenchmarkRand_Bytes(b *testing.B) {
-	r := NewRand()
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		r.Bytes(16)
-	}
-}
-
 func TestSleeper(t *testing.T) {
 	t.Run("common", func(t *testing.T) {
 		done, sleeper := Sleep(1, 2)
@@ -153,4 +134,23 @@ func TestSleeper(t *testing.T) {
 		d := sleeper.calculateDuration(3600, 3600)
 		require.Equal(t, MaxSleepTime, d)
 	})
+}
+
+func BenchmarkNew(b *testing.B) {
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		NewRand()
+	}
+}
+
+func BenchmarkRand_Bytes(b *testing.B) {
+	r := NewRand()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		r.Bytes(16)
+	}
 }

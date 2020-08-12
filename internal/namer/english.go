@@ -77,9 +77,7 @@ func (eng *English) Generate(opts *Options) (string, error) {
 		// map is include random, but we use random.Rand.
 		times := 10 + eng.rand.Int(10)
 		counter := 0
-
 		prefixes := loadWordsFromSecurityBytes(eng.prefix)
-		defer security.CoverStringMap(prefixes)
 
 		for prefix = range prefixes {
 			if counter > times {
@@ -93,9 +91,7 @@ func (eng *English) Generate(opts *Options) (string, error) {
 		// map is include random, but we use random.Rand.
 		times := 10 + eng.rand.Int(10)
 		counter := 0
-
 		stems := loadWordsFromSecurityBytes(eng.stem)
-		defer security.CoverStringMap(stems)
 
 		for stem = range stems {
 			if counter > times {
@@ -109,9 +105,7 @@ func (eng *English) Generate(opts *Options) (string, error) {
 		// map is include random, but we use random.Rand.
 		times := 10 + eng.rand.Int(10)
 		counter := 0
-
 		suffixes := loadWordsFromSecurityBytes(eng.suffix)
-		defer security.CoverStringMap(suffixes)
 
 		for suffix = range suffixes {
 			if counter > times {
