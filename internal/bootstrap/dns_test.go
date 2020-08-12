@@ -17,6 +17,9 @@ import (
 )
 
 func TestDNS_Validate(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	DNS := DNS{}
 
 	t.Run("empty host", func(t *testing.T) {
@@ -63,6 +66,9 @@ func TestDNS_Validate(t *testing.T) {
 }
 
 func TestDNS_Marshal(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	DNS := DNS{
 		Host:    "localhost",
 		Mode:    xnet.ModeTLS,
@@ -89,6 +95,9 @@ func TestDNS_Marshal(t *testing.T) {
 }
 
 func TestDNS_Unmarshal(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	DNS := DNS{}
 
 	t.Run("ok", func(t *testing.T) {
@@ -152,12 +161,23 @@ func TestDNS_Resolve(t *testing.T) {
 			err = DNS.Unmarshal(data)
 			require.NoError(t, err)
 
-			for i := 0; i < 10; i++ {
-				resolved, err := DNS.Resolve()
-				require.NoError(t, err)
-				resolved = testDecryptListeners(resolved)
-				require.Equal(t, listeners, resolved)
-			}
+			t.Run("common", func(t *testing.T) {
+				for i := 0; i < 10; i++ {
+					resolved, err := DNS.Resolve()
+					require.NoError(t, err)
+					resolved = testDecryptListeners(resolved)
+					require.Equal(t, listeners, resolved)
+				}
+			})
+
+			t.Run("parallel", func(t *testing.T) {
+				testsuite.RunMultiTimes(20, func() {
+					resolved, err := DNS.Resolve()
+					require.NoError(t, err)
+					resolved = testDecryptListeners(resolved)
+					require.Equal(t, listeners, resolved)
+				})
+			})
 
 			testsuite.IsDestroyed(t, DNS)
 		})
@@ -188,12 +208,23 @@ func TestDNS_Resolve(t *testing.T) {
 			err = DNS.Unmarshal(data)
 			require.NoError(t, err)
 
-			for i := 0; i < 10; i++ {
-				resolved, err := DNS.Resolve()
-				require.NoError(t, err)
-				resolved = testDecryptListeners(resolved)
-				require.Equal(t, listeners, resolved)
-			}
+			t.Run("common", func(t *testing.T) {
+				for i := 0; i < 10; i++ {
+					resolved, err := DNS.Resolve()
+					require.NoError(t, err)
+					resolved = testDecryptListeners(resolved)
+					require.Equal(t, listeners, resolved)
+				}
+			})
+
+			t.Run("parallel", func(t *testing.T) {
+				testsuite.RunMultiTimes(20, func() {
+					resolved, err := DNS.Resolve()
+					require.NoError(t, err)
+					resolved = testDecryptListeners(resolved)
+					require.Equal(t, listeners, resolved)
+				})
+			})
 
 			testsuite.IsDestroyed(t, DNS)
 		})
@@ -214,21 +245,28 @@ func TestDNS_Resolve(t *testing.T) {
 		err := DNS.Unmarshal(config)
 		require.NoError(t, err)
 
-		if testsuite.IPv4Enabled {
-			listeners, err := DNS.Resolve()
-			require.Error(t, err)
-			require.Nil(t, listeners)
-		}
+		t.Run("common", func(t *testing.T) {
+			for i := 0; i < 10; i++ {
+				listeners, err := DNS.Resolve()
+				require.Error(t, err)
+				require.Nil(t, listeners)
+			}
+		})
 
-		if testsuite.IPv6Enabled {
-			listeners, err := DNS.Resolve()
-			require.Error(t, err)
-			require.Nil(t, listeners)
-		}
+		t.Run("parallel", func(t *testing.T) {
+			testsuite.RunMultiTimes(20, func() {
+				listeners, err := DNS.Resolve()
+				require.Error(t, err)
+				require.Nil(t, listeners)
+			})
+		})
 	})
 }
 
 func TestDNSPanic(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	t.Run("no CBC", func(t *testing.T) {
 		DNS := DNS{}
 

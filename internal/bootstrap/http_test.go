@@ -58,6 +58,9 @@ func TestCoverHTTPRequest(t *testing.T) {
 }
 
 func TestHTTP_Validate(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	HTTP := HTTP{}
 
 	t.Run("invalid request", func(t *testing.T) {
@@ -140,6 +143,9 @@ func TestHTTP_Validate(t *testing.T) {
 }
 
 func TestHTTP_Generate(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	HTTP := HTTP{}
 
 	t.Run("no listeners", func(t *testing.T) {
@@ -206,6 +212,9 @@ func TestHTTP_Generate(t *testing.T) {
 }
 
 func TestHTTP_Marshal(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	HTTP := HTTP{}
 
 	HTTP.Request.URL = "http://abc.com/"
@@ -237,6 +246,9 @@ func TestHTTP_Marshal(t *testing.T) {
 }
 
 func TestHTTP_Unmarshal(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	HTTP := HTTP{}
 
 	t.Run("ok", func(t *testing.T) {
@@ -713,6 +725,9 @@ func TestHTTP_Resolve(t *testing.T) {
 }
 
 func TestHTTPPanic(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	t.Run("no CBC", func(t *testing.T) {
 		HTTP := HTTP{}
 

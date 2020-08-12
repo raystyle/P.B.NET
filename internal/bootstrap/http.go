@@ -69,12 +69,7 @@ type HTTP struct {
 }
 
 // NewHTTP is used to create a HTTP mode bootstrap.
-func NewHTTP(
-	ctx context.Context,
-	certPool *cert.Pool,
-	proxyPool *proxy.Pool,
-	dnsClient *dns.Client,
-) *HTTP {
+func NewHTTP(ctx context.Context, certPool *cert.Pool, proxyPool *proxy.Pool, dnsClient *dns.Client) *HTTP {
 	return &HTTP{
 		ctx:       ctx,
 		certPool:  certPool,

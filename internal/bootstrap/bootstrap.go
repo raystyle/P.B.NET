@@ -34,6 +34,7 @@ type Bootstrap interface {
 	Unmarshal([]byte) error
 
 	// Resolve is used to resolve bootstrap Node listeners.
+	// must be multi goroutine safe.
 	Resolve() ([]*Listener, error)
 }
 
@@ -147,15 +148,13 @@ func (l *Listener) Equal(listener *Listener) bool {
 }
 
 // String is used to return information about listener.
-// tls (tcp 127.0.0.1:443)
 func (l *Listener) String() string {
 	tl := l.Decrypt()
-	defer tl.Destroy()
+	defer tl.Destroy() // tls (tcp 127.0.0.1:443)
 	return fmt.Sprintf("%s (%s %s)", tl.Mode, tl.Network, tl.Address)
 }
 
-// EncryptListeners is used to encrypt raw listeners.
-// All listeners will be covered.
+// EncryptListeners is used to encrypt raw listeners, all listeners will be covered.
 func EncryptListeners(listeners []*Listener) []*Listener {
 	l := len(listeners)
 	newListeners := make([]*Listener, l)

@@ -18,6 +18,9 @@ func testGenerateDirect() *Direct {
 }
 
 func TestDirect_Validate(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	direct := testGenerateDirect()
 
 	err := direct.Validate()
@@ -27,6 +30,9 @@ func TestDirect_Validate(t *testing.T) {
 }
 
 func TestDirect_Marshal(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	direct := testGenerateDirect()
 
 	t.Run("ok", func(t *testing.T) {
@@ -48,6 +54,9 @@ func TestDirect_Marshal(t *testing.T) {
 }
 
 func TestDirect_Unmarshal(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	direct := NewDirect()
 
 	t.Run("ok", func(t *testing.T) {
@@ -64,6 +73,9 @@ func TestDirect_Unmarshal(t *testing.T) {
 }
 
 func TestDirect_Resolve(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	listeners := testGenerateListeners()
 
 	direct := NewDirect()
@@ -75,17 +87,31 @@ func TestDirect_Resolve(t *testing.T) {
 	err = direct.Unmarshal(data)
 	require.NoError(t, err)
 
-	for i := 0; i < 10; i++ {
-		resolved, err := direct.Resolve()
-		require.NoError(t, err)
-		resolved = testDecryptListeners(resolved)
-		require.Equal(t, listeners, resolved)
-	}
+	t.Run("common", func(t *testing.T) {
+		for i := 0; i < 10; i++ {
+			resolved, err := direct.Resolve()
+			require.NoError(t, err)
+			resolved = testDecryptListeners(resolved)
+			require.Equal(t, listeners, resolved)
+		}
+	})
+
+	t.Run("parallel", func(t *testing.T) {
+		testsuite.RunMultiTimes(20, func() {
+			resolved, err := direct.Resolve()
+			require.NoError(t, err)
+			resolved = testDecryptListeners(resolved)
+			require.Equal(t, listeners, resolved)
+		})
+	})
 
 	testsuite.IsDestroyed(t, direct)
 }
 
 func TestDirectPanic(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	t.Run("no CBC", func(t *testing.T) {
 		direct := NewDirect()
 
