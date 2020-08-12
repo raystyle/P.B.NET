@@ -7,7 +7,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
@@ -196,11 +195,11 @@ func TestEnglish_Load_Parallel(t *testing.T) {
 
 		load := func() {
 			err := english.Load(resource)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		cleanup := func() {
 			err := english.checkWordNumber()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		testsuite.RunParallel(100, nil, cleanup, load, load)
 
@@ -215,11 +214,11 @@ func TestEnglish_Load_Parallel(t *testing.T) {
 		}
 		load := func() {
 			err := english.Load(resource)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		cleanup := func() {
 			err := english.checkWordNumber()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		testsuite.RunParallel(100, init, cleanup, load, load)
 
@@ -237,18 +236,18 @@ func TestEnglish_Generate_Parallel(t *testing.T) {
 		english := NewEnglish()
 
 		err := english.Load(resource)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		gen := func() {
 			word, err := english.Generate(nil)
-			assert.NoError(t, err)
-			assert.NotZero(t, word)
+			require.NoError(t, err)
+			require.NotZero(t, word)
 
 			t.Log(word)
 		}
 		cleanup := func() {
 			err := english.checkWordNumber()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		testsuite.RunParallel(100, nil, cleanup, gen, gen)
 
@@ -262,18 +261,18 @@ func TestEnglish_Generate_Parallel(t *testing.T) {
 			english = NewEnglish()
 
 			err := english.Load(resource)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		gen := func() {
 			word, err := english.Generate(nil)
-			assert.NoError(t, err)
-			assert.NotZero(t, word)
+			require.NoError(t, err)
+			require.NotZero(t, word)
 
 			t.Log(word)
 		}
 		cleanup := func() {
 			err := english.checkWordNumber()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		testsuite.RunParallel(100, init, cleanup, gen, gen)
 
@@ -291,22 +290,22 @@ func TestEnglish_Parallel(t *testing.T) {
 		english := NewEnglish()
 
 		err := english.Load(resource)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		load := func() {
 			err := english.Load(resource)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		gen := func() {
 			word, err := english.Generate(nil)
-			assert.NoError(t, err)
-			assert.NotZero(t, word)
+			require.NoError(t, err)
+			require.NotZero(t, word)
 
 			t.Log(word)
 		}
 		cleanup := func() {
 			err := english.checkWordNumber()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		testsuite.RunParallel(100, nil, cleanup, load, gen, load, gen)
 
@@ -320,22 +319,22 @@ func TestEnglish_Parallel(t *testing.T) {
 			english = NewEnglish()
 
 			err := english.Load(resource)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		load := func() {
 			err := english.Load(resource)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		gen := func() {
 			word, err := english.Generate(nil)
-			assert.NoError(t, err)
-			assert.NotZero(t, word)
+			require.NoError(t, err)
+			require.NotZero(t, word)
 
 			t.Log(word)
 		}
 		cleanup := func() {
 			err := english.checkWordNumber()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		testsuite.RunParallel(100, init, cleanup, load, gen, load, gen)
 
