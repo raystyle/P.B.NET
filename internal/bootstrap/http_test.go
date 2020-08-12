@@ -345,12 +345,23 @@ func TestHTTP_Resolve(t *testing.T) {
 				err = HTTP.Unmarshal(data)
 				require.NoError(t, err)
 
-				for i := 0; i < 10; i++ {
-					resolved, err := HTTP.Resolve()
-					require.NoError(t, err)
-					resolved = testDecryptListeners(resolved)
-					require.Equal(t, listeners, resolved)
-				}
+				t.Run("common", func(t *testing.T) {
+					for i := 0; i < 10; i++ {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					}
+				})
+
+				t.Run("parallel", func(t *testing.T) {
+					testsuite.RunMultiTimes(20, func() {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					})
+				})
 
 				testsuite.IsDestroyed(t, HTTP)
 			})
@@ -379,12 +390,23 @@ func TestHTTP_Resolve(t *testing.T) {
 				err = HTTP.Unmarshal(data)
 				require.NoError(t, err)
 
-				for i := 0; i < 10; i++ {
-					resolved, err := HTTP.Resolve()
-					require.NoError(t, err)
-					resolved = testDecryptListeners(resolved)
-					require.Equal(t, listeners, resolved)
-				}
+				t.Run("common", func(t *testing.T) {
+					for i := 0; i < 10; i++ {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					}
+				})
+
+				t.Run("parallel", func(t *testing.T) {
+					testsuite.RunMultiTimes(20, func() {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					})
+				})
 
 				testsuite.IsDestroyed(t, HTTP)
 			})
@@ -424,19 +446,23 @@ func TestHTTP_Resolve(t *testing.T) {
 				err = HTTP.Unmarshal(data)
 				require.NoError(t, err)
 
-				for i := 0; i < 10; i++ {
-					resolved, err := HTTP.Resolve()
-					require.NoError(t, err)
-					resolved = testDecryptListeners(resolved)
-					require.Equal(t, listeners, resolved)
-				}
+				t.Run("common", func(t *testing.T) {
+					for i := 0; i < 10; i++ {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					}
+				})
 
-				// with proxy
-				HTTP.ProxyTag = testproxy.TagBalance
-				resolved, err := HTTP.Resolve()
-				require.NoError(t, err)
-				resolved = testDecryptListeners(resolved)
-				require.Equal(t, listeners, resolved)
+				t.Run("parallel", func(t *testing.T) {
+					testsuite.RunMultiTimes(20, func() {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					})
+				})
 
 				testsuite.IsDestroyed(t, HTTP)
 			})
@@ -465,19 +491,23 @@ func TestHTTP_Resolve(t *testing.T) {
 				err = HTTP.Unmarshal(data)
 				require.NoError(t, err)
 
-				for i := 0; i < 10; i++ {
-					resolved, err := HTTP.Resolve()
-					require.NoError(t, err)
-					resolved = testDecryptListeners(resolved)
-					require.Equal(t, listeners, resolved)
-				}
+				t.Run("common", func(t *testing.T) {
+					for i := 0; i < 10; i++ {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					}
+				})
 
-				// with proxy
-				HTTP.ProxyTag = testproxy.TagBalance
-				resolved, err := HTTP.Resolve()
-				require.NoError(t, err)
-				resolved = testDecryptListeners(resolved)
-				require.Equal(t, listeners, resolved)
+				t.Run("parallel", func(t *testing.T) {
+					testsuite.RunMultiTimes(20, func() {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					})
+				})
 
 				testsuite.IsDestroyed(t, HTTP)
 			})
@@ -532,12 +562,23 @@ func TestHTTP_Resolve(t *testing.T) {
 				err = HTTP.Unmarshal(data)
 				require.NoError(t, err)
 
-				for i := 0; i < 10; i++ {
-					resolved, err := HTTP.Resolve()
-					require.NoError(t, err)
-					resolved = testDecryptListeners(resolved)
-					require.Equal(t, listeners, resolved)
-				}
+				t.Run("common", func(t *testing.T) {
+					for i := 0; i < 10; i++ {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					}
+				})
+
+				t.Run("parallel", func(t *testing.T) {
+					testsuite.RunMultiTimes(20, func() {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					})
+				})
 
 				testsuite.IsDestroyed(t, HTTP)
 			})
@@ -570,12 +611,23 @@ func TestHTTP_Resolve(t *testing.T) {
 				err = HTTP.Unmarshal(data)
 				require.NoError(t, err)
 
-				for i := 0; i < 10; i++ {
-					resolved, err := HTTP.Resolve()
-					require.NoError(t, err)
-					resolved = testDecryptListeners(resolved)
-					require.Equal(t, listeners, resolved)
-				}
+				t.Run("common", func(t *testing.T) {
+					for i := 0; i < 10; i++ {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					}
+				})
+
+				t.Run("parallel", func(t *testing.T) {
+					testsuite.RunMultiTimes(20, func() {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					})
+				})
 
 				testsuite.IsDestroyed(t, HTTP)
 			})
@@ -619,12 +671,23 @@ func TestHTTP_Resolve(t *testing.T) {
 				err = HTTP.Unmarshal(data)
 				require.NoError(t, err)
 
-				for i := 0; i < 10; i++ {
-					resolved, err := HTTP.Resolve()
-					require.NoError(t, err)
-					resolved = testDecryptListeners(resolved)
-					require.Equal(t, listeners, resolved)
-				}
+				t.Run("common", func(t *testing.T) {
+					for i := 0; i < 10; i++ {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					}
+				})
+
+				t.Run("parallel", func(t *testing.T) {
+					testsuite.RunMultiTimes(20, func() {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					})
+				})
 
 				testsuite.IsDestroyed(t, HTTP)
 			})
@@ -657,12 +720,23 @@ func TestHTTP_Resolve(t *testing.T) {
 				err = HTTP.Unmarshal(data)
 				require.NoError(t, err)
 
-				for i := 0; i < 10; i++ {
-					resolved, err := HTTP.Resolve()
-					require.NoError(t, err)
-					resolved = testDecryptListeners(resolved)
-					require.Equal(t, listeners, resolved)
-				}
+				t.Run("common", func(t *testing.T) {
+					for i := 0; i < 10; i++ {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					}
+				})
+
+				t.Run("parallel", func(t *testing.T) {
+					testsuite.RunMultiTimes(20, func() {
+						resolved, err := HTTP.Resolve()
+						require.NoError(t, err)
+						resolved = testDecryptListeners(resolved)
+						require.Equal(t, listeners, resolved)
+					})
+				})
 
 				testsuite.IsDestroyed(t, HTTP)
 			})
@@ -803,8 +877,10 @@ func TestHTTPPanic(t *testing.T) {
 	})
 
 	t.Run("invalid info", func(t *testing.T) {
+		HTTP := HTTP{}
+
 		defer testsuite.DeferForPanic(t)
-		resolve(nil, []byte("foo data"))
+		HTTP.resolve([]byte("foo data"))
 	})
 
 	t.Run("invalid AES Key IV", func(t *testing.T) {
@@ -814,7 +890,7 @@ func TestHTTPPanic(t *testing.T) {
 		}
 
 		defer testsuite.DeferForPanic(t)
-		resolve(&HTTP, []byte("FF"))
+		HTTP.resolve([]byte("FF"))
 	})
 
 	t.Run("invalid info size", func(t *testing.T) {
@@ -830,7 +906,7 @@ func TestHTTPPanic(t *testing.T) {
 		}
 
 		defer testsuite.DeferForPanic(t)
-		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
+		HTTP.resolve([]byte(hex.EncodeToString(cipherData)))
 	})
 
 	t.Run("invalid public key string", func(t *testing.T) {
@@ -849,7 +925,7 @@ func TestHTTPPanic(t *testing.T) {
 		}
 
 		defer testsuite.DeferForPanic(t)
-		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
+		HTTP.resolve([]byte(hex.EncodeToString(cipherData)))
 	})
 
 	t.Run("invalid public key", func(t *testing.T) {
@@ -868,7 +944,7 @@ func TestHTTPPanic(t *testing.T) {
 		}
 
 		defer testsuite.DeferForPanic(t)
-		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
+		HTTP.resolve([]byte(hex.EncodeToString(cipherData)))
 	})
 
 	t.Run("invalid signature", func(t *testing.T) {
@@ -887,7 +963,7 @@ func TestHTTPPanic(t *testing.T) {
 		}
 
 		defer testsuite.DeferForPanic(t)
-		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
+		HTTP.resolve([]byte(hex.EncodeToString(cipherData)))
 	})
 
 	t.Run("invalid node listeners data", func(t *testing.T) {
@@ -908,7 +984,7 @@ func TestHTTPPanic(t *testing.T) {
 		}
 
 		defer testsuite.DeferForPanic(t)
-		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
+		HTTP.resolve([]byte(hex.EncodeToString(cipherData)))
 	})
 }
 

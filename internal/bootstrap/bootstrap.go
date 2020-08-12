@@ -33,8 +33,7 @@ type Bootstrap interface {
 	// Unmarshal is used to unmarshal []byte to bootstrap.
 	Unmarshal([]byte) error
 
-	// Resolve is used to resolve bootstrap Node listeners.
-	// must be multi goroutine safe.
+	// Resolve is used to resolve bootstrap Node listeners, must be multi goroutine safe.
 	Resolve() ([]*Listener, error)
 }
 

@@ -303,13 +303,13 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 		if req.Host == "" && req.URL.Scheme == "http" {
 			req.Host = req.URL.Host
 		}
-		info, err = do(req, client, maxBodySize)
+		info, err = h.do(req, client, maxBodySize)
 		if err == nil {
 			break
 		}
 	}
 	if err == nil {
-		return resolve(tempHTTP, info), nil
+		return tempHTTP.resolve(info), nil
 	}
 	return nil, err
 }
@@ -334,7 +334,7 @@ func (h *HTTP) decryptOptions() *HTTP {
 	return HTTP
 }
 
-func do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
+func (h *HTTP) do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
 	defer coverHTTPRequest(req)
 	resp, err := client.Do(req)
 	if err != nil {
@@ -347,7 +347,7 @@ func do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
 	return ioutil.ReadAll(io.LimitReader(resp.Body, length))
 }
 
-func resolve(h *HTTP, info []byte) []*Listener {
+func (h *HTTP) resolve(info []byte) []*Listener {
 	memory := security.NewMemory()
 	defer memory.Flush()
 
