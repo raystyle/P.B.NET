@@ -196,11 +196,16 @@ func extractSourceCode() bool {
 			}
 			src := developDir + "/" + name + ".zip"
 			// extract files
-			ec := func(_ context.Context, typ uint8, e error, _ *filemgr.SrcDstStat) uint8 {
-				err = e
+			var eErr error
+			ec := func(_ context.Context, typ uint8, err error, _ *filemgr.SrcDstStat) uint8 {
+				eErr = err
 				return filemgr.ErrCtrlOpCancel
 			}
 			err = filemgr.UnZip(ec, src, developDir)
+			if eErr != nil {
+				err = eErr
+				return
+			}
 			if err != nil {
 				return
 			}
@@ -262,7 +267,7 @@ func buildSourceCode() bool {
 			args := []string{"build", "-v", "-i", "-ldflags", "-s -w", "-o", binName}
 			cmd := exec.Command("go", args...) // #nosec
 			cmd.Dir = buildPath
-			writer := logger.Wrap(logger.Info, "develop", logger.Common).Writer()
+			writer := logger.WrapLogger(logger.Info, "develop", logger.Common)
 			cmd.Stdout = writer
 			cmd.Stderr = writer
 			err = cmd.Run()
@@ -270,11 +275,16 @@ func buildSourceCode() bool {
 				return
 			}
 			// move binary file to GOROOT
-			ec := func(_ context.Context, typ uint8, e error, _ *filemgr.SrcDstStat) uint8 {
-				err = e
+			var eErr error
+			ec := func(_ context.Context, typ uint8, err error, _ *filemgr.SrcDstStat) uint8 {
+				eErr = err
 				return filemgr.ErrCtrlOpCancel
 			}
 			err = filemgr.Move(ec, goRoot, filepath.Join(buildPath, binName))
+			if eErr != nil {
+				err = eErr
+				return
+			}
 			if err != nil {
 				return
 			}
