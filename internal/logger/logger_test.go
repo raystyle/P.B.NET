@@ -105,6 +105,12 @@ func TestWrap(t *testing.T) {
 	l.Println("Println")
 }
 
+func TestWrapLogger(t *testing.T) {
+	w := WrapLogger(Debug, "test wrap", Test)
+	_, err := w.Write([]byte("test data"))
+	require.NoError(t, err)
+}
+
 func TestHijackLogWriter(t *testing.T) {
 	HijackLogWriter(Error, "test", Test)
 	log.Printf("Printf")
