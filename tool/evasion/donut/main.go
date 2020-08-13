@@ -25,11 +25,14 @@ func main() {
 		input  string
 		output string
 		method string
+		noGUI  bool
 	)
 	usage := "input executable file path"
 	flag.StringVar(&input, "i", "", usage)
 	usage = "output executable file path"
 	flag.StringVar(&output, "o", "output.exe", usage)
+	usage = "hide Windows GUI"
+	flag.BoolVar(&noGUI, "no-gui", false, usage)
 	usage = "shellcode execute method"
 	flag.StringVar(&method, "m", shellcode.MethodVirtualProtect, usage)
 	flag.Parse()
@@ -106,7 +109,11 @@ func main() {
 
 	// build source code
 	fmt.Println("build source code to final executable file")
-	args := []string{"build", "-v", "-i", "-ldflags", "-s -w", "-o", output, tempSrc}
+	ldFlags := "-s -w"
+	if noGUI {
+		ldFlags += " -H windowsgui"
+	}
+	args := []string{"build", "-v", "-i", "-ldflags", ldFlags, "-o", output, tempSrc}
 	cmd := exec.Command("go", args...) // #nosec
 	cmd.Env = append(os.Environ(), "GOOS=windows")
 	cmd.Env = append(cmd.Env, "GOARCH="+arch)
@@ -116,7 +123,7 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("build finish")
+	fmt.Println("build final executable file finish")
 }
 
 type config struct {
