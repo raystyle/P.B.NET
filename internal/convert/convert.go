@@ -111,6 +111,18 @@ func BytesToFloat64(Bytes []byte) float64 {
 	return *(*float64)(unsafe.Pointer(&b)) // #nosec
 }
 
+// LEUint32ToBytes is used to convert uint32 to bytes with LittleEndian.
+func LEUint32ToBytes(Uint32 uint32) []byte {
+	b := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, Uint32)
+	return b
+}
+
+// LEBytesToUint16 is used to convert uint32 to bytes with LittleEndian.
+func LEBytesToUint16(Bytes []byte) uint16 {
+	return binary.LittleEndian.Uint16(Bytes)
+}
+
 // AbsInt64 is used to calculate the absolute value of the parameter.
 func AbsInt64(n int64) int64 {
 	y := n >> 63
