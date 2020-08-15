@@ -49,7 +49,15 @@ loop:
 }
 
 func isDeprecated(text string) bool {
-	return strings.Contains(text, "Deprecated:")
+	for _, item := range [...]string{
+		"Deprecated:",
+		"Deprecated.",
+	} {
+		if strings.Contains(text, item) {
+			return true
+		}
+	}
+	return false
 }
 
 func exportValues(decl *ast.GenDecl, m map[string]struct{}) {

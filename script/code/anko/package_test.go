@@ -223,18 +223,16 @@ func init() {
 		{"time time.Time", "t time.Time"},
 		{"(&time)", "(&t)"},
 
-		// amd64
-		{"(crc64.ECMA)", "(uint64(crc64.ECMA))"},
-		{"(crc64.ISO)", "(uint64(crc64.ISO))"},
-		{"(math.MaxUint64)", "(uint64(math.MaxUint64))"},
-
-		// 386
+		// overflows int
 		{"(crc32.IEEE)", "(uint32(crc32.IEEE))"},
 		{"(crc32.Castagnoli)", "(uint32(crc32.Castagnoli))"},
 		{"(crc32.Koopman)", "(uint32(crc32.Koopman))"},
+		{"(crc64.ECMA)", "(uint64(crc64.ECMA))"},
+		{"(crc64.ISO)", "(uint64(crc64.ISO))"},
+		{"(math.MinInt64)", "(int64(math.MinInt64))"},
 		{"(math.MaxInt64)", "(int64(math.MaxInt64))"},
 		{"(math.MaxUint32)", "(uint32(math.MaxUint32))"},
-		{"(math.MinInt64)", "(int64(math.MinInt64))"},
+		{"(math.MaxUint64)", "(uint64(math.MaxUint64))"},
 		{"(big.MaxPrec)", "(uint32(big.MaxPrec))"},
 
 		// skip gosec
@@ -243,6 +241,7 @@ func init() {
 		{`	"crypto/rc4"`, `	"crypto/rc4" // #nosec`},
 		{`	"crypto/sha1"`, `	"crypto/sha1" // #nosec`},
 
+		// improve variable name
 		{"unknownUserIdError", "unknownUserIDError"},
 		{"unknownGroupIdError", "unknownGroupIDError"},
 	} {
@@ -284,11 +283,6 @@ func init() {
 		init string
 	}{
 		{
-			name: "github.com/kardianos/service",
-			path: "github.com/kardianos/service@v1.2.0",
-			init: "GithubComKardianosService",
-		},
-		{
 			name: "github.com/pelletier/go-toml",
 			path: "github.com/pelletier/go-toml@v1.8.1",
 			init: "GithubComPelletierGoTOML",
@@ -315,18 +309,18 @@ func init() {
 	src := fmt.Sprintf(template, pkgBuf, initBuf, srcBuf)
 
 	// fix code
-	for _, item := range [...]*struct {
-		old string
-		new string
-	}{
-		{"interface service.Interface", "iface service.Interface"},
-		{"(&interface)", "(&iface)"},
-
-		{"service service.Service", "svc service.Service"},
-		{"(&service)", "(&svc)"},
-	} {
-		src = strings.ReplaceAll(src, item.old, item.new)
-	}
+	// for _, item := range [...]*struct {
+	// 	old string
+	// 	new string
+	// }{
+	// 	{"interface service.Interface", "iface service.Interface"},
+	// 	{"(&interface)", "(&iface)"},
+	//
+	// 	{"service service.Service", "svc service.Service"},
+	// 	{"(&service)", "(&svc)"},
+	// } {
+	// 	src = strings.ReplaceAll(src, item.old, item.new)
+	// }
 
 	// delete code
 	for _, item := range []string{
@@ -339,6 +333,98 @@ func init() {
 	// print and save code
 	fmt.Println(src)
 	const path = "../../../internal/anko/thirdparty/bundle.go"
+	err = system.WriteFile(path, []byte(src))
+	require.NoError(t, err)
+}
+
+func TestExportThirdPartyWindows(t *testing.T) {
+	const template = `// +build windows
+
+// Package thirdparty generate by script/code/anko/package.go, don't edit it.
+package thirdparty
+
+import (
+	"reflect"
+
+%s	"github.com/mattn/anko/env"
+)
+
+func init() {
+%s}
+%s
+`
+	// get module directory
+	goMod, err := config.GoModCache()
+	require.NoError(t, err)
+
+	pkgBuf := new(bytes.Buffer)
+	initBuf := new(bytes.Buffer)
+	srcBuf := new(bytes.Buffer)
+
+	for _, item := range [...]*struct {
+		name string
+		path string
+		init string
+	}{
+		{
+			name: "github.com/go-ole/go-ole",
+			path: "github.com/go-ole/go-ole@v1.2.5-0.20201122170103-d467d8080fc3",
+			init: "GithubComGoOLEGoOLE",
+		},
+		{
+			name: "github.com/go-ole/go-ole/oleutil",
+			path: "github.com/go-ole/go-ole@v1.2.5-0.20201122170103-d467d8080fc3/oleutil",
+			init: "GithubComGoOLEGoOLEOLEUtil",
+		},
+		{
+			name: "github.com/StackExchange/wmi",
+			path: "github.com/!stack!exchange/wmi@v0.0.0-20190523213315-cbe66965904d",
+			init: "GithubComStackExchangeWMI",
+		},
+	} {
+		_, _ = fmt.Fprintf(pkgBuf, `	"%s"`+"\n", item.name)
+		_, _ = fmt.Fprintf(initBuf, "\tinit%s()\n", item.init)
+		src, err := exportDeclaration(goMod, item.path, item.init)
+		require.NoError(t, err)
+		srcBuf.WriteString(src)
+	}
+
+	// generate code
+	src := fmt.Sprintf(template, pkgBuf, initBuf, srcBuf)
+
+	// fix code
+	for _, item := range [...]*struct {
+		old string
+		new string
+	}{
+		// overflows int
+		{"(ole.CO_E_CLASSSTRING)", "(uint32(ole.CO_E_CLASSSTRING))"},
+		{"(ole.E_ABORT)", "(uint32(ole.E_ABORT))"},
+		{"(ole.E_ACCESSDENIED)", "(uint32(ole.E_ACCESSDENIED))"},
+		{"(ole.E_FAIL)", "(uint32(ole.E_FAIL))"},
+		{"(ole.E_HANDLE)", "(uint32(ole.E_HANDLE))"},
+		{"(ole.E_INVALIDARG)", "(uint32(ole.E_INVALIDARG))"},
+		{"(ole.E_NOINTERFACE)", "(uint32(ole.E_NOINTERFACE))"},
+		{"(ole.E_NOTIMPL)", "(uint32(ole.E_NOTIMPL))"},
+		{"(ole.E_OUTOFMEMORY)", "(uint32(ole.E_OUTOFMEMORY))"},
+		{"(ole.E_PENDING)", "(uint32(ole.E_PENDING))"},
+		{"(ole.E_POINTER)", "(uint32(ole.E_POINTER))"},
+		{"(ole.E_UNEXPECTED)", "(uint32(ole.E_UNEXPECTED))"},
+	} {
+		src = strings.ReplaceAll(src, item.old, item.new)
+	}
+
+	// delete code
+	// for _, item := range []string{
+	// 	`		"DecodeDatastoreKey": reflect.ValueOf(msgpack.DecodeDatastoreKey),` + "\n",
+	// 	`		"EncodeDatastoreKey": reflect.ValueOf(msgpack.EncodeDatastoreKey),` + "\n",
+	// } {
+	// 	src = strings.ReplaceAll(src, item, "")
+	// }
+
+	// print and save code
+	fmt.Println(src)
+	const path = "../../../internal/anko/thirdparty/windows.go"
 	err = system.WriteFile(path, []byte(src))
 	require.NoError(t, err)
 }

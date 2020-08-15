@@ -4,7 +4,6 @@ package thirdparty
 import (
 	"reflect"
 
-	"github.com/kardianos/service"
 	"github.com/mattn/anko/env"
 	"github.com/pelletier/go-toml"
 	"github.com/vmihailenco/msgpack/v5"
@@ -12,57 +11,9 @@ import (
 )
 
 func init() {
-	initGithubComKardianosService()
 	initGithubComPelletierGoTOML()
 	initGithubComVmihailencoMsgpackV5()
 	initGithubComVmihailencoMsgpackV5Msgpcode()
-}
-
-func initGithubComKardianosService() {
-	env.Packages["github.com/kardianos/service"] = map[string]reflect.Value{
-		// define constants
-		"StatusRunning": reflect.ValueOf(service.StatusRunning),
-		"StatusStopped": reflect.ValueOf(service.StatusStopped),
-		"StatusUnknown": reflect.ValueOf(service.StatusUnknown),
-
-		// define variables
-		"ConsoleLogger":              reflect.ValueOf(service.ConsoleLogger),
-		"ControlAction":              reflect.ValueOf(service.ControlAction),
-		"ErrNameFieldRequired":       reflect.ValueOf(service.ErrNameFieldRequired),
-		"ErrNoServiceSystemDetected": reflect.ValueOf(service.ErrNoServiceSystemDetected),
-		"ErrNotInstalled":            reflect.ValueOf(service.ErrNotInstalled),
-
-		// define functions
-		"AvailableSystems": reflect.ValueOf(service.AvailableSystems),
-		"ChooseSystem":     reflect.ValueOf(service.ChooseSystem),
-		"ChosenSystem":     reflect.ValueOf(service.ChosenSystem),
-		"Control":          reflect.ValueOf(service.Control),
-		"Interactive":      reflect.ValueOf(service.Interactive),
-		"New":              reflect.ValueOf(service.New),
-		"Platform":         reflect.ValueOf(service.Platform),
-	}
-	var (
-		config        service.Config
-		iface         service.Interface
-		keyValue      service.KeyValue
-		logger        service.Logger
-		svc           service.Service
-		shutdowner    service.Shutdowner
-		status        service.Status
-		system        service.System
-		windowsLogger service.WindowsLogger
-	)
-	env.PackageTypes["github.com/kardianos/service"] = map[string]reflect.Type{
-		"Config":        reflect.TypeOf(&config).Elem(),
-		"Interface":     reflect.TypeOf(&iface).Elem(),
-		"KeyValue":      reflect.TypeOf(&keyValue).Elem(),
-		"Logger":        reflect.TypeOf(&logger).Elem(),
-		"Service":       reflect.TypeOf(&svc).Elem(),
-		"Shutdowner":    reflect.TypeOf(&shutdowner).Elem(),
-		"Status":        reflect.TypeOf(&status).Elem(),
-		"System":        reflect.TypeOf(&system).Elem(),
-		"WindowsLogger": reflect.TypeOf(&windowsLogger).Elem(),
-	}
 }
 
 func initGithubComPelletierGoTOML() {
