@@ -3,6 +3,8 @@
 package netstat
 
 import (
+	"errors"
+	"net"
 	"reflect"
 	"unsafe"
 
@@ -14,13 +16,13 @@ import (
 // reference:
 // https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedtcptable
 
-// IPv4
+// TCP over IPv4
 type tcp4Table struct {
 	n     uint32
 	table [1]tcp4Row
 }
 
-// IPv4 TCP connection
+// TCP over IPv4 connection
 type tcp4Row struct {
 	state      uint32
 	localAddr  uint32
@@ -30,79 +32,58 @@ type tcp4Row struct {
 	pid        uint32
 }
 
-// IPv6
+// TCP over IPv6
 type tcp6Table struct {
 	n     uint32
 	table [1]tcp6Row
 }
 
-// IPv6 TCP connection
+// TCP over IPv6 connection
 type tcp6Row struct {
 	localAddr     [4]uint32
-	localScopeId  uint32
+	localScopeID  uint32
 	localPort     uint32
 	remoteAddr    [4]uint32
-	remoteScopeId uint32
+	remoteScopeID uint32
 	remotePort    uint32
 	state         uint32
 	pid           uint32
 }
 
-type refresher struct {
+// UDP over IPv4
+type udp4Table struct {
+	n     uint32
+	table [1]udp4Row
+}
+
+// UDP over IPv4 connection
+type udp4Row struct {
+	localAddr uint32
+	localPort uint32
+	pid       uint32
+}
+
+// UDP over IPv6
+type udp6Table struct {
+	n     uint32
+	table [1]udp6Row
+}
+
+// UDP over IPv6 connection
+type udp6Row struct {
+	localAddr    [4]uint32
+	localScopeID uint32
+	localPort    uint32
+	pid          uint32
+}
+
+type netStat struct {
 	getExtendedTCPTable *windows.LazyProc
 	getExtendedUDPTable *windows.LazyProc
 }
 
-func (ref *refresher) Refresh() ([]*Connection, error) {
-	// TCP with IPv4
-	buffer, err := ref.getTCPTable(windows.AF_INET)
-	if err != nil {
-		return nil, err
-	}
-	tcp4Table := (*tcp4Table)(unsafe.Pointer(&buffer[0]))
-	h := &reflect.SliceHeader{
-		Data: uintptr(unsafe.Pointer(&tcp4Table.table)),
-		Len:  int(tcp4Table.n),
-		Cap:  int(tcp4Table.n),
-	}
-	tcp4Rows := *(*[]tcp4Row)(unsafe.Pointer(h))
-	// TCP with IPv6
-	buffer, err = ref.getTCPTable(windows.AF_INET6)
-	if err != nil {
-		return nil, err
-	}
-	tcp6Table := (*tcp6Table)(unsafe.Pointer(&buffer[0]))
-	h = &reflect.SliceHeader{
-		Data: uintptr(unsafe.Pointer(&tcp6Table.table)),
-		Len:  int(tcp6Table.n),
-		Cap:  int(tcp6Table.n),
-	}
-	tcp6Rows := *(*[]tcp6Row)(unsafe.Pointer(h))
-
-	tcp4RowsLen := len(tcp4Rows)
-	tcp6RowsLen := len(tcp6Rows)
-	conns := make([]*Connection, 0, tcp4RowsLen+tcp6RowsLen)
-	// TCP with IPv4
-	for i := 0; i < tcp4RowsLen; i++ {
-		conn := Connection{
-			Protocol:   ProtocolTCP,
-			LocalAddr:  convert.LEUint32ToBytes(tcp4Rows[i].localAddr),
-			RemoteAddr: convert.LEUint32ToBytes(tcp4Rows[i].remoteAddr),
-			State:      uint8(tcp4Rows[i].state),
-			PID:        int64(tcp4Rows[i].pid),
-		}
-		b := convert.LEUint32ToBytes(tcp4Rows[i].localPort)[:2]
-		conn.LocalPort = convert.BytesToUint16(b)
-		b = convert.LEUint32ToBytes(tcp4Rows[i].remotePort)[:2]
-		conn.RemotePort = convert.BytesToUint16(b)
-		conns = append(conns, &conn)
-	}
-	// TCP with IPv6
-	return conns, nil
-}
-
-func newRefresher() (Refresher, error) {
-	// load dll and find proc
+func newNetstat() (*netStat, error) {
+	// load DLL and find proc
 	lazyDLL := windows.NewLazySystemDLL("iphlpapi.dll")
 	err := lazyDLL.Load()
 	if err != nil {
@@ -118,34 +99,190 @@ func newRefresher() (Refresher, error) {
 	if err != nil {
 		return nil, err
 	}
-	ref := refresher{
+	ref := netStat{
 		getExtendedTCPTable: getExtendedTCPTable,
 		getExtendedUDPTable: getExtendedUDPTable,
 	}
 	return &ref, nil
 }
 
-func (ref *refresher) getTCPTable(ulAf uint32) ([]byte, error) {
-	var buffer []byte
-	var pTcpTable *byte
-	var dwSize uint32
-	for {
-		ret, _, errno := ref.getExtendedTCPTable.Call(
-			uintptr(unsafe.Pointer(pTcpTable)),
+func (ns *netStat) GetTCP4Conns() ([]*TCP4Conn, error) {
+	buffer, err := ns.getTCPTable(windows.AF_INET)
+	if err != nil {
+		return nil, err
+	}
+	table := (*tcp4Table)(unsafe.Pointer(&buffer[0]))
+	h := &reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&table.table)),
+		Len:  int(table.n),
+		Cap:  int(table.n),
+	}
+	rows := *(*[]tcp4Row)(unsafe.Pointer(h))
+	l := len(rows)
+	conns := make([]*TCP4Conn, l)
+	for i := 0; i < l; i++ {
+		conn := TCP4Conn{
+			LocalAddr:  convert.LEUint32ToBytes(rows[i].localAddr),
+			RemoteAddr: convert.LEUint32ToBytes(rows[i].remoteAddr),
+			State:      uint8(rows[i].state),
+			PID:        int64(rows[i].pid),
+		}
+		b := convert.LEUint32ToBytes(rows[i].localPort)[:2]
+		conn.LocalPort = convert.BEBytesToUint16(b)
+		b = convert.LEUint32ToBytes(rows[i].remotePort)[:2]
+		conn.RemotePort = convert.BEBytesToUint16(b)
+		conns[i] = &conn
+	}
+	return conns, nil
+}
+
+func (ns *netStat) GetTCP6Conns() ([]*TCP6Conn, error) {
+	buffer, err := ns.getTCPTable(windows.AF_INET6)
+	if err != nil {
+		return nil, err
+	}
+	table := (*tcp6Table)(unsafe.Pointer(&buffer[0]))
+	h := &reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&table.table)),
+		Len:  int(table.n),
+		Cap:  int(table.n),
+	}
+	rows := *(*[]tcp6Row)(unsafe.Pointer(h))
+	l := len(rows)
+	conns := make([]*TCP6Conn, l)
+	for i := 0; i < l; i++ {
+		conn := TCP6Conn{
+			LocalAddr:     convertUint32sToIPv6(rows[i].localAddr),
+			LocalScopeID:  rows[i].localScopeID,
+			RemoteAddr:    convertUint32sToIPv6(rows[i].remoteAddr),
+			RemoteScopeID: rows[i].remoteScopeID,
+			State:         uint8(rows[i].state),
+			PID:           int64(rows[i].pid),
+		}
+		b := convert.LEUint32ToBytes(rows[i].localPort)[:2]
+		conn.LocalPort = convert.BEBytesToUint16(b)
+		b = convert.LEUint32ToBytes(rows[i].remotePort)[:2]
+		conn.RemotePort = convert.BEBytesToUint16(b)
+		conns[i] = &conn
+	}
+	return conns, nil
+}
+
+func (ns *netStat) getTCPTable(ulAf uint32) ([]byte, error) {
+	const maxAttemptTimes = 64
+	var (
+		buffer    []byte
+		pTCPTable *byte
+		dwSize    uint32
+	)
+	for i := 0; i < maxAttemptTimes; i++ {
+		ret, _, errno := ns.getExtendedTCPTable.Call(
+			uintptr(unsafe.Pointer(pTCPTable)),
 			uintptr(unsafe.Pointer(&dwSize)),
-			uintptr(1), // order
-			uintptr(ulAf),
+			uintptr(1),         // order
+			uintptr(ulAf),      // IPv4 or IPv6
 			uintptr(5),         //  TCP_TABLE_OWNER_PID_ALL
 			uintptr(uint32(0)), // reserved
 		)
 		if ret != windows.NO_ERROR {
 			if windows.Errno(ret) == windows.ERROR_INSUFFICIENT_BUFFER {
 				buffer = make([]byte, dwSize)
-				pTcpTable = &buffer[0]
+				pTCPTable = &buffer[0]
 				continue
 			}
 			return nil, errno
 		}
 		return buffer, nil
 	}
+	return nil, errors.New("failed to get tcp table because reach maximum attempt times")
+}
+
+func (ns *netStat) GetUDP4Conns() ([]*UDP4Conn, error) {
+	buffer, err := ns.getUDPTable(windows.AF_INET)
+	if err != nil {
+		return nil, err
+	}
+	table := (*udp4Table)(unsafe.Pointer(&buffer[0]))
+	h := &reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&table.table)),
+		Len:  int(table.n),
+		Cap:  int(table.n),
+	}
+	rows := *(*[]udp4Row)(unsafe.Pointer(h))
+	l := len(rows)
+	conns := make([]*UDP4Conn, l)
+	for i := 0; i < l; i++ {
+		conn := UDP4Conn{
+			LocalAddr: convert.LEUint32ToBytes(rows[i].localAddr),
+			PID:       int64(rows[i].pid),
+		}
+		b := convert.LEUint32ToBytes(rows[i].localPort)[:2]
+		conn.LocalPort = convert.BEBytesToUint16(b)
+		conns[i] = &conn
+	}
+	return conns, nil
+}
+
+func (ns *netStat) GetUDP6Conns() ([]*UDP6Conn, error) {
+	buffer, err := ns.getUDPTable(windows.AF_INET6)
+	if err != nil {
+		return nil, err
+	}
+	table := (*udp6Table)(unsafe.Pointer(&buffer[0]))
+	h := &reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&table.table)),
+		Len:  int(table.n),
+		Cap:  int(table.n),
+	}
+	rows := *(*[]udp6Row)(unsafe.Pointer(h))
+	l := len(rows)
+	conns := make([]*UDP6Conn, l)
+	for i := 0; i < l; i++ {
+		conn := UDP6Conn{
+			LocalAddr:    convertUint32sToIPv6(rows[i].localAddr),
+			LocalScopeID: rows[i].localScopeID,
+			PID:          int64(rows[i].pid),
+		}
+		b := convert.LEUint32ToBytes(rows[i].localPort)[:2]
+		conn.LocalPort = convert.BEBytesToUint16(b)
+		conns[i] = &conn
+	}
+	return conns, nil
+}
+
+func (ns *netStat) getUDPTable(ulAf uint32) ([]byte, error) {
+	const maxAttemptTimes = 64
+	var (
+		buffer    []byte
+		pUDPTable *byte
+		dwSize    uint32
+	)
+	for i := 0; i < maxAttemptTimes; i++ {
+		ret, _, errno := ns.getExtendedUDPTable.Call(
+			uintptr(unsafe.Pointer(pUDPTable)),
+			uintptr(unsafe.Pointer(&dwSize)),
+			uintptr(1),         // order
+			uintptr(ulAf),      // IPv4 or IPv6
+			uintptr(1),         // UDP_TABLE_OWNER_PID
+			uintptr(uint32(0)), // reserved
+		)
+		if ret != windows.NO_ERROR {
+			if windows.Errno(ret) == windows.ERROR_INSUFFICIENT_BUFFER {
+				buffer = make([]byte, dwSize)
+				pUDPTable = &buffer[0]
+				continue
+			}
+			return nil, errno
+		}
+		return buffer, nil
+	}
+	return nil, errors.New("failed to get udp table because reach maximum attempt times")
+}
+
+func convertUint32sToIPv6(addr [4]uint32) net.IP {
+	ip := make([]byte, 0, net.IPv6len)
+	for i := 0; i < 4; i++ {
+		ip = append(ip, convert.LEUint32ToBytes(addr[i])...)
+	}
+	return ip
 }
