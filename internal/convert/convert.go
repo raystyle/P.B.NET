@@ -11,102 +11,102 @@ import (
 	"unsafe"
 )
 
-// Int16ToBytes is used to convert int16 to bytes with big endian.
-func Int16ToBytes(Int16 int16) []byte {
+// BEInt16ToBytes is used to convert int16 to bytes with big endian.
+func BEInt16ToBytes(Int16 int16) []byte {
 	b := make([]byte, 2)
 	binary.BigEndian.PutUint16(b, uint16(Int16))
 	return b
 }
 
-// Int32ToBytes is used to convert int32 to bytes with big endian.
-func Int32ToBytes(Int32 int32) []byte {
+// BEInt32ToBytes is used to convert int32 to bytes with big endian.
+func BEInt32ToBytes(Int32 int32) []byte {
 	b := make([]byte, 4)
 	binary.BigEndian.PutUint32(b, uint32(Int32))
 	return b
 }
 
-// Int64ToBytes is used to convert int64 to bytes with big endian.
-func Int64ToBytes(Int64 int64) []byte {
+// BEInt64ToBytes is used to convert int64 to bytes with big endian.
+func BEInt64ToBytes(Int64 int64) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, uint64(Int64))
 	return b
 }
 
-// Uint16ToBytes is used to convert uint16 to bytes with big endian.
-func Uint16ToBytes(Uint16 uint16) []byte {
+// BEUint16ToBytes is used to convert uint16 to bytes with big endian.
+func BEUint16ToBytes(Uint16 uint16) []byte {
 	b := make([]byte, 2)
 	binary.BigEndian.PutUint16(b, Uint16)
 	return b
 }
 
-// Uint32ToBytes is used to convert uint32 to bytes with big endian.
-func Uint32ToBytes(Uint32 uint32) []byte {
+// BEUint32ToBytes is used to convert uint32 to bytes with big endian.
+func BEUint32ToBytes(Uint32 uint32) []byte {
 	b := make([]byte, 4)
 	binary.BigEndian.PutUint32(b, Uint32)
 	return b
 }
 
-// Uint64ToBytes is used to convert uint64 to bytes with big endian.
-func Uint64ToBytes(Uint64 uint64) []byte {
+// BEUint64ToBytes is used to convert uint64 to bytes with big endian.
+func BEUint64ToBytes(Uint64 uint64) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, Uint64)
 	return b
 }
 
-// Float32ToBytes is used to convert float32 to bytes with big endian.
-func Float32ToBytes(Float32 float32) []byte {
+// BEFloat32ToBytes is used to convert float32 to bytes with big endian.
+func BEFloat32ToBytes(Float32 float32) []byte {
 	b := make([]byte, 4)
 	n := *(*uint32)(unsafe.Pointer(&Float32)) // #nosec
 	binary.BigEndian.PutUint32(b, n)
 	return b
 }
 
-// Float64ToBytes is used to convert float64 to bytes with big endian.
-func Float64ToBytes(Float64 float64) []byte {
+// BEFloat64ToBytes is used to convert float64 to bytes with big endian.
+func BEFloat64ToBytes(Float64 float64) []byte {
 	b := make([]byte, 8)
 	n := *(*uint64)(unsafe.Pointer(&Float64)) // #nosec
 	binary.BigEndian.PutUint64(b, n)
 	return b
 }
 
-// BytesToInt16 is used to convert bytes to int16 with big endian.
-func BytesToInt16(Bytes []byte) int16 {
+// BEBytesToInt16 is used to convert bytes to int16 with big endian.
+func BEBytesToInt16(Bytes []byte) int16 {
 	return int16(binary.BigEndian.Uint16(Bytes))
 }
 
-// BytesToInt32 is used to convert bytes to int32 with big endian.
-func BytesToInt32(Bytes []byte) int32 {
+// BEBytesToInt32 is used to convert bytes to int32 with big endian.
+func BEBytesToInt32(Bytes []byte) int32 {
 	return int32(binary.BigEndian.Uint32(Bytes))
 }
 
-// BytesToInt64 is used to convert bytes to int64 with big endian.
-func BytesToInt64(Bytes []byte) int64 {
+// BEBytesToInt64 is used to convert bytes to int64 with big endian.
+func BEBytesToInt64(Bytes []byte) int64 {
 	return int64(binary.BigEndian.Uint64(Bytes))
 }
 
-// BytesToUint16 is used to convert bytes to uint16 with big endian.
-func BytesToUint16(Bytes []byte) uint16 {
+// BEBytesToUint16 is used to convert bytes to uint16 with big endian.
+func BEBytesToUint16(Bytes []byte) uint16 {
 	return binary.BigEndian.Uint16(Bytes)
 }
 
-// BytesToUint32 is used to convert bytes to uint32 with big endian.
-func BytesToUint32(Bytes []byte) uint32 {
+// BEBytesToUint32 is used to convert bytes to uint32 with big endian.
+func BEBytesToUint32(Bytes []byte) uint32 {
 	return binary.BigEndian.Uint32(Bytes)
 }
 
-// BytesToUint64 is used to convert bytes to uint64 with big endian.
-func BytesToUint64(Bytes []byte) uint64 {
+// BEBytesToUint64 is used to convert bytes to uint64 with big endian.
+func BEBytesToUint64(Bytes []byte) uint64 {
 	return binary.BigEndian.Uint64(Bytes)
 }
 
-// BytesToFloat32 is used to convert bytes to float32 with big endian.
-func BytesToFloat32(Bytes []byte) float32 {
+// BEBytesToFloat32 is used to convert bytes to float32 with big endian.
+func BEBytesToFloat32(Bytes []byte) float32 {
 	b := binary.BigEndian.Uint32(Bytes)
 	return *(*float32)(unsafe.Pointer(&b)) // #nosec
 }
 
-// BytesToFloat64 is used to convert bytes to float64 with big endian.
-func BytesToFloat64(Bytes []byte) float64 {
+// BEBytesToFloat64 is used to convert bytes to float64 with big endian.
+func BEBytesToFloat64(Bytes []byte) float64 {
 	b := binary.BigEndian.Uint64(Bytes)
 	return *(*float64)(unsafe.Pointer(&b)) // #nosec
 }

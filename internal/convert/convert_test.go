@@ -18,104 +18,104 @@ func testDeferForPanic(t testing.TB) {
 }
 
 func TestBENumberToBytes(t *testing.T) {
-	if !bytes.Equal(Int16ToBytes(int16(0x0102)), []byte{1, 2}) {
-		t.Fatal("Int16ToBytes() with invalid number")
+	if !bytes.Equal(BEInt16ToBytes(int16(0x0102)), []byte{1, 2}) {
+		t.Fatal("BEInt16ToBytes() with invalid number")
 	}
-	if !bytes.Equal(Int32ToBytes(int32(0x01020304)), []byte{1, 2, 3, 4}) {
-		t.Fatal("Int32ToBytes() with invalid number")
+	if !bytes.Equal(BEInt32ToBytes(int32(0x01020304)), []byte{1, 2, 3, 4}) {
+		t.Fatal("BEInt32ToBytes() with invalid number")
 	}
-	if !bytes.Equal(Int64ToBytes(int64(0x0102030405060708)), []byte{1, 2, 3, 4, 5, 6, 7, 8}) {
-		t.Fatal("Int16ToBytes() with invalid number")
+	if !bytes.Equal(BEInt64ToBytes(int64(0x0102030405060708)), []byte{1, 2, 3, 4, 5, 6, 7, 8}) {
+		t.Fatal("BEInt64ToBytes() with invalid number")
 	}
-	if !bytes.Equal(Uint16ToBytes(uint16(0x0102)), []byte{1, 2}) {
-		t.Fatal("Uint16ToBytes() with invalid number")
+	if !bytes.Equal(BEUint16ToBytes(uint16(0x0102)), []byte{1, 2}) {
+		t.Fatal("BEUint16ToBytes() with invalid number")
 	}
-	if !bytes.Equal(Uint32ToBytes(uint32(0x01020304)), []byte{1, 2, 3, 4}) {
-		t.Fatal("Uint32ToBytes() with invalid number")
+	if !bytes.Equal(BEUint32ToBytes(uint32(0x01020304)), []byte{1, 2, 3, 4}) {
+		t.Fatal("BEUint32ToBytes() with invalid number")
 	}
-	if !bytes.Equal(Uint64ToBytes(uint64(0x0102030405060708)), []byte{1, 2, 3, 4, 5, 6, 7, 8}) {
-		t.Fatal("Uint64ToBytes() with invalid number")
+	if !bytes.Equal(BEUint64ToBytes(uint64(0x0102030405060708)), []byte{1, 2, 3, 4, 5, 6, 7, 8}) {
+		t.Fatal("BEUint64ToBytes() with invalid number")
 	}
-	if !bytes.Equal(Float32ToBytes(float32(123.123)), []byte{66, 246, 62, 250}) {
-		t.Fatal("Float32ToBytes() with invalid number")
+	if !bytes.Equal(BEFloat32ToBytes(float32(123.123)), []byte{66, 246, 62, 250}) {
+		t.Fatal("BEFloat32ToBytes() with invalid number")
 	}
-	if !bytes.Equal(Float64ToBytes(123.123), []byte{64, 94, 199, 223, 59, 100, 90, 29}) {
-		t.Fatal("Float64ToBytes() with invalid number")
+	if !bytes.Equal(BEFloat64ToBytes(123.123), []byte{64, 94, 199, 223, 59, 100, 90, 29}) {
+		t.Fatal("BEFloat64ToBytes() with invalid number")
 	}
 }
 
 func TestBEBytesToNumber(t *testing.T) {
-	if BytesToInt16([]byte{1, 2}) != 0x0102 {
-		t.Fatal("BytesToInt16() with invalid bytes")
+	if BEBytesToInt16([]byte{1, 2}) != 0x0102 {
+		t.Fatal("BEBytesToInt16() with invalid bytes")
 	}
-	if BytesToInt32([]byte{1, 2, 3, 4}) != 0x01020304 {
-		t.Fatal("BytesToInt32() with invalid bytes")
+	if BEBytesToInt32([]byte{1, 2, 3, 4}) != 0x01020304 {
+		t.Fatal("BEBytesToInt32() with invalid bytes")
 	}
-	if BytesToInt64([]byte{1, 2, 3, 4, 5, 6, 7, 8}) != 0x0102030405060708 {
-		t.Fatal("BytesToInt64() with invalid bytes")
+	if BEBytesToInt64([]byte{1, 2, 3, 4, 5, 6, 7, 8}) != 0x0102030405060708 {
+		t.Fatal("BEBytesToInt64() with invalid bytes")
 	}
-	if BytesToUint16([]byte{1, 2}) != 0x0102 {
-		t.Fatal("BytesToUint16() with invalid bytes")
+	if BEBytesToUint16([]byte{1, 2}) != 0x0102 {
+		t.Fatal("BEBytesToUint16() with invalid bytes")
 	}
-	if BytesToUint32([]byte{1, 2, 3, 4}) != 0x01020304 {
-		t.Fatal("BytesToUint32() with invalid bytes")
+	if BEBytesToUint32([]byte{1, 2, 3, 4}) != 0x01020304 {
+		t.Fatal("BEBytesToUint32() with invalid bytes")
 	}
-	if BytesToUint64([]byte{1, 2, 3, 4, 5, 6, 7, 8}) != 0x0102030405060708 {
-		t.Fatal("BytesToUint64() with invalid bytes")
+	if BEBytesToUint64([]byte{1, 2, 3, 4, 5, 6, 7, 8}) != 0x0102030405060708 {
+		t.Fatal("BEBytesToUint64() with invalid bytes")
 	}
-	if BytesToFloat32([]byte{66, 246, 62, 250}) != 123.123 {
-		t.Fatal("BytesToFloat32() with invalid bytes")
+	if BEBytesToFloat32([]byte{66, 246, 62, 250}) != 123.123 {
+		t.Fatal("BEBytesToFloat32() with invalid bytes")
 	}
-	if BytesToFloat64([]byte{64, 94, 199, 223, 59, 100, 90, 29}) != 123.123 {
-		t.Fatal("BytesToFloat64() with invalid bytes")
+	if BEBytesToFloat64([]byte{64, 94, 199, 223, 59, 100, 90, 29}) != 123.123 {
+		t.Fatal("BEBytesToFloat64() with invalid bytes")
 	}
 
 	// negative number
 	n := int64(-0x12345678)
-	if BytesToInt64(Int64ToBytes(n)) != n {
+	if BEBytesToInt64(BEInt64ToBytes(n)) != n {
 		t.Fatal("negative number")
 	}
 }
 
 func TestBEBytesToNumberWithInvalidBytes(t *testing.T) {
-	t.Run("BytesToInt16", func(t *testing.T) {
+	t.Run("BEBytesToInt16", func(t *testing.T) {
 		defer testDeferForPanic(t)
-		BytesToInt16([]byte{1})
+		BEBytesToInt16([]byte{1})
 	})
 
-	t.Run("BytesToInt32", func(t *testing.T) {
+	t.Run("BEBytesToInt32", func(t *testing.T) {
 		defer testDeferForPanic(t)
-		BytesToInt32([]byte{1})
+		BEBytesToInt32([]byte{1})
 	})
 
-	t.Run("BytesToInt64", func(t *testing.T) {
+	t.Run("BEBytesToInt64", func(t *testing.T) {
 		defer testDeferForPanic(t)
-		BytesToInt64([]byte{1})
+		BEBytesToInt64([]byte{1})
 	})
 
-	t.Run("BytesToUint16", func(t *testing.T) {
+	t.Run("BEBytesToUint16", func(t *testing.T) {
 		defer testDeferForPanic(t)
-		BytesToUint16([]byte{1})
+		BEBytesToUint16([]byte{1})
 	})
 
-	t.Run("BytesToUint32", func(t *testing.T) {
+	t.Run("BEBytesToUint32", func(t *testing.T) {
 		defer testDeferForPanic(t)
-		BytesToUint32([]byte{1})
+		BEBytesToUint32([]byte{1})
 	})
 
-	t.Run("BytesToUint64", func(t *testing.T) {
+	t.Run("BEBytesToUint64", func(t *testing.T) {
 		defer testDeferForPanic(t)
-		BytesToUint64([]byte{1})
+		BEBytesToUint64([]byte{1})
 	})
 
-	t.Run("BytesToFloat32", func(t *testing.T) {
+	t.Run("BEBytesToFloat32", func(t *testing.T) {
 		defer testDeferForPanic(t)
-		BytesToFloat32([]byte{1})
+		BEBytesToFloat32([]byte{1})
 	})
 
-	t.Run("BytesToFloat64", func(t *testing.T) {
+	t.Run("BEBytesToFloat64", func(t *testing.T) {
 		defer testDeferForPanic(t)
-		BytesToFloat64([]byte{1})
+		BEBytesToFloat64([]byte{1})
 	})
 }
 
