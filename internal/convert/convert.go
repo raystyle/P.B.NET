@@ -161,6 +161,14 @@ func LEFloat32ToBytes(Float32 float32) []byte {
 	return b
 }
 
+// LEFloat64ToBytes is used to convert float64 to bytes with little endian.
+func LEFloat64ToBytes(Float64 float64) []byte {
+	b := make([]byte, 8)
+	n := *(*uint64)(unsafe.Pointer(&Float64)) // #nosec
+	binary.LittleEndian.PutUint64(b, n)
+	return b
+}
+
 // LEBytesToInt16 is used to convert bytes to int16 with little endian.
 func LEBytesToInt16(Bytes []byte) int16 {
 	return int16(binary.LittleEndian.Uint16(Bytes))

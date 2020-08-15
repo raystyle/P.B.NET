@@ -10,7 +10,14 @@ import (
 	"project/internal/patch/monkey"
 )
 
-func TestNumberToBytes(t *testing.T) {
+// copy from internal/testsuite/testsuite.go
+func testDeferForPanic(t testing.TB) {
+	r := recover()
+	require.NotNil(t, r)
+	t.Logf("\npanic in %s:\n%s\n", t.Name(), r)
+}
+
+func TestBENumberToBytes(t *testing.T) {
 	if !bytes.Equal(Int16ToBytes(int16(0x0102)), []byte{1, 2}) {
 		t.Fatal("Int16ToBytes() with invalid number")
 	}
@@ -37,7 +44,7 @@ func TestNumberToBytes(t *testing.T) {
 	}
 }
 
-func TestBytesToNumber(t *testing.T) {
+func TestBEBytesToNumber(t *testing.T) {
 	if BytesToInt16([]byte{1, 2}) != 0x0102 {
 		t.Fatal("BytesToInt16() with invalid bytes")
 	}
@@ -62,16 +69,15 @@ func TestBytesToNumber(t *testing.T) {
 	if BytesToFloat64([]byte{64, 94, 199, 223, 59, 100, 90, 29}) != 123.123 {
 		t.Fatal("BytesToFloat64() with invalid bytes")
 	}
+
+	// negative number
+	n := int64(-0x12345678)
+	if BytesToInt64(Int64ToBytes(n)) != n {
+		t.Fatal("negative number")
+	}
 }
 
-// copy from internal/testsuite/testsuite.go
-func testDeferForPanic(t testing.TB) {
-	r := recover()
-	require.NotNil(t, r)
-	t.Logf("\npanic in %s:\n%s\n", t.Name(), r)
-}
-
-func TestBytesToNumberWithInvalidBytes(t *testing.T) {
+func TestBEBytesToNumberWithInvalidBytes(t *testing.T) {
 	t.Run("BytesToInt16", func(t *testing.T) {
 		defer testDeferForPanic(t)
 		BytesToInt16([]byte{1})
@@ -111,12 +117,108 @@ func TestBytesToNumberWithInvalidBytes(t *testing.T) {
 		defer testDeferForPanic(t)
 		BytesToFloat64([]byte{1})
 	})
+}
+
+func TestLENumberToBytes(t *testing.T) {
+	if !bytes.Equal(LEInt16ToBytes(int16(0x0102)), []byte{2, 1}) {
+		t.Fatal("LEInt16ToBytes() with invalid number")
+	}
+	if !bytes.Equal(LEInt32ToBytes(int32(0x01020304)), []byte{4, 3, 2, 1}) {
+		t.Fatal("LEInt32ToBytes() with invalid number")
+	}
+	if !bytes.Equal(LEInt64ToBytes(int64(0x0102030405060708)), []byte{8, 7, 6, 5, 4, 3, 2, 1}) {
+		t.Fatal("LEInt64ToBytes() with invalid number")
+	}
+	if !bytes.Equal(LEUint16ToBytes(uint16(0x0102)), []byte{2, 1}) {
+		t.Fatal("LEUint16ToBytes() with invalid number")
+	}
+	if !bytes.Equal(LEUint32ToBytes(uint32(0x01020304)), []byte{4, 3, 2, 1}) {
+		t.Fatal("LEUint32ToBytes() with invalid number")
+	}
+	if !bytes.Equal(LEUint64ToBytes(uint64(0x0102030405060708)), []byte{8, 7, 6, 5, 4, 3, 2, 1}) {
+		t.Fatal("LEUint64ToBytes() with invalid number")
+	}
+	if !bytes.Equal(LEFloat32ToBytes(float32(123.123)), []byte{250, 62, 246, 66}) {
+		t.Fatal("LEFloat32ToBytes() with invalid number")
+	}
+	if !bytes.Equal(LEFloat64ToBytes(123.123), []byte{29, 90, 100, 59, 223, 199, 94, 64}) {
+		t.Fatal("LEFloat64ToBytes() with invalid number")
+	}
+}
+
+func TestLEBytesToNumber(t *testing.T) {
+	if LEBytesToInt16([]byte{2, 1}) != 0x0102 {
+		t.Fatal("LEBytesToInt16() with invalid bytes")
+	}
+	if LEBytesToInt32([]byte{4, 3, 2, 1}) != 0x01020304 {
+		t.Fatal("LEBytesToInt32() with invalid bytes")
+	}
+	if LEBytesToInt64([]byte{8, 7, 6, 5, 4, 3, 2, 1}) != 0x0102030405060708 {
+		t.Fatal("LEBytesToInt64() with invalid bytes")
+	}
+	if LEBytesToUint16([]byte{2, 1}) != 0x0102 {
+		t.Fatal("LEBytesToUint16() with invalid bytes")
+	}
+	if LEBytesToUint32([]byte{4, 3, 2, 1}) != 0x01020304 {
+		t.Fatal("LEBytesToUint32() with invalid bytes")
+	}
+	if LEBytesToUint64([]byte{8, 7, 6, 5, 4, 3, 2, 1}) != 0x0102030405060708 {
+		t.Fatal("LEBytesToUint64() with invalid bytes")
+	}
+	if LEBytesToFloat32([]byte{250, 62, 246, 66}) != 123.123 {
+		t.Fatal("LEBytesToFloat32() with invalid bytes")
+	}
+	if LEBytesToFloat64([]byte{29, 90, 100, 59, 223, 199, 94, 64}) != 123.123 {
+		t.Fatal("LEBytesToFloat64() with invalid bytes")
+	}
 
 	// negative number
 	n := int64(-0x12345678)
-	if BytesToInt64(Int64ToBytes(n)) != n {
+	if LEBytesToInt64(LEInt64ToBytes(n)) != n {
 		t.Fatal("negative number")
 	}
+}
+
+func TestLEBytesToNumberWithInvalidBytes(t *testing.T) {
+	t.Run("LEBytesToInt16", func(t *testing.T) {
+		defer testDeferForPanic(t)
+		LEBytesToInt16([]byte{1})
+	})
+
+	t.Run("LEBytesToInt32", func(t *testing.T) {
+		defer testDeferForPanic(t)
+		LEBytesToInt32([]byte{1})
+	})
+
+	t.Run("LEBytesToInt64", func(t *testing.T) {
+		defer testDeferForPanic(t)
+		LEBytesToInt64([]byte{1})
+	})
+
+	t.Run("LEBytesToUint16", func(t *testing.T) {
+		defer testDeferForPanic(t)
+		LEBytesToUint16([]byte{1})
+	})
+
+	t.Run("LEBytesToUint32", func(t *testing.T) {
+		defer testDeferForPanic(t)
+		LEBytesToUint32([]byte{1})
+	})
+
+	t.Run("LEBytesToUint64", func(t *testing.T) {
+		defer testDeferForPanic(t)
+		LEBytesToUint64([]byte{1})
+	})
+
+	t.Run("LEBytesToFloat32", func(t *testing.T) {
+		defer testDeferForPanic(t)
+		LEBytesToFloat32([]byte{1})
+	})
+
+	t.Run("LEBytesToFloat64", func(t *testing.T) {
+		defer testDeferForPanic(t)
+		LEBytesToFloat64([]byte{1})
+	})
 }
 
 func TestAbsInt64(t *testing.T) {
