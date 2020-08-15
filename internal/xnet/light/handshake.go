@@ -42,7 +42,7 @@ func (c *Conn) clientHandshake() error {
 	r := random.NewRand()
 	sendPaddingSize := paddingMinSize + r.Int(paddingMaxSize)
 	handshake := bytes.Buffer{}
-	handshake.Write(convert.Uint16ToBytes(uint16(sendPaddingSize)))
+	handshake.Write(convert.BEUint16ToBytes(uint16(sendPaddingSize)))
 	handshake.Write(r.Bytes(sendPaddingSize))
 	handshake.Write(pub)
 	_, err = c.Conn.Write(handshake.Bytes())
@@ -56,7 +56,7 @@ func (c *Conn) clientHandshake() error {
 		return err
 	}
 	// check padding size
-	recvPaddingSize := convert.BytesToUint16(buffer)
+	recvPaddingSize := convert.BEBytesToUint16(buffer)
 	if recvPaddingSize < paddingMinSize { // <exploit>
 		return ErrInvalidPaddingSize
 	}
@@ -110,7 +110,7 @@ func (c *Conn) serverHandshake() error {
 		return err
 	}
 	// check padding size
-	recvPaddingSize := convert.BytesToUint16(buffer)
+	recvPaddingSize := convert.BEBytesToUint16(buffer)
 	if recvPaddingSize < paddingMinSize { // <exploit>
 		return ErrInvalidPaddingSize
 	}
@@ -144,7 +144,7 @@ func (c *Conn) serverHandshake() error {
 	r := random.NewRand()
 	sendPaddingSize := paddingMinSize + r.Int(paddingMaxSize)
 	handshake := bytes.Buffer{}
-	handshake.Write(convert.Uint16ToBytes(uint16(sendPaddingSize)))
+	handshake.Write(convert.BEUint16ToBytes(uint16(sendPaddingSize)))
 	handshake.Write(r.Bytes(sendPaddingSize))
 	handshake.Write(pub)
 	handshake.Write(password)

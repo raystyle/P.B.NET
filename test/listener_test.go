@@ -48,7 +48,7 @@ func testNodeListenerClientSend(t *testing.T, client *controller.Client) {
 		defer wg.Done()
 		data := bytes.Buffer{}
 		for i := 0; i < 1024; i++ {
-			data.Write(convert.Int32ToBytes(int32(i)))
+			data.Write(convert.BEInt32ToBytes(int32(i)))
 			reply, err := client.SendCommand(protocol.TestCommand, data.Bytes())
 			require.NoError(t, err)
 			require.Equal(t, data.Bytes(), reply)

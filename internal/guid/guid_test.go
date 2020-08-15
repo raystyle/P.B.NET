@@ -57,7 +57,7 @@ func TestGUID(t *testing.T) {
 	t.Run("Timestamp", func(t *testing.T) {
 		now := time.Now().Unix()
 		guid := GUID{}
-		copy(guid[20:28], convert.Int64ToBytes(now))
+		copy(guid[20:28], convert.BEInt64ToBytes(now))
 
 		require.Equal(t, now, guid.Timestamp())
 	})

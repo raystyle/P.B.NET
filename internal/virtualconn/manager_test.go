@@ -20,9 +20,9 @@ func TestNewConnID(t *testing.T) {
 
 	expected := make([]byte, 0, 2*guid.Size+2*portSize)
 	expected = append(expected, bytes.Repeat([]byte{1}, guid.Size)...)
-	expected = append(expected, convert.Uint32ToBytes(3)...)
+	expected = append(expected, convert.BEUint32ToBytes(3)...)
 	expected = append(expected, bytes.Repeat([]byte{2}, guid.Size)...)
-	expected = append(expected, convert.Uint32ToBytes(4)...)
+	expected = append(expected, convert.BEUint32ToBytes(4)...)
 
 	require.Equal(t, expected, cid[:])
 }

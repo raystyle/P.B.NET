@@ -101,7 +101,7 @@ func sendMessage(conn net.Conn, message []byte, timeout time.Duration) ([]byte, 
 	defer func() { _ = dConn.Close() }()
 	// add size header
 	header := new(bytes.Buffer)
-	header.Write(convert.Uint16ToBytes(uint16(len(message))))
+	header.Write(convert.BEUint16ToBytes(uint16(len(message))))
 	header.Write(message)
 	_, err := dConn.Write(header.Bytes())
 	if err != nil {
@@ -113,7 +113,7 @@ func sendMessage(conn net.Conn, message []byte, timeout time.Duration) ([]byte, 
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	resp := make([]byte, int(convert.BytesToUint16(length)))
+	resp := make([]byte, int(convert.BEBytesToUint16(length)))
 	_, err = io.ReadFull(dConn, resp)
 	if err != nil {
 		return nil, errors.WithStack(err)

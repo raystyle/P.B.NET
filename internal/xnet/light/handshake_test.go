@@ -73,14 +73,14 @@ func TestConn_clientHandshake(t *testing.T) {
 
 	t.Run("invalid padding size", func(t *testing.T) {
 		testConnClientHandshake(t, func(t *testing.T, server *Conn) {
-			_, err := server.Conn.Write(convert.Uint16ToBytes(1))
+			_, err := server.Conn.Write(convert.BEUint16ToBytes(1))
 			require.NoError(t, err)
 		}, ErrInvalidPaddingSize)
 	})
 
 	t.Run("failed to receive padding data", func(t *testing.T) {
 		testConnClientHandshake(t, func(t *testing.T, server *Conn) {
-			data := convert.Uint16ToBytes(paddingMinSize + 10)
+			data := convert.BEUint16ToBytes(paddingMinSize + 10)
 			data = append(data, 1)
 
 			_, err := server.Conn.Write(data)
@@ -93,7 +93,7 @@ func TestConn_clientHandshake(t *testing.T) {
 
 	sendPaddingData := func(server *Conn) {
 		const paddingSize = paddingMinSize + 10
-		size := convert.Uint16ToBytes(paddingSize)
+		size := convert.BEUint16ToBytes(paddingSize)
 		paddingData := bytes.Repeat([]byte{1}, paddingSize)
 
 		_, err := server.Conn.Write(append(size, paddingData...))
@@ -219,14 +219,14 @@ func TestConn_serverHandshake(t *testing.T) {
 
 	t.Run("invalid padding size", func(t *testing.T) {
 		testConnServerHandshake(t, func(t *testing.T, client *Conn) {
-			_, err := client.Conn.Write(convert.Uint16ToBytes(1))
+			_, err := client.Conn.Write(convert.BEUint16ToBytes(1))
 			require.NoError(t, err)
 		}, ErrInvalidPaddingSize)
 	})
 
 	t.Run("failed to receive padding data", func(t *testing.T) {
 		testConnServerHandshake(t, func(t *testing.T, client *Conn) {
-			data := convert.Uint16ToBytes(paddingMinSize + 10)
+			data := convert.BEUint16ToBytes(paddingMinSize + 10)
 			data = append(data, 1)
 
 			_, err := client.Conn.Write(data)
@@ -239,7 +239,7 @@ func TestConn_serverHandshake(t *testing.T) {
 
 	sendPaddingData := func(client *Conn) {
 		const paddingSize = paddingMinSize + 10
-		size := convert.Uint16ToBytes(paddingSize)
+		size := convert.BEUint16ToBytes(paddingSize)
 		paddingData := bytes.Repeat([]byte{1}, paddingSize)
 		_, err := client.Conn.Write(append(size, paddingData...))
 		require.NoError(t, err)

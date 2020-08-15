@@ -116,7 +116,7 @@ func HandleConn(conn net.Conn, handler func([]byte)) {
 				break
 			}
 			if bodySize == 0 { // avoid duplicate calculations
-				bodySize = int(convert.BytesToUint32(data.Next(FrameLenSize)))
+				bodySize = int(convert.BEBytesToUint32(data.Next(FrameLenSize)))
 				if bodySize == 0 {
 					handler(errNullFrame)
 					return

@@ -121,49 +121,49 @@ const (
 // ---------------------------------------command to bytes-----------------------------------------
 var (
 	// -----------------------------------test data----------------------------------
-	CMDBTest           = convert.Uint32ToBytes(CMDTest)
-	CMDBRTTestRequest  = convert.Uint32ToBytes(CMDRTTestRequest)
-	CMDBRTTestResponse = convert.Uint32ToBytes(CMDRTTestResponse)
+	CMDBTest           = convert.BEUint32ToBytes(CMDTest)
+	CMDBRTTestRequest  = convert.BEUint32ToBytes(CMDRTTestRequest)
+	CMDBRTTestResponse = convert.BEUint32ToBytes(CMDRTTestResponse)
 
 	// -------------------------------------core-------------------------------------
 	// about Controller
-	CMDBCtrlNodeNop   = convert.Uint32ToBytes(CMDCtrlNodeNop)
-	CMDBCtrlBeaconNop = convert.Uint32ToBytes(CMDCtrlBeaconNop)
+	CMDBCtrlNodeNop   = convert.BEUint32ToBytes(CMDCtrlNodeNop)
+	CMDBCtrlBeaconNop = convert.BEUint32ToBytes(CMDCtrlBeaconNop)
 
-	CMDBCtrlDeleteNode   = convert.Uint32ToBytes(CMDCtrlDeleteNode)
-	CMDBCtrlDeleteBeacon = convert.Uint32ToBytes(CMDCtrlDeleteBeacon)
+	CMDBCtrlDeleteNode   = convert.BEUint32ToBytes(CMDCtrlDeleteNode)
+	CMDBCtrlDeleteBeacon = convert.BEUint32ToBytes(CMDCtrlDeleteBeacon)
 
-	CMDBCtrlChangeMode         = convert.Uint32ToBytes(CMDCtrlChangeMode)
-	CMDBBeaconChangeModeResult = convert.Uint32ToBytes(CMDBeaconChangeModeResult)
+	CMDBCtrlChangeMode         = convert.BEUint32ToBytes(CMDCtrlChangeMode)
+	CMDBBeaconChangeModeResult = convert.BEUint32ToBytes(CMDBeaconChangeModeResult)
 
 	// about Node
-	CMDBNodeRegisterRequestFromNode   = convert.Uint32ToBytes(CMDNodeRegisterRequestFromNode)
-	CMDBNodeRegisterRequestFromBeacon = convert.Uint32ToBytes(CMDNodeRegisterRequestFromBeacon)
-	CMDBCtrlNodeRegisterResponse      = convert.Uint32ToBytes(CMDCtrlNodeRegisterResponse)
-	CMDBCtrlBeaconRegisterResponse    = convert.Uint32ToBytes(CMDCtrlBeaconRegisterResponse)
+	CMDBNodeRegisterRequestFromNode   = convert.BEUint32ToBytes(CMDNodeRegisterRequestFromNode)
+	CMDBNodeRegisterRequestFromBeacon = convert.BEUint32ToBytes(CMDNodeRegisterRequestFromBeacon)
+	CMDBCtrlNodeRegisterResponse      = convert.BEUint32ToBytes(CMDCtrlNodeRegisterResponse)
+	CMDBCtrlBeaconRegisterResponse    = convert.BEUint32ToBytes(CMDCtrlBeaconRegisterResponse)
 
-	CMDBNodeQueryNodeKey    = convert.Uint32ToBytes(CMDNodeQueryNodeKey)
-	CMDBNodeQueryBeaconKey  = convert.Uint32ToBytes(CMDNodeQueryBeaconKey)
-	CMDBCtrlAnswerNodeKey   = convert.Uint32ToBytes(CMDCtrlAnswerNodeKey)
-	CMDBCtrlAnswerBeaconKey = convert.Uint32ToBytes(CMDCtrlAnswerBeaconKey)
+	CMDBNodeQueryNodeKey    = convert.BEUint32ToBytes(CMDNodeQueryNodeKey)
+	CMDBNodeQueryBeaconKey  = convert.BEUint32ToBytes(CMDNodeQueryBeaconKey)
+	CMDBCtrlAnswerNodeKey   = convert.BEUint32ToBytes(CMDCtrlAnswerNodeKey)
+	CMDBCtrlAnswerBeaconKey = convert.BEUint32ToBytes(CMDCtrlAnswerBeaconKey)
 
-	CMDBNodeUpdateNodeRequestFromNode   = convert.Uint32ToBytes(CMDNodeUpdateNodeRequestFromNode)
-	CMDBNodeUpdateNodeRequestFromBeacon = convert.Uint32ToBytes(CMDNodeUpdateNodeRequestFromBeacon)
-	CMDBCtrlUpdateNodeResponse          = convert.Uint32ToBytes(CMDCtrlUpdateNodeResponse)
+	CMDBNodeUpdateNodeRequestFromNode   = convert.BEUint32ToBytes(CMDNodeUpdateNodeRequestFromNode)
+	CMDBNodeUpdateNodeRequestFromBeacon = convert.BEUint32ToBytes(CMDNodeUpdateNodeRequestFromBeacon)
+	CMDBCtrlUpdateNodeResponse          = convert.BEUint32ToBytes(CMDCtrlUpdateNodeResponse)
 
 	// about Beacon
-	CMDBBeaconModeChanged = convert.Uint32ToBytes(CMDBeaconModeChanged)
+	CMDBBeaconModeChanged = convert.BEUint32ToBytes(CMDBeaconModeChanged)
 
 	// ----------------------------role internal modules-----------------------------
 	// about Node
-	CMDBNodeLog = convert.Uint32ToBytes(CMDNodeLog)
+	CMDBNodeLog = convert.BEUint32ToBytes(CMDNodeLog)
 
 	// about Beacon
-	CMDBBeaconLog = convert.Uint32ToBytes(CMDBeaconLog)
+	CMDBBeaconLog = convert.BEUint32ToBytes(CMDBeaconLog)
 
 	// ------------------------------role other modules------------------------------
-	CMDBShellCode         = convert.Uint32ToBytes(CMDShellCode)
-	CMDBShellCodeResult   = convert.Uint32ToBytes(CMDShellCodeResult)
-	CMDBSingleShell       = convert.Uint32ToBytes(CMDSingleShell)
-	CMDBSingleShellOutput = convert.Uint32ToBytes(CMDSingleShellOutput)
+	CMDBShellCode         = convert.BEUint32ToBytes(CMDShellCode)
+	CMDBShellCodeResult   = convert.BEUint32ToBytes(CMDShellCodeResult)
+	CMDBSingleShell       = convert.BEUint32ToBytes(CMDSingleShell)
+	CMDBSingleShellOutput = convert.BEUint32ToBytes(CMDSingleShellOutput)
 )

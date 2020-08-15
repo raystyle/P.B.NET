@@ -94,7 +94,7 @@ func Encrypt(img image.Image, plainData, key, iv []byte) (*image.NRGBA64, error)
 	defer security.CoverBytes(hash)
 	// set secret
 	secret := make([]byte, 0, headerSize+sha256.Size+len(cipherData))
-	secret = append(secret, convert.Uint32ToBytes(uint32(len(cipherData)))...)
+	secret = append(secret, convert.BEUint32ToBytes(uint32(len(cipherData)))...)
 	secret = append(secret, hash...)
 	secret = append(secret, cipherData...)
 	return writeDataToImage(img, rect, secret), nil
@@ -206,7 +206,7 @@ func Decrypt(img *image.NRGBA64, key, iv []byte) ([]byte, error) {
 	y := &min.Y
 	// read header
 	header := readDataFromImage(img, width, height, x, y, headerSize)
-	cipherDataSize := int(convert.BytesToUint32(header))
+	cipherDataSize := int(convert.BEBytesToUint32(header))
 	if headerSize+sha256.Size+cipherDataSize > maxSize {
 		return nil, errors.New("invalid size in header")
 	}

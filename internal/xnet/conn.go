@@ -78,7 +78,7 @@ func (c *Conn) Send(msg []byte) error {
 	if size > MaxMsgLength {
 		return ErrSendTooBigMessage
 	}
-	header := convert.Uint32ToBytes(uint32(size))
+	header := convert.BEUint32ToBytes(uint32(size))
 	_, err := c.Write(append(header, msg...))
 	return err
 }
@@ -90,7 +90,7 @@ func (c *Conn) Receive() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	msgSize := int(convert.BytesToUint32(header))
+	msgSize := int(convert.BEBytesToUint32(header))
 	if msgSize > MaxMsgLength {
 		return nil, ErrReceiveTooBigMessage
 	}

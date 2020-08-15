@@ -58,7 +58,7 @@ read:
 	for i := 0; i < 8; i++ {
 		selected[i] = hashData[r.Intn(sha256.Size)]
 	}
-	seed := convert.BytesToInt64(selected)
+	seed := convert.BEBytesToInt64(selected)
 	return &Rand{rand: rand.New(rand.NewSource(seed))} // #nosec
 }
 

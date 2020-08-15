@@ -118,7 +118,7 @@ func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
 		buf.WriteByte(byte(len(host)))
 		buf.Write([]byte(host))
 	}
-	buf.Write(convert.Uint16ToBytes(port))
+	buf.Write(convert.BEUint16ToBytes(port))
 	_, err = conn.Write(buf.Bytes())
 	if err != nil {
 		return errors.Wrap(err, "failed to write connect target")
@@ -419,6 +419,6 @@ func (c *conn) receiveTarget() string {
 		c.log(logger.Error, "failed to read port:", err)
 		return ""
 	}
-	port := convert.BytesToUint16(buf[:2])
+	port := convert.BEBytesToUint16(buf[:2])
 	return net.JoinHostPort(host, strconv.Itoa(int(port)))
 }

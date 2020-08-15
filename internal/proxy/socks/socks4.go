@@ -72,7 +72,7 @@ func (c *Client) connectSocks4(conn net.Conn, host string, port uint16) error {
 	buffer := bytes.Buffer{}
 	buffer.WriteByte(version4)
 	buffer.WriteByte(connect)
-	buffer.Write(convert.Uint16ToBytes(port))
+	buffer.Write(convert.BEUint16ToBytes(port))
 	if socks4aExt { // socks4a ext
 		buffer.Write(v4IPPadding) // padding IPv4
 	} else {
@@ -134,7 +134,7 @@ func (c *conn) serveSocks4() {
 		return
 	}
 	// address
-	port := convert.BytesToUint16(buf[2:4])
+	port := convert.BEBytesToUint16(buf[2:4])
 	var (
 		domain bool
 		ip     bool

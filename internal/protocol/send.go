@@ -243,7 +243,7 @@ func NewQuery() *Query {
 func (q *Query) Pack(buf *bytes.Buffer) {
 	buf.Write(q.GUID[:])
 	buf.Write(q.BeaconGUID[:])
-	buf.Write(convert.Uint64ToBytes(q.Index))
+	buf.Write(convert.BEUint64ToBytes(q.Index))
 	buf.Write(q.Hash)
 }
 
@@ -254,7 +254,7 @@ func (q *Query) Unpack(data []byte) error {
 	}
 	copy(q.GUID[:], data[:guid.Size])
 	copy(q.BeaconGUID[:], data[guid.Size:2*guid.Size])
-	q.Index = convert.BytesToUint64(data[2*guid.Size : 2*guid.Size+IndexSize])
+	q.Index = convert.BEBytesToUint64(data[2*guid.Size : 2*guid.Size+IndexSize])
 	copy(q.Hash, data[2*guid.Size+IndexSize:2*guid.Size+IndexSize+sha256.Size])
 	return nil
 }
@@ -317,7 +317,7 @@ func NewAnswer() *Answer {
 func (a *Answer) Pack(buf *bytes.Buffer) {
 	buf.Write(a.GUID[:])
 	buf.Write(a.BeaconGUID[:])
-	buf.Write(convert.Uint64ToBytes(a.Index))
+	buf.Write(convert.BEUint64ToBytes(a.Index))
 	buf.WriteByte(a.Deflate)
 	buf.Write(a.Hash)
 	buf.Write(a.Message)
@@ -330,7 +330,7 @@ func (a *Answer) Unpack(data []byte) error {
 	}
 	copy(a.GUID[:], data[:guid.Size])
 	copy(a.BeaconGUID[:], data[guid.Size:2*guid.Size])
-	a.Index = convert.BytesToUint64(data[2*guid.Size : 2*guid.Size+IndexSize])
+	a.Index = convert.BEBytesToUint64(data[2*guid.Size : 2*guid.Size+IndexSize])
 	a.Deflate = data[2*guid.Size+IndexSize]
 	copy(a.Hash, data[2*guid.Size+IndexSize+flagSize:2*guid.Size+IndexSize+flagSize+sha256.Size])
 	message := data[2*guid.Size+IndexSize+flagSize+sha256.Size:]

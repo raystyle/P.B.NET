@@ -127,7 +127,7 @@ func New(size int, now func() time.Time) *Generator {
 	}
 	g.head = make([]byte, 0, 8)
 	g.head = append(g.head, hash.Sum(nil)[:8]...)
-	hash.Write(convert.Int64ToBytes(int64(os.Getpid())))
+	hash.Write(convert.BEInt64ToBytes(int64(os.Getpid())))
 	g.head = append(g.head, hash.Sum(nil)[:4]...)
 	// random ID
 	for i := 0; i < 5; i++ {

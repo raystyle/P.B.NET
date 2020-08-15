@@ -61,7 +61,7 @@ func TestHandleConn(t *testing.T) {
 				require.NoError(t, err)
 
 				// big frame
-				_, err = client.Write(convert.Uint32ToBytes(32768))
+				_, err = client.Write(convert.BEUint32ToBytes(32768))
 				require.NoError(t, err)
 				_, err = client.Write(bigFrame)
 				require.NoError(t, err)
@@ -159,7 +159,7 @@ func benchmarkHandleConn(b *testing.B, size int) {
 		require.Equal(b, b.N, count)
 	}()
 
-	frame := append(convert.Uint32ToBytes(uint32(size)), frameData...)
+	frame := append(convert.BEUint32ToBytes(uint32(size)), frameData...)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -196,7 +196,7 @@ func benchmarkHandleConnParallel(b *testing.B, size int) {
 	server, client := net.Pipe()
 
 	frameData := bytes.Repeat([]byte{1}, size)
-	frame := append(convert.Uint32ToBytes(uint32(size)), frameData...)
+	frame := append(convert.BEUint32ToBytes(uint32(size)), frameData...)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)

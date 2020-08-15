@@ -90,9 +90,9 @@ func SaveCtrlCertPool(pool *cert.Pool, password []byte) error {
 	certPoolLen := len(certPool)
 	// make certificate pool file
 	buf := bytes.NewBuffer(make([]byte, 0, randomSize2019+4+certPoolLen+randomSize1127))
-	buf.Write(random.Bytes(randomSize2019))               // random data 1
-	buf.Write(convert.Uint32ToBytes(uint32(certPoolLen))) // msgpack data size
-	buf.Write(certPool)                                   // msgpack data
+	buf.Write(random.Bytes(randomSize2019))                 // random data 1
+	buf.Write(convert.BEUint32ToBytes(uint32(certPoolLen))) // msgpack data size
+	buf.Write(certPool)                                     // msgpack data
 	secondSize := randomSize1127 + random.Int(1024)
 	buf.Write(random.Bytes(secondSize)) // random data 2
 	// compress
@@ -225,7 +225,7 @@ func LoadCtrlCertPool(pool *cert.Pool, certPool, password []byte) error {
 	}
 	memory.Padding()
 	offset := randomSize2019
-	size := int(convert.BytesToUint32(file[offset : offset+4]))
+	size := int(convert.BEBytesToUint32(file[offset : offset+4]))
 	memory.Padding()
 	offset += 4
 	// unmarshal

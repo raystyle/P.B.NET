@@ -425,7 +425,7 @@ func TestSendMessage(t *testing.T) {
 				_, err := io.ReadFull(server, buf)
 				require.NoError(t, err)
 
-				_, err = server.Write(convert.Uint16ToBytes(4))
+				_, err = server.Write(convert.BEUint16ToBytes(4))
 				require.NoError(t, err)
 
 				err = server.Close()

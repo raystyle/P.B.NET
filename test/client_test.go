@@ -17,7 +17,7 @@ func testClientSendCommand(t *testing.T, send func(cmd uint8, data []byte) ([]by
 	t.Run("single", func(t *testing.T) {
 		data := bytes.Buffer{}
 		for i := 0; i < 16384; i++ {
-			data.Write(convert.Int32ToBytes(int32(i)))
+			data.Write(convert.BEInt32ToBytes(int32(i)))
 			reply, err := send(protocol.TestCommand, data.Bytes())
 			require.NoError(t, err)
 			require.Equal(t, data.Bytes(), reply)
@@ -31,7 +31,7 @@ func testClientSendCommand(t *testing.T, send func(cmd uint8, data []byte) ([]by
 			defer wg.Done()
 			data := bytes.Buffer{}
 			for i := 0; i < 32; i++ {
-				data.Write(convert.Int32ToBytes(int32(i)))
+				data.Write(convert.BEInt32ToBytes(int32(i)))
 				reply, err := send(protocol.TestCommand, data.Bytes())
 				require.NoError(t, err)
 				require.Equal(t, data.Bytes(), reply)
