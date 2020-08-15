@@ -372,15 +372,35 @@ func init() {
 		name string
 		init string
 	}{
+		{"internal/cert", "InternalCert"},
+		{"internal/convert", "InternalConvert"},
+		{"internal/crypto/aes", "InternalCryptoAES"},
+		{"internal/crypto/curve25519", "InternalCryptoCurve25519"},
+		{"internal/crypto/ed25519", "InternalCryptoED25519"},
+		{"internal/crypto/hmac", "InternalCryptoHMAC"},
+		{"internal/crypto/lsb", "InternalCryptoLSB"},
+		{"internal/crypto/rand", "InternalCryptoRand"},
+		{"internal/dns", "InternalDNS"},
+		{"internal/guid", "InternalGUID"},
+		{"internal/httptool", "InternalHTTPTool"},
+		{"internal/logger", "InternalLogger"},
+		{"internal/namer", "InternalNamer"},
+		{"internal/nettool", "InternalNetTool"},
+		{"internal/option", "InternalOption"},
 		{"internal/patch/json", "InternalPatchJSON"},
 		{"internal/patch/msgpack", "InternalPatchMsgpack"},
 		{"internal/patch/toml", "InternalPatchToml"},
-		{"internal/convert", "InternalConvert"},
-		{"internal/httptool", "InternalHTTPTool"},
-		{"internal/logger", "InternalLogger"},
-		{"internal/nettool", "InternalNetTool"},
+		{"internal/proxy", "InternalProxy"},
+		{"internal/proxy/direct", "InternalProxyDirect"},
+		{"internal/proxy/http", "InternalProxyHTTP"},
+		{"internal/proxy/socks", "InternalProxySocks"},
+		{"internal/random", "InternalRandom"},
+		{"internal/security", "InternalSecurity"},
+		{"internal/system", "InternalSystem"},
+		{"internal/timesync", "InternalTimeSync"},
 		{"internal/xpanic", "InternalXPanic"},
 		{"internal/xreflect", "InternalXReflect"},
+		{"internal/xsync", "InternalXSync"},
 	} {
 		_, _ = fmt.Fprintf(pkgBuf, `	"project/%s"`+"\n", item.name)
 		_, _ = fmt.Fprintf(initBuf, "\tinit%s()\n", item.init)
@@ -399,6 +419,15 @@ func init() {
 	}{
 		{"logger logger.Logger", "lg logger.Logger"},
 		{"(&logger)", "(&lg)"},
+
+		{"namer namer.Namer", "n namer.Namer"},
+		{"(&namer)", "(&n)"},
+
+		{"direct direct.Direct", "d direct.Direct"},
+		{"(&direct)", "(&d)"},
+
+		{"rand random.Rand", "r random.Rand"},
+		{"(&rand)", "(&r)"},
 	} {
 		src = strings.ReplaceAll(src, item.old, item.new)
 	}
