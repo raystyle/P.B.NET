@@ -470,7 +470,7 @@ func (sw *subWorker) calculateAnswerHMAC(answer *protocol.Answer) []byte {
 	h.Reset()
 	h.Write(answer.GUID[:])
 	h.Write(answer.BeaconGUID[:])
-	h.Write(convert.Uint64ToBytes(answer.Index))
+	h.Write(convert.BEUint64ToBytes(answer.Index))
 	h.Write([]byte{answer.Deflate})
 	h.Write(answer.Message)
 	return h.Sum(nil)

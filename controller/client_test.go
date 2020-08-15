@@ -145,7 +145,7 @@ func TestClient_Send(t *testing.T) {
 
 	data := bytes.Buffer{}
 	for i := 0; i < 16384; i++ {
-		data.Write(convert.Int32ToBytes(int32(i)))
+		data.Write(convert.BEInt32ToBytes(int32(i)))
 		reply, err := client.send(protocol.TestCommand, data.Bytes())
 		require.NoError(t, err)
 		require.Equal(t, data.Bytes(), reply)
@@ -168,7 +168,7 @@ func TestClient_SendParallel(t *testing.T) {
 		defer wg.Done()
 		data := bytes.Buffer{}
 		for i := 0; i < 32; i++ {
-			data.Write(convert.Int32ToBytes(int32(i)))
+			data.Write(convert.BEInt32ToBytes(int32(i)))
 			reply, err := client.send(protocol.TestCommand, data.Bytes())
 			require.NoError(t, err)
 			require.Equal(t, data.Bytes(), reply)
@@ -197,7 +197,7 @@ func BenchmarkClient_Send(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		data.Write(convert.Int32ToBytes(int32(i)))
+		data.Write(convert.BEInt32ToBytes(int32(i)))
 		reply, err := client.send(protocol.TestCommand, data.Bytes())
 		if err != nil {
 			b.Fatal(err)
@@ -226,7 +226,7 @@ func BenchmarkClient_SendParallel(b *testing.B) {
 		data := bytes.Buffer{}
 		i := 0
 		for pb.Next() {
-			data.Write(convert.Int32ToBytes(int32(i)))
+			data.Write(convert.BEInt32ToBytes(int32(i)))
 			reply, err := client.send(protocol.TestCommand, data.Bytes())
 			if err != nil {
 				b.Fatal(err)

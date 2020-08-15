@@ -259,7 +259,7 @@ func (client *Client) sendHeartbeatLoop() {
 			fakeSize := 64 + client.rand.Int(256)
 			// size(4 Bytes) + heartbeat(1 byte) + fake data
 			buffer.Reset()
-			buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
+			buffer.Write(convert.BEUint32ToBytes(uint32(1 + fakeSize)))
 			buffer.WriteByte(protocol.ConnSendHeartbeat)
 			buffer.Write(client.rand.Bytes(fakeSize))
 			// send

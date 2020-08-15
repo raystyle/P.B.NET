@@ -1683,7 +1683,7 @@ func (sw *senderWorker) calculateAnswerHMAC() {
 	h.Reset()
 	h.Write(sw.preR.GUID[:])
 	h.Write(sw.preR.BeaconGUID[:])
-	h.Write(convert.Uint64ToBytes(sw.preR.Index))
+	h.Write(convert.BEUint64ToBytes(sw.preR.Index))
 	h.Write([]byte{sw.preR.Deflate})
 	h.Write(sw.preR.Message)
 	sw.preR.Hash = h.Sum(nil)

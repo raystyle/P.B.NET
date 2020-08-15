@@ -183,7 +183,7 @@ func (c *conn) handleReply(reply []byte) {
 		_ = c.Close()
 		return
 	}
-	id := int(convert.BytesToUint16(reply[:protocol.FrameIDSize]))
+	id := int(convert.BEBytesToUint16(reply[:protocol.FrameIDSize]))
 	if id > protocol.MaxFrameID {
 		c.Log(logger.Exploit, protocol.ErrRecvInvalidFrameID)
 		_ = c.Close()
@@ -210,7 +210,7 @@ func (c *conn) Reply(id, reply []byte) {
 	b := make([]byte, protocol.FrameHeaderSize+l)
 	// write size
 	msgSize := protocol.FrameCMDSize + protocol.FrameIDSize + l
-	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
+	copy(b, convert.BEUint32ToBytes(uint32(msgSize)))
 	// write cmd
 	b[protocol.FrameLenSize] = protocol.ConnReply
 	// write msg id
@@ -226,7 +226,7 @@ func (c *conn) HandleHeartbeat() {
 	fakeSize := 64 + c.rand.Int(256)
 	// size(4 Bytes) + heartbeat(1 byte) + fake data
 	c.heartbeat.Reset()
-	c.heartbeat.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
+	c.heartbeat.Write(convert.BEUint32ToBytes(uint32(1 + fakeSize)))
 	c.heartbeat.WriteByte(protocol.ConnReplyHeartbeat)
 	c.heartbeat.Write(c.rand.Bytes(fakeSize))
 	// send heartbeat data
@@ -786,12 +786,12 @@ func (c *conn) sendAndWaitReply(cmd uint8, data []byte, id int) ([]byte, error) 
 	b := make([]byte, protocol.FrameHeaderSize+l)
 	// write MsgLen
 	msgSize := protocol.FrameCMDSize + protocol.FrameIDSize + l
-	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
+	copy(b, convert.BEUint32ToBytes(uint32(msgSize)))
 	// write cmd
 	b[protocol.FrameLenSize] = cmd
 	// write msg id
 	copy(b[protocol.FrameLenSize+1:protocol.FrameLenSize+1+protocol.FrameIDSize],
-		convert.Uint16ToBytes(uint16(id)))
+		convert.BEUint16ToBytes(uint16(id)))
 	// write data
 	copy(b[protocol.FrameHeaderSize:], data)
 	// send

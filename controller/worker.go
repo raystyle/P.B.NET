@@ -572,6 +572,6 @@ func (sw *subWorker) calculateQueryHMAC(query *protocol.Query) []byte {
 	sw.hmac.Reset()
 	sw.hmac.Write(query.GUID[:])
 	sw.hmac.Write(query.BeaconGUID[:])
-	sw.hmac.Write(convert.Uint64ToBytes(query.Index))
+	sw.hmac.Write(convert.BEUint64ToBytes(query.Index))
 	return sw.hmac.Sum(nil)
 }

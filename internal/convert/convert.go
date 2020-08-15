@@ -219,13 +219,13 @@ func AbsInt64(n int64) int64 {
 
 // unit about storage
 const (
-	Byte = 1
-	KB   = Byte * 1024
-	MB   = KB * 1024
-	GB   = MB * 1024
-	TB   = GB * 1024
-	PB   = TB * 1024
-	EB   = PB * 1024
+	Byte uint64 = 1
+	KB          = Byte * 1024
+	MB          = KB * 1024
+	GB          = MB * 1024
+	TB          = GB * 1024
+	PB          = TB * 1024
+	EB          = PB * 1024
 )
 
 // FormatByte is used to covert Byte to KB, MB, GB or TB.

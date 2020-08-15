@@ -107,7 +107,7 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 		return
 	}
 	typ := send.Message[messages.RandomDataSize:messages.HeaderSize]
-	msgType := convert.BytesToUint32(typ)
+	msgType := convert.BEBytesToUint32(typ)
 	send.Message = send.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDNodeLog:
@@ -564,7 +564,7 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 		return
 	}
 	typ := send.Message[messages.RandomDataSize:messages.HeaderSize]
-	msgType := convert.BytesToUint32(typ)
+	msgType := convert.BEBytesToUint32(typ)
 	send.Message = send.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDShellCodeResult:

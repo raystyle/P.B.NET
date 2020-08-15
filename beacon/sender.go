@@ -966,6 +966,6 @@ func (sw *senderWorker) calculateQueryHMAC() {
 	h.Reset()
 	h.Write(sw.preQ.GUID[:])
 	h.Write(sw.preQ.BeaconGUID[:])
-	h.Write(convert.Uint64ToBytes(sw.preQ.Index))
+	h.Write(convert.BEUint64ToBytes(sw.preQ.Index))
 	sw.preQ.Hash = h.Sum(nil)
 }

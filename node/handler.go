@@ -92,7 +92,7 @@ func (h *handler) OnSend(send *protocol.Send) {
 		return
 	}
 	typ := send.Message[messages.RandomDataSize:messages.HeaderSize]
-	msgType := convert.BytesToUint32(typ)
+	msgType := convert.BEBytesToUint32(typ)
 	send.Message = send.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDCtrlAnswerNodeKey:
@@ -257,7 +257,7 @@ func (h *handler) OnBroadcast(broadcast *protocol.Broadcast) {
 		return
 	}
 	typ := broadcast.Message[messages.RandomDataSize:messages.HeaderSize]
-	msgType := convert.BytesToUint32(typ)
+	msgType := convert.BEBytesToUint32(typ)
 	broadcast.Message = broadcast.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDCtrlDeleteNode:
