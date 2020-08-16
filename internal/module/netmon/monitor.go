@@ -24,7 +24,7 @@ const (
 )
 
 // Callback is used to notice user appear event.
-type Callback func(event uint8, conn interface{})
+type Callback func(event uint8, data interface{})
 
 // Monitor is used tp monitor network status about current system.
 type Monitor struct {
@@ -57,13 +57,19 @@ func NewMonitor(logger logger.Logger, callback Callback) (*Monitor, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	monitor := Monitor{
 		logger:     logger,
-		callback:   callback,
 		controller: control.NewController(ctx),
 		netstat:    netstat,
 		interval:   defaultInterval,
 		ctx:        ctx,
 		cancel:     cancel,
 	}
+	// refresh before refreshLoop, and not set callback.
+	err = monitor.Refresh()
+	if err != nil {
+		return nil, err
+	}
+	// not trigger callback before first refresh.
+	monitor.callback = callback
 	monitor.wg.Add(1)
 	go monitor.refreshLoop()
 	return &monitor, nil
@@ -137,21 +143,104 @@ func (mon *Monitor) Refresh() error {
 	if err != nil {
 		return err
 	}
-	if mon.callback != nil {
-		mon.compare(&dataSource{
-			tcp4Conns: tcp4Conns,
-			tcp6Conns: tcp6Conns,
-			udp4Conns: udp4Conns,
-			udp6Conns: udp6Conns,
-		})
+	ds := &dataSource{
+		tcp4Conns: tcp4Conns,
+		tcp6Conns: tcp6Conns,
+		udp4Conns: udp4Conns,
+		udp6Conns: udp6Conns,
 	}
+	if mon.callback != nil {
+		result := mon.compare(ds)
+		mon.refresh(ds)
+		mon.notice(result)
+		return nil
+	}
+	mon.refresh(ds)
+	return nil
+}
+
+type dataSource struct {
+	tcp4Conns []*TCP4Conn
+	tcp6Conns []*TCP6Conn
+	udp4Conns []*UDP4Conn
+	udp6Conns []*UDP6Conn
+}
+
+type compareResult struct {
+	addedConns   []interface{}
+	deletedConns []interface{}
+}
+
+// compare is used to compare between stored in monitor.
+func (mon *Monitor) compare(ds *dataSource) *compareResult {
+	var (
+		addedConns   []interface{}
+		deletedConns []interface{}
+	)
+	mon.connsRWM.RLock()
+	defer mon.connsRWM.RUnlock()
+	// TCP4
+	added, deleted := compare.UniqueSlice(
+		tcp4Conns(ds.tcp4Conns), tcp4Conns(mon.tcp4Conns),
+	)
+	for i := 0; i < len(added); i++ {
+		addedConns = append(addedConns, ds.tcp4Conns[added[i]])
+	}
+	for i := 0; i < len(deleted); i++ {
+		deletedConns = append(deletedConns, mon.tcp4Conns[deleted[i]])
+	}
+	// TCP6
+	added, deleted = compare.UniqueSlice(
+		tcp6Conns(ds.tcp6Conns), tcp6Conns(mon.tcp6Conns),
+	)
+	for i := 0; i < len(added); i++ {
+		addedConns = append(addedConns, ds.tcp6Conns[added[i]])
+	}
+	for i := 0; i < len(deleted); i++ {
+		deletedConns = append(deletedConns, mon.tcp6Conns[deleted[i]])
+	}
+	// UDP4
+	added, deleted = compare.UniqueSlice(
+		udp4Conns(ds.udp4Conns), udp4Conns(mon.udp4Conns),
+	)
+	for i := 0; i < len(added); i++ {
+		addedConns = append(addedConns, ds.udp4Conns[added[i]])
+	}
+	for i := 0; i < len(deleted); i++ {
+		deletedConns = append(deletedConns, mon.udp4Conns[deleted[i]])
+	}
+	// UDP6
+	added, deleted = compare.UniqueSlice(
+		udp6Conns(ds.udp6Conns), udp6Conns(mon.udp6Conns),
+	)
+	for i := 0; i < len(added); i++ {
+		addedConns = append(addedConns, ds.udp6Conns[added[i]])
+	}
+	for i := 0; i < len(deleted); i++ {
+		deletedConns = append(deletedConns, mon.udp6Conns[deleted[i]])
+	}
+	return &compareResult{
+		addedConns:   addedConns,
+		deletedConns: deletedConns,
+	}
+}
+
+func (mon *Monitor) refresh(ds *dataSource) {
 	mon.connsRWM.Lock()
 	defer mon.connsRWM.Unlock()
-	mon.tcp4Conns = tcp4Conns
-	mon.tcp6Conns = tcp6Conns
-	mon.udp4Conns = udp4Conns
-	mon.udp6Conns = udp6Conns
-	return nil
+	mon.tcp4Conns = ds.tcp4Conns
+	mon.tcp6Conns = ds.tcp6Conns
+	mon.udp4Conns = ds.udp4Conns
+	mon.udp6Conns = ds.udp6Conns
+}
+
+func (mon *Monitor) notice(result *compareResult) {
+	if len(result.addedConns) != 0 {
+		mon.callback(EventConnCreated, result.addedConns)
+	}
+	if len(result.deletedConns) != 0 {
+		mon.callback(EventConnRemoved, result.deletedConns)
+	}
 }
 
 // GetTCP4Conns is used to get tcp4 connections that stored in monitor.
@@ -180,26 +269,6 @@ func (mon *Monitor) GetUDP6Conns() []*UDP6Conn {
 	mon.connsRWM.RLock()
 	defer mon.connsRWM.RUnlock()
 	return mon.udp6Conns
-}
-
-type dataSource struct {
-	tcp4Conns []*TCP4Conn
-	tcp6Conns []*TCP6Conn
-	udp4Conns []*UDP4Conn
-	udp6Conns []*UDP6Conn
-}
-
-// compare is used to compare between stored in monitor.
-func (mon *Monitor) compare(ds *dataSource) {
-	mon.connsRWM.RLock()
-	defer mon.connsRWM.RUnlock()
-	added, deleted := compare.UniqueSlice(tcp4Conns(ds.tcp4Conns), tcp4Conns(mon.tcp4Conns))
-	for i := 0; i < len(added); i++ {
-		mon.callback(EventConnCreated, ds.tcp4Conns[added[i]])
-	}
-	for i := 0; i < len(deleted); i++ {
-		mon.callback(EventConnRemoved, mon.tcp4Conns[deleted[i]])
-	}
 }
 
 // Pause is used to pause auto refresh.
