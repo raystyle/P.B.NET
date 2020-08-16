@@ -50,6 +50,18 @@ func TestCheckPortString(t *testing.T) {
 	})
 }
 
+func TestJoinHostPort(t *testing.T) {
+	t.Run("IPv4", func(t *testing.T) {
+		address := JoinHostPort("1.1.1.1", 123)
+		require.Equal(t, "1.1.1.1:123", address)
+	})
+
+	t.Run("IPv6", func(t *testing.T) {
+		address := JoinHostPort("::1", 123)
+		require.Equal(t, "[::1]:123", address)
+	})
+}
+
 func TestSplitHostPort(t *testing.T) {
 	t.Run("host and port", func(t *testing.T) {
 		host, port, err := SplitHostPort("host:123")

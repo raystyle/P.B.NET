@@ -12,6 +12,7 @@ import (
 
 	"project/internal/convert"
 	"project/internal/logger"
+	"project/internal/nettool"
 )
 
 // https://www.ietf.org/rfc/rfc1928.txt
@@ -420,5 +421,5 @@ func (c *conn) receiveTarget() string {
 		return ""
 	}
 	port := convert.BEBytesToUint16(buf[:2])
-	return net.JoinHostPort(host, strconv.Itoa(int(port)))
+	return nettool.JoinHostPort(host, port)
 }

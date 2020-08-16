@@ -12,6 +12,7 @@ import (
 
 	"project/internal/convert"
 	"project/internal/logger"
+	"project/internal/nettool"
 )
 
 // http://ftp.icm.edu.pl/packages/socks/socks4/SOCKS4.protocol
@@ -169,7 +170,7 @@ func (c *conn) serveSocks4() {
 		}
 		host = string(domainName)
 	}
-	address := net.JoinHostPort(host, strconv.Itoa(int(port)))
+	address := nettool.JoinHostPort(host, port)
 	// connect target
 	c.log(logger.Info, "connect:", address)
 	ctx, cancel := context.WithTimeout(c.server.ctx, c.server.timeout)

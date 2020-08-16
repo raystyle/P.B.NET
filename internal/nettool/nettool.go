@@ -32,6 +32,11 @@ func CheckPortString(port string) error {
 	return CheckPort(p)
 }
 
+// JoinHostPort is used to join host and port to address.
+func JoinHostPort(host string, port uint16) string {
+	return net.JoinHostPort(host, strconv.Itoa(int(port)))
+}
+
 // SplitHostPort is used to split address to host and port.
 func SplitHostPort(address string) (string, uint16, error) {
 	host, port, err := net.SplitHostPort(address)
