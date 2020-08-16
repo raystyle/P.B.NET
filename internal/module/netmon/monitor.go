@@ -137,7 +137,12 @@ func (mon *Monitor) Refresh() error {
 		return err
 	}
 	if mon.callback != nil {
-		mon.compare()
+		mon.compare(&dataSource{
+			tcp4Conns: tcp4Conns,
+			tcp6Conns: tcp6Conns,
+			udp4Conns: udp4Conns,
+			udp6Conns: udp6Conns,
+		})
 	}
 	mon.connsRWM.Lock()
 	defer mon.connsRWM.Unlock()
@@ -176,10 +181,18 @@ func (mon *Monitor) GetUDP6Conns() []*UDP6Conn {
 	return mon.udp6Conns
 }
 
+type dataSource struct {
+	tcp4Conns []*TCP4Conn
+	tcp6Conns []*TCP6Conn
+	udp4Conns []*UDP4Conn
+	udp6Conns []*UDP6Conn
+}
+
 // compare is used to compare between stored in monitor.
-func (mon *Monitor) compare() {
+func (mon *Monitor) compare(ds *dataSource) {
 	mon.connsRWM.RLock()
 	defer mon.connsRWM.RUnlock()
+
 }
 
 // Pause is used to pause auto refresh.

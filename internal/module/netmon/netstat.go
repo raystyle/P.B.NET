@@ -1,7 +1,9 @@
 package netstat
 
 import (
+	"encoding/binary"
 	"net"
+	"unsafe"
 )
 
 // NetStat is used to get current network status.
@@ -44,6 +46,16 @@ type TCP4Conn struct {
 	PID        int64
 }
 
+// ID is used to identified this connection.
+func (conn *TCP4Conn) ID() string {
+	b := make([]byte, net.IPv4len+2+net.IPv4len+2)
+	copy(b[:net.IPv4len], conn.LocalAddr)
+	binary.BigEndian.PutUint16(b[net.IPv4len:], conn.LocalPort)
+	copy(b[net.IPv4len+2:], conn.RemoteAddr)
+	binary.BigEndian.PutUint16(b[net.IPv4len+2+net.IPv4len:], conn.RemotePort)
+	return *(*string)(unsafe.Pointer(&b)) // #nosec
+}
+
 // TCP6Conn contains information about TCP Over IPv6 connection.
 type TCP6Conn struct {
 	LocalAddr     net.IP
@@ -56,11 +68,31 @@ type TCP6Conn struct {
 	PID           int64
 }
 
+// ID is used to identified this connection.
+func (conn *TCP6Conn) ID() string {
+	b := make([]byte, net.IPv6len+4+2+net.IPv6len+4+2)
+	copy(b[:net.IPv6len], conn.LocalAddr)
+	binary.BigEndian.PutUint32(b[net.IPv6len:], conn.LocalScopeID)
+	binary.BigEndian.PutUint16(b[net.IPv6len+4:], conn.LocalPort)
+	copy(b[net.IPv6len+4+2:], conn.RemoteAddr)
+	binary.BigEndian.PutUint32(b[net.IPv6len+4+2+net.IPv6len:], conn.RemoteScopeID)
+	binary.BigEndian.PutUint16(b[net.IPv6len+4+2+net.IPv6len+4:], conn.RemotePort)
+	return *(*string)(unsafe.Pointer(&b)) // #nosec
+}
+
 // UDP4Conn contains information about UDP Over IPv4 connection.
 type UDP4Conn struct {
 	LocalAddr net.IP
 	LocalPort uint16
 	PID       int64
+}
+
+// ID is used to identified this connection.
+func (conn *UDP4Conn) ID() string {
+	b := make([]byte, net.IPv4len+2)
+	copy(b[:net.IPv4len], conn.LocalAddr)
+	binary.BigEndian.PutUint16(b[net.IPv4len:], conn.LocalPort)
+	return *(*string)(unsafe.Pointer(&b)) // #nosec
 }
 
 // UDP6Conn contains information about UDP Over IPv6 connection.
@@ -69,4 +101,13 @@ type UDP6Conn struct {
 	LocalScopeID uint32
 	LocalPort    uint16
 	PID          int64
+}
+
+// ID is used to identified this connection.
+func (conn *UDP6Conn) ID() string {
+	b := make([]byte, net.IPv6len+4+2)
+	copy(b[:net.IPv6len], conn.LocalAddr)
+	binary.BigEndian.PutUint32(b[net.IPv6len:], conn.LocalScopeID)
+	binary.BigEndian.PutUint16(b[net.IPv6len+4:], conn.LocalPort)
+	return *(*string)(unsafe.Pointer(&b)) // #nosec
 }

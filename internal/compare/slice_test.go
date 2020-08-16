@@ -2,6 +2,7 @@ package compare
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"testing"
 
@@ -29,9 +30,10 @@ func TestUniqueStrings(t *testing.T) {
 }
 
 func BenchmarkUniqueStrings(b *testing.B) {
+	// see project/internal/module/netmon/netstat.go
 	const (
-		tcp4RowSize = 4 + 2 + 4 + 2 + 1 + 8
-		tcp6RowSize = 16 + 4 + 2 + 16 + 4 + 2 + 1 + 8
+		tcp4RowSize = net.IPv4len + 2 + net.IPv4len + 2
+		tcp6RowSize = net.IPv6len + 4 + 2 + net.IPv6len + 4 + 2
 	)
 
 	b.Run("100 x tcp4RowSize", func(b *testing.B) {
