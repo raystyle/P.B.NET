@@ -111,3 +111,45 @@ func (conn *UDP6Conn) ID() string {
 	binary.BigEndian.PutUint16(b[net.IPv6len+4:], conn.LocalPort)
 	return *(*string)(unsafe.Pointer(&b)) // #nosec
 }
+
+// for compare package
+
+type tcp4Conns []*TCP4Conn
+
+func (conns tcp4Conns) Len() int {
+	return len(conns)
+}
+
+func (conns tcp4Conns) ID(i int) string {
+	return conns[i].ID()
+}
+
+type tcp6Conns []*TCP6Conn
+
+func (conns tcp6Conns) Len() int {
+	return len(conns)
+}
+
+func (conns tcp6Conns) ID(i int) string {
+	return conns[i].ID()
+}
+
+type udp4Conns []*UDP4Conn
+
+func (conns udp4Conns) Len() int {
+	return len(conns)
+}
+
+func (conns udp4Conns) ID(i int) string {
+	return conns[i].ID()
+}
+
+type udp6Conns []*UDP6Conn
+
+func (conns udp6Conns) Len() int {
+	return len(conns)
+}
+
+func (conns udp6Conns) ID(i int) string {
+	return conns[i].ID()
+}

@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"project/internal/compare"
 	"project/internal/logger"
 	"project/internal/module/control"
 	"project/internal/xpanic"
@@ -23,7 +24,7 @@ const (
 )
 
 // Callback is used to notice user appear event.
-type Callback func(event uint8)
+type Callback func(event uint8, conn interface{})
 
 // Monitor is used tp monitor network status about current system.
 type Monitor struct {
@@ -192,7 +193,13 @@ type dataSource struct {
 func (mon *Monitor) compare(ds *dataSource) {
 	mon.connsRWM.RLock()
 	defer mon.connsRWM.RUnlock()
-
+	added, deleted := compare.UniqueSlice(tcp4Conns(ds.tcp4Conns), tcp4Conns(mon.tcp4Conns))
+	for i := 0; i < len(added); i++ {
+		mon.callback(EventConnCreated, ds.tcp4Conns[added[i]])
+	}
+	for i := 0; i < len(deleted); i++ {
+		mon.callback(EventConnRemoved, mon.tcp4Conns[deleted[i]])
+	}
 }
 
 // Pause is used to pause auto refresh.
