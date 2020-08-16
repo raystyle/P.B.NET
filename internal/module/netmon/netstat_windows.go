@@ -106,6 +106,7 @@ func newNetstat() (*netStat, error) {
 	return &ref, nil
 }
 
+// #nosec
 func (ns *netStat) GetTCP4Conns() ([]*TCP4Conn, error) {
 	buffer, err := ns.getTCPTable(windows.AF_INET)
 	if err != nil {
@@ -136,6 +137,7 @@ func (ns *netStat) GetTCP4Conns() ([]*TCP4Conn, error) {
 	return conns, nil
 }
 
+// #nosec
 func (ns *netStat) GetTCP6Conns() ([]*TCP6Conn, error) {
 	buffer, err := ns.getTCPTable(windows.AF_INET6)
 	if err != nil {
@@ -168,6 +170,7 @@ func (ns *netStat) GetTCP6Conns() ([]*TCP6Conn, error) {
 	return conns, nil
 }
 
+// #nosec
 func (ns *netStat) getTCPTable(ulAf uint32) ([]byte, error) {
 	const maxAttemptTimes = 64
 	var (
@@ -197,6 +200,7 @@ func (ns *netStat) getTCPTable(ulAf uint32) ([]byte, error) {
 	return nil, errors.New("failed to get tcp table because reach maximum attempt times")
 }
 
+// #nosec
 func (ns *netStat) GetUDP4Conns() ([]*UDP4Conn, error) {
 	buffer, err := ns.getUDPTable(windows.AF_INET)
 	if err != nil {
@@ -223,6 +227,7 @@ func (ns *netStat) GetUDP4Conns() ([]*UDP4Conn, error) {
 	return conns, nil
 }
 
+// #nosec
 func (ns *netStat) GetUDP6Conns() ([]*UDP6Conn, error) {
 	buffer, err := ns.getUDPTable(windows.AF_INET6)
 	if err != nil {
@@ -250,6 +255,7 @@ func (ns *netStat) GetUDP6Conns() ([]*UDP6Conn, error) {
 	return conns, nil
 }
 
+// #nosec
 func (ns *netStat) getUDPTable(ulAf uint32) ([]byte, error) {
 	const maxAttemptTimes = 64
 	var (

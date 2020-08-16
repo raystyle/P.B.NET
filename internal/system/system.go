@@ -9,7 +9,7 @@ import (
 
 // OpenFile is used to open file, if directory is not exists, it will create it.
 func OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
-	dir, _ := filepath.Split(name)
+	dir := filepath.Dir(name)
 	if dir != "" {
 		err := os.MkdirAll(dir, 0750)
 		if err != nil {
@@ -81,8 +81,7 @@ func ExecutableName() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	_, file := filepath.Split(path)
-	return file, nil
+	return filepath.Base(path), nil
 }
 
 // ChangeCurrentDirectory is used to changed path for service program and prevent
@@ -92,8 +91,7 @@ func ChangeCurrentDirectory() error {
 	if err != nil {
 		return err
 	}
-	dir, _ := filepath.Split(path)
-	return os.Chdir(dir)
+	return os.Chdir(filepath.Dir(path))
 }
 
 // CheckError is used to check error is nil, if err is not nil, it will print error
