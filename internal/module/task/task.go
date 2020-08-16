@@ -57,9 +57,9 @@ type Task struct {
 	fsm  *fsm.FSM
 
 	// about control task
-	state    *int32
-	pausedCh chan struct{}
-	mu       sync.Mutex
+	state   *int32
+	pauseCh chan struct{}
+	mu      sync.Mutex
 
 	startOnce  sync.Once
 	cancelOnce sync.Once
@@ -87,11 +87,11 @@ func New(name string, iface Interface, callbacks fsm.Callbacks) *Task {
 	FSM := fsm.NewFSM(StateReady, events, callbacks)
 	// create task
 	task := Task{
-		name:     name,
-		task:     iface,
-		fsm:      FSM,
-		state:    new(int32),
-		pausedCh: make(chan struct{}, 1),
+		name:    name,
+		task:    iface,
+		fsm:     FSM,
+		state:   new(int32),
+		pauseCh: make(chan struct{}, 1),
 	}
 	task.ctx, task.cancel = context.WithCancel(context.Background())
 	return &task
@@ -219,7 +219,7 @@ func (task *Task) Continue() {
 		return
 	}
 	select {
-	case task.pausedCh <- struct{}{}:
+	case task.pauseCh <- struct{}{}:
 	default:
 	}
 }
@@ -238,7 +238,7 @@ func (task *Task) Cancel() {
 		if atomic.LoadInt32(task.state) == pStateFinish {
 			return
 		}
-		close(task.pausedCh)
+		close(task.pauseCh)
 		task.cancel()
 		err := task.fsm.Event(EventCancel)
 		if err != nil {
@@ -255,7 +255,7 @@ func (task *Task) Paused() {
 	}
 	// wait continue signal
 	select {
-	case <-task.pausedCh:
+	case <-task.pauseCh:
 	case <-task.ctx.Done():
 		return
 	}

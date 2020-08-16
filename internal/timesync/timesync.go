@@ -280,11 +280,11 @@ func (syncer *Syncer) synchronizeLoop() {
 		}
 	}()
 	rand := random.NewRand()
-	calculateInterval := func() time.Duration {
+	calcSyncInterval := func() time.Duration {
 		extra := syncer.sleepFixed + uint(rand.Int(int(syncer.sleepRandom)))
 		return syncer.GetSyncInterval() + time.Duration(extra)*time.Second
 	}
-	timer := time.NewTimer(calculateInterval())
+	timer := time.NewTimer(calcSyncInterval())
 	defer timer.Stop()
 	for {
 		select {
@@ -296,7 +296,7 @@ func (syncer *Syncer) synchronizeLoop() {
 		case <-syncer.ctx.Done():
 			return
 		}
-		timer.Reset(calculateInterval())
+		timer.Reset(calcSyncInterval())
 	}
 }
 

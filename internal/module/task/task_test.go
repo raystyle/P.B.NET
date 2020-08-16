@@ -681,7 +681,7 @@ func TestTask_Paused(t *testing.T) {
 			atomic.StoreInt32(task.state, pStateProcess)
 
 			// mock continue
-			task.pausedCh <- struct{}{}
+			task.pauseCh <- struct{}{}
 		}()
 
 		err := task.Start()
