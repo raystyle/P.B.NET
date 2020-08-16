@@ -8,7 +8,7 @@ import (
 )
 
 func TestNetStat(t *testing.T) {
-	netstat, err := newNetstat()
+	netstat, err := NewNetStat()
 	require.NoError(t, err)
 
 	t.Run("TCP Over IPv4", func(t *testing.T) {

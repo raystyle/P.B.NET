@@ -1,6 +1,8 @@
 package netstat
 
 import (
+	"context"
+	"sync"
 	"time"
 
 	"project/internal/logger"
@@ -15,12 +17,27 @@ type Callback func()
 type Monitor struct {
 	logger   logger.Logger
 	interval time.Duration
+
+	netstat NetStat
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 // NewMonitor is used to create a network status monitor.
-func NewMonitor(logger logger.Logger) *Monitor {
-
-	return nil
+func NewMonitor(logger logger.Logger) (*Monitor, error) {
+	netstat, err := newNetstat()
+	if err != nil {
+		return nil, err
+	}
+	monitor := Monitor{
+		logger:   logger,
+		interval: defaultInterval,
+		netstat:  netstat,
+	}
+	monitor.ctx, monitor.cancel = context.WithCancel(context.Background())
+	return &monitor, nil
 }
 
 // SetInterval is used to set refresh interval, if set zero, it will pause auto refresh.
