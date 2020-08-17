@@ -287,7 +287,7 @@ func (wh *webHandler) readRequest(r *hR, req interface{}) error {
 	if err != nil {
 		name := xreflect.GetStructureName(req)
 		buf := httptool.PrintRequest(r)
-		wh.logf(logger.Error, "failed to read request about%s\n%s", name, buf)
+		wh.logf(logger.Error, "failed to read request about %s\n%s", name, buf)
 		_, _ = io.Copy(ioutil.Discard, r.Body)
 		return err
 	}

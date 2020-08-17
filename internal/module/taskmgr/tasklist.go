@@ -1,5 +1,10 @@
 package taskmgr
 
+import (
+	"encoding/binary"
+	"unsafe"
+)
+
 // TaskList is used to get current process list.
 type TaskList interface {
 	GetProcesses() ([]*Process, error)
@@ -33,4 +38,22 @@ type Process struct {
 
 	CommandLine    string
 	ExecutablePath string
+}
+
+// ID is used to identified this Process.
+func (p *Process) ID() string {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, uint64(p.PID))
+	return *(*string)(unsafe.Pointer(&b)) // #nosec
+}
+
+// for compare package
+type processes []*Process
+
+func (ps processes) Len() int {
+	return len(ps)
+}
+
+func (ps processes) ID(i int) string {
+	return ps[i].ID()
 }
