@@ -23,13 +23,13 @@ const (
 	EventConnRemoved
 )
 
-// Callback is used to notice user appear event.
-type Callback func(event uint8, data interface{})
+// EventHandler is used to handle appeared event.
+type EventHandler func(event uint8, data interface{})
 
 // Monitor is used tp monitor network status about current system.
 type Monitor struct {
-	logger   logger.Logger
-	callback Callback
+	logger  logger.Logger
+	handler EventHandler
 
 	controller *control.Controller
 	netstat    NetStat
@@ -49,7 +49,7 @@ type Monitor struct {
 }
 
 // NewMonitor is used to create a network status monitor.
-func NewMonitor(logger logger.Logger, callback Callback) (*Monitor, error) {
+func NewMonitor(logger logger.Logger, handler EventHandler) (*Monitor, error) {
 	netstat, err := newNetstat()
 	if err != nil {
 		return nil, err
@@ -63,13 +63,13 @@ func NewMonitor(logger logger.Logger, callback Callback) (*Monitor, error) {
 		ctx:        ctx,
 		cancel:     cancel,
 	}
-	// refresh before refreshLoop, and not set callback.
+	// refresh before refreshLoop, and not set eventHandler.
 	err = monitor.Refresh()
 	if err != nil {
 		return nil, err
 	}
-	// not trigger callback before first refresh.
-	monitor.callback = callback
+	// not trigger eventHandler before first refresh.
+	monitor.handler = handler
 	monitor.wg.Add(1)
 	go monitor.refreshLoop()
 	return &monitor, nil
@@ -149,7 +149,7 @@ func (mon *Monitor) Refresh() error {
 		udp4Conns: udp4Conns,
 		udp6Conns: udp6Conns,
 	}
-	if mon.callback != nil {
+	if mon.handler != nil {
 		result := mon.compare(ds)
 		mon.refresh(ds)
 		mon.notice(result)
@@ -236,10 +236,10 @@ func (mon *Monitor) refresh(ds *dataSource) {
 
 func (mon *Monitor) notice(result *compareResult) {
 	if len(result.addedConns) != 0 {
-		mon.callback(EventConnCreated, result.addedConns)
+		mon.handler(EventConnCreated, result.addedConns)
 	}
 	if len(result.deletedConns) != 0 {
-		mon.callback(EventConnRemoved, result.deletedConns)
+		mon.handler(EventConnRemoved, result.deletedConns)
 	}
 }
 
