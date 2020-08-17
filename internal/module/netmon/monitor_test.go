@@ -11,6 +11,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/nettool"
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -321,4 +322,55 @@ func TestMonitor_EventConnClosed(t *testing.T) {
 	require.True(t, findTCP6, "not find expected tcp6 connection")
 	require.True(t, findUDP4, "not find expected udp4 connection")
 	require.True(t, findUDP6, "not find expected udp6 connection")
+}
+
+func TestMonitor_refreshLoop(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("failed to refresh", func(t *testing.T) {
+		monitor, err := NewMonitor(logger.Test, nil)
+		require.NoError(t, err)
+
+		monitor.Pause()
+
+		m := new(Monitor)
+		patch := func(interface{}) error {
+			return monkey.Error
+		}
+		pg := monkey.PatchInstanceMethod(m, "Refresh", patch)
+		defer pg.Unpatch()
+
+		monitor.Continue()
+
+		// wait restart
+		time.Sleep(3 * time.Second)
+
+		monitor.Close()
+
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		monitor, err := NewMonitor(logger.Test, nil)
+		require.NoError(t, err)
+
+		monitor.Pause()
+
+		m := new(Monitor)
+		patch := func(interface{}) error {
+			panic(monkey.Panic)
+		}
+		pg := monkey.PatchInstanceMethod(m, "Refresh", patch)
+		defer pg.Unpatch()
+
+		monitor.Continue()
+
+		// wait restart
+		time.Sleep(3 * time.Second)
+
+		monitor.Close()
+
+		testsuite.IsDestroyed(t, monitor)
+	})
 }
