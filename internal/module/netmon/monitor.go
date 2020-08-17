@@ -20,11 +20,11 @@ const (
 const (
 	_ uint8 = iota
 	EventConnCreated
-	EventConnRemoved
+	EventConnClosed
 )
 
 // EventHandler is used to handle appeared event.
-type EventHandler func(event uint8, data interface{})
+type EventHandler func(ctx context.Context, event uint8, data interface{})
 
 // Monitor is used tp monitor network status about current system.
 type Monitor struct {
@@ -236,10 +236,10 @@ func (mon *Monitor) refresh(ds *dataSource) {
 
 func (mon *Monitor) notice(result *compareResult) {
 	if len(result.addedConns) != 0 {
-		mon.handler(EventConnCreated, result.addedConns)
+		mon.handler(mon.ctx, EventConnCreated, result.addedConns)
 	}
 	if len(result.deletedConns) != 0 {
-		mon.handler(EventConnRemoved, result.deletedConns)
+		mon.handler(mon.ctx, EventConnClosed, result.deletedConns)
 	}
 }
 

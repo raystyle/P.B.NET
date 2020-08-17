@@ -1,6 +1,7 @@
 package netstat
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -18,12 +19,12 @@ func TestMonitor(t *testing.T) {
 	defer gm.Compare()
 
 	fmt.Println("Local Address    Remote Address    State    PID")
-	handler := func(event uint8, data interface{}) {
+	handler := func(_ context.Context, event uint8, data interface{}) {
 		switch event {
 		case EventConnCreated:
 			testMonitorPrintCreatedConns(t, data)
-		case EventConnRemoved:
-			testMonitorPrintDeletedConns(t, data)
+		case EventConnClosed:
+			testMonitorPrintClosedConns(t, data)
 		}
 	}
 	monitor, err := NewMonitor(logger.Test, handler)
@@ -31,11 +32,7 @@ func TestMonitor(t *testing.T) {
 
 	monitor.SetInterval(200 * time.Millisecond)
 
-	time.Sleep(5 * time.Second)
-	monitor.Pause()
-	time.Sleep(5 * time.Second)
-	monitor.Continue()
-	time.Sleep(5 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	monitor.GetTCP4Conns()
 	monitor.GetTCP6Conns()
@@ -76,27 +73,27 @@ func testMonitorPrintCreatedConns(t *testing.T, conns interface{}) {
 	}
 }
 
-func testMonitorPrintDeletedConns(t *testing.T, conns interface{}) {
+func testMonitorPrintClosedConns(t *testing.T, conns interface{}) {
 	for _, conn := range conns.([]interface{}) {
 		switch conn := conn.(type) {
 		case *TCP4Conn:
-			fmt.Printf("remove TCP4 connection\n%s:%d %s:%d %d %d\n",
+			fmt.Printf("close TCP4 connection\n%s:%d %s:%d %d %d\n",
 				conn.LocalAddr, conn.LocalPort,
 				conn.RemoteAddr, conn.RemotePort,
 				conn.State, conn.PID,
 			)
 		case *TCP6Conn:
-			fmt.Printf("remove TCP6 connection\n[%s%%%d]:%d [%s%%%d]:%d %d %d\n",
+			fmt.Printf("close TCP6 connection\n[%s%%%d]:%d [%s%%%d]:%d %d %d\n",
 				conn.LocalAddr, conn.LocalScopeID, conn.LocalPort,
 				conn.RemoteAddr, conn.RemoteScopeID, conn.RemotePort,
 				conn.State, conn.PID,
 			)
 		case *UDP4Conn:
-			fmt.Printf("remove UDP4 connection\n%s:%d *:* %d\n",
+			fmt.Printf("close UDP4 connection\n%s:%d *:* %d\n",
 				conn.LocalAddr, conn.LocalPort, conn.PID,
 			)
 		case *UDP6Conn:
-			fmt.Printf("remove UDP6 connection\n[%s%%%d]:%d *:* %d\n",
+			fmt.Printf("close UDP6 connection\n[%s%%%d]:%d *:* %d\n",
 				conn.LocalAddr, conn.LocalScopeID, conn.LocalPort, conn.PID,
 			)
 		default:
@@ -112,11 +109,12 @@ func TestMonitor_EventConnCreated(t *testing.T) {
 	tcp4Listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer func() { _ = tcp4Listener.Close() }()
-	tcp4Addr := tcp4Listener.Addr().String()
 
 	tcp6Listener, err := net.Listen("tcp6", "[::1]:0")
 	require.NoError(t, err)
 	defer func() { _ = tcp6Listener.Close() }()
+
+	tcp4Addr := tcp4Listener.Addr().String()
 	tcp6Addr := tcp6Listener.Addr().String()
 
 	fmt.Println("tcp4 listener:", tcp4Addr)
@@ -131,7 +129,7 @@ func TestMonitor_EventConnCreated(t *testing.T) {
 		createdUDP6 []string
 	)
 
-	handler := func(event uint8, data interface{}) {
+	handler := func(_ context.Context, event uint8, data interface{}) {
 		if event != EventConnCreated {
 			return
 		}
@@ -165,7 +163,7 @@ func TestMonitor_EventConnCreated(t *testing.T) {
 	monitor, err := NewMonitor(logger.Test, handler)
 	require.NoError(t, err)
 
-	// wait first refresh
+	// wait first auto refresh
 	time.Sleep(2 * defaultInterval)
 
 	// connect test tcp listeners
@@ -216,31 +214,85 @@ func TestMonitor_EventConnCreated(t *testing.T) {
 			break
 		}
 	}
-
 	require.True(t, findTCP4, "not find expected tcp4 connection")
 	require.True(t, findTCP6, "not find expected tcp6 connection")
 	require.True(t, findUDP4, "not find expected udp4 connection")
 	require.True(t, findUDP6, "not find expected udp6 connection")
 }
 
-func TestMonitor_EventConnRemoved(t *testing.T) {
+func TestMonitor_EventConnClosed(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	handler := func(event uint8, data interface{}) {
-		if event != EventConnRemoved {
+	tcp4Listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = tcp4Listener.Close() }()
+
+	tcp6Listener, err := net.Listen("tcp6", "[::1]:0")
+	require.NoError(t, err)
+	defer func() { _ = tcp6Listener.Close() }()
+
+	// listen test udp connection
+	udpAddr, err := net.ResolveUDPAddr("udp4", "127.0.0.1:123")
+	require.NoError(t, err)
+	udp4Conn, err := net.ListenUDP("udp4", udpAddr)
+	require.NoError(t, err)
+	defer func() { _ = udp4Conn.Close() }()
+
+	udpAddr, err = net.ResolveUDPAddr("udp6", "[::1]:123")
+	require.NoError(t, err)
+	udp6Conn, err := net.ListenUDP("udp6", udpAddr)
+	require.NoError(t, err)
+	defer func() { _ = udp6Conn.Close() }()
+
+	tcp4Addr := tcp4Listener.Addr().String()
+	tcp6Addr := tcp6Listener.Addr().String()
+
+	udp4ConnAddr := udp4Conn.LocalAddr().String()
+	udp6ConnAddr := udp6Conn.LocalAddr().String()
+
+	fmt.Println("tcp4 listener:", tcp4Addr)
+	fmt.Println("tcp6 listener:", tcp6Addr)
+	fmt.Println("udp4 listener:", udp4ConnAddr)
+	fmt.Println("udp6 listener:", udp6ConnAddr)
+
+	var (
+		findTCP4 bool
+		findTCP6 bool
+		findUDP4 bool
+		findUDP6 bool
+	)
+
+	handler := func(_ context.Context, event uint8, data interface{}) {
+		if event != EventConnClosed {
 			return
 		}
 		for _, conn := range data.([]interface{}) {
 			switch conn := conn.(type) {
 			case *TCP4Conn:
-
+				localAddr := nettool.JoinHostPort(conn.LocalAddr.String(), conn.LocalPort)
+				fmt.Println("close tcp4 connection:", localAddr)
+				if localAddr == tcp4Addr {
+					findTCP4 = true
+				}
 			case *TCP6Conn:
-
+				localAddr := nettool.JoinHostPort(conn.LocalAddr.String(), conn.LocalPort)
+				fmt.Println("close tcp6 connection:", localAddr)
+				if localAddr == tcp6Addr {
+					findTCP6 = true
+				}
 			case *UDP4Conn:
-
+				localAddr := nettool.JoinHostPort(conn.LocalAddr.String(), conn.LocalPort)
+				fmt.Println("close udp4 connection:", localAddr)
+				if localAddr == udp4ConnAddr {
+					findUDP4 = true
+				}
 			case *UDP6Conn:
-
+				localAddr := nettool.JoinHostPort(conn.LocalAddr.String(), conn.LocalPort)
+				fmt.Println("close udp6 connection:", localAddr)
+				if localAddr == udp6ConnAddr {
+					findUDP6 = true
+				}
 			default:
 				t.Fatal("invalid structure:", conn)
 			}
@@ -249,7 +301,24 @@ func TestMonitor_EventConnRemoved(t *testing.T) {
 	monitor, err := NewMonitor(logger.Test, handler)
 	require.NoError(t, err)
 
+	err = tcp4Listener.Close()
+	require.NoError(t, err)
+	err = tcp6Listener.Close()
+	require.NoError(t, err)
+	err = udp4Conn.Close()
+	require.NoError(t, err)
+	err = udp6Conn.Close()
+	require.NoError(t, err)
+
+	// wait auto refresh
+	time.Sleep(2 * defaultInterval)
+
 	monitor.Close()
 
 	testsuite.IsDestroyed(t, monitor)
+
+	require.True(t, findTCP4, "not find expected tcp4 connection")
+	require.True(t, findTCP6, "not find expected tcp6 connection")
+	require.True(t, findUDP4, "not find expected udp4 connection")
+	require.True(t, findUDP6, "not find expected udp6 connection")
 }
