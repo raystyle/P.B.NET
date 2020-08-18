@@ -14,6 +14,31 @@ import (
 	"project/internal/xpanic"
 )
 
+type execQuery struct {
+	WQL string
+	Dst interface{}
+	Err chan<- error
+}
+
+type get struct {
+	Path   string
+	Args   []interface{}
+	Result chan<- *getResult
+}
+
+type getResult struct {
+	Object *Object
+	Err    error
+}
+
+type execMethod struct {
+	Path   string
+	Method string
+	Args   []interface{}
+	Dst    interface{}
+	Err    chan<- error
+}
+
 // Client is a WMI client.
 type Client struct {
 	args    []interface{}
@@ -23,6 +48,10 @@ type Client struct {
 	query      *ole.IDispatch
 	rawService *ole.VARIANT
 	wmi        *ole.IDispatch
+
+	queryQueue chan *execQuery
+	getQueue   chan *get
+	execQueue  chan *execMethod
 
 	closeOnce  sync.Once
 	stopSignal chan struct{}
@@ -34,6 +63,9 @@ func NewClient(host, namespace string, args ...interface{}) (*Client, error) {
 	client := Client{
 		args:       append([]interface{}{host, namespace}, args...),
 		initErr:    make(chan error, 1),
+		queryQueue: make(chan *execQuery, 16),
+		getQueue:   make(chan *get, 16),
+		execQueue:  make(chan *execMethod, 16),
 		stopSignal: make(chan struct{}),
 	}
 	client.wg.Add(1)
@@ -70,7 +102,7 @@ func (client *Client) work() {
 	}
 	defer client.release()
 
-	client.handleRequestLoop()
+	client.handleLoop()
 }
 
 func (client *Client) init() error {
@@ -128,32 +160,109 @@ func (client *Client) release() {
 	ole.CoUninitialize()
 }
 
-func (client *Client) handleRequestLoop() {
+func (client *Client) handleLoop() {
+	var (
+		query *execQuery
+		get   *get
+		exec  *execMethod
+	)
 	for {
 		select {
-
+		case query = <-client.queryQueue:
+			client.handleExecQuery(query)
+		case get = <-client.getQueue:
+			client.handleGet(get)
+		case exec = <-client.execQueue:
+			client.handleExecMethod(exec)
 		case <-client.stopSignal:
 			return
 		}
 	}
 }
 
-func (client *Client) handleQuery() {
+func (client *Client) handleExecQuery(query *execQuery) {
 
 }
 
+func (client *Client) handleGet(get *get) {
+
+}
+
+func (client *Client) handleExecMethod(exec *execMethod) {
+
+}
+
+const clientClosed = " because wmi client is closed"
+
+// Query is used to query with WQL, dst is used to save query result.
 func (client *Client) Query(wql string, dst interface{}) error {
-	return nil
+	errCh := make(chan error, 1)
+	query := execQuery{
+		WQL: wql,
+		Dst: dst,
+		Err: errCh,
+	}
+	select {
+	case client.queryQueue <- &query:
+	case <-client.stopSignal:
+		return errors.New("failed to query" + clientClosed)
+	}
+	var err error
+	select {
+	case err = <-errCh:
+	case <-client.stopSignal:
+		return errors.New("failed to get query error" + clientClosed)
+	}
+	return err
 }
 
-func (client *Client) Get(wql string, dst interface{}) error {
-
-	return nil
+// Get is used to get a object.
+func (client *Client) Get(path string, args ...interface{}) (*Object, error) {
+	result := make(chan *getResult, 1)
+	get := get{
+		Path:   path,
+		Args:   args,
+		Result: result,
+	}
+	select {
+	case client.getQueue <- &get:
+	case <-client.stopSignal:
+		return nil, errors.New("failed to get object" + clientClosed)
+	}
+	var getResult *getResult
+	select {
+	case getResult = <-result:
+	case <-client.stopSignal:
+		return nil, errors.New("failed to get object result" + clientClosed)
+	}
+	if getResult.Err != nil {
+		return nil, getResult.Err
+	}
+	return getResult.Object, nil
 }
 
-func (client *Client) ExecMethod(wql string, dst interface{}) error {
-
-	return nil
+// ExecMethod is used to execute a method about object, dst is used to save execute result.
+func (client *Client) ExecMethod(path, method string, dst interface{}, args ...interface{}) error {
+	errCh := make(chan error, 1)
+	exec := execMethod{
+		Path:   path,
+		Method: method,
+		Args:   args,
+		Dst:    dst,
+		Err:    errCh,
+	}
+	select {
+	case client.execQueue <- &exec:
+	case <-client.stopSignal:
+		return errors.New("failed to execute method" + clientClosed)
+	}
+	var err error
+	select {
+	case err = <-errCh:
+	case <-client.stopSignal:
+		return errors.New("failed to get execute method error" + clientClosed)
+	}
+	return err
 }
 
 // Close is used to close WMI client.
