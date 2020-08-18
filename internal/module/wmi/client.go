@@ -3,6 +3,7 @@
 package wmi
 
 import (
+	"fmt"
 	"runtime"
 	"sync"
 	"time"
@@ -181,7 +182,20 @@ func (client *Client) handleLoop() {
 }
 
 func (client *Client) handleExecQuery(query *execQuery) {
+	var err error
+	defer func() { query.Err <- err }()
+	result, err := oleutil.CallMethod(client.wmi, "ExecQuery", query.WQL)
+	if err != nil {
+		return
+	}
+	object := Object{raw: result}
+	defer object.Clear()
 
+	objects, err := object.objects()
+	if err != nil {
+		return
+	}
+	fmt.Println(objects)
 }
 
 func (client *Client) handleGet(get *get) {
