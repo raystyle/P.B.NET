@@ -3,7 +3,6 @@
 package wmi
 
 import (
-	"fmt"
 	"runtime"
 	"sync"
 	"time"
@@ -80,7 +79,7 @@ func NewClient(host, namespace string, args ...interface{}) (*Client, error) {
 		}
 		return &client, nil
 	case <-timer.C:
-		_ = client.Close()
+		client.Close()
 		return nil, errors.New("initialize client timeout")
 	}
 }
@@ -195,7 +194,12 @@ func (client *Client) handleExecQuery(query *execQuery) {
 	if err != nil {
 		return
 	}
-	fmt.Println(objects)
+	defer func() {
+		for i := 0; i < len(objects); i++ {
+			objects[i].Clear()
+		}
+	}()
+	err = parseExecQueryResult(objects, query.Dst)
 }
 
 func (client *Client) handleGet(get *get) {
@@ -209,6 +213,7 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 const clientClosed = " because wmi client is closed"
 
 // Query is used to query with WQL, dst is used to save query result.
+// destination interface must be slice like []*Win32Process
 func (client *Client) Query(wql string, dst interface{}) error {
 	errCh := make(chan error, 1)
 	query := execQuery{
@@ -280,10 +285,9 @@ func (client *Client) ExecMethod(path, method string, dst interface{}, args ...i
 }
 
 // Close is used to close WMI client.
-func (client *Client) Close() (err error) {
+func (client *Client) Close() {
 	client.closeOnce.Do(func() {
 		close(client.stopSignal)
 		client.wg.Wait()
 	})
-	return
 }
