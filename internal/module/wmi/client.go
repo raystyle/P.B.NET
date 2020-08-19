@@ -93,6 +93,7 @@ func (client *Client) work() {
 			xpanic.Log(r, "Client.work")
 		}
 	}()
+	defer client.close()
 
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -256,7 +257,7 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 
 }
 
-const clientClosed = " because wmi client is closed"
+const clientClosed = "wmi client is closed"
 
 // Query is used to query with WQL, dst is used to save query result.
 // destination interface must be slice pointer like *[]*Type or *[]Type.
@@ -270,13 +271,13 @@ func (client *Client) Query(wql string, dst interface{}) error {
 	select {
 	case client.queryQueue <- &query:
 	case <-client.stopSignal:
-		return errors.New("failed to query" + clientClosed)
+		return errors.New("failed to query: " + clientClosed)
 	}
 	var err error
 	select {
 	case err = <-errCh:
 	case <-client.stopSignal:
-		return errors.New("failed to get query error" + clientClosed)
+		return errors.New("failed to receive query error: " + clientClosed)
 	}
 	return err
 }
@@ -292,13 +293,13 @@ func (client *Client) Get(path string, args ...interface{}) (*Object, error) {
 	select {
 	case client.getQueue <- &get:
 	case <-client.stopSignal:
-		return nil, errors.New("failed to get object" + clientClosed)
+		return nil, errors.New("failed to get object: " + clientClosed)
 	}
 	var getResult *getResult
 	select {
 	case getResult = <-result:
 	case <-client.stopSignal:
-		return nil, errors.New("failed to get object result" + clientClosed)
+		return nil, errors.New("failed to receive get object result: " + clientClosed)
 	}
 	if getResult.Err != nil {
 		return nil, getResult.Err
@@ -320,21 +321,25 @@ func (client *Client) ExecMethod(path, method string, dst interface{}, args ...i
 	select {
 	case client.execQueue <- &exec:
 	case <-client.stopSignal:
-		return errors.New("failed to execute method" + clientClosed)
+		return errors.New("failed to execute method: " + clientClosed)
 	}
 	var err error
 	select {
 	case err = <-errCh:
 	case <-client.stopSignal:
-		return errors.New("failed to get execute method error" + clientClosed)
+		return errors.New("failed to receive execute method error: " + clientClosed)
 	}
 	return err
 }
 
 // Close is used to close WMI client.
 func (client *Client) Close() {
+	client.close()
+	client.wg.Wait()
+}
+
+func (client *Client) close() {
 	client.closeOnce.Do(func() {
 		close(client.stopSignal)
-		client.wg.Wait()
 	})
 }

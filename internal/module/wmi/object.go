@@ -13,6 +13,7 @@ type Object struct {
 	raw *ole.VARIANT
 }
 
+// count is used to get the number of objects.
 func (obj *Object) count() (int, error) {
 	iDispatch := obj.raw.ToIDispatch()
 	if iDispatch == nil {
