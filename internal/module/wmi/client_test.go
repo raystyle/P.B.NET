@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	testWQLWin32Process = "select Name, ProcessId from Win32_Process"
+	testPathWin32Process = "Win32_Process"
+	testWQLWin32Process  = "select Name, ProcessId from Win32_Process"
 )
 
 type testWin32Process struct {
@@ -45,5 +46,35 @@ func TestClient_Query(t *testing.T) {
 			fmt.Printf("name: %s pid: %d\n", process.Name, process.PID)
 			require.Zero(t, process.Ignore)
 		}
+	})
+}
+
+func TestClient_Get(t *testing.T) {
+	t.Run("Win32_Process", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		object, err := client.Get(testPathWin32Process)
+		require.NoError(t, err)
+
+		fmt.Println(object.Value())
+		object.Clear()
+
+		client.Close()
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+}
+
+func TestClient_ExecMethod(t *testing.T) {
+	t.Run("Win32_Process", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		err := client.ExecMethod(testPathWin32Process, "Create", nil, "cmd.exe")
+		require.NoError(t, err)
+
+		client.Close()
+
+		testsuite.IsDestroyed(t, client)
 	})
 }

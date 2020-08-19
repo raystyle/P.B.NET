@@ -189,7 +189,6 @@ func (client *Client) handleExecQuery(query *execQuery) {
 	}
 	object := Object{raw: result}
 	defer object.Clear()
-
 	objects, err := object.objects()
 	if err != nil {
 		return
@@ -199,21 +198,43 @@ func (client *Client) handleExecQuery(query *execQuery) {
 			objects[i].Clear()
 		}
 	}()
-	err = parseExecQueryResult(objects, query.Dst)
+	err = parseResult(objects, query.Dst)
 }
 
 func (client *Client) handleGet(get *get) {
-
+	var getResult getResult
+	defer func() { get.Result <- &getResult }()
+	params := append([]interface{}{get.Path}, get.Args...)
+	result, err := oleutil.CallMethod(client.wmi, "Get", params...)
+	if err != nil {
+		getResult.Err = err
+		return
+	}
+	getResult.Object = &Object{raw: result}
 }
 
 func (client *Client) handleExecMethod(exec *execMethod) {
-
+	var err error
+	defer func() { exec.Err <- err }()
+	// first get object by path
+	result, err := oleutil.CallMethod(client.wmi, "Get", exec.Path)
+	if err != nil {
+		return
+	}
+	object := Object{raw: result}
+	defer object.Clear()
+	// execute method
+	resultObj, err := object.ExecMethod(exec.Method, exec.Args...)
+	if err != nil {
+		return
+	}
+	defer resultObj.Clear()
 }
 
 const clientClosed = " because wmi client is closed"
 
 // Query is used to query with WQL, dst is used to save query result.
-// destination interface must be slice like []*Win32Process
+// destination interface must be slice pointer like *[]*Type or *[]Type.
 func (client *Client) Query(wql string, dst interface{}) error {
 	errCh := make(chan error, 1)
 	query := execQuery{
@@ -261,6 +282,7 @@ func (client *Client) Get(path string, args ...interface{}) (*Object, error) {
 }
 
 // ExecMethod is used to execute a method about object, dst is used to save execute result.
+// destination interface must be slice pointer like *[]*Type or *[]Type.
 func (client *Client) ExecMethod(path, method string, dst interface{}, args ...interface{}) error {
 	errCh := make(chan error, 1)
 	exec := execMethod{

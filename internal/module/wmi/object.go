@@ -42,13 +42,12 @@ func (obj *Object) itemIndex(i int) (*Object, error) {
 	return &Object{raw: itemRaw}, nil
 }
 
-// need clear each objects.
+// need clear each object.
 func (obj *Object) objects() ([]*Object, error) {
 	count, err := obj.count()
 	if err != nil {
 		return nil, err
 	}
-	// get objects
 	objects := make([]*Object, count)
 	for i := 0; i < count; i++ {
 		objects[i], err = obj.itemIndex(i)
