@@ -3,7 +3,9 @@
 package wmi
 
 import (
+	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -183,12 +185,14 @@ func (client *Client) handleLoop() {
 func (client *Client) handleExecQuery(query *execQuery) {
 	var err error
 	defer func() { query.Err <- err }()
+
 	result, err := oleutil.CallMethod(client.wmi, "ExecQuery", query.WQL)
 	if err != nil {
 		return
 	}
 	object := Object{raw: result}
 	defer object.Clear()
+
 	objects, err := object.objects()
 	if err != nil {
 		return
@@ -198,12 +202,13 @@ func (client *Client) handleExecQuery(query *execQuery) {
 			objects[i].Clear()
 		}
 	}()
-	err = parseResult(objects, query.Dst)
+	err = parseExecQueryResult(objects, query.Dst)
 }
 
 func (client *Client) handleGet(get *get) {
 	var getResult getResult
 	defer func() { get.Result <- &getResult }()
+
 	params := append([]interface{}{get.Path}, get.Args...)
 	result, err := oleutil.CallMethod(client.wmi, "Get", params...)
 	if err != nil {
@@ -216,19 +221,39 @@ func (client *Client) handleGet(get *get) {
 func (client *Client) handleExecMethod(exec *execMethod) {
 	var err error
 	defer func() { exec.Err <- err }()
-	// first get object by path
-	result, err := oleutil.CallMethod(client.wmi, "Get", exec.Path)
-	if err != nil {
-		return
-	}
-	object := Object{raw: result}
-	defer object.Clear()
-	// execute method
-	resultObj, err := object.ExecMethod(exec.Method, exec.Args...)
-	if err != nil {
-		return
+
+	var (
+		result    *ole.VARIANT
+		resultObj *Object
+	)
+	if strings.Contains(exec.Path, ".") {
+		params := append([]interface{}{exec.Path, exec.Method}, exec.Args...)
+		result, err = oleutil.CallMethod(client.wmi, "ExecMethod", params...)
+		if err != nil {
+			return
+		}
+		resultObj = &Object{raw: result}
+
+		prop, _ := resultObj.GetProperty("Domain")
+		fmt.Println(prop.Value())
+		prop, _ = resultObj.GetProperty("User")
+		fmt.Println(prop.Value())
+	} else {
+		// first get object by path if path not contain .
+		result, err = oleutil.CallMethod(client.wmi, "Get", exec.Path)
+		if err != nil {
+			return
+		}
+		object := Object{raw: result}
+		defer object.Clear()
+		// execute method
+		resultObj, err = object.ExecMethod(exec.Method, exec.Args...)
+		if err != nil {
+			return
+		}
 	}
 	defer resultObj.Clear()
+
 }
 
 const clientClosed = " because wmi client is closed"

@@ -67,10 +67,21 @@ func TestClient_Get(t *testing.T) {
 }
 
 func TestClient_ExecMethod(t *testing.T) {
-	t.Run("Win32_Process", func(t *testing.T) {
+	t.Run("path without dot", func(t *testing.T) {
 		client := testCreateClient(t)
 
 		err := client.ExecMethod(testPathWin32Process, "Create", nil, "cmd.exe")
+		require.NoError(t, err)
+
+		client.Close()
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("path with dot", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		err := client.ExecMethod("win32_process.Handle=\"388\"", "GetOwner", nil)
 		require.NoError(t, err)
 
 		client.Close()
