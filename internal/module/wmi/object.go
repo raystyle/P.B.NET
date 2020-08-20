@@ -43,7 +43,7 @@ func (obj *Object) itemIndex(i int) (*Object, error) {
 	return &Object{raw: itemRaw}, nil
 }
 
-// need clear each object.
+// need clear each object, after use.
 func (obj *Object) objects() ([]*Object, error) {
 	count, err := obj.count()
 	if err != nil {
@@ -53,6 +53,10 @@ func (obj *Object) objects() ([]*Object, error) {
 	for i := 0; i < count; i++ {
 		objects[i], err = obj.itemIndex(i)
 		if err != nil {
+			// clear objects
+			for j := 0; j < i; j++ {
+				objects[j].Clear()
+			}
 			return nil, err
 		}
 	}
@@ -67,11 +71,11 @@ func (obj *Object) ExecMethod(method string, args ...interface{}) (*Object, erro
 	}
 	iDispatch.AddRef()
 	defer iDispatch.Release()
-	result, err := oleutil.CallMethod(iDispatch, method, args...)
+	returnValue, err := oleutil.CallMethod(iDispatch, method, args...)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to call method \"%s\"", method)
+		return nil, errors.Wrapf(err, "failed to call method %q", method)
 	}
-	return &Object{raw: result}, nil
+	return &Object{raw: returnValue}, nil
 }
 
 // GetProperty is used to get property of this object, need clear object.
@@ -84,7 +88,7 @@ func (obj *Object) GetProperty(property string) (*Object, error) {
 	defer iDispatch.Release()
 	prop, err := oleutil.GetProperty(iDispatch, property)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to get property %q", property)
 	}
 	return &Object{raw: prop}, nil
 }
@@ -98,7 +102,30 @@ func (obj *Object) SetProperty(property string, args ...interface{}) error {
 	iDispatch.AddRef()
 	defer iDispatch.Release()
 	_, err := oleutil.PutProperty(iDispatch, property, args...)
-	return err
+	if err != nil {
+		return errors.Wrapf(err, "failed to set property %q", property)
+	}
+	return nil
+}
+
+// GetMethodInputParameters is used to get input parameters about a method.
+func (obj *Object) GetMethodInputParameters(name string) (*Object, error) {
+	// get input parameters about method if it exist
+	methods, err := obj.GetProperty("Methods_")
+	if err != nil {
+		return nil, err
+	}
+	defer methods.Clear()
+	method, err := methods.ExecMethod("Item", name)
+	if err != nil {
+		return nil, err
+	}
+	defer method.Clear()
+	input, err := method.GetProperty("InParameters")
+	if err != nil {
+		return nil, err
+	}
+	return input, nil
 }
 
 // Value is used to return the value of a result as an interface.

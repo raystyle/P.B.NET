@@ -139,9 +139,23 @@ func TestParseExecQueryResult(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
+type testWin32ProcessCreateInput struct {
+	CommandLine      string
+	CurrentDirectory string
+}
+
 type testWin32ProcessCreateOutput struct {
 	PID         uint32 `wmi:"ProcessId"`
 	ReturnValue uint32
+}
+
+type testWin32ProcessGetOwnerOutput struct {
+	Domain string
+	User   string
+}
+
+type testWin32ProcessTerminateInput struct {
+	Reason uint32
 }
 
 func TestParseExecMethodResult(t *testing.T) {
@@ -151,24 +165,64 @@ func TestParseExecMethodResult(t *testing.T) {
 	client := testCreateClient(t)
 
 	const (
-		path        = "Win32_Process"
-		commandLine = "notepad.exe"
+		createPath = "Win32_Process"
+		objectPath = "Win32_Process.Handle=\"%d\""
 	)
 
 	// first create a process, then terminate it
 
 	t.Run("value", func(t *testing.T) {
-
-		var output testWin32ProcessCreateOutput
-		err := client.ExecMethod(path, "Create", &output, commandLine)
+		// create process
+		createInput := testWin32ProcessCreateInput{
+			CommandLine:      "cmd.exe",
+			CurrentDirectory: "C:\\",
+		}
+		var createOutput testWin32ProcessCreateOutput
+		err := client.ExecMethod(createPath, "Create", createInput, &createOutput)
 		require.NoError(t, err)
+		fmt.Println(createOutput)
 
-		fmt.Println(output)
-		
+		path := fmt.Sprintf(objectPath, createOutput.PID)
+
+		// get owner
+		var getOwnerOutput testWin32ProcessGetOwnerOutput
+		err = client.ExecMethod(path, "GetOwner", nil, &getOwnerOutput)
+		require.NoError(t, err)
+		fmt.Println(getOwnerOutput)
+
+		// terminate process
+		terminateInput := testWin32ProcessTerminateInput{
+			Reason: 1,
+		}
+		err = client.ExecMethod(path, "Terminate", terminateInput, nil)
+		require.NoError(t, err)
 	})
 
 	t.Run("pointer", func(t *testing.T) {
+		// create process
+		createInput := testWin32ProcessCreateInput{
+			CommandLine:      "cmd.exe",
+			CurrentDirectory: "C:\\",
+		}
+		var createOutput testWin32ProcessCreateOutput
+		err := client.ExecMethod(createPath, "Create", &createInput, &createOutput)
+		require.NoError(t, err)
+		fmt.Println(createOutput)
 
+		path := fmt.Sprintf(objectPath, createOutput.PID)
+
+		// get owner
+		var getOwnerOutput testWin32ProcessGetOwnerOutput
+		err = client.ExecMethod(path, "GetOwner", nil, &getOwnerOutput)
+		require.NoError(t, err)
+		fmt.Println(getOwnerOutput)
+
+		// terminate process
+		terminateInput := testWin32ProcessTerminateInput{
+			Reason: 1,
+		}
+		err = client.ExecMethod(path, "Terminate", &terminateInput, nil)
+		require.NoError(t, err)
 	})
 
 	client.Close()

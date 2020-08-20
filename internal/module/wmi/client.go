@@ -8,11 +8,11 @@ import (
 	"strings"
 	"sync"
 	"time"
-	
+
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
 	"github.com/pkg/errors"
-	
+
 	"project/internal/xpanic"
 )
 
@@ -38,8 +38,8 @@ type getResult struct {
 type execMethod struct {
 	Path   string
 	Method string
-	Args   []interface{}
-	Dst    interface{}
+	Input  interface{}
+	Output interface{}
 	Err    chan<- error
 }
 
@@ -196,6 +196,7 @@ func (client *Client) handleExecQuery(query *execQuery) {
 
 	result, err := oleutil.CallMethod(client.wmi, "ExecQuery", query.WQL)
 	if err != nil {
+		err = errors.Wrap(err, "failed to exec query")
 		return
 	}
 	object := Object{raw: result}
@@ -220,7 +221,7 @@ func (client *Client) handleGet(get *get) {
 	params := append([]interface{}{get.Path}, get.Args...)
 	result, err := oleutil.CallMethod(client.wmi, "Get", params...)
 	if err != nil {
-		getResult.Err = err
+		getResult.Err = errors.Wrapf(err, "failed to get %q", get.Path)
 		return
 	}
 	getResult.Object = &Object{raw: result}
@@ -230,34 +231,40 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 	var err error
 	defer func() { exec.Err <- err }()
 
-	var (
-		result    *ole.VARIANT
-		resultObj *Object
-	)
-	if strings.Contains(exec.Path, ".") {
-		params := append([]interface{}{exec.Path, exec.Method}, exec.Args...)
-		result, err = oleutil.CallMethod(client.wmi, "ExecMethod", params...)
-		if err != nil {
-			return
-		}
-		resultObj = &Object{raw: result}
-
-	} else {
-		result, err = oleutil.CallMethod(client.wmi, "Get", exec.Path)
-		if err != nil {
-			return
-		}
-		object := Object{raw: result}
-		defer object.Clear()
-		// execute method
-		resultObj, err = object.ExecMethod(exec.Method, exec.Args...)
-		if err != nil {
-			return
-		}
-
+	// get object
+	result, err := oleutil.CallMethod(client.wmi, "Get", exec.Path)
+	if err != nil {
+		err = errors.Wrapf(err, "failed to get %q", exec.Path)
+		return
 	}
-	defer resultObj.Clear()
-	err = parseExecMethodResult(resultObj, exec.Dst)
+	object := Object{raw: result}
+	defer object.Clear()
+	// execute method
+	var output *Object
+	if exec.Input != nil {
+		// set input parameters
+		var input *Object
+		input, err = object.GetMethodInputParameters(exec.Method)
+		if err != nil {
+			return
+		}
+		defer input.Clear()
+		err = setExecMethodInputParameters(input, exec.Input)
+		if err != nil {
+			return
+		}
+		iDispatch := input.raw.ToIDispatch()
+		iDispatch.AddRef()
+		defer iDispatch.Release()
+		output, err = object.ExecMethod("ExecMethod_", exec.Method, iDispatch)
+	} else {
+		output, err = object.ExecMethod("ExecMethod_", exec.Method)
+	}
+	if err != nil {
+		return
+	}
+	defer output.Clear()
+	err = parseExecMethodResult(output, exec.Output)
 }
 
 const clientClosed = "wmi client is closed"
@@ -311,14 +318,14 @@ func (client *Client) Get(path string, args ...interface{}) (*Object, error) {
 }
 
 // ExecMethod is used to execute a method about object, dst is used to save execute result.
-// destination interface must be slice pointer like *[]*Type or *[]Type.
-func (client *Client) ExecMethod(path, method string, dst interface{}, args ...interface{}) error {
+// destination interface must be structure pointer like *struct.
+func (client *Client) ExecMethod(path, method string, input, output interface{}) error {
 	errCh := make(chan error, 1)
 	exec := execMethod{
 		Path:   path,
 		Method: method,
-		Args:   args,
-		Dst:    dst,
+		Input:  input,
+		Output: output,
 		Err:    errCh,
 	}
 	select {

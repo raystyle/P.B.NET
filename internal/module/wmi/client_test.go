@@ -91,7 +91,7 @@ func TestClient_ExecMethod(t *testing.T) {
 	t.Run("path with dot", func(t *testing.T) {
 		client := testCreateClient(t)
 
-		err := client.ExecMethod("win32_process.Handle=\"388\"", "GetOwner", nil)
+		err := client.ExecMethod("win32_process.Handle=\"388\"", "GetOwner", nil, nil)
 		require.NoError(t, err)
 
 		client.Close()

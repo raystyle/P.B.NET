@@ -78,6 +78,11 @@ func checkExecQueryDstType(dst interface{}, val reflect.Value) (slice, elem refl
 	return
 }
 
+// setExecMethodInputParameters is used to set input parameters to object.
+func setExecMethodInputParameters(obj *Object, input interface{}) error {
+	return obj.SetProperty("CommandLine", "notepad.exe")
+}
+
 // parseExecMethodResult is used to parse ExecMethod result to destination interface.
 func parseExecMethodResult(object *Object, dst interface{}) (err error) {
 	defer func() {
@@ -85,7 +90,9 @@ func parseExecMethodResult(object *Object, dst interface{}) (err error) {
 			err = xpanic.Error(r, "parseExecMethodResult")
 		}
 	}()
-
+	if dst == nil {
+		return
+	}
 	typ, val := checkExecMethodDstType(dst)
 	fields := getStructFields(typ)
 	for i := 0; i < len(fields); i++ {
