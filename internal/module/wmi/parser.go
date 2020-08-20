@@ -5,7 +5,7 @@ package wmi
 import (
 	"fmt"
 	"reflect"
-	"strings"
+	"strconv"
 	"time"
 
 	"github.com/go-ole/go-ole"
@@ -23,7 +23,7 @@ func parseExecQueryResult(objects []*Object, dst interface{}) (err error) {
 	}()
 	// walk destination structure for get structure fields
 	val := reflect.ValueOf(dst)
-	slice, elem := checkDstType(dst, val)
+	slice, elem := checkExecQueryDstType(dst, val)
 	// make slice
 	objectsLen := len(objects)
 	val = val.Elem() // slice
@@ -42,32 +42,20 @@ func parseExecQueryResult(objects []*Object, dst interface{}) (err error) {
 		}
 		for j := 0; j < len(fields); j++ {
 			field := fields[j]
-
+			// skipped field
 			if field == "" {
 				continue
 			}
-
-			prop, err := object.GetProperty(field)
+			err = setProperty(element.Field(j), object, field)
 			if err != nil {
-				return errors.Wrapf(err, "failed to get property \"%s\"", field)
+				return err
 			}
-
-			fmt.Println(prop.Value(), reflect.TypeOf(prop.Value()))
-			// fmt.Println()
-
-			if prop.raw.VT == ole.VT_NULL {
-				continue
-			}
-
-			setValue(element.Field(j), prop)
-
-			prop.Clear()
 		}
 	}
 	return
 }
 
-func checkDstType(dst interface{}, val reflect.Value) (slice, elem reflect.Type) {
+func checkExecQueryDstType(dst interface{}, val reflect.Value) (slice, elem reflect.Type) {
 	typ := reflect.TypeOf(dst)
 	if typ.Kind() != reflect.Ptr || val.IsNil() {
 		panic("destination interface is not slice pointer or is nil")
@@ -86,6 +74,11 @@ func checkDstType(dst interface{}, val reflect.Value) (slice, elem reflect.Type)
 	default:
 		panic("destination slice element is not structure or pointer")
 	}
+	return
+}
+
+// parseExecMethodResult is used to parse ExecMethod result to destination interface.
+func parseExecMethodResult(objects []*Object, dst interface{}) (err error) {
 	return
 }
 
@@ -115,6 +108,19 @@ func getStructFields(elem reflect.Type) []string {
 	return fields
 }
 
+func setProperty(field reflect.Value, object *Object, name string) error {
+	prop, err := object.GetProperty(name)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get property \"%s\"", name)
+	}
+	defer prop.Clear()
+	// skip null value
+	if prop.raw.VT == ole.VT_NULL {
+		return nil
+	}
+	return setValue(field, prop)
+}
+
 // ErrFieldMismatch is returned when a field is to be loaded into a different
 // type than the one it was stored from, or when a field is missing or
 // unexported in the destination struct.
@@ -132,12 +138,12 @@ func (e *ErrFieldMismatch) Error() string {
 
 var timeType = reflect.TypeOf(time.Time{})
 
+// setValue is used to set property to structure field.
 func setValue(field reflect.Value, prop *Object) error {
-	fieldType := field.Type()
-	name := fieldType.Name()
 	if !field.CanSet() {
+		fieldType := field.Type()
 		return &ErrFieldMismatch{
-			FieldName:  name,
+			FieldName:  fieldType.Name(),
 			StructType: fieldType,
 			Reason:     "can not set value",
 		}
@@ -151,8 +157,9 @@ func setValue(field reflect.Value, prop *Object) error {
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			field.SetUint(uint64(v))
 		default:
+			fieldType := field.Type()
 			return &ErrFieldMismatch{
-				FieldName:  name,
+				FieldName:  fieldType.Name(),
 				StructType: fieldType,
 				Reason:     "not an integer type",
 			}
@@ -165,8 +172,9 @@ func setValue(field reflect.Value, prop *Object) error {
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			field.SetUint(v)
 		default:
+			fieldType := field.Type()
 			return &ErrFieldMismatch{
-				FieldName:  name,
+				FieldName:  fieldType.Name(),
 				StructType: fieldType,
 				Reason:     "not an unsigned integer type",
 			}
@@ -177,8 +185,9 @@ func setValue(field reflect.Value, prop *Object) error {
 		case reflect.Float32, reflect.Float64:
 			field.SetFloat(v)
 		default:
+			fieldType := field.Type()
 			return &ErrFieldMismatch{
-				FieldName:  name,
+				FieldName:  fieldType.Name(),
 				StructType: fieldType,
 				Reason:     "not a float type",
 			}
@@ -188,38 +197,104 @@ func setValue(field reflect.Value, prop *Object) error {
 		case reflect.Bool:
 			field.SetBool(val)
 		default:
+			fieldType := field.Type()
 			return &ErrFieldMismatch{
-				FieldName:  name,
+				FieldName:  fieldType.Name(),
 				StructType: fieldType,
 				Reason:     "not a bool type",
 			}
 		}
 	case string:
-
+		return setStringValue(field, val)
 	default:
-
+		return setOtherValue(field, val)
 	}
 	return nil
 }
 
-// BuildWQL is used to build structure to WQL string.
-//
-// type testWin32Process struct {
-//     Name   string
-//     PID    uint32 `wmi:"ProcessId"`
-//     Ignore string `wmi:"-"`
-// }
-//
-// to select Name, ProcessId from Win32_Process
-func BuildWQL(structure interface{}, form string) string {
-	fields := getStructFields(reflect.TypeOf(structure))
-	fieldsLen := len(fields)
-	// remove empty string
-	f := make([]string, 0, fieldsLen)
-	for i := 0; i < fieldsLen; i++ {
-		if fields[i] != "" {
-			f = append(f, fields[i])
+func setStringValue(field reflect.Value, val string) error {
+	switch field.Kind() {
+	case reflect.String:
+		field.SetString(val)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		v, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			fieldType := field.Type()
+			return &ErrFieldMismatch{
+				FieldName:  fieldType.Name(),
+				StructType: fieldType,
+				Reason:     err.Error(),
+			}
+		}
+		field.SetInt(v)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		u, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			fieldType := field.Type()
+			return &ErrFieldMismatch{
+				FieldName:  fieldType.Name(),
+				StructType: fieldType,
+				Reason:     err.Error(),
+			}
+		}
+		field.SetUint(u)
+	case reflect.Struct: // string to time.Duration
+		switch field.Type() {
+		case timeType:
+			if len(val) == 25 {
+				m, err := strconv.Atoi(val[22:])
+				if err != nil {
+					fieldType := field.Type()
+					return &ErrFieldMismatch{
+						FieldName:  fieldType.Name(),
+						StructType: fieldType,
+						Reason:     err.Error(),
+					}
+				}
+				val = val[:22] + fmt.Sprintf("%02d%02d", m/60, m%60)
+			}
+			t, err := time.Parse("20060102150405.000000-0700", val)
+			if err != nil {
+				fieldType := field.Type()
+				return &ErrFieldMismatch{
+					FieldName:  fieldType.Name(),
+					StructType: fieldType,
+					Reason:     err.Error(),
+				}
+			}
+			field.Set(reflect.ValueOf(t))
+		default:
+			fieldType := field.Type()
+			return &ErrFieldMismatch{
+				FieldName:  fieldType.Name(),
+				StructType: fieldType,
+				Reason:     "not a string to time.Duration",
+			}
+		}
+	default:
+		fieldType := field.Type()
+		return &ErrFieldMismatch{
+			FieldName:  fieldType.Name(),
+			StructType: fieldType,
+			Reason:     fmt.Sprintf("string can not set to this field"),
 		}
 	}
-	return "select " + strings.Join(f, ", ") + " from " + form
+	return nil
+}
+
+func setOtherValue(field reflect.Value, val interface{}) error {
+	switch field.Kind() {
+	case reflect.Slice:
+
+	case reflect.Struct:
+
+	default:
+		fieldType := field.Type()
+		return &ErrFieldMismatch{
+			FieldName:  fieldType.Name(),
+			StructType: fieldType,
+			Reason:     fmt.Sprintf("unsupported type (%T)", val),
+		}
+	}
+	return nil
 }

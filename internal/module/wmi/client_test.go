@@ -89,3 +89,8 @@ func TestClient_ExecMethod(t *testing.T) {
 		testsuite.IsDestroyed(t, client)
 	})
 }
+
+func TestBuildWQL(t *testing.T) {
+	wql := BuildWQL(testWin32Process{}, "Win32_Process")
+	require.Equal(t, "select Name, ProcessId from Win32_Process", wql)
+}

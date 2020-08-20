@@ -4,6 +4,7 @@ package wmi
 
 import (
 	"fmt"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -342,4 +343,26 @@ func (client *Client) close() {
 	client.closeOnce.Do(func() {
 		close(client.stopSignal)
 	})
+}
+
+// BuildWQL is used to build structure to WQL string.
+//
+// type testWin32Process struct {
+//     Name   string
+//     PID    uint32 `wmi:"ProcessId"`
+//     Ignore string `wmi:"-"`
+// }
+//
+// to select Name, ProcessId from Win32_Process
+func BuildWQL(structure interface{}, form string) string {
+	fields := getStructFields(reflect.TypeOf(structure))
+	fieldsLen := len(fields)
+	// remove empty string
+	f := make([]string, 0, fieldsLen)
+	for i := 0; i < fieldsLen; i++ {
+		if fields[i] != "" {
+			f = append(f, fields[i])
+		}
+	}
+	return "select " + strings.Join(f, ", ") + " from " + form
 }
