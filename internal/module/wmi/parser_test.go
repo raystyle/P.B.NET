@@ -139,9 +139,16 @@ func TestParseExecQueryResult(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
+type testWin32ProcessStartup struct {
+	class string // must use it to create object
+	X     uint32
+	Y     uint32
+}
+
 type testWin32ProcessCreateInput struct {
 	CommandLine      string
 	CurrentDirectory string
+	ProcessStartup   *testWin32ProcessStartup `wmi:"ProcessStartupInformation"`
 }
 
 type testWin32ProcessCreateOutput struct {
@@ -176,11 +183,18 @@ func TestParseExecMethodResult(t *testing.T) {
 		createInput := testWin32ProcessCreateInput{
 			CommandLine:      "cmd.exe",
 			CurrentDirectory: "C:\\",
+			ProcessStartup: &testWin32ProcessStartup{
+				class: "Win32_ProcessStartup",
+				X:     50,
+				Y:     50,
+			},
 		}
 		var createOutput testWin32ProcessCreateOutput
 		err := client.ExecMethod(createPath, "Create", createInput, &createOutput)
 		require.NoError(t, err)
 		fmt.Println(createOutput)
+
+		return
 
 		path := fmt.Sprintf(objectPath, createOutput.PID)
 
@@ -203,6 +217,7 @@ func TestParseExecMethodResult(t *testing.T) {
 		createInput := testWin32ProcessCreateInput{
 			CommandLine:      "cmd.exe",
 			CurrentDirectory: "C:\\",
+			ProcessStartup:   &testWin32ProcessStartup{X: 50, Y: 50},
 		}
 		var createOutput testWin32ProcessCreateOutput
 		err := client.ExecMethod(createPath, "Create", &createInput, &createOutput)

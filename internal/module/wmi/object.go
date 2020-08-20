@@ -110,7 +110,6 @@ func (obj *Object) SetProperty(property string, args ...interface{}) error {
 
 // GetMethodInputParameters is used to get input parameters about a method.
 func (obj *Object) GetMethodInputParameters(name string) (*Object, error) {
-	// get input parameters about method if it exist
 	methods, err := obj.GetProperty("Methods_")
 	if err != nil {
 		return nil, err
@@ -126,6 +125,21 @@ func (obj *Object) GetMethodInputParameters(name string) (*Object, error) {
 		return nil, err
 	}
 	return input, nil
+}
+
+// Path is used to get path about this object.
+func (obj *Object) Path() (string, error) {
+	prop, err := obj.GetProperty("Path_")
+	if err != nil {
+		return "", err
+	}
+	defer prop.Clear()
+	path, err := prop.GetProperty("Path")
+	if err != nil {
+		return "", err
+	}
+	defer path.Clear()
+	return path.Value().(string), nil
 }
 
 // Value is used to return the value of a result as an interface.

@@ -24,7 +24,7 @@ type testWin32Process struct {
 }
 
 func testCreateClient(t *testing.T) *Client {
-	client, err := NewClient("", "root\\cimv2")
+	client, err := NewClient("root\\cimv2", nil)
 	require.NoError(t, err)
 	return client
 }

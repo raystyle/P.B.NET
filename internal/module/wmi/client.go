@@ -16,7 +16,15 @@ import (
 	"project/internal/xpanic"
 )
 
-const initializeTimeout = 15 * time.Second
+const defaultInitTimeout = 15 * time.Second
+
+// Options contains options about WMI client.
+type Options struct {
+	Host        string        `toml:"host"`
+	Username    string        `toml:"username"`
+	Password    string        `toml:"password"`
+	InitTimeout time.Duration `toml:"init_timeout"`
+}
 
 type execQuery struct {
 	WQL string
@@ -63,10 +71,15 @@ type Client struct {
 }
 
 // NewClient is used to create a WMI client.
-func NewClient(host, namespace string, args ...interface{}) (*Client, error) {
+func NewClient(namespace string, opts *Options) (*Client, error) {
 	const queueSize = 16
+	if opts == nil {
+		opts = new(Options)
+	}
+	// set connect server arguments
+	args := []interface{}{opts.Host, namespace, opts.Username, opts.Password}
 	client := Client{
-		args:       append([]interface{}{host, namespace}, args...),
+		args:       args,
 		initErr:    make(chan error, 1),
 		queryQueue: make(chan *execQuery, queueSize),
 		getQueue:   make(chan *get, queueSize),
@@ -75,7 +88,12 @@ func NewClient(host, namespace string, args ...interface{}) (*Client, error) {
 	}
 	client.wg.Add(1)
 	go client.work()
-	timer := time.NewTimer(initializeTimeout)
+	// wait WMI client initialize
+	timeout := opts.InitTimeout
+	if timeout < time.Second {
+		timeout = defaultInitTimeout
+	}
+	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
 	case err := <-client.initErr:
@@ -249,7 +267,7 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 			return
 		}
 		defer input.Clear()
-		err = setExecMethodInputParameters(input, exec.Input)
+		err = client.setExecMethodInputParameters(input, exec.Input)
 		if err != nil {
 			return
 		}

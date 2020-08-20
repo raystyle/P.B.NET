@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-ole/go-ole"
+	"github.com/go-ole/go-ole/oleutil"
 	"github.com/pkg/errors"
 
 	"project/internal/xpanic"
@@ -79,8 +80,52 @@ func checkExecQueryDstType(dst interface{}, val reflect.Value) (slice, elem refl
 }
 
 // setExecMethodInputParameters is used to set input parameters to object.
-func setExecMethodInputParameters(obj *Object, input interface{}) error {
-	return obj.SetProperty("CommandLine", "notepad.exe")
+func (client *Client) setExecMethodInputParameters(obj *Object, input interface{}) error {
+
+	ob, err := obj.GetProperty("ProcessStartupInformation")
+	if err != nil {
+		return err
+	}
+
+	p, err := ob.GetProperty("Path_")
+	if err != nil {
+		return err
+	}
+	pp, err := p.GetProperty("Path")
+	if err != nil {
+		return err
+	}
+	fmt.Println(pp.Value())
+
+	fmt.Println(ob.raw)
+
+	result, err := oleutil.CallMethod(client.wmi, "Get", "Win32_ProcessStartup")
+	if err != nil {
+		return err
+	}
+	object := Object{raw: result}
+	defer object.Clear()
+
+	object.Value()
+
+	fmt.Println(object.raw)
+
+	err = obj.SetProperty("ProcessStartupInformation", object.raw.ToIDispatch())
+	if err != nil {
+		return err
+	}
+
+	err = ob.SetProperty("X", uint32(300))
+	if err != nil {
+		return err
+	}
+
+	err = ob.SetProperty("Y", uint32(300))
+	if err != nil {
+		return err
+	}
+
+	return obj.SetProperty("CommandLine", "cmd.exe")
 }
 
 // parseExecMethodResult is used to parse ExecMethod result to destination interface.
