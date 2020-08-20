@@ -16,6 +16,8 @@ import (
 	"project/internal/xpanic"
 )
 
+const initializeTimeout = 15 * time.Second
+
 type execQuery struct {
 	WQL string
 	Dst interface{}
@@ -62,17 +64,18 @@ type Client struct {
 
 // NewClient is used to create a WMI client.
 func NewClient(host, namespace string, args ...interface{}) (*Client, error) {
+	const queueSize = 16
 	client := Client{
 		args:       append([]interface{}{host, namespace}, args...),
 		initErr:    make(chan error, 1),
-		queryQueue: make(chan *execQuery, 16),
-		getQueue:   make(chan *get, 16),
-		execQueue:  make(chan *execMethod, 16),
+		queryQueue: make(chan *execQuery, queueSize),
+		getQueue:   make(chan *get, queueSize),
+		execQueue:  make(chan *execMethod, queueSize),
 		stopSignal: make(chan struct{}),
 	}
 	client.wg.Add(1)
 	go client.work()
-	timer := time.NewTimer(15 * time.Second)
+	timer := time.NewTimer(initializeTimeout)
 	defer timer.Stop()
 	select {
 	case err := <-client.initErr:
@@ -99,8 +102,12 @@ func (client *Client) work() {
 	defer runtime.UnlockOSThread()
 
 	err := client.init()
-	client.initErr <- err
-	if err != nil {
+	select {
+	case client.initErr <- err:
+		if err != nil {
+			return
+		}
+	case <-client.stopSignal:
 		return
 	}
 	defer client.release()

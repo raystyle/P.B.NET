@@ -16,6 +16,7 @@ const (
 	testWQLWin32Process  = "select Name, ProcessId from Win32_Process"
 )
 
+// for test wmi structure tag and simple test.
 type testWin32Process struct {
 	Name   string
 	PID    uint32 `wmi:"ProcessId"`
@@ -29,6 +30,9 @@ func testCreateClient(t *testing.T) *Client {
 }
 
 func TestClient_Query(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	t.Run("Win32_Process", func(t *testing.T) {
 		client := testCreateClient(t)
 
@@ -50,6 +54,9 @@ func TestClient_Query(t *testing.T) {
 }
 
 func TestClient_Get(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	t.Run("Win32_Process", func(t *testing.T) {
 		client := testCreateClient(t)
 
@@ -67,6 +74,9 @@ func TestClient_Get(t *testing.T) {
 }
 
 func TestClient_ExecMethod(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	t.Run("path without dot", func(t *testing.T) {
 		client := testCreateClient(t)
 

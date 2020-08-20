@@ -170,6 +170,10 @@ var timeType = reflect.TypeOf(time.Time{})
 
 // setValue is used to set property to structure field.
 func setValue(field reflect.Value, value interface{}, prop *Object) error {
+	if field.Kind() == reflect.Ptr {
+		field.Set(reflect.New(field.Type().Elem()))
+		field = field.Elem()
+	}
 	if !field.CanSet() {
 		fieldType := field.Type()
 		return &ErrFieldMismatch{
@@ -306,7 +310,7 @@ func setStringValue(field reflect.Value, val string) error {
 		return &ErrFieldMismatch{
 			FieldName:  fieldType.Name(),
 			StructType: fieldType,
-			Reason:     fmt.Sprintf("string can not set to this field"),
+			Reason:     "string can not set to this field",
 		}
 	}
 	return nil
