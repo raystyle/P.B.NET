@@ -8,11 +8,11 @@ import (
 	"strings"
 	"sync"
 	"time"
-
+	
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
 	"github.com/pkg/errors"
-
+	
 	"project/internal/xpanic"
 )
 
@@ -241,8 +241,8 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 			return
 		}
 		resultObj = &Object{raw: result}
+
 	} else {
-		// get object by path if path not contain "."
 		result, err = oleutil.CallMethod(client.wmi, "Get", exec.Path)
 		if err != nil {
 			return
@@ -254,6 +254,7 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 		if err != nil {
 			return
 		}
+
 	}
 	defer resultObj.Clear()
 	err = parseExecMethodResult(resultObj, exec.Dst)

@@ -3,6 +3,7 @@
 package wmi
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -11,40 +12,6 @@ import (
 
 	"project/internal/testsuite"
 )
-
-type testStruct struct {
-	A     int16
-	ABPtr *int16
-}
-
-func TestCheckStructure(t *testing.T) {
-	ab := new(int16)
-	*ab = int16(16)
-	as := testStruct{
-		A:     16,
-		ABPtr: ab,
-	}
-	testCheckStructure(t, as)
-	testCheckStructure(t, &as)
-
-	// ab := new(int16)
-	//	*ab = int16(1)
-	//	as := testStruct{
-	//		A:     2,
-	//		ABPtr: ab,
-	//	}
-	//	testCheckStructure(t, as)
-	//	testCheckStructure(t, &as)
-
-	// ab := new(int16)
-	//	*ab = int16(1)
-	//	as := testStruct{
-	//		A:     0,
-	//		ABPtr: ab,
-	//	}
-	//	testCheckStructure(t, as)
-	//	testCheckStructure(t, &as)
-}
 
 func testCheckStructure(t *testing.T, value interface{}) {
 	val := reflect.ValueOf(value)
@@ -59,18 +26,50 @@ func testCheckStructure(t *testing.T, value interface{}) {
 	// check number of field
 	l := typ.NumField()
 	require.NotEqual(t, 0, l, "empty structure")
-	// check a multiple of two
-	require.Equal(t, 0, l%2, "structure field is not a multiple of two")
+	// check structure field is a multiple of two
+	require.Equal(t, 0, l%2, "fields not a multiple of two")
 	// compare value
 	for i := 0; i < l; i += 2 {
 		field := val.Field(i)
 		fieldPtr := val.Field(i + 1)
-
-		require.NotZero(t, field.Interface())
-
+		// check field value
+		switch field.Type().Kind() {
+		case reflect.Slice:
+			require.NotZero(t, field.Len())
+			require.NotZero(t, field.Index(0).Interface())
+		default:
+			require.NotZero(t, field.Interface())
+		}
+		// deep equal
 		require.Equal(t, reflect.Ptr, fieldPtr.Kind())
 		require.Equal(t, field.Interface(), fieldPtr.Elem().Interface())
 	}
+}
+
+type testStruct struct {
+	A     int16
+	ABPtr *int16
+
+	// slice
+	S    []string
+	SPtr *[]string
+
+	// struct
+}
+
+func TestCheckStructure(t *testing.T) {
+	a := int16(16)
+	s := []string{"S"}
+
+	as := testStruct{
+		A:     16,
+		ABPtr: &a,
+		S:     []string{"S"},
+		SPtr:  &s,
+	}
+
+	testCheckStructure(t, as)
+	testCheckStructure(t, &as)
 }
 
 // for test structure field types, dont worried the same structure tag.
@@ -96,34 +95,83 @@ type testWin32OperatingSystem struct {
 	CSName    string
 	CSNamePtr *string `wmi:"CSName"`
 
-	InstallDate    time.Duration
-	InstallDatePtr *time.Duration `wmi:"InstallDate"`
+	InstallDate    time.Time
+	InstallDatePtr *time.Time `wmi:"InstallDate"`
 
-	MUILanguage    []string
-	MUILanguagePtr *[]string `wmi:"MUILanguage"`
+	MUILanguages    []string
+	MUILanguagesPtr *[]string `wmi:"MUILanguages"`
 }
 
 func TestParseExecQueryResult(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("Win32_OperatingSystem", func(t *testing.T) {
-		client := testCreateClient(t)
+	client := testCreateClient(t)
 
-		systemInfo := testWin32OperatingSystem{}
+	const wql = "select * from Win32_OperatingSystem"
 
-		err := client.Query("select * from Win32_OperatingSystem", &systemInfo)
+	t.Run("value", func(t *testing.T) {
+		var systemInfo []testWin32OperatingSystem
+
+		err := client.Query(wql, &systemInfo)
 		require.NoError(t, err)
 
-		client.Close()
-
-		testsuite.IsDestroyed(t, client)
-
+		require.NotEmpty(t, systemInfo)
+		for _, systemInfo := range systemInfo {
+			testCheckStructure(t, systemInfo)
+		}
 	})
+
+	t.Run("pointer", func(t *testing.T) {
+		var systemInfo []*testWin32OperatingSystem
+
+		err := client.Query(wql, &systemInfo)
+		require.NoError(t, err)
+
+		require.NotEmpty(t, systemInfo)
+		for _, systemInfo := range systemInfo {
+			testCheckStructure(t, systemInfo)
+		}
+	})
+
+	client.Close()
+
+	testsuite.IsDestroyed(t, client)
 }
 
-func TestParseMethodQueryResult(t *testing.T) {
+type testWin32ProcessCreateOutput struct {
+	PID         uint32 `wmi:"ProcessId"`
+	ReturnValue uint32
+}
+
+func TestParseExecMethodResult(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	client := testCreateClient(t)
+
+	const (
+		path        = "Win32_Process"
+		commandLine = "notepad.exe"
+	)
+
+	// first create a process, then terminate it
+
+	t.Run("value", func(t *testing.T) {
+
+		var output testWin32ProcessCreateOutput
+		err := client.ExecMethod(path, "Create", &output, commandLine)
+		require.NoError(t, err)
+
+		fmt.Println(output)
+		
+	})
+
+	t.Run("pointer", func(t *testing.T) {
+
+	})
+
+	client.Close()
+
+	testsuite.IsDestroyed(t, client)
 }

@@ -33,19 +33,18 @@ func parseExecQueryResult(objects []*Object, dst interface{}) (err error) {
 		elemType = elemType.Elem()
 	}
 	fields := getStructFields(elemType)
-	for i, object := range objects {
+	for i := 0; i < objectsLen; i++ {
 		elem := val.Index(i)
 		if elemIsPtr {
 			elem.Set(reflect.New(elemType))
 			elem = elem.Elem()
 		}
 		for j := 0; j < len(fields); j++ {
-			field := fields[j]
 			// skipped field
-			if field == "" {
+			if fields[j] == "" {
 				continue
 			}
-			err = setProperty(elem.Field(j), object, field)
+			err = setProperty(elem.Field(j), objects[i], fields[j])
 			if err != nil {
 				return
 			}
@@ -55,6 +54,9 @@ func parseExecQueryResult(objects []*Object, dst interface{}) (err error) {
 }
 
 func checkExecQueryDstType(dst interface{}, val reflect.Value) (slice, elem reflect.Type) {
+	if dst == nil {
+		panic("destination interface is nil")
+	}
 	typ := reflect.TypeOf(dst)
 	if typ.Kind() != reflect.Ptr || val.IsNil() {
 		panic("destination interface is not slice pointer or is nil")
@@ -83,16 +85,15 @@ func parseExecMethodResult(object *Object, dst interface{}) (err error) {
 			err = xpanic.Error(r, "parseExecMethodResult")
 		}
 	}()
-	val := reflect.ValueOf(dst)
-	typ := checkExecMethodDstType(dst, val)
+
+	typ, val := checkExecMethodDstType(dst)
 	fields := getStructFields(typ)
 	for i := 0; i < len(fields); i++ {
-		field := fields[i]
 		// skipped field
-		if field == "" {
+		if fields[i] == "" {
 			continue
 		}
-		err = setProperty(val.Field(i), object, field)
+		err = setProperty(val.Field(i), object, fields[i])
 		if err != nil {
 			return
 		}
@@ -100,8 +101,12 @@ func parseExecMethodResult(object *Object, dst interface{}) (err error) {
 	return
 }
 
-func checkExecMethodDstType(dst interface{}, val reflect.Value) reflect.Type {
+func checkExecMethodDstType(dst interface{}) (reflect.Type, reflect.Value) {
+	if dst == nil {
+		panic("destination interface is nil")
+	}
 	typ := reflect.TypeOf(dst)
+	val := reflect.ValueOf(dst)
 	if typ.Kind() != reflect.Ptr || val.IsNil() {
 		panic("destination interface is not structure pointer or is nil")
 	}
@@ -109,7 +114,7 @@ func checkExecMethodDstType(dst interface{}, val reflect.Value) reflect.Type {
 	if elem.Kind() != reflect.Struct {
 		panic("destination pointer is not structure")
 	}
-	return elem
+	return elem, val.Elem()
 }
 
 func getStructFields(structure reflect.Type) []string {
@@ -158,15 +163,21 @@ func setProperty(field reflect.Value, object *Object, name string) error {
 type ErrFieldMismatch struct {
 	FieldName  string
 	StructType reflect.Type
-	Reason     string
+	Reason     interface{}
 }
 
 func (e *ErrFieldMismatch) Error() string {
-	return fmt.Sprintf("wmi: cannot load field %q into a %q: %s",
-		e.FieldName, e.StructType, e.Reason)
+	const format = "can not set field %q with a %q: %s"
+	return fmt.Sprintf(format, e.FieldName, e.StructType, e.Reason)
 }
 
-var timeType = reflect.TypeOf(time.Time{})
+func newErrFieldMismatch(field string, typ reflect.Type, reason interface{}) *ErrFieldMismatch {
+	return &ErrFieldMismatch{
+		FieldName:  field,
+		StructType: typ,
+		Reason:     reason,
+	}
+}
 
 // setValue is used to set property to structure field.
 func setValue(field reflect.Value, value interface{}, prop *Object) error {
@@ -245,6 +256,8 @@ func setValue(field reflect.Value, value interface{}, prop *Object) error {
 	}
 	return nil
 }
+
+var timeType = reflect.TypeOf(time.Time{})
 
 func setStringValue(field reflect.Value, val string) error {
 	switch field.Kind() {
