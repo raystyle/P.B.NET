@@ -21,24 +21,23 @@ func parseExecQueryResult(objects []*Object, dst interface{}) (err error) {
 			err = xpanic.Error(r, "parseExecQueryResult")
 		}
 	}()
-	// walk destination structure for get structure fields
 	val := reflect.ValueOf(dst)
-	slice, elem := checkExecQueryDstType(dst, val)
+	sliceType, elemType := checkExecQueryDstType(dst, val)
 	// make slice
 	objectsLen := len(objects)
 	val = val.Elem() // slice
-	val.Set(reflect.MakeSlice(slice, objectsLen, objectsLen))
+	val.Set(reflect.MakeSlice(sliceType, objectsLen, objectsLen))
 	// check slice element is pointer
-	elemIsPtr := elem.Kind() == reflect.Ptr
+	elemIsPtr := elemType.Kind() == reflect.Ptr
 	if elemIsPtr {
-		elem = elem.Elem()
+		elemType = elemType.Elem()
 	}
-	fields := getStructFields(elem)
+	fields := getStructFields(elemType)
 	for i, object := range objects {
-		element := val.Index(i)
+		elem := val.Index(i)
 		if elemIsPtr {
-			element.Set(reflect.New(elem))
-			element = element.Elem()
+			elem.Set(reflect.New(elemType))
+			elem = elem.Elem()
 		}
 		for j := 0; j < len(fields); j++ {
 			field := fields[j]
@@ -46,9 +45,9 @@ func parseExecQueryResult(objects []*Object, dst interface{}) (err error) {
 			if field == "" {
 				continue
 			}
-			err = setProperty(element.Field(j), object, field)
+			err = setProperty(elem.Field(j), object, field)
 			if err != nil {
-				return err
+				return
 			}
 		}
 	}
@@ -78,15 +77,46 @@ func checkExecQueryDstType(dst interface{}, val reflect.Value) (slice, elem refl
 }
 
 // parseExecMethodResult is used to parse ExecMethod result to destination interface.
-func parseExecMethodResult(objects []*Object, dst interface{}) (err error) {
+func parseExecMethodResult(object *Object, dst interface{}) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = xpanic.Error(r, "parseExecMethodResult")
+		}
+	}()
+	val := reflect.ValueOf(dst)
+	typ := checkExecMethodDstType(dst, val)
+	fields := getStructFields(typ)
+	for i := 0; i < len(fields); i++ {
+		field := fields[i]
+		// skipped field
+		if field == "" {
+			continue
+		}
+		err = setProperty(val.Field(i), object, field)
+		if err != nil {
+			return
+		}
+	}
 	return
 }
 
-func getStructFields(elem reflect.Type) []string {
-	l := elem.NumField()
+func checkExecMethodDstType(dst interface{}, val reflect.Value) reflect.Type {
+	typ := reflect.TypeOf(dst)
+	if typ.Kind() != reflect.Ptr || val.IsNil() {
+		panic("destination interface is not structure pointer or is nil")
+	}
+	elem := typ.Elem()
+	if elem.Kind() != reflect.Struct {
+		panic("destination pointer is not structure")
+	}
+	return elem
+}
+
+func getStructFields(structure reflect.Type) []string {
+	l := structure.NumField()
 	fields := make([]string, l)
 	for i := 0; i < l; i++ {
-		field := elem.Field(i)
+		field := structure.Field(i)
 		// skip unexported field
 		if field.PkgPath != "" && !field.Anonymous {
 			continue
@@ -118,7 +148,7 @@ func setProperty(field reflect.Value, object *Object, name string) error {
 	if prop.raw.VT == ole.VT_NULL {
 		return nil
 	}
-	return setValue(field, prop)
+	return setValue(field, prop.Value(), prop)
 }
 
 // ErrFieldMismatch is returned when a field is to be loaded into a different
@@ -139,7 +169,7 @@ func (e *ErrFieldMismatch) Error() string {
 var timeType = reflect.TypeOf(time.Time{})
 
 // setValue is used to set property to structure field.
-func setValue(field reflect.Value, prop *Object) error {
+func setValue(field reflect.Value, value interface{}, prop *Object) error {
 	if !field.CanSet() {
 		fieldType := field.Type()
 		return &ErrFieldMismatch{
@@ -148,7 +178,7 @@ func setValue(field reflect.Value, prop *Object) error {
 			Reason:     "can not set value",
 		}
 	}
-	switch val := prop.Value().(type) {
+	switch val := value.(type) {
 	case int, int8, int16, int32, int64:
 		v := reflect.ValueOf(val).Int()
 		switch field.Kind() {
@@ -207,7 +237,7 @@ func setValue(field reflect.Value, prop *Object) error {
 	case string:
 		return setStringValue(field, val)
 	default:
-		return setOtherValue(field, val)
+		return setOtherValue(field, val, prop)
 	}
 	return nil
 }
@@ -282,10 +312,30 @@ func setStringValue(field reflect.Value, val string) error {
 	return nil
 }
 
-func setOtherValue(field reflect.Value, val interface{}) error {
+func setOtherValue(field reflect.Value, val interface{}, prop *Object) error {
 	switch field.Kind() {
 	case reflect.Slice:
-
+		values := prop.ToArray().ToValueArray()
+		l := len(values)
+		field.Set(reflect.MakeSlice(field.Type(), l, l))
+		slice := field
+		elemType := slice.Type().Elem()
+		// check slice element is pointer
+		elemIsPtr := elemType.Kind() == reflect.Ptr
+		if elemIsPtr {
+			elemType = elemType.Elem()
+		}
+		for i := 0; i < l; i++ {
+			elem := slice.Index(i)
+			if elemIsPtr {
+				elem.Set(reflect.New(elemType))
+				elem = elem.Elem()
+			}
+			err := setValue(elem, values[i], prop)
+			if err != nil {
+				return err
+			}
+		}
 	case reflect.Struct:
 
 	default:

@@ -3,7 +3,6 @@
 package wmi
 
 import (
-	"fmt"
 	"reflect"
 	"runtime"
 	"strings"
@@ -235,13 +234,8 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 			return
 		}
 		resultObj = &Object{raw: result}
-
-		prop, _ := resultObj.GetProperty("Domain")
-		fmt.Println(prop.Value())
-		prop, _ = resultObj.GetProperty("User")
-		fmt.Println(prop.Value())
 	} else {
-		// first get object by path if path not contain .
+		// get object by path if path not contain "."
 		result, err = oleutil.CallMethod(client.wmi, "Get", exec.Path)
 		if err != nil {
 			return
@@ -255,7 +249,7 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 		}
 	}
 	defer resultObj.Clear()
-
+	err = parseExecMethodResult(resultObj, exec.Dst)
 }
 
 const clientClosed = "wmi client is closed"
