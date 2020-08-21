@@ -91,6 +91,18 @@ func TestNewSlaver(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("empty listener address", func(t *testing.T) {
+		_, err := NewSlaver(tag, "", "",
+			"", "", nil, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("empty destination address", func(t *testing.T) {
+		_, err := NewSlaver(tag, lNetwork, lAddress,
+			"", "", nil, nil)
+		require.Error(t, err)
+	})
+
 	t.Run("invalid listener address", func(t *testing.T) {
 		_, err := NewSlaver(tag, "foo", "foo",
 			dstNetwork, dstAddress, nil, nil)

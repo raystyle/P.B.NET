@@ -44,6 +44,9 @@ func NewListener(
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
+	if iAddress == "" {
+		return nil, errors.New("empty income listener address")
+	}
 	_, err := net.ResolveTCPAddr(iNetwork, iAddress)
 	if err != nil {
 		return nil, err

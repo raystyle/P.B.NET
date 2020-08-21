@@ -53,6 +53,12 @@ func NewSlaver(
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
+	if lAddress == "" {
+		return nil, errors.New("empty listener address")
+	}
+	if dstAddress == "" {
+		return nil, errors.New("empty destination address")
+	}
 	_, err := net.ResolveTCPAddr(lNetwork, lAddress)
 	if err != nil {
 		return nil, err

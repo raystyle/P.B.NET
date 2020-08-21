@@ -96,6 +96,11 @@ func TestNewListener(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("empty income address", func(t *testing.T) {
+		_, err := NewListener(tag, "", "", nil, nil)
+		require.Error(t, err)
+	})
+
 	t.Run("invalid income address", func(t *testing.T) {
 		_, err := NewListener(tag, "foo", "foo", nil, nil)
 		require.Error(t, err)

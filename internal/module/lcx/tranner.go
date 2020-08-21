@@ -19,8 +19,8 @@ import (
 
 // Tranner is used to map port.
 type Tranner struct {
-	dstNetwork string // destination
-	dstAddress string // destination
+	dstNetwork string
+	dstAddress string
 	logger     logger.Logger
 	opts       *Options
 
@@ -45,6 +45,9 @@ func NewTranner(
 ) (*Tranner, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
+	}
+	if dstAddress == "" {
+		return nil, errors.New("empty destination address")
 	}
 	_, err := net.ResolveTCPAddr(dstNetwork, dstAddress)
 	if err != nil {

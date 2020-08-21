@@ -80,6 +80,11 @@ func TestNewTranner(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("empty destination address", func(t *testing.T) {
+		_, err := NewTranner(tag, "", "", nil, nil)
+		require.Error(t, err)
+	})
+
 	t.Run("invalid destination address", func(t *testing.T) {
 		_, err := NewTranner(tag, "foo", "foo", nil, nil)
 		require.Error(t, err)
