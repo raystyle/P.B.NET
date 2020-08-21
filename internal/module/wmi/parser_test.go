@@ -32,17 +32,21 @@ func testCheckStructure(t *testing.T, value interface{}) {
 	for i := 0; i < l; i += 2 {
 		field := val.Field(i)
 		fieldPtr := val.Field(i + 1)
-		// check field value
-		switch field.Type().Kind() {
-		case reflect.Slice:
-			require.NotZero(t, field.Len())
-			require.NotZero(t, field.Index(0).Interface())
-		default:
-			require.NotZero(t, field.Interface())
+		fieldName := typ.Field(i).Name
+		fieldPtrName := typ.Field(i + 1).Name
+		// check field value, skip "ReturnValue" field
+		if fieldName != "ReturnValue" {
+			switch field.Type().Kind() {
+			case reflect.Slice:
+				require.NotZero(t, field.Len(), fieldName)
+				require.NotZero(t, field.Index(0).Interface(), fieldName)
+			default:
+				require.NotZero(t, field.Interface(), fieldName)
+			}
 		}
-		// deep equal
-		require.Equal(t, reflect.Ptr, fieldPtr.Kind())
-		require.Equal(t, field.Interface(), fieldPtr.Elem().Interface())
+		// deep equal value
+		require.Equal(t, reflect.Ptr, fieldPtr.Kind(), fieldPtrName)
+		require.Equal(t, field.Interface(), fieldPtr.Elem().Interface(), fieldName)
 	}
 }
 
@@ -139,28 +143,46 @@ func TestParseExecQueryResult(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
+type testWin32ProcessCreateInput struct {
+	CommandLine      string
+	CurrentDirectory string
+	ProcessStartup   testWin32ProcessStartup `wmi:"ProcessStartupInformation"`
+}
+
+// must use Class field to create object, not use structure field like
+// |class struct{} `wmi:"class_name"`| because for anko script.
 type testWin32ProcessStartup struct {
-	// must use it to create object
-	// not use class struct{} `wmi:"class_name"` for anko script.
 	Class string `wmi:"-"`
 	X     uint32
 	Y     uint32
 }
 
-type testWin32ProcessCreateInput struct {
-	CommandLine      string
-	CurrentDirectory string
-	ProcessStartup   *testWin32ProcessStartup `wmi:"ProcessStartupInformation"`
+type testWin32ProcessCreateInputPtr struct {
+	CommandLine      *string
+	CurrentDirectory *string
+	ProcessStartup   *testWin32ProcessStartupPtr `wmi:"ProcessStartupInformation"`
+}
+
+type testWin32ProcessStartupPtr struct {
+	Class string `wmi:"-"`
+	X     *uint32
+	Y     *uint32
 }
 
 type testWin32ProcessCreateOutput struct {
-	PID         uint32 `wmi:"ProcessId"`
-	ReturnValue uint32
+	PID    uint32  `wmi:"ProcessId"`
+	PIDPtr *uint32 `wmi:"ProcessId"`
+
+	ReturnValue    uint32
+	ReturnValuePtr *uint32 `wmi:"ReturnValue"`
 }
 
 type testWin32ProcessGetOwnerOutput struct {
-	Domain string
-	User   string
+	Domain    string
+	DomainPtr *string `wmi:"Domain"`
+
+	User    string
+	UserPtr *string `wmi:"User"`
 }
 
 type testWin32ProcessTerminateInput struct {
@@ -174,71 +196,89 @@ func TestParseExecMethodResult(t *testing.T) {
 	client := testCreateClient(t)
 
 	const (
-		createPath = "Win32_Process"
-		objectPath = "Win32_Process.Handle=\"%d\""
+		pathCreate = "Win32_Process"
+		pathObject = "Win32_Process.Handle=\"%d\""
+
+		methodCreate    = "Create"
+		methodGetOwner  = "GetOwner"
+		methodTerminate = "Terminate"
+	)
+
+	var (
+		commandLine      = "cmd.exe"
+		currentDirectory = "C:\\"
+		className        = "Win32_ProcessStartup"
 	)
 
 	t.Run("value", func(t *testing.T) {
 		// create process
 		createInput := testWin32ProcessCreateInput{
-			CommandLine:      "cmd.exe",
-			CurrentDirectory: "C:\\",
-			ProcessStartup: &testWin32ProcessStartup{
-				Class: "Win32_ProcessStartup",
+			CommandLine:      commandLine,
+			CurrentDirectory: currentDirectory,
+			ProcessStartup: testWin32ProcessStartup{
+				Class: className,
 				X:     50,
 				Y:     50,
 			},
 		}
 		var createOutput testWin32ProcessCreateOutput
-		err := client.ExecMethod(createPath, "Create", createInput, &createOutput)
+		err := client.ExecMethod(pathCreate, methodCreate, createInput, &createOutput)
 		require.NoError(t, err)
-		fmt.Println(createOutput)
 
-		path := fmt.Sprintf(objectPath, createOutput.PID)
+		fmt.Printf("PID: %d\n", createOutput.PID)
+		testCheckStructure(t, createOutput)
+
+		path := fmt.Sprintf(pathObject, createOutput.PID)
 
 		// get owner
 		var getOwnerOutput testWin32ProcessGetOwnerOutput
-		err = client.ExecMethod(path, "GetOwner", nil, &getOwnerOutput)
+		err = client.ExecMethod(path, methodGetOwner, nil, &getOwnerOutput)
 		require.NoError(t, err)
-		fmt.Println(getOwnerOutput)
+		fmt.Printf("Domain: %s, User: %s\n", getOwnerOutput.Domain, getOwnerOutput.User)
+		testCheckStructure(t, getOwnerOutput)
 
 		// terminate process
 		terminateInput := testWin32ProcessTerminateInput{
 			Reason: 1,
 		}
-		err = client.ExecMethod(path, "Terminate", terminateInput, nil)
+		err = client.ExecMethod(path, methodTerminate, terminateInput, nil)
 		require.NoError(t, err)
 	})
 
 	t.Run("pointer", func(t *testing.T) {
 		// create process
-		createInput := testWin32ProcessCreateInput{
-			CommandLine:      "cmd.exe",
-			CurrentDirectory: "C:\\",
-			ProcessStartup: &testWin32ProcessStartup{
-				Class: "Win32_ProcessStartup",
-				X:     50,
-				Y:     50,
+		x := uint32(50)
+		y := uint32(50)
+		createInput := testWin32ProcessCreateInputPtr{
+			CommandLine:      &commandLine,
+			CurrentDirectory: &currentDirectory,
+			ProcessStartup: &testWin32ProcessStartupPtr{
+				Class: className,
+				X:     &x,
+				Y:     &y,
 			},
 		}
 		var createOutput testWin32ProcessCreateOutput
-		err := client.ExecMethod(createPath, "Create", &createInput, &createOutput)
+		err := client.ExecMethod(pathCreate, methodCreate, &createInput, &createOutput)
 		require.NoError(t, err)
-		fmt.Println(createOutput)
 
-		path := fmt.Sprintf(objectPath, createOutput.PID)
+		fmt.Printf("PID: %d\n", createOutput.PID)
+		testCheckStructure(t, &createOutput)
+
+		path := fmt.Sprintf(pathObject, createOutput.PID)
 
 		// get owner
 		var getOwnerOutput testWin32ProcessGetOwnerOutput
-		err = client.ExecMethod(path, "GetOwner", nil, &getOwnerOutput)
+		err = client.ExecMethod(path, methodGetOwner, nil, &getOwnerOutput)
 		require.NoError(t, err)
-		fmt.Println(getOwnerOutput)
+		fmt.Printf("Domain: %s, User: %s\n", getOwnerOutput.Domain, getOwnerOutput.User)
+		testCheckStructure(t, getOwnerOutput)
 
 		// terminate process
 		terminateInput := testWin32ProcessTerminateInput{
 			Reason: 1,
 		}
-		err = client.ExecMethod(path, "Terminate", &terminateInput, nil)
+		err = client.ExecMethod(path, methodTerminate, &terminateInput, nil)
 		require.NoError(t, err)
 	})
 

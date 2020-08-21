@@ -53,7 +53,7 @@ func TestClient_Query(t *testing.T) {
 	})
 }
 
-func TestClient_Get(t *testing.T) {
+func TestClient_GetObject(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

@@ -17,6 +17,23 @@ import (
 	"project/internal/xpanic"
 )
 
+// references:
+//
+// IWbemServices:
+// https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemservices-execquery
+// https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemservices-getobject
+//
+// SWbemObject object:
+// https://docs.microsoft.com/en-us/windows/win32/wmisdk/swbemobject
+// https://docs.microsoft.com/en-us/windows/win32/wmisdk/swbemobject-execmethod-
+// https://docs.microsoft.com/en-us/windows/win32/wmisdk/swbemobject-methods-
+// https://docs.microsoft.com/en-us/windows/win32/wmisdk/swbemobject-path-
+// https://docs.microsoft.com/en-us/windows/win32/wmisdk/swbemmethodset
+//
+// CIM Win32 Provider:
+// https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-process
+// https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-operatingsystem
+
 const defaultInitTimeout = 15 * time.Second
 
 // Options contains options about WMI client.
@@ -257,7 +274,7 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 	// get class
 	class, err := oleutil.CallMethod(client.wmi, "Get", exec.Path)
 	if err != nil {
-		err = errors.Wrapf(err, "failed to get %q", exec.Path)
+		err = errors.Wrapf(err, "failed to get class %q", exec.Path)
 		return
 	}
 	object := Object{raw: class}
@@ -396,7 +413,7 @@ func (client *Client) setInputStruct(
 	// create instance
 	instance, err := oleutil.CallMethod(client.wmi, "Get", class)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to create instance from class %q", class)
 	}
 	object := Object{raw: instance}
 	defer object.Clear()
