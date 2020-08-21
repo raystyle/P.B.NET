@@ -514,16 +514,16 @@ func (client *Client) close() {
 	})
 }
 
-// BuildWQL is used to build structure to WQL string.
+// BuildWQLStatement is used to build WQL from structure.
 //
-// type testWin32Process struct {
+// type win32Process struct {
 //     Name   string
 //     PID    uint32 `wmi:"ProcessId"`
 //     Ignore string `wmi:"-"`
 // }
 //
-// to select Name, ProcessId from Win32_Process
-func BuildWQL(structure interface{}, form string) string {
+// to "select Name, ProcessId from Win32_Process"
+func BuildWQLStatement(structure interface{}, form string) string {
 	fields := getStructFields(reflect.TypeOf(structure))
 	fieldsLen := len(fields)
 	// remove empty string

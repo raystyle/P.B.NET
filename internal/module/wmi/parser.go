@@ -104,9 +104,6 @@ func parseExecMethodResult(object *Object, output interface{}) (err error) {
 }
 
 func checkExecMethodOutputType(output interface{}) (reflect.Type, reflect.Value) {
-	if output == nil {
-		panic("output interface is nil")
-	}
 	typ := reflect.TypeOf(output)
 	val := reflect.ValueOf(output)
 	if typ.Kind() != reflect.Ptr || val.IsNil() {

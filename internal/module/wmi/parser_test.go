@@ -49,7 +49,7 @@ func testCheckOutputStructure(t *testing.T, value interface{}) {
 			}
 		}
 		// deep equal value
-		require.Equal(t, reflect.Ptr, fieldPtr.Kind(), fieldPtrName)
+		require.Equal(t, reflect.Ptr, fieldPtr.Kind(), fieldPtrName, "is not pointer")
 		require.Equal(t, field.Interface(), fieldPtr.Elem().Interface(), fieldName)
 	}
 }
@@ -154,29 +154,33 @@ type testWin32ProcessCreateInput struct {
 	CommandLine      string
 	CurrentDirectory string
 	ProcessStartup   testWin32ProcessStartup `wmi:"ProcessStartupInformation"`
+
+	Ignore string `wmi:"-"`
 }
 
-// must use Class field to create object, not use structure field like
-// |class struct{} `wmi:"class_name"`| because for anko script.
 type testWin32ProcessStartup struct {
-	// class name
 	Class string `wmi:"-"`
 
-	// property
 	X uint32
 	Y uint32
+
+	Ignore string `wmi:"-"`
 }
 
 type testWin32ProcessCreateInputPtr struct {
 	CommandLine      *string
 	CurrentDirectory *string
 	ProcessStartup   *testWin32ProcessStartupPtr `wmi:"ProcessStartupInformation"`
+
+	Ignore *string `wmi:"-"`
 }
 
 type testWin32ProcessStartupPtr struct {
 	Class string `wmi:"-"`
 	X     *uint32
 	Y     *uint32
+
+	Ignore *string `wmi:"-"`
 }
 
 type testWin32ProcessCreateOutput struct {
@@ -240,7 +244,6 @@ func TestParseExecMethodResult(t *testing.T) {
 		var createOutput testWin32ProcessCreateOutput
 		err := client.ExecMethod(pathCreate, methodCreate, createInput, &createOutput)
 		require.NoError(t, err)
-
 		fmt.Printf("PID: %d\n", createOutput.PID)
 		testCheckOutputStructure(t, createOutput)
 
@@ -277,7 +280,6 @@ func TestParseExecMethodResult(t *testing.T) {
 		var createOutput testWin32ProcessCreateOutput
 		err := client.ExecMethod(pathCreate, methodCreate, &createInput, &createOutput)
 		require.NoError(t, err)
-
 		fmt.Printf("PID: %d\n", createOutput.PID)
 		testCheckOutputStructure(t, &createOutput)
 
@@ -307,7 +309,6 @@ func TestParseExecMethodResult(t *testing.T) {
 		var createOutput testWin32ProcessCreateOutput
 		err := client.ExecMethod(pathCreate, methodCreate, &createInput, &createOutput)
 		require.NoError(t, err)
-
 		fmt.Printf("PID: %d\n", createOutput.PID)
 		testCheckOutputStructure(t, &createOutput)
 
