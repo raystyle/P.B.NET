@@ -13,7 +13,7 @@ import (
 	"project/internal/testsuite"
 )
 
-func testCheckStructure(t *testing.T, value interface{}) {
+func testCheckOutputStructure(t *testing.T, value interface{}) {
 	val := reflect.ValueOf(value)
 	typ := reflect.TypeOf(value)
 	if typ.Kind() == reflect.Ptr {
@@ -34,6 +34,10 @@ func testCheckStructure(t *testing.T, value interface{}) {
 		fieldPtr := val.Field(i + 1)
 		fieldName := typ.Field(i).Name
 		fieldPtrName := typ.Field(i + 1).Name
+		// skip ignore field
+		if typ.Field(i).Tag.Get("wmi") == "-" {
+			continue
+		}
 		// check field value, skip "ReturnValue" field
 		if fieldName != "ReturnValue" {
 			switch field.Type().Kind() {
@@ -58,10 +62,10 @@ type testStruct struct {
 	S    []string
 	SPtr *[]string
 
-	// struct
+	// TODO struct
 }
 
-func TestCheckStructure(t *testing.T) {
+func TestCheckOutputStructure(t *testing.T) {
 	a := int16(16)
 	s := []string{"S"}
 
@@ -72,8 +76,8 @@ func TestCheckStructure(t *testing.T) {
 		SPtr:  &s,
 	}
 
-	testCheckStructure(t, as)
-	testCheckStructure(t, &as)
+	testCheckOutputStructure(t, as)
+	testCheckOutputStructure(t, &as)
 }
 
 // for test structure field types, dont worried the same structure tag.
@@ -104,6 +108,9 @@ type testWin32OperatingSystem struct {
 
 	MUILanguages    []string
 	MUILanguagesPtr *[]string `wmi:"MUILanguages"`
+
+	Ignore    string `wmi:"-"`
+	IgnorePtr string `wmi:"-"`
 }
 
 func TestParseExecQueryResult(t *testing.T) {
@@ -122,7 +129,7 @@ func TestParseExecQueryResult(t *testing.T) {
 
 		require.NotEmpty(t, systemInfo)
 		for _, systemInfo := range systemInfo {
-			testCheckStructure(t, systemInfo)
+			testCheckOutputStructure(t, systemInfo)
 		}
 	})
 
@@ -134,7 +141,7 @@ func TestParseExecQueryResult(t *testing.T) {
 
 		require.NotEmpty(t, systemInfo)
 		for _, systemInfo := range systemInfo {
-			testCheckStructure(t, systemInfo)
+			testCheckOutputStructure(t, systemInfo)
 		}
 	})
 
@@ -152,9 +159,12 @@ type testWin32ProcessCreateInput struct {
 // must use Class field to create object, not use structure field like
 // |class struct{} `wmi:"class_name"`| because for anko script.
 type testWin32ProcessStartup struct {
+	// class name
 	Class string `wmi:"-"`
-	X     uint32
-	Y     uint32
+
+	// property
+	X uint32
+	Y uint32
 }
 
 type testWin32ProcessCreateInputPtr struct {
@@ -175,6 +185,9 @@ type testWin32ProcessCreateOutput struct {
 
 	ReturnValue    uint32
 	ReturnValuePtr *uint32 `wmi:"ReturnValue"`
+
+	Ignore    string `wmi:"-"`
+	IgnorePtr string `wmi:"-"`
 }
 
 type testWin32ProcessGetOwnerOutput struct {
@@ -183,6 +196,9 @@ type testWin32ProcessGetOwnerOutput struct {
 
 	User    string
 	UserPtr *string `wmi:"User"`
+
+	Ignore    string `wmi:"-"`
+	IgnorePtr string `wmi:"-"`
 }
 
 type testWin32ProcessTerminateInput struct {
@@ -217,8 +233,8 @@ func TestParseExecMethodResult(t *testing.T) {
 			CurrentDirectory: currentDirectory,
 			ProcessStartup: testWin32ProcessStartup{
 				Class: className,
-				X:     50,
-				Y:     50,
+				X:     200,
+				Y:     200,
 			},
 		}
 		var createOutput testWin32ProcessCreateOutput
@@ -226,7 +242,7 @@ func TestParseExecMethodResult(t *testing.T) {
 		require.NoError(t, err)
 
 		fmt.Printf("PID: %d\n", createOutput.PID)
-		testCheckStructure(t, createOutput)
+		testCheckOutputStructure(t, createOutput)
 
 		path := fmt.Sprintf(pathObject, createOutput.PID)
 
@@ -235,7 +251,7 @@ func TestParseExecMethodResult(t *testing.T) {
 		err = client.ExecMethod(path, methodGetOwner, nil, &getOwnerOutput)
 		require.NoError(t, err)
 		fmt.Printf("Domain: %s, User: %s\n", getOwnerOutput.Domain, getOwnerOutput.User)
-		testCheckStructure(t, getOwnerOutput)
+		testCheckOutputStructure(t, getOwnerOutput)
 
 		// terminate process
 		terminateInput := testWin32ProcessTerminateInput{
@@ -247,8 +263,8 @@ func TestParseExecMethodResult(t *testing.T) {
 
 	t.Run("pointer", func(t *testing.T) {
 		// create process
-		x := uint32(50)
-		y := uint32(50)
+		x := uint32(200)
+		y := uint32(200)
 		createInput := testWin32ProcessCreateInputPtr{
 			CommandLine:      &commandLine,
 			CurrentDirectory: &currentDirectory,
@@ -263,7 +279,7 @@ func TestParseExecMethodResult(t *testing.T) {
 		require.NoError(t, err)
 
 		fmt.Printf("PID: %d\n", createOutput.PID)
-		testCheckStructure(t, &createOutput)
+		testCheckOutputStructure(t, &createOutput)
 
 		path := fmt.Sprintf(pathObject, createOutput.PID)
 
@@ -272,7 +288,37 @@ func TestParseExecMethodResult(t *testing.T) {
 		err = client.ExecMethod(path, methodGetOwner, nil, &getOwnerOutput)
 		require.NoError(t, err)
 		fmt.Printf("Domain: %s, User: %s\n", getOwnerOutput.Domain, getOwnerOutput.User)
-		testCheckStructure(t, getOwnerOutput)
+		testCheckOutputStructure(t, &getOwnerOutput)
+
+		// terminate process
+		terminateInput := testWin32ProcessTerminateInput{
+			Reason: 1,
+		}
+		err = client.ExecMethod(path, methodTerminate, &terminateInput, nil)
+		require.NoError(t, err)
+	})
+
+	t.Run("nil pointer", func(t *testing.T) {
+		// create process
+		createInput := testWin32ProcessCreateInputPtr{
+			CommandLine:      &commandLine,
+			CurrentDirectory: &currentDirectory,
+		}
+		var createOutput testWin32ProcessCreateOutput
+		err := client.ExecMethod(pathCreate, methodCreate, &createInput, &createOutput)
+		require.NoError(t, err)
+
+		fmt.Printf("PID: %d\n", createOutput.PID)
+		testCheckOutputStructure(t, &createOutput)
+
+		path := fmt.Sprintf(pathObject, createOutput.PID)
+
+		// get owner
+		var getOwnerOutput testWin32ProcessGetOwnerOutput
+		err = client.ExecMethod(path, methodGetOwner, nil, &getOwnerOutput)
+		require.NoError(t, err)
+		fmt.Printf("Domain: %s, User: %s\n", getOwnerOutput.Domain, getOwnerOutput.User)
+		testCheckOutputStructure(t, &getOwnerOutput)
 
 		// terminate process
 		terminateInput := testWin32ProcessTerminateInput{

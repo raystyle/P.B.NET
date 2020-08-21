@@ -281,8 +281,7 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 	defer object.Clear()
 	// execute method
 	var output *Object
-	if exec.Input != nil {
-		// set input parameters
+	if exec.Input != nil { // set input parameters
 		var input *Object
 		input, err = object.GetMethodInputParameters(exec.Method)
 		if err != nil {
@@ -356,8 +355,7 @@ func (client *Client) setInputField(
 	val reflect.Value,
 ) error {
 	if field.Type.Kind() == reflect.Ptr {
-		// skip nil point
-		if val.IsNil() {
+		if val.IsNil() { // skip nil point
 			return nil
 		}
 		field.Type = field.Type.Elem()
