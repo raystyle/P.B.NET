@@ -3,6 +3,7 @@
 package wmi
 
 import (
+	"fmt"
 	"reflect"
 	"runtime"
 	"strings"
@@ -32,13 +33,13 @@ type execQuery struct {
 	Err chan<- error
 }
 
-type get struct {
+type getObject struct {
 	Path   string
 	Args   []interface{}
-	Result chan<- *getResult
+	Result chan<- *getObjectResult
 }
 
-type getResult struct {
+type getObjectResult struct {
 	Object *Object
 	Err    error
 }
@@ -53,7 +54,9 @@ type execMethod struct {
 
 // Client is a WMI client.
 type Client struct {
-	args    []interface{}
+	namespace string
+	opts      *Options
+
 	initErr chan error
 
 	unknown    *ole.IUnknown
@@ -62,7 +65,7 @@ type Client struct {
 	wmi        *ole.IDispatch
 
 	queryQueue chan *execQuery
-	getQueue   chan *get
+	getQueue   chan *getObject
 	execQueue  chan *execMethod
 
 	closeOnce  sync.Once
@@ -77,12 +80,12 @@ func NewClient(namespace string, opts *Options) (*Client, error) {
 		opts = new(Options)
 	}
 	// set connect server arguments
-	args := []interface{}{opts.Host, namespace, opts.Username, opts.Password}
 	client := Client{
-		args:       args,
+		namespace:  namespace,
+		opts:       opts,
 		initErr:    make(chan error, 1),
 		queryQueue: make(chan *execQuery, queueSize),
-		getQueue:   make(chan *get, queueSize),
+		getQueue:   make(chan *getObject, queueSize),
 		execQueue:  make(chan *execMethod, queueSize),
 		stopSignal: make(chan struct{}),
 	}
@@ -155,7 +158,7 @@ func (client *Client) init() error {
 	}
 	defer func() {
 		if !ok {
-			client.unknown.Release()
+			unknown.Release()
 		}
 	}()
 	query, err := unknown.QueryInterface(ole.IID_IDispatch)
@@ -164,11 +167,13 @@ func (client *Client) init() error {
 	}
 	defer func() {
 		if !ok {
-			client.query.Release()
+			query.Release()
 		}
 	}()
-	// service is a SWbemServices
-	rawService, err := oleutil.CallMethod(query, "ConnectServer", client.args...)
+	// start connect server, service is a SWbemServices.
+	opts := client.opts
+	args := []interface{}{opts.Host, client.namespace, opts.Username, opts.Password}
+	rawService, err := oleutil.CallMethod(query, "ConnectServer", args...)
 	if err != nil {
 		return errors.Wrap(err, "failed to connect server")
 	}
@@ -191,7 +196,7 @@ func (client *Client) release() {
 func (client *Client) handleLoop() {
 	var (
 		query *execQuery
-		get   *get
+		get   *getObject
 		exec  *execMethod
 	)
 	for {
@@ -199,7 +204,7 @@ func (client *Client) handleLoop() {
 		case query = <-client.queryQueue:
 			client.handleExecQuery(query)
 		case get = <-client.getQueue:
-			client.handleGet(get)
+			client.handleGetObject(get)
 		case exec = <-client.execQueue:
 			client.handleExecMethod(exec)
 		case <-client.stopSignal:
@@ -232,30 +237,30 @@ func (client *Client) handleExecQuery(query *execQuery) {
 	err = parseExecQueryResult(objects, query.Dst)
 }
 
-func (client *Client) handleGet(get *get) {
-	var getResult getResult
-	defer func() { get.Result <- &getResult }()
+func (client *Client) handleGetObject(get *getObject) {
+	var result getObjectResult
+	defer func() { get.Result <- &result }()
 
 	params := append([]interface{}{get.Path}, get.Args...)
-	result, err := oleutil.CallMethod(client.wmi, "Get", params...)
+	instance, err := oleutil.CallMethod(client.wmi, "Get", params...)
 	if err != nil {
-		getResult.Err = errors.Wrapf(err, "failed to get %q", get.Path)
+		result.Err = errors.Wrapf(err, "failed to get object %q", get.Path)
 		return
 	}
-	getResult.Object = &Object{raw: result}
+	result.Object = &Object{raw: instance}
 }
 
 func (client *Client) handleExecMethod(exec *execMethod) {
 	var err error
 	defer func() { exec.Err <- err }()
 
-	// get object
-	result, err := oleutil.CallMethod(client.wmi, "Get", exec.Path)
+	// get class
+	class, err := oleutil.CallMethod(client.wmi, "Get", exec.Path)
 	if err != nil {
 		err = errors.Wrapf(err, "failed to get %q", exec.Path)
 		return
 	}
-	object := Object{raw: result}
+	object := Object{raw: class}
 	defer object.Clear()
 	// execute method
 	var output *Object
@@ -271,7 +276,7 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 		if err != nil {
 			return
 		}
-		iDispatch := input.raw.ToIDispatch()
+		iDispatch := input.ToIDispatch()
 		iDispatch.AddRef()
 		defer iDispatch.Release()
 		output, err = object.ExecMethod("ExecMethod_", exec.Method, iDispatch)
@@ -283,6 +288,128 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 	}
 	defer output.Clear()
 	err = parseExecMethodResult(output, exec.Output)
+}
+
+// setExecMethodInputParameters is used to set input parameters to object.
+func (client *Client) setExecMethodInputParameters(obj *Object, input interface{}) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = xpanic.Error(r, "setExecMethodInputParameters")
+		}
+	}()
+	// check input type
+	typ := reflect.TypeOf(input)
+	val := reflect.ValueOf(input)
+	switch typ.Kind() {
+	case reflect.Struct:
+	case reflect.Ptr:
+		if val.IsNil() {
+			panic("input pointer is nil")
+		}
+		typ = typ.Elem()
+		if typ.Kind() != reflect.Struct {
+			panic("input pointer is not point to structure")
+		}
+		val = val.Elem()
+	default:
+		panic("input interface is not structure or pointer")
+	}
+	return client.walkStruct(obj, typ, val)
+}
+
+func (client *Client) walkStruct(obj *Object, structure reflect.Type, value reflect.Value) error {
+	fields := getStructFields(structure)
+	for i := 0; i < len(fields); i++ {
+		// skipped field
+		if fields[i] == "" {
+			continue
+		}
+		err := client.setInputField(obj, fields[i], structure.Field(i), value.Field(i))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (client *Client) setInputField(
+	obj *Object,
+	name string,
+	field reflect.StructField,
+	val reflect.Value,
+) error {
+	if field.Type.Kind() == reflect.Ptr {
+		// skip nil point
+		if val.IsNil() {
+			return nil
+		}
+		field.Type = field.Type.Elem()
+		val = val.Elem()
+	}
+	switch field.Type.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64, reflect.Bool, reflect.String:
+		return obj.SetProperty(name, val.Interface())
+	case reflect.Slice: // []string and []byte
+		switch field.Type.Elem().Kind() {
+		case reflect.String, reflect.Uint8:
+			return obj.SetProperty(name, val.Interface())
+		default:
+			const format = "unsupported type about slice element, name: %s type: %s"
+			panic(fmt.Sprintf(format, field.Name, field.Type.Name()))
+		}
+	case reflect.Struct:
+		switch field.Type {
+		case timeType:
+			return obj.SetProperty(name, val.Interface())
+		default:
+			return client.setInputStruct(obj, name, field, val)
+		}
+	default:
+		const format = "unsupported field type, name: %s type: %s"
+		panic(fmt.Sprintf(format, field.Name, field.Type.Name()))
+	}
+}
+
+func (client *Client) setInputStruct(
+	obj *Object,
+	name string,
+	field reflect.StructField,
+	val reflect.Value,
+) error {
+	// get class name from structure field
+	classField, ok := field.Type.FieldByName("Class")
+	if !ok {
+		const format = "\"class\" field is not in structure %s"
+		panic(fmt.Sprintf(format, field.Type.Name()))
+	}
+	if classField.Type.Kind() != reflect.String {
+		const format = "\"class\" field is not string type in structure %s"
+		panic(fmt.Sprintf(format, field.Type.Name()))
+	}
+	class := val.FieldByName("Class").Interface().(string)
+	if class == "" {
+		const format = "\"class\" field is empty in structure %s"
+		panic(fmt.Sprintf(format, field.Type.String()))
+	}
+	// create instance
+	instance, err := oleutil.CallMethod(client.wmi, "Get", class)
+	if err != nil {
+		return err
+	}
+	object := Object{raw: instance}
+	defer object.Clear()
+	// set fields
+	err = client.walkStruct(&object, field.Type, val)
+	if err != nil {
+		return err
+	}
+	// set object
+	iDispatch := instance.ToIDispatch()
+	iDispatch.AddRef()
+	defer iDispatch.Release()
+	return obj.SetProperty(name, iDispatch)
 }
 
 const clientClosed = "wmi client is closed"
@@ -310,10 +437,10 @@ func (client *Client) Query(wql string, dst interface{}) error {
 	return err
 }
 
-// Get is used to get a object.
-func (client *Client) Get(path string, args ...interface{}) (*Object, error) {
-	result := make(chan *getResult, 1)
-	get := get{
+// GetObject is used to retrieves a class or instance.
+func (client *Client) GetObject(path string, args ...interface{}) (*Object, error) {
+	result := make(chan *getObjectResult, 1)
+	get := getObject{
 		Path:   path,
 		Args:   args,
 		Result: result,
@@ -323,7 +450,7 @@ func (client *Client) Get(path string, args ...interface{}) (*Object, error) {
 	case <-client.stopSignal:
 		return nil, errors.New("failed to get object: " + clientClosed)
 	}
-	var getResult *getResult
+	var getResult *getObjectResult
 	select {
 	case getResult = <-result:
 	case <-client.stopSignal:

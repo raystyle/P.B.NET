@@ -140,7 +140,9 @@ func TestParseExecQueryResult(t *testing.T) {
 }
 
 type testWin32ProcessStartup struct {
-	class string // must use it to create object
+	// must use it to create object
+	// not use class struct{} `wmi:"class_name"` for anko script.
+	Class string `wmi:"-"`
 	X     uint32
 	Y     uint32
 }
@@ -176,15 +178,13 @@ func TestParseExecMethodResult(t *testing.T) {
 		objectPath = "Win32_Process.Handle=\"%d\""
 	)
 
-	// first create a process, then terminate it
-
 	t.Run("value", func(t *testing.T) {
 		// create process
 		createInput := testWin32ProcessCreateInput{
 			CommandLine:      "cmd.exe",
 			CurrentDirectory: "C:\\",
 			ProcessStartup: &testWin32ProcessStartup{
-				class: "Win32_ProcessStartup",
+				Class: "Win32_ProcessStartup",
 				X:     50,
 				Y:     50,
 			},
@@ -193,8 +193,6 @@ func TestParseExecMethodResult(t *testing.T) {
 		err := client.ExecMethod(createPath, "Create", createInput, &createOutput)
 		require.NoError(t, err)
 		fmt.Println(createOutput)
-
-		return
 
 		path := fmt.Sprintf(objectPath, createOutput.PID)
 
@@ -217,7 +215,11 @@ func TestParseExecMethodResult(t *testing.T) {
 		createInput := testWin32ProcessCreateInput{
 			CommandLine:      "cmd.exe",
 			CurrentDirectory: "C:\\",
-			ProcessStartup:   &testWin32ProcessStartup{X: 50, Y: 50},
+			ProcessStartup: &testWin32ProcessStartup{
+				Class: "Win32_ProcessStartup",
+				X:     50,
+				Y:     50,
+			},
 		}
 		var createOutput testWin32ProcessCreateOutput
 		err := client.ExecMethod(createPath, "Create", &createInput, &createOutput)

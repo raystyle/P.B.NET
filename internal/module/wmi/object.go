@@ -158,6 +158,14 @@ func (obj *Object) ToArray() *ole.SafeArrayConversion {
 	return obj.raw.ToArray()
 }
 
+// ToIDispatch is used to convert object to *ole.IDispatch.
+func (obj *Object) ToIDispatch() *ole.IDispatch {
+	if obj == nil || obj.raw == nil {
+		return nil
+	}
+	return obj.raw.ToIDispatch()
+}
+
 // Clear is used to clear the memory of variant object.
 func (obj *Object) Clear() {
 	_ = obj.raw.Clear()

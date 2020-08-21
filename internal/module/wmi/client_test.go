@@ -60,7 +60,7 @@ func TestClient_Get(t *testing.T) {
 	t.Run("Win32_Process", func(t *testing.T) {
 		client := testCreateClient(t)
 
-		object, err := client.Get(testPathWin32Process)
+		object, err := client.GetObject(testPathWin32Process)
 		require.NoError(t, err)
 
 		fmt.Println(object.Value())

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-ole/go-ole"
-	"github.com/go-ole/go-ole/oleutil"
 	"github.com/pkg/errors"
 
 	"project/internal/xpanic"
@@ -60,7 +59,7 @@ func checkExecQueryDstType(dst interface{}, val reflect.Value) (slice, elem refl
 	}
 	typ := reflect.TypeOf(dst)
 	if typ.Kind() != reflect.Ptr || val.IsNil() {
-		panic("destination interface is not slice pointer or is nil")
+		panic("destination interface is not slice pointer or it is nil pointer")
 	}
 	slice = typ.Elem()
 	if slice.Kind() != reflect.Slice {
@@ -79,66 +78,17 @@ func checkExecQueryDstType(dst interface{}, val reflect.Value) (slice, elem refl
 	return
 }
 
-// setExecMethodInputParameters is used to set input parameters to object.
-func (client *Client) setExecMethodInputParameters(obj *Object, input interface{}) error {
-
-	ob, err := obj.GetProperty("ProcessStartupInformation")
-	if err != nil {
-		return err
-	}
-
-	p, err := ob.GetProperty("Path_")
-	if err != nil {
-		return err
-	}
-	pp, err := p.GetProperty("Path")
-	if err != nil {
-		return err
-	}
-	fmt.Println(pp.Value())
-
-	fmt.Println(ob.raw)
-
-	result, err := oleutil.CallMethod(client.wmi, "Get", "Win32_ProcessStartup")
-	if err != nil {
-		return err
-	}
-	object := Object{raw: result}
-	defer object.Clear()
-
-	object.Value()
-
-	fmt.Println(object.raw)
-
-	err = obj.SetProperty("ProcessStartupInformation", object.raw.ToIDispatch())
-	if err != nil {
-		return err
-	}
-
-	err = ob.SetProperty("X", uint32(300))
-	if err != nil {
-		return err
-	}
-
-	err = ob.SetProperty("Y", uint32(300))
-	if err != nil {
-		return err
-	}
-
-	return obj.SetProperty("CommandLine", "cmd.exe")
-}
-
 // parseExecMethodResult is used to parse ExecMethod result to destination interface.
-func parseExecMethodResult(object *Object, dst interface{}) (err error) {
+func parseExecMethodResult(object *Object, output interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error(r, "parseExecMethodResult")
 		}
 	}()
-	if dst == nil {
+	if output == nil {
 		return
 	}
-	typ, val := checkExecMethodDstType(dst)
+	typ, val := checkExecMethodOutputType(output)
 	fields := getStructFields(typ)
 	for i := 0; i < len(fields); i++ {
 		// skipped field
@@ -153,18 +103,18 @@ func parseExecMethodResult(object *Object, dst interface{}) (err error) {
 	return
 }
 
-func checkExecMethodDstType(dst interface{}) (reflect.Type, reflect.Value) {
-	if dst == nil {
-		panic("destination interface is nil")
+func checkExecMethodOutputType(output interface{}) (reflect.Type, reflect.Value) {
+	if output == nil {
+		panic("output interface is nil")
 	}
-	typ := reflect.TypeOf(dst)
-	val := reflect.ValueOf(dst)
+	typ := reflect.TypeOf(output)
+	val := reflect.ValueOf(output)
 	if typ.Kind() != reflect.Ptr || val.IsNil() {
-		panic("destination interface is not structure pointer or is nil")
+		panic("output interface is not pointer or it is nil pointer")
 	}
 	elem := typ.Elem()
 	if elem.Kind() != reflect.Struct {
-		panic("destination pointer is not structure")
+		panic("output pointer is not point to structure")
 	}
 	return elem, val.Elem()
 }
@@ -179,17 +129,17 @@ func getStructFields(structure reflect.Type) []string {
 			continue
 		}
 		// check structure tag
-		fieldTag, ok := field.Tag.Lookup("wmi")
+		tag, ok := field.Tag.Lookup("wmi")
 		if !ok {
 			fields[i] = field.Name
 			continue
 		}
-		switch fieldTag {
+		switch tag {
 		case "-":
 		case "":
 			panic("empty value in wmi tag")
 		default:
-			fields[i] = fieldTag
+			fields[i] = tag
 		}
 	}
 	return fields
