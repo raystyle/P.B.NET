@@ -21,6 +21,7 @@ func TestObject_AddProperty(t *testing.T) {
 
 	object, err := client.GetObject("Win32_ProcessStartup")
 	require.NoError(t, err)
+	defer object.Clear()
 
 	t.Run("int8", func(t *testing.T) {
 		const name = "int8"
@@ -346,8 +347,46 @@ func TestObject_AddProperty(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("array", func(t *testing.T) {
+	t.Run("object", func(t *testing.T) {
+		const name = "object"
 
+		err := object.AddProperty(name, CIMTypeObject, false)
+		require.NoError(t, err)
+
+		obj, err := client.GetObject("Win32_ProcessStartup")
+		require.NoError(t, err)
+		defer obj.Clear()
+
+		err = object.SetProperty(name, obj)
+		require.NoError(t, err)
+		rv, err := object.GetProperty(name)
+		require.NoError(t, err)
+		defer rv.Clear()
+
+		err = object.RemoveProperty(name)
+		require.NoError(t, err)
+	})
+
+	t.Run("array", func(t *testing.T) {
+		const name = "stringArray"
+
+		err := object.AddProperty(name, CIMTypeString, true)
+		require.NoError(t, err)
+
+		str := []string{"a", "b", "c"}
+
+		err = object.SetProperty(name, str)
+		require.NoError(t, err)
+		val, err := object.GetProperty(name)
+		require.NoError(t, err)
+		defer val.Clear()
+
+		array := val.ToArray()
+		result := make([]string, 3)
+		for i := 0; i < len(array); i++ {
+			result[i] = array[i].(string)
+		}
+		require.EqualValues(t, str, result)
 	})
 
 	client.Close()

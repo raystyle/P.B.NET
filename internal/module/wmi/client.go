@@ -420,11 +420,8 @@ func (client *Client) setInputStruct(
 	if err != nil {
 		return err
 	}
-	// set object
-	iDispatch := instance.ToIDispatch()
-	iDispatch.AddRef()
-	defer iDispatch.Release()
-	return obj.SetProperty(name, iDispatch)
+	// set instance
+	return obj.SetProperty(name, instance)
 }
 
 const clientClosed = "wmi client is closed"

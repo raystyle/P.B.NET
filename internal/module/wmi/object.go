@@ -95,6 +95,7 @@ func (obj *Object) objects() ([]*Object, error) {
 }
 
 // ExecMethod is used to execute a method on the object.
+// need call Clear after use.
 func (obj *Object) ExecMethod(method string, args ...interface{}) (*Object, error) {
 	iDispatch := obj.raw.ToIDispatch()
 	if iDispatch == nil {
@@ -110,6 +111,7 @@ func (obj *Object) ExecMethod(method string, args ...interface{}) (*Object, erro
 }
 
 // GetProperty is used to get property of this object, need clear object.
+// need call Clear after use.
 func (obj *Object) GetProperty(name string) (*Object, error) {
 	iDispatch := obj.raw.ToIDispatch()
 	if iDispatch == nil {
@@ -132,12 +134,16 @@ func (obj *Object) SetProperty(name string, args ...interface{}) error {
 	}
 	iDispatch.AddRef()
 	defer iDispatch.Release()
-	// process time.Time to WMI date time string
 	switch arg := args[0].(type) {
-	case time.Time:
+	case time.Time: // process time.Time to WMI date time string
 		args[0] = timeToWMIDateTime(arg)
 	case *time.Time:
 		args[0] = timeToWMIDateTime(*arg)
+	case *Object: // save CIM_Object
+		iDispatch := arg.raw.ToIDispatch()
+		iDispatch.AddRef()
+		defer iDispatch.Release()
+		args[0] = iDispatch
 	}
 	result, err := oleutil.PutProperty(iDispatch, name, args...)
 	if err != nil {
@@ -178,6 +184,7 @@ func (obj *Object) RemoveProperty(name string) error {
 }
 
 // GetMethodInputParameters is used to get input parameters about a method.
+// need call Clear after use.
 func (obj *Object) GetMethodInputParameters(name string) (*Object, error) {
 	methods, err := obj.GetProperty("Methods_")
 	if err != nil {
@@ -213,25 +220,17 @@ func (obj *Object) Path() (string, error) {
 
 // Value is used to return the value of a result as an interface.
 func (obj *Object) Value() interface{} {
-	if obj == nil || obj.raw == nil {
-		return ""
-	}
 	return obj.raw.Value()
 }
 
-// ToArray is used to return a *ole.SafeArrayConversion from the WMI result.
-func (obj *Object) ToArray() *ole.SafeArrayConversion {
-	if obj == nil || obj.raw == nil {
-		return nil
-	}
-	return obj.raw.ToArray()
+// ToArray is used to return array values in a []interface.
+func (obj *Object) ToArray() []interface{} {
+	return obj.raw.ToArray().ToValueArray()
 }
 
 // ToIDispatch is used to convert object to *ole.IDispatch.
+// need call Release after use.
 func (obj *Object) ToIDispatch() *ole.IDispatch {
-	if obj == nil || obj.raw == nil {
-		return nil
-	}
 	return obj.raw.ToIDispatch()
 }
 

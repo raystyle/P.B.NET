@@ -347,7 +347,7 @@ func setStringValue(field reflect.Value, val string) error {
 func setOtherValue(field reflect.Value, val interface{}, prop *Object) error {
 	switch field.Kind() {
 	case reflect.Slice:
-		values := prop.ToArray().ToValueArray()
+		values := prop.ToArray()
 		l := len(values)
 		field.Set(reflect.MakeSlice(field.Type(), l, l))
 		slice := field
