@@ -3,6 +3,8 @@
 package wmi
 
 import (
+	"time"
+
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
 	"github.com/pkg/errors"
@@ -12,6 +14,10 @@ import (
 //
 // Find it from https://github.com/angelcolmenares/pash/blob/master/
 // External/System.Management/System.Management/tag_CIMTYPE_ENUMERATION.cs
+//
+// after some time find it from microsoft
+// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-wmio/
+// e137e6c6-c1cc-449e-a0b4-76fabf534480
 //
 // [!shit mountain!]
 const (
@@ -126,6 +132,13 @@ func (obj *Object) SetProperty(name string, args ...interface{}) error {
 	}
 	iDispatch.AddRef()
 	defer iDispatch.Release()
+	// process time.Time to WMI date time string
+	switch arg := args[0].(type) {
+	case time.Time:
+		args[0] = timeToWMIDateTime(arg)
+	case *time.Time:
+		args[0] = timeToWMIDateTime(*arg)
+	}
 	result, err := oleutil.PutProperty(iDispatch, name, args...)
 	if err != nil {
 		return errors.Wrapf(err, "failed to set property %q", name)

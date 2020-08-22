@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -257,16 +258,16 @@ func TestObject_AddProperty(t *testing.T) {
 
 		err = object.SetProperty(name, "test wmi")
 		require.NoError(t, err)
-		val1, err := object.GetProperty(name)
+		val, err := object.GetProperty(name)
 		require.NoError(t, err)
-		require.EqualValues(t, "test wmi", val1.Value())
+		require.EqualValues(t, "test wmi", val.Value())
 
 		err = object.RemoveProperty(name)
 		require.NoError(t, err)
 	})
 
 	t.Run("bool", func(t *testing.T) {
-		const name = "string"
+		const name = "bool"
 
 		err := object.AddProperty(name, CIMTypeBool, false)
 		require.NoError(t, err)
@@ -282,6 +283,64 @@ func TestObject_AddProperty(t *testing.T) {
 		val2, err := object.GetProperty(name)
 		require.NoError(t, err)
 		require.EqualValues(t, false, val2.Value())
+
+		err = object.RemoveProperty(name)
+		require.NoError(t, err)
+	})
+
+	t.Run("date time", func(t *testing.T) {
+		const name = "datetime"
+
+		err := object.AddProperty(name, CIMTypeDateTime, false)
+		require.NoError(t, err)
+
+		now := time.Now()
+		nowTime := timeToWMIDateTime(now)
+		err = object.SetProperty(name, now)
+		require.NoError(t, err)
+		val1, err := object.GetProperty(name)
+		require.NoError(t, err)
+		require.EqualValues(t, nowTime, val1.Value())
+
+		now = time.Now()
+		nowTime = timeToWMIDateTime(now)
+		err = object.SetProperty(name, &now)
+		require.NoError(t, err)
+		val2, err := object.GetProperty(name)
+		require.NoError(t, err)
+		require.EqualValues(t, nowTime, val2.Value())
+
+		err = object.RemoveProperty(name)
+		require.NoError(t, err)
+	})
+
+	t.Run("reference", func(t *testing.T) {
+		const name = "reference"
+
+		err := object.AddProperty(name, CIMTypeReference, false)
+		require.NoError(t, err)
+
+		err = object.SetProperty(name, "path")
+		require.NoError(t, err)
+		val, err := object.GetProperty(name)
+		require.NoError(t, err)
+		require.EqualValues(t, "path", val.Value())
+
+		err = object.RemoveProperty(name)
+		require.NoError(t, err)
+	})
+
+	t.Run("char16", func(t *testing.T) {
+		const name = "char16"
+
+		err := object.AddProperty(name, CIMTypeChar16, false)
+		require.NoError(t, err)
+
+		err = object.SetProperty(name, uint16(1234))
+		require.NoError(t, err)
+		val, err := object.GetProperty(name)
+		require.NoError(t, err)
+		require.EqualValues(t, uint16(1234), val.Value())
 
 		err = object.RemoveProperty(name)
 		require.NoError(t, err)

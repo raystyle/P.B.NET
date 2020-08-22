@@ -14,6 +14,21 @@ import (
 	"project/internal/xpanic"
 )
 
+// use minutes to replace hour + minute, because time zone is [-12,+14] after
+// convert to minute is [-720,+840], so we only need three characters
+func timeToWMIDateTime(t time.Time) string {
+	str := t.Format("20060102150405.000000-0700")
+	hour, err := strconv.ParseInt(str[22:24], 10, 64)
+	if err != nil {
+		panic("invalid time string after format")
+	}
+	minute, err := strconv.ParseInt(str[24:26], 10, 64)
+	if err != nil {
+		panic("invalid time string after format")
+	}
+	return fmt.Sprintf(str[:22]+"%03d", hour*60+minute)
+}
+
 // getStructFields is used to get structure field names, it will process wmi structure tag.
 func getStructFields(structure reflect.Type) []string {
 	l := structure.NumField()
