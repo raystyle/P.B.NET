@@ -155,12 +155,15 @@ func TestClient_ExecMethod(t *testing.T) {
 
 		path := fmt.Sprintf(pathObject, createOutput.PID)
 
+		testsuite.IsDestroyed(t, &createOutput)
+
 		// get owner
 		var getOwnerOutput testWin32ProcessGetOwnerOutputStr
 		err = client.ExecMethod(path, methodGetOwner, nil, &getOwnerOutput)
 		require.NoError(t, err)
 		fmt.Printf("Domain: %s, User: %s\n", getOwnerOutput.Domain, getOwnerOutput.User)
 		require.Zero(t, getOwnerOutput.Ignore)
+		testsuite.IsDestroyed(t, &getOwnerOutput)
 
 		// terminate process
 		terminateInput := testWin32ProcessTerminateInputStr{
@@ -237,11 +240,53 @@ func TestClient_GetObject_Parallel(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("part", func(t *testing.T) {
+		client := testCreateClient(t)
 
+		get := func() {
+			object, err := client.GetObject("Win32_Process")
+			require.NoError(t, err)
+
+			require.NotZero(t, object.raw.Val)
+			path, err := object.Path()
+			require.NoError(t, err)
+			require.NotZero(t, path)
+
+			object.Clear()
+
+			testsuite.IsDestroyed(t, object)
+		}
+		testsuite.RunParallel(10, nil, nil, get, get)
+
+		client.Close()
+
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("whole", func(t *testing.T) {
+		var client *Client
 
+		init := func() {
+			client = testCreateClient(t)
+		}
+		query := func() {
+			object, err := client.GetObject("Win32_Process")
+			require.NoError(t, err)
+
+			require.NotZero(t, object.raw.Val)
+			path, err := object.Path()
+			require.NoError(t, err)
+			require.NotZero(t, path)
+
+			object.Clear()
+
+			testsuite.IsDestroyed(t, object)
+		}
+		cleanup := func() {
+			client.Close()
+		}
+		testsuite.RunParallel(10, init, cleanup, query, query)
+
+		testsuite.IsDestroyed(t, client)
 	})
 }
 
@@ -249,8 +294,66 @@ func TestClient_ExecMethod_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("part", func(t *testing.T) {
+	const (
+		pathCreate = "Win32_Process"
+		pathObject = "Win32_Process.Handle=\"%d\""
 
+		methodCreate    = "Create"
+		methodGetOwner  = "GetOwner"
+		methodTerminate = "Terminate"
+	)
+
+	var (
+		commandLine      = "cmd.exe"
+		currentDirectory = "C:\\"
+		className        = "Win32_ProcessStartup"
+	)
+
+	t.Run("part", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		exec := func() {
+			// create process
+			createInput := testWin32ProcessCreateInputStr{
+				CommandLine:      commandLine,
+				CurrentDirectory: currentDirectory,
+				ProcessStartup: testWin32ProcessStartupStr{
+					Class: className,
+					X:     200,
+					Y:     200,
+				},
+			}
+			var createOutput testWin32ProcessCreateOutputStr
+			err := client.ExecMethod(pathCreate, methodCreate, createInput, &createOutput)
+			require.NoError(t, err)
+			fmt.Printf("PID: %d\n", createOutput.PID)
+			require.Zero(t, createOutput.Ignore)
+
+			path := fmt.Sprintf(pathObject, createOutput.PID)
+
+			testsuite.IsDestroyed(t, &createOutput)
+
+			// get owner
+			var getOwnerOutput testWin32ProcessGetOwnerOutputStr
+			err = client.ExecMethod(path, methodGetOwner, nil, &getOwnerOutput)
+			require.NoError(t, err)
+			fmt.Printf("Domain: %s, User: %s\n", getOwnerOutput.Domain, getOwnerOutput.User)
+			require.Zero(t, getOwnerOutput.Ignore)
+
+			testsuite.IsDestroyed(t, &getOwnerOutput)
+
+			// terminate process
+			terminateInput := testWin32ProcessTerminateInputStr{
+				Reason: 1,
+			}
+			err = client.ExecMethod(path, methodTerminate, terminateInput, nil)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(10, nil, nil, exec, exec)
+
+		client.Close()
+
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("whole", func(t *testing.T) {
