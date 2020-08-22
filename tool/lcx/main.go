@@ -10,6 +10,7 @@ import (
 	"project/internal/logger"
 	"project/internal/module"
 	"project/internal/module/lcx"
+	"project/internal/system"
 )
 
 var (
@@ -23,6 +24,9 @@ var (
 )
 
 func main() {
+	flag.CommandLine.SetOutput(os.Stdout)
+	flag.CommandLine.Usage = printHelp
+
 	usage := "method: tran, listen, slave"
 	flag.StringVar(&method, "m", "", usage)
 	usage = "tran and slave destination network"
@@ -45,7 +49,7 @@ func main() {
 	flag.IntVar(&opts.MaxConns, "max-conn", lcx.DefaultMaxConnections, usage)
 	flag.Parse()
 
-	const tag = "s"
+	const tag = "m"
 	var (
 		mod module.Module
 		err error
@@ -70,14 +74,16 @@ func main() {
 }
 
 func printHelp() {
-	const help = `
- tran:   lcx -m tran -d-addr "192.168.1.2:3389" -l-addr "0.0.0.0:8990"
- listen: lcx -m listen -i-addr "0.0.0.0:81" -l-addr "127.0.0.1:8989"
- slave:  lcx -m slave -i-addr "1.1.1.1:81" -d-addr "192.168.1.2:3389"
+	exe, err := system.ExecutableName()
+	system.CheckError(err)
+	const format = `usage:
+
+ tran:   %s -m tran -d-addr "192.168.1.2:3389" -l-addr "0.0.0.0:8990"
+ listen: %s -m listen -i-addr "0.0.0.0:81" -l-addr "127.0.0.1:8989"
+ slave:  %s -m slave -i-addr "1.1.1.1:81" -d-addr "192.168.1.2:3389"
 
 `
-	fmt.Print(help)
-	flag.CommandLine.SetOutput(os.Stdout)
+	fmt.Printf(format, exe, exe, exe)
 	flag.PrintDefaults()
 }
 

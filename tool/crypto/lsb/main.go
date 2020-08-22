@@ -26,7 +26,9 @@ var (
 )
 
 func main() {
+	flag.CommandLine.SetOutput(os.Stdout)
 	flag.CommandLine.Usage = printHelp
+
 	flag.BoolVar(&encrypt, "enc", false, "encrypt data to a png file")
 	flag.BoolVar(&decrypt, "dec", false, "decrypt data from a png file")
 	flag.BoolVar(&textMode, "text", false, "use text mode")
@@ -132,7 +134,6 @@ func printHelp() {
 
 `
 	fmt.Printf(format, exe, exe, exe, exe)
-	flag.CommandLine.SetOutput(os.Stdout)
 	flag.PrintDefaults()
 }
 
