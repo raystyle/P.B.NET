@@ -76,10 +76,9 @@ type Client struct {
 
 	initErr chan error
 
-	unknown    *ole.IUnknown
-	query      *ole.IDispatch
-	rawService *ole.VARIANT
-	wmi        *ole.IDispatch
+	unknown *ole.IUnknown
+	query   *ole.IDispatch
+	wmi     *ole.IDispatch
 
 	queryQueue chan *execQuery
 	getQueue   chan *getObject
@@ -142,10 +141,10 @@ func (client *Client) work() {
 	err := client.init()
 	select {
 	case client.initErr <- err:
-		if err != nil {
-			return
-		}
 	case <-client.stopSignal:
+		return
+	}
+	if err != nil {
 		return
 	}
 	defer client.release()
@@ -196,7 +195,6 @@ func (client *Client) init() error {
 	}
 	client.unknown = unknown
 	client.query = query
-	client.rawService = rawService
 	client.wmi = rawService.ToIDispatch()
 	ok = true
 	return nil
@@ -204,7 +202,6 @@ func (client *Client) init() error {
 
 func (client *Client) release() {
 	client.wmi.Release()
-	_ = client.rawService.Clear()
 	client.query.Release()
 	client.unknown.Release()
 	ole.CoUninitialize()
@@ -303,7 +300,7 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 		return
 	}
 	defer output.Clear()
-	err = parseExecMethodResult(output, exec.Output)
+	err = parseExecMethodOutput(output, exec.Output)
 }
 
 // setExecMethodInputParameters is used to set input parameters to object.
@@ -333,14 +330,14 @@ func (client *Client) setExecMethodInputParameters(obj *Object, input interface{
 	return client.walkStruct(obj, typ, val)
 }
 
-func (client *Client) walkStruct(obj *Object, structure reflect.Type, value reflect.Value) error {
-	fields := getStructFields(structure)
+func (client *Client) walkStruct(obj *Object, typ reflect.Type, val reflect.Value) error {
+	fields := getStructFields(typ)
 	for i := 0; i < len(fields); i++ {
 		// skipped field
 		if fields[i] == "" {
 			continue
 		}
-		err := client.setInputField(obj, fields[i], structure.Field(i), value.Field(i))
+		err := client.setValue(obj, fields[i], typ.Field(i).Type, val.Field(i))
 		if err != nil {
 			return err
 		}
@@ -348,65 +345,57 @@ func (client *Client) walkStruct(obj *Object, structure reflect.Type, value refl
 	return nil
 }
 
-func (client *Client) setInputField(
-	obj *Object,
-	name string,
-	field reflect.StructField,
-	val reflect.Value,
-) error {
-	if field.Type.Kind() == reflect.Ptr {
+// setValue is used to set value to property.
+func (client *Client) setValue(obj *Object, name string, typ reflect.Type, val reflect.Value) error {
+	if typ.Kind() == reflect.Ptr {
 		if val.IsNil() { // skip nil point
 			return nil
 		}
-		field.Type = field.Type.Elem()
+		typ = typ.Elem()
 		val = val.Elem()
 	}
-	switch field.Type.Kind() {
+	switch typ.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Float32, reflect.Float64, reflect.Bool, reflect.String:
 		return obj.SetProperty(name, val.Interface())
 	case reflect.Slice: // []string and []byte
-		switch field.Type.Elem().Kind() {
+		switch typ.Elem().Kind() {
 		case reflect.String, reflect.Uint8:
 			return obj.SetProperty(name, val.Interface())
 		default:
 			const format = "unsupported type about slice element, name: %s type: %s"
-			panic(fmt.Sprintf(format, field.Name, field.Type.Name()))
+			panic(fmt.Sprintf(format, name, typ.Name()))
 		}
 	case reflect.Struct:
-		switch field.Type {
+		switch typ {
 		case timeType:
 			return obj.SetProperty(name, val.Interface())
 		default:
-			return client.setInputStruct(obj, name, field, val)
+			return client.setStruct(obj, name, typ, val)
 		}
 	default:
 		const format = "unsupported field type, name: %s type: %s"
-		panic(fmt.Sprintf(format, field.Name, field.Type.Name()))
+		panic(fmt.Sprintf(format, name, typ.Name()))
 	}
 }
 
-func (client *Client) setInputStruct(
-	obj *Object,
-	name string,
-	field reflect.StructField,
-	val reflect.Value,
-) error {
+// setStruct is used to set structure to property.
+func (client *Client) setStruct(obj *Object, name string, typ reflect.Type, val reflect.Value) error {
 	// get class name from structure field
-	classField, ok := field.Type.FieldByName("Class")
+	classField, ok := typ.FieldByName("Class")
 	if !ok {
 		const format = "\"class\" field is not in structure %s"
-		panic(fmt.Sprintf(format, field.Type.Name()))
+		panic(fmt.Sprintf(format, typ.Name()))
 	}
 	if classField.Type.Kind() != reflect.String {
 		const format = "\"class\" field is not string type in structure %s"
-		panic(fmt.Sprintf(format, field.Type.Name()))
+		panic(fmt.Sprintf(format, typ.Name()))
 	}
 	class := val.FieldByName("Class").Interface().(string)
 	if class == "" {
 		const format = "\"class\" field is empty in structure %s"
-		panic(fmt.Sprintf(format, field.Type.String()))
+		panic(fmt.Sprintf(format, typ.String()))
 	}
 	// create instance
 	instance, err := oleutil.CallMethod(client.wmi, "Get", class)
@@ -416,7 +405,7 @@ func (client *Client) setInputStruct(
 	object := Object{raw: instance}
 	defer object.Clear()
 	// set fields
-	err = client.walkStruct(&object, field.Type, val)
+	err = client.walkStruct(&object, typ, val)
 	if err != nil {
 		return err
 	}
