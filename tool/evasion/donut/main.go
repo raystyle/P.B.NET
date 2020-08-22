@@ -22,19 +22,28 @@ import (
 
 func main() {
 	var (
-		input  string
-		output string
-		method string
-		noGUI  bool
+		input   string
+		output  string
+		entropy uint64
+		params  string
+		noGUI   bool
+		method  string
+		scOnly  bool
 	)
 	usage := "input executable file path"
 	flag.StringVar(&input, "i", "", usage)
 	usage = "output executable file path"
 	flag.StringVar(&output, "o", "output.exe", usage)
+	usage = "command line for exe"
+	flag.StringVar(&params, "p", "", usage)
 	usage = "hide Windows GUI"
 	flag.BoolVar(&noGUI, "no-gui", false, usage)
+	usage = "entropy, see document about donut"
+	flag.Uint64Var(&entropy, "entropy", donut.EntropyNone, usage)
 	usage = "shellcode execute method"
-	flag.StringVar(&method, "m", shellcode.MethodVirtualProtect, usage)
+	flag.StringVar(&method, "method", shellcode.MethodVirtualProtect, usage)
+	usage = "only generate shellcode"
+	flag.BoolVar(&scOnly, "sc", false, usage)
 	flag.Parse()
 
 	// load executable file
@@ -65,9 +74,21 @@ func main() {
 
 	// convert to shellcode
 	fmt.Println("convert executable file to shellcode")
-	donutCfg.Entropy = donut.EntropyNone
+	donutCfg.Entropy = uint32(entropy)
+	donutCfg.Parameters = params
 	scBuf, err := donut.ShellcodeFromBytes(bytes.NewBuffer(exeData), donutCfg)
 	system.CheckError(err)
+
+	// save shellcode
+	if scOnly {
+		if output == "output.exe" {
+			output = "output.bin"
+		}
+		err = system.WriteFile(output, scBuf.Bytes())
+		system.CheckError(err)
+		fmt.Println("save shellcode")
+		return
+	}
 
 	// compress shellcode
 	fmt.Println("compress generated shellcode")

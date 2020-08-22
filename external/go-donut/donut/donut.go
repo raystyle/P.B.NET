@@ -181,9 +181,9 @@ func createModule(config *Config, inputFile *bytes.Buffer) error {
 				// generate random name
 				copy(mod.Param[:], []byte(randomString(domainLen) + " ")[:])
 			} else {
-				// else set to "AAAA "
-				copy(mod.Param[:], []byte("AAAAAAAA ")[:])
-				copy(mod.Param[9:], []byte(config.Parameters)[:])
+				// else set to "donut.exe "
+				copy(mod.Param[:], []byte("donut.exe ")[:])
+				copy(mod.Param[10:], []byte(config.Parameters)[:])
 				skip = true
 			}
 		}
