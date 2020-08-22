@@ -14,6 +14,33 @@ import (
 	"project/internal/xpanic"
 )
 
+// getStructFields is used to get structure field names, it will process wmi structure tag.
+func getStructFields(structure reflect.Type) []string {
+	l := structure.NumField()
+	fields := make([]string, l)
+	for i := 0; i < l; i++ {
+		field := structure.Field(i)
+		// skip unexported field
+		if field.PkgPath != "" && !field.Anonymous {
+			continue
+		}
+		// check structure tag
+		tag, ok := field.Tag.Lookup("wmi")
+		if !ok {
+			fields[i] = field.Name
+			continue
+		}
+		switch tag {
+		case "-":
+		case "":
+			panic("empty value in wmi tag")
+		default:
+			fields[i] = tag
+		}
+	}
+	return fields
+}
+
 // parseExecQueryResult is used to parse ExecQuery result to destination interface.
 func parseExecQueryResult(objects []*Object, dst interface{}) (err error) {
 	defer func() {
@@ -114,32 +141,6 @@ func checkExecMethodOutputType(output interface{}) (reflect.Type, reflect.Value)
 		panic("output pointer is not point to structure")
 	}
 	return elem, val.Elem()
-}
-
-func getStructFields(structure reflect.Type) []string {
-	l := structure.NumField()
-	fields := make([]string, l)
-	for i := 0; i < l; i++ {
-		field := structure.Field(i)
-		// skip unexported field
-		if field.PkgPath != "" && !field.Anonymous {
-			continue
-		}
-		// check structure tag
-		tag, ok := field.Tag.Lookup("wmi")
-		if !ok {
-			fields[i] = field.Name
-			continue
-		}
-		switch tag {
-		case "-":
-		case "":
-			panic("empty value in wmi tag")
-		default:
-			fields[i] = tag
-		}
-	}
-	return fields
 }
 
 func setProperty(field reflect.Value, object *Object, name string) error {

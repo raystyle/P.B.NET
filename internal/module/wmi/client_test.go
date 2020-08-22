@@ -11,9 +11,7 @@ import (
 	"project/internal/testsuite"
 )
 
-const testPathWin32Process = "Win32_Process"
-
-var testWQLWin32Process = BuildWQLStatement(testWin32ProcessStr{}, testPathWin32Process)
+var testWQLWin32Process = BuildWQLStatement(testWin32ProcessStr{}, "Win32_Process")
 
 func testCreateClient(t *testing.T) *Client {
 	client, err := NewClient("root\\cimv2", nil)
@@ -59,7 +57,7 @@ func TestClient_GetObject(t *testing.T) {
 	t.Run("Win32_Process", func(t *testing.T) {
 		client := testCreateClient(t)
 
-		object, err := client.GetObject(testPathWin32Process)
+		object, err := client.GetObject("Win32_Process")
 		require.NoError(t, err)
 		defer object.Clear()
 
@@ -178,6 +176,6 @@ func TestBuildWQLStatement(t *testing.T) {
 		PID    uint32 `wmi:"ProcessId"`
 		Ignore string `wmi:"-"`
 	}{}
-	wql := BuildWQLStatement(win32Process, testPathWin32Process)
+	wql := BuildWQLStatement(win32Process, "Win32_Process")
 	require.Equal(t, "select Name, ProcessId from Win32_Process", wql)
 }

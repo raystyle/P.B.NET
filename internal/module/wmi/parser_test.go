@@ -62,7 +62,13 @@ type testStruct struct {
 	S    []string
 	SPtr *[]string
 
-	// TODO struct
+	Str    testInnerStruct
+	StrPtr *testInnerStruct
+}
+
+type testInnerStruct struct {
+	A    string
+	APtr *string
 }
 
 func TestCheckOutputStructure(t *testing.T) {
@@ -74,8 +80,15 @@ func TestCheckOutputStructure(t *testing.T) {
 		ABPtr: &a,
 		S:     []string{"S"},
 		SPtr:  &s,
+		Str: testInnerStruct{
+			A:    "Str",
+			APtr: &s[0],
+		},
+		StrPtr: &testInnerStruct{
+			A:    "Str",
+			APtr: &s[0],
+		},
 	}
-
 	testCheckOutputStructure(t, as)
 	testCheckOutputStructure(t, &as)
 }
