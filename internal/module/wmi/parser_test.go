@@ -144,6 +144,8 @@ func TestParseExecQueryResult(t *testing.T) {
 		for _, systemInfo := range systemInfo {
 			testCheckOutputStructure(t, systemInfo)
 		}
+
+		testsuite.IsDestroyed(t, &systemInfo)
 	})
 
 	t.Run("pointer", func(t *testing.T) {
@@ -156,6 +158,8 @@ func TestParseExecQueryResult(t *testing.T) {
 		for _, systemInfo := range systemInfo {
 			testCheckOutputStructure(t, systemInfo)
 		}
+
+		testsuite.IsDestroyed(t, &systemInfo)
 	})
 
 	client.Close()
@@ -262,12 +266,15 @@ func TestParseExecMethodResult(t *testing.T) {
 
 		path := fmt.Sprintf(pathObject, createOutput.PID)
 
+		testsuite.IsDestroyed(t, &createOutput)
+
 		// get owner
 		var getOwnerOutput testWin32ProcessGetOwnerOutput
 		err = client.ExecMethod(path, methodGetOwner, nil, &getOwnerOutput)
 		require.NoError(t, err)
 		fmt.Printf("Domain: %s, User: %s\n", getOwnerOutput.Domain, getOwnerOutput.User)
 		testCheckOutputStructure(t, getOwnerOutput)
+		testsuite.IsDestroyed(t, &getOwnerOutput)
 
 		// terminate process
 		terminateInput := testWin32ProcessTerminateInput{
@@ -298,12 +305,15 @@ func TestParseExecMethodResult(t *testing.T) {
 
 		path := fmt.Sprintf(pathObject, createOutput.PID)
 
+		testsuite.IsDestroyed(t, &createOutput)
+
 		// get owner
 		var getOwnerOutput testWin32ProcessGetOwnerOutput
 		err = client.ExecMethod(path, methodGetOwner, nil, &getOwnerOutput)
 		require.NoError(t, err)
 		fmt.Printf("Domain: %s, User: %s\n", getOwnerOutput.Domain, getOwnerOutput.User)
 		testCheckOutputStructure(t, &getOwnerOutput)
+		testsuite.IsDestroyed(t, &getOwnerOutput)
 
 		// terminate process
 		terminateInput := testWin32ProcessTerminateInput{
@@ -327,12 +337,15 @@ func TestParseExecMethodResult(t *testing.T) {
 
 		path := fmt.Sprintf(pathObject, createOutput.PID)
 
+		testsuite.IsDestroyed(t, &createOutput)
+
 		// get owner
 		var getOwnerOutput testWin32ProcessGetOwnerOutput
 		err = client.ExecMethod(path, methodGetOwner, nil, &getOwnerOutput)
 		require.NoError(t, err)
 		fmt.Printf("Domain: %s, User: %s\n", getOwnerOutput.Domain, getOwnerOutput.User)
 		testCheckOutputStructure(t, &getOwnerOutput)
+		testsuite.IsDestroyed(t, &getOwnerOutput)
 
 		// terminate process
 		terminateInput := testWin32ProcessTerminateInput{
