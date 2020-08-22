@@ -47,6 +47,8 @@ func TestClient_Query(t *testing.T) {
 			fmt.Printf("name: %s pid: %d\n", process.Name, process.PID)
 			require.Zero(t, process.Ignore)
 		}
+
+		testsuite.IsDestroyed(t, &processes)
 	})
 }
 
@@ -59,7 +61,6 @@ func TestClient_GetObject(t *testing.T) {
 
 		object, err := client.GetObject("Win32_Process")
 		require.NoError(t, err)
-		defer object.Clear()
 
 		fmt.Println("value:", object.Value())
 		path, err := object.Path()
@@ -69,6 +70,10 @@ func TestClient_GetObject(t *testing.T) {
 		client.Close()
 
 		testsuite.IsDestroyed(t, client)
+
+		object.Clear()
+
+		testsuite.IsDestroyed(t, object)
 	})
 }
 
@@ -168,6 +173,106 @@ func TestClient_ExecMethod(t *testing.T) {
 	client.Close()
 
 	testsuite.IsDestroyed(t, client)
+}
+
+func TestClient_Query_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("part", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		query := func() {
+			var processes []*testWin32ProcessStr
+
+			err := client.Query(testWQLWin32Process, &processes)
+			require.NoError(t, err)
+
+			require.NotEmpty(t, processes)
+			for _, process := range processes {
+				require.NotZero(t, process.Name)
+				require.Zero(t, process.Ignore)
+			}
+
+			testsuite.IsDestroyed(t, &processes)
+		}
+		testsuite.RunParallel(10, nil, nil, query, query)
+
+		client.Close()
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+		var client *Client
+
+		init := func() {
+			client = testCreateClient(t)
+		}
+		query := func() {
+			var processes []*testWin32ProcessStr
+
+			err := client.Query(testWQLWin32Process, &processes)
+			require.NoError(t, err)
+
+			require.NotEmpty(t, processes)
+			for _, process := range processes {
+				require.NotZero(t, process.Name)
+				require.Zero(t, process.Ignore)
+			}
+
+			testsuite.IsDestroyed(t, &processes)
+		}
+		cleanup := func() {
+			client.Close()
+		}
+		testsuite.RunParallel(10, init, cleanup, query, query)
+
+		testsuite.IsDestroyed(t, client)
+	})
+}
+
+func TestClient_GetObject_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("part", func(t *testing.T) {
+
+	})
+
+	t.Run("whole", func(t *testing.T) {
+
+	})
+}
+
+func TestClient_ExecMethod_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("part", func(t *testing.T) {
+
+	})
+
+	t.Run("whole", func(t *testing.T) {
+
+	})
+}
+
+func TestClient_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("part", func(t *testing.T) {
+
+	})
+
+	t.Run("whole", func(t *testing.T) {
+
+	})
+}
+
+func TestThread_Parallel(t *testing.T) {
+
 }
 
 func TestBuildWQLStatement(t *testing.T) {
