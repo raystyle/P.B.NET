@@ -193,8 +193,9 @@ func newErrFieldMismatch(name string, typ reflect.Type, reason interface{}) *Err
 
 // setValue is used to set property to destination value.
 func setValue(name string, typ reflect.Type, dst reflect.Value, val interface{}, prop *Object) error {
-	if dst.Kind() == reflect.Ptr {
-		dst.Set(reflect.New(dst.Type().Elem()))
+	if typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+		dst.Set(reflect.New(typ))
 		dst = dst.Elem()
 	}
 	if !dst.CanSet() {
@@ -217,7 +218,7 @@ func setValue(name string, typ reflect.Type, dst reflect.Value, val interface{},
 }
 
 func setIntValue(name string, typ reflect.Type, dst reflect.Value, val int64) error {
-	switch dst.Kind() {
+	switch typ.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		dst.SetInt(val)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
@@ -229,7 +230,7 @@ func setIntValue(name string, typ reflect.Type, dst reflect.Value, val int64) er
 }
 
 func setUintValue(name string, typ reflect.Type, dst reflect.Value, val uint64) error {
-	switch dst.Kind() {
+	switch typ.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		dst.SetInt(int64(val))
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
@@ -241,7 +242,7 @@ func setUintValue(name string, typ reflect.Type, dst reflect.Value, val uint64) 
 }
 
 func setFloatValue(name string, typ reflect.Type, dst reflect.Value, val float64) error {
-	switch dst.Kind() {
+	switch typ.Kind() {
 	case reflect.Float32, reflect.Float64:
 		dst.SetFloat(val)
 	default:
@@ -251,7 +252,7 @@ func setFloatValue(name string, typ reflect.Type, dst reflect.Value, val float64
 }
 
 func setBoolValue(name string, typ reflect.Type, dst reflect.Value, val bool) error {
-	switch dst.Kind() {
+	switch typ.Kind() {
 	case reflect.Bool:
 		dst.SetBool(val)
 	default:
@@ -261,7 +262,7 @@ func setBoolValue(name string, typ reflect.Type, dst reflect.Value, val bool) er
 }
 
 func setStringValue(name string, typ reflect.Type, dst reflect.Value, val string) error {
-	switch dst.Kind() {
+	switch typ.Kind() {
 	case reflect.String:
 		dst.SetString(val)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -277,7 +278,7 @@ func setStringValue(name string, typ reflect.Type, dst reflect.Value, val string
 		}
 		dst.SetUint(u)
 	case reflect.Struct: // string to time.Time
-		switch dst.Type() {
+		switch typ {
 		case timeType:
 			t, err := wmiDateTimeToTime(val)
 			if err != nil {
@@ -294,25 +295,13 @@ func setStringValue(name string, typ reflect.Type, dst reflect.Value, val string
 }
 
 func setOtherValue(name string, typ reflect.Type, dst reflect.Value, prop *Object) error {
-	switch dst.Kind() {
+	switch typ.Kind() {
 	case reflect.Slice:
 		values := prop.ToArray()
 		l := len(values)
 		dst.Set(reflect.MakeSlice(dst.Type(), l, l))
-		elemType := dst.Type().Elem()
-		// check slice element is pointer
-		elemIsPtr := elemType.Kind() == reflect.Ptr
-		if elemIsPtr {
-			elemType = elemType.Elem()
-		}
 		for i := 0; i < l; i++ {
 			elem := dst.Index(i)
-			if elemIsPtr {
-				if elem.IsNil() {
-					elem.Set(reflect.New(elemType))
-				}
-				elem = elem.Elem()
-			}
 			err := setValue(name, elem.Type(), elem, values[i], prop)
 			if err != nil {
 				return err

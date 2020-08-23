@@ -343,7 +343,7 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 	var err error
 	defer func() { exec.Err <- err }()
 
-	// get class
+	// get class, don't use client.GetObject() or will block
 	class, err := oleutil.CallMethod(client.wmi, "Get", exec.Path)
 	if err != nil {
 		err = errors.Wrapf(err, "failed to get class %q", exec.Path)
@@ -470,7 +470,7 @@ func (client *Client) setStruct(obj *Object, name string, typ reflect.Type, val 
 	class := val.FieldByName("Class").Interface().(string)
 	if class == "" {
 		const format = "\"class\" field is empty in structure %s"
-		panic(fmt.Sprintf(format, typ.String()))
+		panic(fmt.Sprintf(format, typ.Name()))
 	}
 	// create instance
 	instance, err := oleutil.CallMethod(client.wmi, "Get", class)

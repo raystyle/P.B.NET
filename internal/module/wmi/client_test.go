@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-ole/go-ole"
+	"github.com/go-ole/go-ole/oleutil"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
@@ -375,6 +376,222 @@ func TestClient_setExecMethodInputParameters(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
+type testFullType struct {
+	// --------value--------
+	Int8    int8
+	Int16   int16
+	Int32   int32
+	Int64   int64
+	Uint8   uint8
+	Uint16  uint16
+	Uint32  uint32
+	Uint64  uint64
+	Float32 float32
+	Float64 float64
+	Bool    bool
+	String  string
+
+	// ByteSlice   []byte
+	StringSlice []string
+
+	DateTime  time.Time
+	Reference string
+	Char16    uint16
+
+	Object struct {
+		Class string `wmi:"-"`
+
+		X uint32
+		Y uint32
+	}
+
+	// --------pointer--------
+	Int8Ptr    *int8
+	Int16Ptr   *int16
+	Int32Ptr   *int32
+	Int64Ptr   *int64
+	Uint8Ptr   *uint8
+	Uint16Ptr  *uint16
+	Uint32Ptr  *uint32
+	Uint64Ptr  *uint64
+	Float32Ptr *float32
+	Float64Ptr *float64
+	BoolPtr    *bool
+	StringPtr  *string
+
+	// ByteSlicePtr   *[]byte
+	StringSlicePtr *[]string
+
+	DateTimePtr  *time.Time
+	ReferencePtr *string
+	Char16Ptr    *uint16
+
+	ObjectPtr *struct {
+		Class string `wmi:"-"`
+
+		X *uint32
+		Y *uint32
+	}
+}
+
+func testGenerateFullType() *testFullType {
+	Int8 := int8(123)
+	Int16 := int16(-12345)
+	Int32 := int32(-1234567)
+	Int64 := int64(-12345678901111)
+	Uint8 := uint8(123)
+	Uint16 := uint16(12345)
+	Uint32 := uint32(123456)
+	Uint64 := uint64(12345678901111)
+	Float32 := float32(123.1234)
+	Float64 := 123.123456789
+	var Bool bool // IDE bug
+	String := "full"
+
+	// byteSlice := []byte{1, 2, 3, 4}
+	stringSlice := []string{"1", "2", "3", "4"}
+
+	DateTime := time.Now()
+	Reference := "path"
+	Char16 := uint16(1234)
+	Object := struct {
+		Class string `wmi:"-"`
+		X     uint32
+		Y     uint32
+	}{Class: "Win32_ProcessStartup"}
+	ObjectPtr := &struct {
+		Class string `wmi:"-"`
+		X     *uint32
+		Y     *uint32
+	}{Class: "Win32_ProcessStartup"}
+
+	return &testFullType{
+		// --------value--------
+		Int8:    Int8,
+		Int16:   Int16,
+		Int32:   Int32,
+		Int64:   Int64,
+		Uint8:   Uint8,
+		Uint16:  Uint16,
+		Uint32:  Uint32,
+		Uint64:  Uint64,
+		Float32: Float32,
+		Float64: Float64,
+		Bool:    Bool,
+		String:  String,
+
+		// ByteSlice:   byteSlice,
+		StringSlice: stringSlice,
+
+		DateTime:  DateTime,
+		Reference: Reference,
+		Char16:    Char16,
+		Object:    Object,
+
+		// --------pointer--------
+		Int8Ptr:    &Int8,
+		Int16Ptr:   &Int16,
+		Int32Ptr:   &Int32,
+		Int64Ptr:   &Int64,
+		Uint8Ptr:   &Uint8,
+		Uint16Ptr:  &Uint16,
+		Uint32Ptr:  &Uint32,
+		Uint64Ptr:  &Uint64,
+		Float32Ptr: &Float32,
+		Float64Ptr: &Float64,
+		BoolPtr:    &Bool,
+		StringPtr:  &String,
+
+		// ByteSlicePtr:   &byteSlice,
+		StringSlicePtr: &stringSlice,
+
+		DateTimePtr:  &DateTime,
+		ReferencePtr: &Reference,
+		Char16Ptr:    &Char16,
+		ObjectPtr:    ObjectPtr,
+	}
+}
+
+// add fake properties that contains all supported type.
+func testAddFullTypeProperties(t *testing.T, client *Client, obj *Object) {
+	// add values
+	Int8 := int8(123)
+	Int16 := int16(-12345)
+	Int32 := int32(-1234567)
+	Int64 := int64(-12345678901111)
+	Uint8 := uint8(123)
+	Uint16 := uint16(12345)
+	Uint32 := uint32(123456)
+	Uint64 := uint64(12345678901111)
+	Float32 := float32(123.1234)
+	Float64 := 123.123456789
+	var Bool bool // IDE bug
+	String := "full"
+
+	// byteSlice := []byte{1, 2, 3, 4}
+	stringSlice := []string{"1", "2", "3", "4"}
+
+	DateTime := time.Now()
+	Reference := "path"
+	Char16 := uint16(1234)
+	// don't use client.GetObject() or will block
+	class, err := oleutil.CallMethod(client.wmi, "Get", "Win32_ProcessStartup")
+	require.NoError(t, err)
+	Object := &Object{raw: class}
+
+	for _, item := range []*struct {
+		Name    string
+		Type    uint8
+		IsArray bool
+		Value   interface{}
+	}{
+		// --------value--------
+		{"Int8", CIMTypeInt8, false, Int8},
+		{"Int16", CIMTypeInt16, false, Int16},
+		{"Int32", CIMTypeInt32, false, Int32},
+		{"Int64", CIMTypeInt64, false, Int64},
+		{"Uint8", CIMTypeUint8, false, Uint8},
+		{"Uint16", CIMTypeUint16, false, Uint16},
+		{"Uint32", CIMTypeUint32, false, Uint32},
+		{"Uint64", CIMTypeUint64, false, Uint64},
+		{"Float32", CIMTypeFloat32, false, Float32},
+		{"Float64", CIMTypeFloat64, false, Float64},
+		{"Bool", CIMTypeBool, false, Bool},
+		{"String", CIMTypeString, false, String},
+		{"ByteSlice", CIMTypeUint8, true, nil},
+		{"StringSlice", CIMTypeString, true, stringSlice},
+		{"DateTime", CIMTypeDateTime, false, DateTime},
+		{"Reference", CIMTypeReference, false, Reference},
+		{"Char16", CIMTypeChar16, false, Char16},
+		{"Object", CIMTypeObject, false, Object},
+
+		// --------pointer--------
+		{"Int8Ptr", CIMTypeInt8, false, Int8},
+		{"Int16Ptr", CIMTypeInt16, false, Int16},
+		{"Int32Ptr", CIMTypeInt32, false, Int32},
+		{"Int64Ptr", CIMTypeInt64, false, Int64},
+		{"Uint8Ptr", CIMTypeUint8, false, Uint8},
+		{"Uint16Ptr", CIMTypeUint16, false, Uint16},
+		{"Uint32Ptr", CIMTypeUint32, false, Uint32},
+		{"Uint64Ptr", CIMTypeUint64, false, Uint64},
+		{"Float32Ptr", CIMTypeFloat32, false, Float32},
+		{"Float64Ptr", CIMTypeFloat64, false, Float64},
+		{"BoolPtr", CIMTypeBool, false, Bool},
+		{"StringPtr", CIMTypeString, false, String},
+		{"ByteSlicePtr", CIMTypeUint8, true, nil},
+		{"StringSlicePtr", CIMTypeString, true, stringSlice},
+		{"DateTimePtr", CIMTypeDateTime, false, DateTime},
+		{"ReferencePtr", CIMTypeReference, false, Reference},
+		{"Char16Ptr", CIMTypeChar16, false, Char16},
+		{"ObjectPtr", CIMTypeObject, false, Object},
+	} {
+		err := obj.AddProperty(item.Name, item.Type, item.IsArray)
+		require.NoError(t, err)
+		err = obj.SetProperty(item.Name, item.Value)
+		require.NoError(t, err)
+	}
+}
+
 func TestClient_setValue(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -387,64 +604,6 @@ func TestClient_setValue(t *testing.T) {
 	client := testCreateClient(t)
 
 	t.Run("full type object", func(t *testing.T) {
-		type full struct {
-			// --------value--------
-			Int8    int8
-			Int16   int16
-			Int32   int32
-			Int64   int64
-			Uint8   uint8
-			Uint16  uint16
-			Uint32  uint32
-			Uint64  uint64
-			Float32 float32
-			Float64 float64
-			Bool    bool
-			String  string
-
-			// ByteSlice   []byte
-			StringSlice []string
-
-			DateTime  time.Time
-			Reference string
-			Char16    uint16
-
-			Object struct {
-				Class string `wmi:"-"`
-
-				X uint32
-				Y uint32
-			}
-
-			// --------pointer--------
-			Int8Ptr    *int8
-			Int16Ptr   *int16
-			Int32Ptr   *int32
-			Int64Ptr   *int64
-			Uint8Ptr   *uint8
-			Uint16Ptr  *uint16
-			Uint32Ptr  *uint32
-			Uint64Ptr  *uint64
-			Float32Ptr *float32
-			Float64Ptr *float64
-			BoolPtr    *bool
-			StringPtr  *string
-
-			// ByteSlicePtr   *[]byte
-			StringSlicePtr *[]string
-
-			DateTimePtr  *time.Time
-			ReferencePtr *string
-			Char16Ptr    *uint16
-
-			ObjectPtr *struct {
-				Class string `wmi:"-"`
-
-				X *uint32
-				Y *uint32
-			}
-		}
-
 		object := new(Object)
 		var pg *monkey.PatchGuard
 		patch := func(obj *Object, name string) (*Object, error) {
@@ -454,137 +613,15 @@ func TestClient_setValue(t *testing.T) {
 			prop, err := obj.GetMethodInputParameters(name)
 			require.NoError(t, err)
 
-			// add fake properties that contains all supported type
-			for _, item := range []*struct {
-				Name    string
-				Type    uint8
-				IsArray bool
-			}{
-				// --------value--------
-				{"Int8", CIMTypeInt8, false},
-				{"Int16", CIMTypeInt16, false},
-				{"Int32", CIMTypeInt32, false},
-				{"Int64", CIMTypeInt64, false},
-				{"Uint8", CIMTypeUint8, false},
-				{"Uint16", CIMTypeUint16, false},
-				{"Uint32", CIMTypeUint32, false},
-				{"Uint64", CIMTypeUint64, false},
-				{"Float32", CIMTypeFloat32, false},
-				{"Float64", CIMTypeFloat64, false},
-				{"Bool", CIMTypeBool, false},
-				{"String", CIMTypeString, false},
-				{"ByteSlice", CIMTypeUint8, true},
-				{"StringSlice", CIMTypeString, true},
-				{"DateTime", CIMTypeDateTime, false},
-				{"Reference", CIMTypeReference, false},
-				{"Char16", CIMTypeChar16, false},
-				{"Object", CIMTypeObject, false},
-
-				// --------pointer--------
-				{"Int8Ptr", CIMTypeInt8, false},
-				{"Int16Ptr", CIMTypeInt16, false},
-				{"Int32Ptr", CIMTypeInt32, false},
-				{"Int64Ptr", CIMTypeInt64, false},
-				{"Uint8Ptr", CIMTypeUint8, false},
-				{"Uint16Ptr", CIMTypeUint16, false},
-				{"Uint32Ptr", CIMTypeUint32, false},
-				{"Uint64Ptr", CIMTypeUint64, false},
-				{"Float32Ptr", CIMTypeFloat32, false},
-				{"Float64Ptr", CIMTypeFloat64, false},
-				{"BoolPtr", CIMTypeBool, false},
-				{"StringPtr", CIMTypeString, false},
-				{"ByteSlicePtr", CIMTypeUint8, true},
-				{"StringSlicePtr", CIMTypeString, true},
-				{"DateTimePtr", CIMTypeDateTime, false},
-				{"ReferencePtr", CIMTypeReference, false},
-				{"Char16Ptr", CIMTypeChar16, false},
-				{"ObjectPtr", CIMTypeObject, false},
-			} {
-				err = prop.AddProperty(item.Name, item.Type, item.IsArray)
-				require.NoError(t, err)
-			}
+			testAddFullTypeProperties(t, client, prop)
 			return prop, nil
 		}
 		pg = monkey.PatchInstanceMethod(object, "GetMethodInputParameters", patch)
 		defer pg.Unpatch()
 
-		Int8 := int8(123)
-		Int16 := int16(-12345)
-		Int32 := int32(-1234567)
-		Int64 := int64(-12345678901111)
-		Uint8 := uint8(123)
-		Uint16 := uint16(12345)
-		Uint32 := uint32(123456)
-		Uint64 := uint64(12345678901111)
-		Float32 := float32(123.1234)
-		Float64 := 123.123456789
-		var Bool bool // IDE bug
-		String := "full"
+		input := testGenerateFullType()
 
-		// byteSlice := []byte{1, 2, 3, 4}
-		stringSlice := []string{"1", "2", "3", "4"}
-
-		DateTime := time.Now()
-		Reference := "path"
-		Char16 := uint16(1234)
-		Object := struct {
-			Class string `wmi:"-"`
-			X     uint32
-			Y     uint32
-		}{Class: "Win32_ProcessStartup"}
-		ObjectPtr := &struct {
-			Class string `wmi:"-"`
-			X     *uint32
-			Y     *uint32
-		}{Class: "Win32_ProcessStartup"}
-
-		input := full{
-			// --------value--------
-			Int8:    Int8,
-			Int16:   Int16,
-			Int32:   Int32,
-			Int64:   Int64,
-			Uint8:   Uint8,
-			Uint16:  Uint16,
-			Uint32:  Uint32,
-			Uint64:  Uint64,
-			Float32: Float32,
-			Float64: Float64,
-			Bool:    Bool,
-			String:  String,
-
-			// ByteSlice:   byteSlice,
-			StringSlice: stringSlice,
-
-			DateTime:  DateTime,
-			Reference: Reference,
-			Char16:    Char16,
-			Object:    Object,
-
-			// --------pointer--------
-			Int8Ptr:    &Int8,
-			Int16Ptr:   &Int16,
-			Int32Ptr:   &Int32,
-			Int64Ptr:   &Int64,
-			Uint8Ptr:   &Uint8,
-			Uint16Ptr:  &Uint16,
-			Uint32Ptr:  &Uint32,
-			Uint64Ptr:  &Uint64,
-			Float32Ptr: &Float32,
-			Float64Ptr: &Float64,
-			BoolPtr:    &Bool,
-			StringPtr:  &String,
-
-			// ByteSlicePtr:   &byteSlice,
-			StringSlicePtr: &stringSlice,
-
-			DateTimePtr:  &DateTime,
-			ReferencePtr: &Reference,
-			Char16Ptr:    &Char16,
-			ObjectPtr:    ObjectPtr,
-		}
-
-		err := client.ExecMethod(path, method, &input, nil)
+		err := client.ExecMethod(path, method, input, nil)
 		require.NoError(t, err)
 	})
 

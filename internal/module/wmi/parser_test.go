@@ -380,3 +380,24 @@ func TestParseExecMethodResult(t *testing.T) {
 
 	testsuite.IsDestroyed(t, client)
 }
+
+func TestWalkStruct(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testCreateClient(t)
+
+	t.Run("full type", func(t *testing.T) {
+		object, err := client.GetObject("Win32_Process")
+		require.NoError(t, err)
+		testAddFullTypeProperties(t, client, object)
+		fullType := testGenerateFullType()
+
+		err = parseExecMethodOutput(object, fullType)
+		require.NoError(t, err)
+	})
+
+	client.Close()
+
+	testsuite.IsDestroyed(t, client)
+}
