@@ -5,9 +5,11 @@ package wmi
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -171,6 +173,130 @@ func TestClient_ExecMethod(t *testing.T) {
 		}
 		err = client.ExecMethod(path, methodTerminate, terminateInput, nil)
 		require.NoError(t, err)
+	})
+
+	client.Close()
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestClient_setValue(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testCreateClient(t)
+
+	t.Run("full type object", func(t *testing.T) {
+		type full struct {
+			// --------value--------
+			Int8    int8
+			Int16   int16
+			Int32   int32
+			Int64   int64
+			Uint8   uint8
+			Uint16  uint16
+			Uint32  uint32
+			Uint64  uint64
+			Float32 float32
+			Float64 float32
+			Bool    bool
+			String  string
+
+			ByteSlice   []byte
+			StringSlice []string
+
+			DateTime  time.Time
+			Reference string
+			Char16    uint16
+
+			Object struct {
+				Class string `wmi:"-"`
+
+				X uint32
+				Y uint32
+			}
+
+			// --------pointer--------
+			Int8Ptr    *int8
+			Int16Ptr   *int16
+			Int32Ptr   *int32
+			Int64Ptr   *int64
+			Uint8Ptr   *uint8
+			Uint16Ptr  *uint16
+			Uint32Ptr  *uint32
+			Uint64Ptr  *uint64
+			Float32Ptr *float32
+			Float64Ptr *float32
+			BoolPtr    *bool
+			StringPtr  *string
+
+			ByteSlicePtr   *[]byte
+			StringSlicePtr *[]string
+
+			DateTimePtr  *time.Time
+			ReferencePtr string
+			Char16Ptr    uint16
+
+			ObjectPtr *struct {
+				Class string `wmi:"-"`
+
+				X uint32
+				Y uint32
+			}
+		}
+
+		object := new(Object)
+		var pg *monkey.PatchGuard
+		patch := func(obj *Object, name string) (*Object, error) {
+			pg.Unpatch()
+			defer pg.Restore()
+
+			prop, err := obj.GetMethodInputParameters(name)
+			require.NoError(t, err)
+
+			// add fake properties that conatins all supported type
+			err = obj.AddProperty("Int8", CIMTypeInt8, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Int16", CIMTypeInt16, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Int32", CIMTypeInt32, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Int64", CIMTypeInt64, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Uint8", CIMTypeUint8, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Uint16", CIMTypeUint16, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Uint32", CIMTypeUint32, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Uint64", CIMTypeUint64, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Float32", CIMTypeFloat32, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Float64", CIMTypeFloat64, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Bool", CIMTypeBool, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("String", CIMTypeString, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("ByteSlice", CIMTypeUint8, true)
+			require.NoError(t, err)
+			err = obj.AddProperty("StringSlice", CIMTypeString, true)
+			require.NoError(t, err)
+			err = obj.AddProperty("DateTime", CIMTypeDateTime, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Reference", CIMTypeReference, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Char16", CIMTypeChar16, false)
+			require.NoError(t, err)
+			err = obj.AddProperty("Object", CIMTypeObject, false)
+			require.NoError(t, err)
+
+			return prop, nil
+		}
+		pg = monkey.PatchInstanceMethod(object, "GetMethodInputParameters", patch)
+		defer pg.Unpatch()
+
 	})
 
 	client.Close()
