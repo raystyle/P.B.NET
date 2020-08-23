@@ -20,18 +20,15 @@ var timeType = reflect.TypeOf(time.Time{})
 // convert to minute is [-720,+840], so we only need three characters
 func timeToWMIDateTime(t time.Time) string {
 	str := t.Format("20060102150405.000000-0700")
-	hour, err := strconv.ParseInt(str[22:24], 10, 64)
-	if err != nil {
-		panic("invalid time string after format")
-	}
-	minute, err := strconv.ParseInt(str[24:26], 10, 64)
-	if err != nil {
-		panic("invalid time string after format")
-	}
+	hour, _ := strconv.ParseInt(str[22:24], 10, 64)
+	minute, _ := strconv.ParseInt(str[24:26], 10, 64)
 	return fmt.Sprintf(str[:22]+"%03d", hour*60+minute)
 }
 
 func wmiDateTimeToTime(str string) (time.Time, error) {
+	if len(str) != 25 {
+		return time.Time{}, errors.New("invalid date time string")
+	}
 	minute, err := strconv.Atoi(str[22:])
 	if err != nil {
 		return time.Time{}, err

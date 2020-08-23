@@ -5,6 +5,7 @@ package wmi
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,26 @@ import (
 
 	"project/internal/testsuite"
 )
+
+func TestWMIDateTimeToTime(t *testing.T) {
+	t.Run("common", func(t *testing.T) {
+		now := time.Now()
+		datetime := timeToWMIDateTime(now)
+		ti, err := wmiDateTimeToTime(datetime)
+		require.NoError(t, err)
+		require.True(t, now.Sub(ti) < time.Second)
+	})
+
+	t.Run("invalid time string length", func(t *testing.T) {
+		_, err := wmiDateTimeToTime("foo")
+		require.Error(t, err)
+	})
+
+	t.Run("invalid time string", func(t *testing.T) {
+		_, err := wmiDateTimeToTime(strings.Repeat("a", 25))
+		require.Error(t, err)
+	})
+}
 
 func testCheckOutputStructure(t *testing.T, value interface{}) {
 	val := reflect.ValueOf(value)

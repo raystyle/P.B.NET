@@ -342,6 +342,39 @@ func TestClient_init(t *testing.T) {
 	testsuite.IsDestroyed(t, &client)
 }
 
+func TestClient_setExecMethodInputParameters(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const (
+		path   = "Win32_Process"
+		method = "Create"
+	)
+
+	client := testCreateClient(t)
+
+	t.Run("nil pointer", func(t *testing.T) {
+		var input *int
+		err := client.ExecMethod(path, method, input, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("pointer not point to structure", func(t *testing.T) {
+		input := 0
+		err := client.ExecMethod(path, method, &input, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid input type", func(t *testing.T) {
+		err := client.ExecMethod(path, method, "foo", nil)
+		require.Error(t, err)
+	})
+
+	client.Close()
+
+	testsuite.IsDestroyed(t, client)
+}
+
 func TestClient_setValue(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
