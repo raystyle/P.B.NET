@@ -2,6 +2,7 @@ package taskmgr
 
 import (
 	"encoding/binary"
+	"time"
 	"unsafe"
 )
 
@@ -38,6 +39,7 @@ type Process struct {
 
 	CommandLine    string
 	ExecutablePath string
+	CreationDate   time.Time
 }
 
 // ID is used to identified this Process.

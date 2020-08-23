@@ -2,10 +2,6 @@
 
 package taskmgr
 
-import (
-	"github.com/StackExchange/wmi"
-)
-
 // ReturnValue about process
 const (
 	networkService uint32 = 2
@@ -36,7 +32,6 @@ type process struct {
 }
 
 type taskList struct {
-	wmi wmi.Client
 }
 
 func newTaskList() (*taskList, error) {

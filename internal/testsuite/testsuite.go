@@ -195,7 +195,14 @@ func walkOptions(father string, typ reflect.Type, value reflect.Value) string {
 			continue
 		}
 		// skip filed with check tag
-		if fieldType.Tag.Get("check") == "-" {
+		fieldTag, ok := fieldType.Tag.Lookup("check")
+		if !ok {
+			continue
+		}
+		if fieldTag == "" {
+			panic("empty value in check tag")
+		}
+		if fieldTag == "-" {
 			continue
 		}
 		switch fieldType.Type.Kind() {

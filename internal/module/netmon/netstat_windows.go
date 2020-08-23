@@ -13,8 +13,14 @@ import (
 	"project/internal/convert"
 )
 
-// reference:
+// references:
+//
+// DLL information, get exported functions list:
+// http://xpdll.nirsoft.net/iphlpapi_dll.html GetExtendedTcpTable and GetExtendedUdpTable
+//
+// parameters about exported function:
 // https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedtcptable
+// https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedudptable
 
 // TCP over IPv4
 type tcp4Table struct {
