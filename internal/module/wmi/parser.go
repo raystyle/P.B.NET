@@ -160,7 +160,7 @@ func walkStruct(obj *Object, typ reflect.Type, dst reflect.Value) error {
 func getProperty(obj *Object, name string, typ reflect.Type, dst reflect.Value) error {
 	prop, err := obj.GetProperty(name)
 	if err != nil {
-		return errors.Wrapf(err, "failed to get property \"%s\"", name)
+		return errors.Wrapf(err, "failed to get property %q", name)
 	}
 	defer prop.Clear()
 	if prop.raw.VT == ole.VT_NULL { // skip null value
@@ -179,7 +179,7 @@ type ErrFieldMismatch struct {
 }
 
 func (e *ErrFieldMismatch) Error() string {
-	const format = "can not set field %q with a %q: %s"
+	const format = "can not set field %q with a %s type: %s"
 	return fmt.Sprintf(format, e.Name, e.Type, e.Reason)
 }
 
@@ -197,9 +197,6 @@ func setValue(name string, typ reflect.Type, dst reflect.Value, val interface{},
 		typ = typ.Elem()
 		dst.Set(reflect.New(typ))
 		dst = dst.Elem()
-	}
-	if !dst.CanSet() {
-		return newErrFieldMismatch(name, typ, "can not set to destination value")
 	}
 	switch val := val.(type) {
 	case int, int8, int16, int32, int64:

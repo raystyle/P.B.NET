@@ -390,11 +390,125 @@ func TestWalkStruct(t *testing.T) {
 	t.Run("full type", func(t *testing.T) {
 		object, err := client.GetObject("Win32_Process")
 		require.NoError(t, err)
+		defer object.Clear()
 		testAddFullTypeProperties(t, client, object)
 		fullType := testGenerateFullType()
 
 		err = parseExecMethodOutput(object, fullType)
 		require.NoError(t, err)
+	})
+
+	t.Run("failed to get property", func(t *testing.T) {
+		object, err := client.GetObject("Win32_Process")
+		require.NoError(t, err)
+		defer object.Clear()
+
+		output := struct {
+			Foo string
+		}{}
+		err = parseExecMethodOutput(object, &output)
+		require.Error(t, err)
+	})
+
+	client.Close()
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestSetValue(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testCreateClient(t)
+
+	object, err := client.GetObject("Win32_Process")
+	require.NoError(t, err)
+	defer object.Clear()
+	testAddFullTypeProperties(t, client, object)
+
+	t.Run("failed to set int value", func(t *testing.T) {
+		output := struct {
+			Int8 string
+		}{}
+		err = parseExecMethodOutput(object, &output)
+		require.Error(t, err)
+		t.Log(err)
+	})
+
+	t.Run("failed to set uint value", func(t *testing.T) {
+		output := struct {
+			Uint8  uint8
+			Uint81 int8 `wmi:"Uint8"`
+			Uint16 string
+		}{}
+		err = parseExecMethodOutput(object, &output)
+		require.Error(t, err)
+		t.Log(err)
+	})
+
+	t.Run("failed to set float value", func(t *testing.T) {
+		output := struct {
+			Float32 string
+		}{}
+		err = parseExecMethodOutput(object, &output)
+		require.Error(t, err)
+		t.Log(err)
+	})
+
+	t.Run("failed to set bool value", func(t *testing.T) {
+		output := struct {
+			Bool string
+		}{}
+		err = parseExecMethodOutput(object, &output)
+		require.Error(t, err)
+		t.Log(err)
+	})
+
+	t.Run("failed to set string value", func(t *testing.T) {
+		t.Run("int", func(t *testing.T) {
+			output := struct {
+				String int
+			}{}
+			err = parseExecMethodOutput(object, &output)
+			require.Error(t, err)
+			t.Log(err)
+		})
+
+		t.Run("uint", func(t *testing.T) {
+			output := struct {
+				String uint
+			}{}
+			err = parseExecMethodOutput(object, &output)
+			require.Error(t, err)
+			t.Log(err)
+		})
+
+		t.Run("time", func(t *testing.T) {
+			output := struct {
+				String time.Time
+			}{}
+			err = parseExecMethodOutput(object, &output)
+			require.Error(t, err)
+			t.Log(err)
+		})
+
+		t.Run("time", func(t *testing.T) {
+			output := struct {
+				String struct{}
+			}{}
+			err = parseExecMethodOutput(object, &output)
+			require.Error(t, err)
+			t.Log(err)
+		})
+
+		t.Run("unsupported type", func(t *testing.T) {
+			output := struct {
+				String chan struct{}
+			}{}
+			err = parseExecMethodOutput(object, &output)
+			require.Error(t, err)
+			t.Log(err)
+		})
 	})
 
 	client.Close()
