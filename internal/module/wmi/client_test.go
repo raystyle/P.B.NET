@@ -56,7 +56,7 @@ func TestClient_Query(t *testing.T) {
 		testsuite.IsDestroyed(t, &processes)
 	})
 
-	t.Run("failed", func(t *testing.T) {
+	t.Run("fail", func(t *testing.T) {
 		client := testCreateClient(t)
 
 		err := client.Query("invalid wql", nil)
@@ -128,7 +128,7 @@ func TestClient_GetObject(t *testing.T) {
 		testsuite.IsDestroyed(t, object)
 	})
 
-	t.Run("failed", func(t *testing.T) {
+	t.Run("fail", func(t *testing.T) {
 		client := testCreateClient(t)
 
 		_, err := client.GetObject("invalid path")
@@ -276,7 +276,7 @@ func TestClient_ExecMethod(t *testing.T) {
 		testsuite.IsDestroyed(t, client)
 	})
 
-	t.Run("failed", func(t *testing.T) {
+	t.Run("fail", func(t *testing.T) {
 		client := testCreateClient(t)
 
 		err := client.ExecMethod("invalid path", "", nil, nil)
@@ -343,7 +343,7 @@ func TestClient_init(t *testing.T) {
 	testsuite.IsDestroyed(t, &client)
 }
 
-func TestClient_setExecMethodInputParameters(t *testing.T) {
+func TestClient_setExecMethodInput(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1124,32 +1124,55 @@ func TestClient_Parallel(t *testing.T) {
 	})
 }
 
-func TestThread_Parallel(t *testing.T) {
+func TestMultiClient(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	testsuite.RunMultiTimes(10, func() {
-		client := testCreateClient(t)
-
+	t.Run("success", func(t *testing.T) {
 		testsuite.RunMultiTimes(10, func() {
-			for i := 0; i < 10; i++ {
-				var systemInfo []testWin32OperatingSystem
+			client := testCreateClient(t)
 
-				err := client.Query("select * from Win32_OperatingSystem", &systemInfo)
-				require.NoError(t, err)
+			testsuite.RunMultiTimes(10, func() {
+				for i := 0; i < 10; i++ {
+					var systemInfo []testWin32OperatingSystem
 
-				require.NotEmpty(t, systemInfo)
-				for _, systemInfo := range systemInfo {
-					testCheckOutputStructure(t, systemInfo)
+					err := client.Query("select * from Win32_OperatingSystem", &systemInfo)
+					require.NoError(t, err)
+
+					require.NotEmpty(t, systemInfo)
+					for _, systemInfo := range systemInfo {
+						testCheckOutputStructure(t, systemInfo)
+					}
+
+					testsuite.IsDestroyed(t, &systemInfo)
 				}
+			})
 
-				testsuite.IsDestroyed(t, &systemInfo)
-			}
+			client.Close()
+
+			testsuite.IsDestroyed(t, client)
 		})
+	})
 
-		client.Close()
+	t.Run("fail", func(t *testing.T) {
+		testsuite.RunMultiTimes(10, func() {
+			client := testCreateClient(t)
 
-		testsuite.IsDestroyed(t, client)
+			testsuite.RunMultiTimes(10, func() {
+				for i := 0; i < 10; i++ {
+					var systemInfo []testWin32OperatingSystem
+
+					err := client.Query("select * from", &systemInfo)
+					require.Error(t, err)
+
+					testsuite.IsDestroyed(t, &systemInfo)
+				}
+			})
+
+			client.Close()
+
+			testsuite.IsDestroyed(t, client)
+		})
 	})
 }
 

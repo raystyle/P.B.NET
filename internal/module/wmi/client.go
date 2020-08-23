@@ -360,7 +360,7 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 			return
 		}
 		defer input.Clear()
-		err = client.setExecMethodInputParameters(input, exec.Input)
+		err = client.setExecMethodInput(input, exec.Input)
 		if err != nil {
 			return
 		}
@@ -378,11 +378,11 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 	err = parseExecMethodOutput(output, exec.Output)
 }
 
-// setExecMethodInputParameters is used to set input parameters to object.
-func (client *Client) setExecMethodInputParameters(obj *Object, input interface{}) (err error) {
+// setExecMethodInput is used to set input parameters to object.
+func (client *Client) setExecMethodInput(obj *Object, input interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = xpanic.Error(r, "setExecMethodInputParameters")
+			err = xpanic.Error(r, "setExecMethodInput")
 		}
 	}()
 	// check input type

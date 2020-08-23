@@ -52,11 +52,12 @@ func (obj *Object) count() (int, error) {
 	}
 	iDispatch.AddRef()
 	defer iDispatch.Release()
-	prop, err := oleutil.GetProperty(iDispatch, "Count")
+	count, err := oleutil.GetProperty(iDispatch, "Count")
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get Count property")
 	}
-	return int(prop.Val), nil
+	defer func() { _ = count.Clear() }()
+	return int(count.Val), nil
 }
 
 // need clear object.

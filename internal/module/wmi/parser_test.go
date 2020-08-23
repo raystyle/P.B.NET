@@ -438,8 +438,8 @@ func TestSetValue(t *testing.T) {
 	t.Run("failed to set uint value", func(t *testing.T) {
 		output := struct {
 			Uint8  uint8
-			Uint81 int8 `wmi:"Uint8"`
-			Uint16 string
+			Uint81 int8   `wmi:"Uint8"`
+			Uint82 string `wmi:"Uint8"`
 		}{}
 		err = parseExecMethodOutput(object, &output)
 		require.Error(t, err)
@@ -492,7 +492,7 @@ func TestSetValue(t *testing.T) {
 			t.Log(err)
 		})
 
-		t.Run("time", func(t *testing.T) {
+		t.Run("unsupported structure", func(t *testing.T) {
 			output := struct {
 				String struct{}
 			}{}
@@ -501,7 +501,7 @@ func TestSetValue(t *testing.T) {
 			t.Log(err)
 		})
 
-		t.Run("unsupported type", func(t *testing.T) {
+		t.Run("unsupported string type", func(t *testing.T) {
 			output := struct {
 				String chan struct{}
 			}{}
@@ -509,6 +509,24 @@ func TestSetValue(t *testing.T) {
 			require.Error(t, err)
 			t.Log(err)
 		})
+	})
+
+	t.Run("unsupported slice type", func(t *testing.T) {
+		output := struct {
+			StringSlice []chan struct{}
+		}{}
+		err = parseExecMethodOutput(object, &output)
+		require.Error(t, err)
+		t.Log(err)
+	})
+
+	t.Run("unsupported type", func(t *testing.T) {
+		output := struct {
+			Object chan struct{}
+		}{}
+		err = parseExecMethodOutput(object, &output)
+		require.Error(t, err)
+		t.Log(err)
 	})
 
 	client.Close()
