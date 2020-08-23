@@ -198,7 +198,7 @@ func TestClient_setValue(t *testing.T) {
 			Uint32  uint32
 			Uint64  uint64
 			Float32 float32
-			Float64 float32
+			Float64 float64
 			Bool    bool
 			String  string
 
@@ -226,7 +226,7 @@ func TestClient_setValue(t *testing.T) {
 			Uint32Ptr  *uint32
 			Uint64Ptr  *uint64
 			Float32Ptr *float32
-			Float64Ptr *float32
+			Float64Ptr *float64
 			BoolPtr    *bool
 			StringPtr  *string
 
@@ -234,14 +234,14 @@ func TestClient_setValue(t *testing.T) {
 			StringSlicePtr *[]string
 
 			DateTimePtr  *time.Time
-			ReferencePtr string
-			Char16Ptr    uint16
+			ReferencePtr *string
+			Char16Ptr    *uint16
 
 			ObjectPtr *struct {
 				Class string `wmi:"-"`
 
-				X uint32
-				Y uint32
+				X *uint32
+				Y *uint32
 			}
 		}
 
@@ -254,49 +254,138 @@ func TestClient_setValue(t *testing.T) {
 			prop, err := obj.GetMethodInputParameters(name)
 			require.NoError(t, err)
 
-			// add fake properties that conatins all supported type
-			err = obj.AddProperty("Int8", CIMTypeInt8, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Int16", CIMTypeInt16, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Int32", CIMTypeInt32, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Int64", CIMTypeInt64, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Uint8", CIMTypeUint8, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Uint16", CIMTypeUint16, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Uint32", CIMTypeUint32, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Uint64", CIMTypeUint64, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Float32", CIMTypeFloat32, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Float64", CIMTypeFloat64, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Bool", CIMTypeBool, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("String", CIMTypeString, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("ByteSlice", CIMTypeUint8, true)
-			require.NoError(t, err)
-			err = obj.AddProperty("StringSlice", CIMTypeString, true)
-			require.NoError(t, err)
-			err = obj.AddProperty("DateTime", CIMTypeDateTime, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Reference", CIMTypeReference, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Char16", CIMTypeChar16, false)
-			require.NoError(t, err)
-			err = obj.AddProperty("Object", CIMTypeObject, false)
-			require.NoError(t, err)
+			// add fake properties that contains all supported type
+			for _, item := range []*struct {
+				Name    string
+				Type    uint8
+				IsArray bool
+			}{
+				// --------value--------
+				{"Int8", CIMTypeInt8, false},
+				{"Int16", CIMTypeInt16, false},
+				{"Int32", CIMTypeInt32, false},
+				{"Int64", CIMTypeInt64, false},
+				{"Uint8", CIMTypeUint8, false},
+				{"Uint16", CIMTypeUint16, false},
+				{"Uint32", CIMTypeUint32, false},
+				{"Uint64", CIMTypeUint64, false},
+				{"Float32", CIMTypeFloat32, false},
+				{"Float64", CIMTypeFloat64, false},
+				{"Bool", CIMTypeBool, false},
+				{"String", CIMTypeString, false},
+				{"ByteSlice", CIMTypeUint8, true},
+				{"StringSlice", CIMTypeString, true},
+				{"DateTime", CIMTypeDateTime, false},
+				{"Reference", CIMTypeReference, false},
+				{"Char16", CIMTypeChar16, false},
+				{"Object", CIMTypeObject, false},
 
+				// --------pointer--------
+				{"Int8Ptr", CIMTypeInt8, false},
+				{"Int16Ptr", CIMTypeInt16, false},
+				{"Int32Ptr", CIMTypeInt32, false},
+				{"Int64Ptr", CIMTypeInt64, false},
+				{"Uint8Ptr", CIMTypeUint8, false},
+				{"Uint16Ptr", CIMTypeUint16, false},
+				{"Uint32Ptr", CIMTypeUint32, false},
+				{"Uint64Ptr", CIMTypeUint64, false},
+				{"Float32Ptr", CIMTypeFloat32, false},
+				{"Float64Ptr", CIMTypeFloat64, false},
+				{"BoolPtr", CIMTypeBool, false},
+				{"StringPtr", CIMTypeString, false},
+				{"ByteSlicePtr", CIMTypeUint8, true},
+				{"StringSlicePtr", CIMTypeString, true},
+				{"DateTimePtr", CIMTypeDateTime, false},
+				{"ReferencePtr", CIMTypeReference, false},
+				{"Char16Ptr", CIMTypeChar16, false},
+				{"ObjectPtr", CIMTypeObject, false},
+			} {
+				err = prop.AddProperty(item.Name, item.Type, item.IsArray)
+				require.NoError(t, err)
+			}
 			return prop, nil
 		}
 		pg = monkey.PatchInstanceMethod(object, "GetMethodInputParameters", patch)
 		defer pg.Unpatch()
 
+		Int8 := int8(123)
+		Int16 := int16(-12345)
+		Int32 := int32(-1234567)
+		Int64 := int64(-12345678901111)
+		Uint8 := uint8(123)
+		Uint16 := uint16(12345)
+		Uint32 := uint32(123456)
+		Uint64 := uint64(12345678901111)
+		Float32 := float32(123.1234)
+		Float64 := 123.123456789
+		var Bool bool // IDE bug
+		String := "full"
+
+		// byteSlice := []byte{1, 2, 3, 4}
+		stringSlice := []string{"1", "2", "3", "4"}
+
+		DateTime := time.Now()
+		Reference := "path"
+		Char16 := uint16(1234)
+		Object := struct {
+			Class string `wmi:"-"`
+			X     uint32
+			Y     uint32
+		}{Class: "Win32_ProcessStartup"}
+		ObjectPtr := &struct {
+			Class string `wmi:"-"`
+			X     *uint32
+			Y     *uint32
+		}{Class: "Win32_ProcessStartup"}
+
+		input := full{
+			// --------value--------
+			Int8:    Int8,
+			Int16:   Int16,
+			Int32:   Int32,
+			Int64:   Int64,
+			Uint8:   Uint8,
+			Uint16:  Uint16,
+			Uint32:  Uint32,
+			Uint64:  Uint64,
+			Float32: Float32,
+			Float64: Float64,
+			Bool:    Bool,
+			String:  String,
+
+			// ByteSlice:   byteSlice,
+			StringSlice: stringSlice,
+
+			DateTime:  DateTime,
+			Reference: Reference,
+			Char16:    Char16,
+			Object:    Object,
+
+			// --------pointer--------
+			Int8Ptr:    &Int8,
+			Int16Ptr:   &Int16,
+			Int32Ptr:   &Int32,
+			Int64Ptr:   &Int64,
+			Uint8Ptr:   &Uint8,
+			Uint16Ptr:  &Uint16,
+			Uint32Ptr:  &Uint32,
+			Uint64Ptr:  &Uint64,
+			Float32Ptr: &Float32,
+			Float64Ptr: &Float64,
+			BoolPtr:    &Bool,
+			StringPtr:  &String,
+
+			// ByteSlicePtr:   &byteSlice,
+			StringSlicePtr: &stringSlice,
+
+			DateTimePtr:  &DateTime,
+			ReferencePtr: &Reference,
+			Char16Ptr:    &Char16,
+			ObjectPtr:    ObjectPtr,
+		}
+
+		err := client.ExecMethod("Win32_Process", "Create", &input, nil)
+		require.NoError(t, err)
 	})
 
 	client.Close()
