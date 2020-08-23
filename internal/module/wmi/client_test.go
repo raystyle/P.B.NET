@@ -84,6 +84,23 @@ func TestClient_Query(t *testing.T) {
 
 		testsuite.IsDestroyed(t, client)
 	})
+
+	t.Run("failed to get result", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		client.Close()
+		// query will block because client will not handle it
+		client.stopSignal = make(chan struct{})
+		go func() {
+			time.Sleep(time.Second)
+			close(client.stopSignal)
+		}()
+
+		err := client.Query("invalid wql", nil)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, client)
+	})
 }
 
 func TestClient_GetObject(t *testing.T) {
@@ -133,6 +150,23 @@ func TestClient_GetObject(t *testing.T) {
 				Result: result,
 			}
 		}
+
+		_, err := client.GetObject("invalid path")
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("failed to get result", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		client.Close()
+		// query will block because client will not handle it
+		client.stopSignal = make(chan struct{})
+		go func() {
+			time.Sleep(time.Second)
+			close(client.stopSignal)
+		}()
 
 		_, err := client.GetObject("invalid path")
 		require.Error(t, err)
@@ -264,6 +298,23 @@ func TestClient_ExecMethod(t *testing.T) {
 				Err:  errCh,
 			}
 		}
+
+		err := client.ExecMethod("invalid path", "", nil, nil)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("failed to get result", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		client.Close()
+		// query will block because client will not handle it
+		client.stopSignal = make(chan struct{})
+		go func() {
+			time.Sleep(time.Second)
+			close(client.stopSignal)
+		}()
 
 		err := client.ExecMethod("invalid path", "", nil, nil)
 		require.Error(t, err)

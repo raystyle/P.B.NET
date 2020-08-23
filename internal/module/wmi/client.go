@@ -207,6 +207,81 @@ func (client *Client) release() {
 	ole.CoUninitialize()
 }
 
+const clientClosed = "wmi client is closed"
+
+// Query is used to query with WQL, dst is used to save query result.
+// destination interface must be slice pointer like *[]*Type or *[]Type.
+func (client *Client) Query(wql string, dst interface{}) error {
+	errCh := make(chan error, 1)
+	query := execQuery{
+		WQL: wql,
+		Dst: dst,
+		Err: errCh,
+	}
+	select {
+	case client.queryQueue <- &query:
+	case <-client.stopSignal:
+		return errors.New("failed to query: " + clientClosed)
+	}
+	var err error
+	select {
+	case err = <-errCh:
+	case <-client.stopSignal:
+		return errors.New("failed to receive query error: " + clientClosed)
+	}
+	return err
+}
+
+// GetObject is used to retrieves a class or instance.
+func (client *Client) GetObject(path string, args ...interface{}) (*Object, error) {
+	result := make(chan *getObjectResult, 1)
+	get := getObject{
+		Path:   path,
+		Args:   args,
+		Result: result,
+	}
+	select {
+	case client.getQueue <- &get:
+	case <-client.stopSignal:
+		return nil, errors.New("failed to get object: " + clientClosed)
+	}
+	var getResult *getObjectResult
+	select {
+	case getResult = <-result:
+	case <-client.stopSignal:
+		return nil, errors.New("failed to receive get object result: " + clientClosed)
+	}
+	if getResult.Err != nil {
+		return nil, getResult.Err
+	}
+	return getResult.Object, nil
+}
+
+// ExecMethod is used to execute a method about object, dst is used to save execute result.
+// destination interface must be structure pointer like *struct.
+func (client *Client) ExecMethod(path, method string, input, output interface{}) error {
+	errCh := make(chan error, 1)
+	exec := execMethod{
+		Path:   path,
+		Method: method,
+		Input:  input,
+		Output: output,
+		Err:    errCh,
+	}
+	select {
+	case client.execQueue <- &exec:
+	case <-client.stopSignal:
+		return errors.New("failed to execute method: " + clientClosed)
+	}
+	var err error
+	select {
+	case err = <-errCh:
+	case <-client.stopSignal:
+		return errors.New("failed to receive execute method error: " + clientClosed)
+	}
+	return err
+}
+
 func (client *Client) handleLoop() {
 	var (
 		query *execQuery
@@ -411,81 +486,6 @@ func (client *Client) setStruct(obj *Object, name string, typ reflect.Type, val 
 	}
 	// set instance
 	return obj.SetProperty(name, instance)
-}
-
-const clientClosed = "wmi client is closed"
-
-// Query is used to query with WQL, dst is used to save query result.
-// destination interface must be slice pointer like *[]*Type or *[]Type.
-func (client *Client) Query(wql string, dst interface{}) error {
-	errCh := make(chan error, 1)
-	query := execQuery{
-		WQL: wql,
-		Dst: dst,
-		Err: errCh,
-	}
-	select {
-	case client.queryQueue <- &query:
-	case <-client.stopSignal:
-		return errors.New("failed to query: " + clientClosed)
-	}
-	var err error
-	select {
-	case err = <-errCh:
-	case <-client.stopSignal:
-		return errors.New("failed to receive query error: " + clientClosed)
-	}
-	return err
-}
-
-// GetObject is used to retrieves a class or instance.
-func (client *Client) GetObject(path string, args ...interface{}) (*Object, error) {
-	result := make(chan *getObjectResult, 1)
-	get := getObject{
-		Path:   path,
-		Args:   args,
-		Result: result,
-	}
-	select {
-	case client.getQueue <- &get:
-	case <-client.stopSignal:
-		return nil, errors.New("failed to get object: " + clientClosed)
-	}
-	var getResult *getObjectResult
-	select {
-	case getResult = <-result:
-	case <-client.stopSignal:
-		return nil, errors.New("failed to receive get object result: " + clientClosed)
-	}
-	if getResult.Err != nil {
-		return nil, getResult.Err
-	}
-	return getResult.Object, nil
-}
-
-// ExecMethod is used to execute a method about object, dst is used to save execute result.
-// destination interface must be structure pointer like *struct.
-func (client *Client) ExecMethod(path, method string, input, output interface{}) error {
-	errCh := make(chan error, 1)
-	exec := execMethod{
-		Path:   path,
-		Method: method,
-		Input:  input,
-		Output: output,
-		Err:    errCh,
-	}
-	select {
-	case client.execQueue <- &exec:
-	case <-client.stopSignal:
-		return errors.New("failed to execute method: " + clientClosed)
-	}
-	var err error
-	select {
-	case err = <-errCh:
-	case <-client.stopSignal:
-		return errors.New("failed to receive execute method error: " + clientClosed)
-	}
-	return err
 }
 
 // Close is used to close WMI client.
