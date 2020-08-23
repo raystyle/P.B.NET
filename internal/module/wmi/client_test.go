@@ -4,9 +4,11 @@ package wmi
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/go-ole/go-ole"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
@@ -32,7 +34,7 @@ func TestClient_Query(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("Win32_Process", func(t *testing.T) {
+	t.Run("common", func(t *testing.T) {
 		client := testCreateClient(t)
 
 		var processes []*testWin32ProcessStr
@@ -52,13 +54,43 @@ func TestClient_Query(t *testing.T) {
 
 		testsuite.IsDestroyed(t, &processes)
 	})
+
+	t.Run("failed", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		err := client.Query("invalid wql", nil)
+		require.Error(t, err)
+
+		client.Close()
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("query after client closed", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		client.Close()
+		// make sure query queue is full
+		for i := 0; i < 16; i++ {
+			errCh := make(chan error, 1)
+			client.queryQueue <- &execQuery{
+				WQL: "invalid wql",
+				Err: errCh,
+			}
+		}
+
+		err := client.Query("invalid wql", nil)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, client)
+	})
 }
 
 func TestClient_GetObject(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("Win32_Process", func(t *testing.T) {
+	t.Run("common", func(t *testing.T) {
 		client := testCreateClient(t)
 
 		object, err := client.GetObject("Win32_Process")
@@ -76,6 +108,36 @@ func TestClient_GetObject(t *testing.T) {
 		object.Clear()
 
 		testsuite.IsDestroyed(t, object)
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		_, err := client.GetObject("invalid path")
+		require.Error(t, err)
+
+		client.Close()
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("get after client closed", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		client.Close()
+		// make sure get queue is full
+		for i := 0; i < 16; i++ {
+			result := make(chan *getObjectResult, 1)
+			client.getQueue <- &getObject{
+				Path:   "invalid path",
+				Result: result,
+			}
+		}
+
+		_, err := client.GetObject("invalid path")
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, client)
 	})
 }
 
@@ -121,9 +183,9 @@ func TestClient_ExecMethod(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	client := testCreateClient(t)
+	t.Run("common", func(t *testing.T) {
+		client := testCreateClient(t)
 
-	t.Run("Win32_Process", func(t *testing.T) {
 		const (
 			pathCreate = "Win32_Process"
 			pathObject = "Win32_Process.Handle=\"%d\""
@@ -173,11 +235,60 @@ func TestClient_ExecMethod(t *testing.T) {
 		}
 		err = client.ExecMethod(path, methodTerminate, terminateInput, nil)
 		require.NoError(t, err)
+
+		client.Close()
+
+		testsuite.IsDestroyed(t, client)
 	})
 
-	client.Close()
+	t.Run("failed", func(t *testing.T) {
+		client := testCreateClient(t)
 
-	testsuite.IsDestroyed(t, client)
+		err := client.ExecMethod("invalid path", "", nil, nil)
+		require.Error(t, err)
+
+		client.Close()
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("exec after client closed", func(t *testing.T) {
+		client := testCreateClient(t)
+
+		client.Close()
+		// make sure get queue is full
+		for i := 0; i < 16; i++ {
+			errCh := make(chan error, 1)
+			client.execQueue <- &execMethod{
+				Path: "invalid path",
+				Err:  errCh,
+			}
+		}
+
+		err := client.ExecMethod("invalid path", "", nil, nil)
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, client)
+	})
+}
+
+func TestClient_init(t *testing.T) {
+	client := Client{}
+	client.opts = new(Options)
+
+	t.Run("call CoInitializeEx in same thread", func(t *testing.T) {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+
+		err := client.init()
+		require.NoError(t, err)
+		err = client.init()
+		require.NoError(t, err)
+
+		ole.CoUninitialize()
+	})
+
+	testsuite.IsDestroyed(t, &client)
 }
 
 func TestClient_setValue(t *testing.T) {
