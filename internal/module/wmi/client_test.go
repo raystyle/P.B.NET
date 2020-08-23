@@ -184,6 +184,11 @@ func TestClient_setValue(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	const (
+		path   = "Win32_Process"
+		method = "Create"
+	)
+
 	client := testCreateClient(t)
 
 	t.Run("full type object", func(t *testing.T) {
@@ -202,7 +207,7 @@ func TestClient_setValue(t *testing.T) {
 			Bool    bool
 			String  string
 
-			ByteSlice   []byte
+			// ByteSlice   []byte
 			StringSlice []string
 
 			DateTime  time.Time
@@ -230,7 +235,7 @@ func TestClient_setValue(t *testing.T) {
 			BoolPtr    *bool
 			StringPtr  *string
 
-			ByteSlicePtr   *[]byte
+			// ByteSlicePtr   *[]byte
 			StringSlicePtr *[]string
 
 			DateTimePtr  *time.Time
@@ -384,8 +389,100 @@ func TestClient_setValue(t *testing.T) {
 			ObjectPtr:    ObjectPtr,
 		}
 
-		err := client.ExecMethod("Win32_Process", "Create", &input, nil)
+		err := client.ExecMethod(path, method, &input, nil)
 		require.NoError(t, err)
+	})
+
+	t.Run("invalid slice type", func(t *testing.T) {
+		input := struct {
+			ByteSlice []byte
+		}{}
+
+		err := client.ExecMethod(path, method, &input, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("unsupported field type", func(t *testing.T) {
+		input := struct {
+			Chan chan struct{}
+		}{}
+
+		err := client.ExecMethod(path, method, &input, nil)
+		require.Error(t, err)
+	})
+
+	client.Close()
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestClient_setStruct(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const (
+		path   = "Win32_Process"
+		method = "Create"
+	)
+
+	client := testCreateClient(t)
+
+	t.Run("no class field", func(t *testing.T) {
+		input := struct {
+			Object struct {
+			}
+		}{}
+
+		err := client.ExecMethod(path, method, &input, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("class field not string", func(t *testing.T) {
+		input := struct {
+			Object struct {
+				Class int `wmi:"-"`
+			}
+		}{}
+
+		err := client.ExecMethod(path, method, &input, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("class field empty string", func(t *testing.T) {
+		input := struct {
+			Object struct {
+				Class string `wmi:"-"`
+			}
+		}{}
+
+		err := client.ExecMethod(path, method, &input, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid class", func(t *testing.T) {
+		input := struct {
+			Object struct {
+				Class string `wmi:"-"`
+			}
+		}{}
+		input.Object.Class = "invalid class"
+
+		err := client.ExecMethod(path, method, &input, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("failed to set object field", func(t *testing.T) {
+		input := struct {
+			Object struct {
+				Class string `wmi:"-"`
+
+				NotExist bool
+			}
+		}{}
+		input.Object.Class = "Win32_ProcessStartup"
+
+		err := client.ExecMethod(path, method, &input, nil)
+		require.Error(t, err)
 	})
 
 	client.Close()

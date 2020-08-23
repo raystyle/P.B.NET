@@ -359,9 +359,9 @@ func (client *Client) setValue(obj *Object, name string, typ reflect.Type, val r
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Float32, reflect.Float64, reflect.Bool, reflect.String:
 		return obj.SetProperty(name, val.Interface())
-	case reflect.Slice: // []string and []byte
+	case reflect.Slice: // []string, []byte will panic.
 		switch typ.Elem().Kind() {
-		case reflect.String, reflect.Uint8:
+		case reflect.String: // ,reflect.Uint8
 			return obj.SetProperty(name, val.Interface())
 		default:
 			const format = "unsupported type about slice element, name: %s type: %s"
