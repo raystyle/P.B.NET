@@ -9,6 +9,7 @@ import (
 // TaskList is used to get current process list.
 type TaskList interface {
 	GetProcesses() ([]*Process, error)
+	Close()
 }
 
 // NewTaskList is used to create a new TaskList tool.
@@ -21,9 +22,10 @@ type Process struct {
 	Name string
 	PID  int64
 	PPID int64
+	Arch string
 
 	SessionID uint32
-	UserName  string // TODO finish it
+	Username  string
 
 	// for calculate CPU usage
 	UserModeTime   uint64
@@ -34,8 +36,8 @@ type Process struct {
 	HandleCount uint32
 	ThreadCount uint32
 
-	IOWriteBytes uint64
 	IOReadBytes  uint64
+	IOWriteBytes uint64
 
 	CommandLine    string
 	ExecutablePath string
