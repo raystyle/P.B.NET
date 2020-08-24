@@ -6,7 +6,6 @@ package thirdparty
 import (
 	"reflect"
 
-	"github.com/StackExchange/wmi"
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
 	"github.com/mattn/anko/env"
@@ -15,7 +14,6 @@ import (
 func init() {
 	initGithubComGoOLEGoOLE()
 	initGithubComGoOLEGoOLEOLEUtil()
-	initGithubComStackExchangeWMI()
 }
 
 func initGithubComGoOLEGoOLE() {
@@ -314,32 +312,4 @@ func initGithubComGoOLEGoOLEOLEUtil() {
 	}
 	var ()
 	env.PackageTypes["github.com/go-ole/go-ole"] = map[string]reflect.Type{}
-}
-
-func initGithubComStackExchangeWMI() {
-	env.Packages["github.com/!stack!exchange/wmi"] = map[string]reflect.Value{
-		// define constants
-		"S_FALSE": reflect.ValueOf(wmi.S_FALSE),
-
-		// define variables
-		"DefaultClient":        reflect.ValueOf(wmi.DefaultClient),
-		"ErrInvalidEntityType": reflect.ValueOf(wmi.ErrInvalidEntityType),
-		"ErrNilCreateObject":   reflect.ValueOf(wmi.ErrNilCreateObject),
-
-		// define functions
-		"CreateQuery":             reflect.ValueOf(wmi.CreateQuery),
-		"InitializeSWbemServices": reflect.ValueOf(wmi.InitializeSWbemServices),
-		"Query":                   reflect.ValueOf(wmi.Query),
-		"QueryNamespace":          reflect.ValueOf(wmi.QueryNamespace),
-	}
-	var (
-		client           wmi.Client
-		errFieldMismatch wmi.ErrFieldMismatch
-		sWbemServices    wmi.SWbemServices
-	)
-	env.PackageTypes["github.com/!stack!exchange/wmi"] = map[string]reflect.Type{
-		"Client":           reflect.TypeOf(&client).Elem(),
-		"ErrFieldMismatch": reflect.TypeOf(&errFieldMismatch).Elem(),
-		"SWbemServices":    reflect.TypeOf(&sWbemServices).Elem(),
-	}
 }
