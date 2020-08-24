@@ -376,11 +376,6 @@ func init() {
 			path: "github.com/go-ole/go-ole@v1.2.5-0.20201122170103-d467d8080fc3/oleutil",
 			init: "GithubComGoOLEGoOLEOLEUtil",
 		},
-		{
-			name: "github.com/StackExchange/wmi",
-			path: "github.com/!stack!exchange/wmi@v0.0.0-20190523213315-cbe66965904d",
-			init: "GithubComStackExchangeWMI",
-		},
 	} {
 		_, _ = fmt.Fprintf(pkgBuf, `	"%s"`+"\n", item.name)
 		_, _ = fmt.Fprintf(initBuf, "\tinit%s()\n", item.init)
@@ -521,6 +516,67 @@ func init() {
 	// print and save code
 	fmt.Println(src)
 	const path = "../../../internal/anko/project/bundle.go"
+	err = system.WriteFile(path, []byte(src))
+	require.NoError(t, err)
+}
+
+func TestExportProjectWindows(t *testing.T) {
+	const template = `// +build windows
+
+// Package project generate by script/code/anko/package.go, don't edit it.
+package project
+
+import (
+	"reflect"
+
+	"github.com/mattn/anko/env"
+
+%s)
+
+func init() {
+%s}
+%s
+`
+	// get project directory
+	dir, err := os.Getwd()
+	require.NoError(t, err)
+	dir, err = filepath.Abs(dir + "/../../..")
+	require.NoError(t, err)
+
+	pkgBuf := new(bytes.Buffer)
+	initBuf := new(bytes.Buffer)
+	srcBuf := new(bytes.Buffer)
+
+	for _, item := range [...]*struct {
+		name string
+		init string
+	}{
+		{"internal/module/wmi", "InternalModuleWMI"},
+	} {
+		_, _ = fmt.Fprintf(pkgBuf, `	"project/%s"`+"\n", item.name)
+		_, _ = fmt.Fprintf(initBuf, "\tinit%s()\n", item.init)
+		src, err := exportDeclaration(dir, "$"+item.name, item.init)
+		require.NoError(t, err)
+		srcBuf.WriteString(src)
+	}
+
+	// generate code
+	src := fmt.Sprintf(template, pkgBuf, initBuf, srcBuf)
+
+	// fix code
+	for _, item := range [...]*struct {
+		old string
+		new string
+	}{
+		// {"logger logger.Logger", "lg logger.Logger"},
+		// {"(&logger)", "(&lg)"},
+	} {
+		src = strings.ReplaceAll(src, item.old, item.new)
+	}
+
+	// print and save code
+	fmt.Println(src)
+	const path = "../../../internal/anko/project/windows.go"
 	err = system.WriteFile(path, []byte(src))
 	require.NoError(t, err)
 }
