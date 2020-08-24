@@ -22,11 +22,10 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/stretchr/testify v1.6.1
-	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d
 	github.com/vmihailenco/msgpack/v5 v5.0.0
 
 	golang.org/x/crypto v0.0.0-20201117144127-c1f2f97bffc9
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
-	golang.org/x/term v0.0.0-20201117132131-f5c789dd3221
 	golang.org/x/sys v0.0.0-20201130171929-760e229fe7c5
+	golang.org/x/term v0.0.0-20201117132131-f5c789dd3221
 )
