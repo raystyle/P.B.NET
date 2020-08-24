@@ -7,6 +7,6 @@ import (
 )
 
 // Execute is a padding function.
-func Execute(method string, shellcode []byte) error {
+func Execute(string, []byte) error {
 	return errors.New("current system don't support")
 }
