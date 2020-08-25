@@ -3,8 +3,6 @@
 package privilege
 
 import (
-	"syscall"
-
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 )
@@ -14,7 +12,7 @@ func EnableDebugPrivilege() error {
 	// get current process token
 	handle := windows.CurrentProcess()
 	var token windows.Token
-	err := windows.OpenProcessToken(handle, syscall.TOKEN_ADJUST_PRIVILEGES|syscall.TOKEN_QUERY, &token)
+	err := windows.OpenProcessToken(handle, windows.TOKEN_ADJUST_PRIVILEGES|windows.TOKEN_QUERY, &token)
 	if err != nil {
 		return errors.Wrap(err, "failed to open current process token")
 	}

@@ -22,7 +22,6 @@ type Process struct {
 	Name string
 	PID  int64
 	PPID int64
-	Arch string
 
 	SessionID uint32
 	Username  string
@@ -31,6 +30,7 @@ type Process struct {
 	UserModeTime   uint64
 	KernelModeTime uint64
 
+	// for calculate Memory usage
 	MemoryUsed uint64
 
 	HandleCount uint32
@@ -39,6 +39,7 @@ type Process struct {
 	IOReadBytes  uint64
 	IOWriteBytes uint64
 
+	Architecture   string
 	CommandLine    string
 	ExecutablePath string
 	CreationDate   time.Time

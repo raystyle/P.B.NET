@@ -24,6 +24,8 @@ import (
 
 const backupFilePath = certmgr.CertPoolFilePath + ".bak"
 
+var stdinFD = int(syscall.Stdin)
+
 func main() {
 	var (
 		init  bool
@@ -53,11 +55,11 @@ func initialize() {
 	}
 	// input password
 	fmt.Print("password: ")
-	password, err := term.ReadPassword(int(syscall.Stdin))
+	password, err := term.ReadPassword(stdinFD)
 	checkError(err, true)
 	for {
 		fmt.Print("\nretype: ")
-		retype, err := term.ReadPassword(int(syscall.Stdin))
+		retype, err := term.ReadPassword(stdinFD)
 		checkError(err, true)
 		if !bytes.Equal(password, retype) {
 			fmt.Print("\ndifferent password")
@@ -93,18 +95,18 @@ func initialize() {
 func resetPassword() {
 	// input old password
 	fmt.Print("input old password: ")
-	oldPwd, err := term.ReadPassword(int(syscall.Stdin))
+	oldPwd, err := term.ReadPassword(stdinFD)
 	checkError(err, true)
 	fmt.Println()
 	defer security.CoverBytes(oldPwd)
 	// input new password
 	fmt.Print("input new password: ")
-	newPwd1, err := term.ReadPassword(int(syscall.Stdin))
+	newPwd1, err := term.ReadPassword(stdinFD)
 	checkError(err, true)
 	fmt.Println()
 	defer security.CoverBytes(newPwd1)
 	fmt.Print("retype: ")
-	newPwd2, err := term.ReadPassword(int(syscall.Stdin))
+	newPwd2, err := term.ReadPassword(stdinFD)
 	checkError(err, true)
 	fmt.Println()
 	defer security.CoverBytes(newPwd2)
@@ -127,7 +129,7 @@ func resetPassword() {
 func manage() {
 	// input password
 	fmt.Print("password: ")
-	password, err := term.ReadPassword(int(syscall.Stdin))
+	password, err := term.ReadPassword(stdinFD)
 	checkError(err, true)
 	fmt.Println()
 	// backup

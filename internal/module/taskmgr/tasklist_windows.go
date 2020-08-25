@@ -3,14 +3,14 @@
 package taskmgr
 
 import (
-	"fmt"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
-	"project/internal/module/wmi"
+	"project/internal/module/windows/wmi"
 )
 
 var wql = wmi.BuildWQLStatement(win32Process{}, "Win32_Process")
@@ -43,15 +43,9 @@ type win32Process struct {
 	CreationDate   time.Time
 }
 
-type win32ProcessGetOwner struct {
-	Domain string
-	User   string
-}
-
 type taskList struct {
 	client  *wmi.Client
-	lazyDLL *windows.DLL
-	is64    bool
+	isWow64 *windows.LazyProc
 }
 
 func newTaskList() (*taskList, error) {
@@ -68,13 +62,18 @@ func newTaskList() (*taskList, error) {
 	if len(sys) == 0 {
 		return nil, errors.New("failed to get operating system architecture")
 	}
-	is64 := strings.Contains(sys[0].OSArchitecture, "64")
-	if is64 {
-
-	}
 	tl := taskList{
 		client: client,
-		is64:   is64,
+	}
+	if strings.Contains(sys[0].OSArchitecture, "64") {
+		// load proc from kernel DLL
+		modKernel32 := windows.NewLazySystemDLL("kernel32.dll")
+		proc := modKernel32.NewProc("IsWow64Process")
+		err = proc.Find()
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		tl.isWow64 = proc
 	}
 	return &tl, nil
 }
@@ -104,24 +103,64 @@ func (tl *taskList) GetProcesses() ([]*Process, error) {
 			ExecutablePath: processes[i].ExecutablePath,
 			CreationDate:   processes[i].CreationDate,
 		}
-		// get username
-		path := fmt.Sprintf("Win32_Process.Handle=\"%d\"", processes[i].ProcessID)
-		output := win32ProcessGetOwner{}
-		err = tl.client.ExecMethod(path, "GetOwner", nil, &output)
+		handle, err := openProcess(ps[i].PID)
+		if err != nil {
+			continue
+		}
+		ps[i].Username = getProcessUsername(handle)
+		// get process architecture
+		if tl.isWow64 != nil {
+			ps[i].Architecture = tl.getProcessArchitecture(handle)
+		} else {
+			ps[i].Architecture = "32"
+		}
+		err = windows.CloseHandle(handle)
 		if err != nil {
 			return nil, err
 		}
-		if output.Domain != "" && output.User != "" {
-			ps[i].Username = output.Domain + "\\" + output.User
-		} else {
-			ps[i].Username = output.Domain + output.User
-		}
-		// get architecture
-
 	}
 	return ps, nil
 }
 
+func (tl *taskList) getProcessArchitecture(handle windows.Handle) string {
+	var wow64 bool
+	ret, _, _ := tl.isWow64.Call(uintptr(handle), uintptr(unsafe.Pointer(&wow64)))
+	if ret != 0 {
+		if wow64 {
+			return "x86"
+		}
+		return "x64"
+	}
+	return ""
+}
+
 func (tl *taskList) Close() {
 	tl.client.Close()
+}
+
+// first use query_limit, if failed use query.
+func openProcess(pid int64) (windows.Handle, error) {
+	p := uint32(pid)
+	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, p)
+	if err == nil {
+		return handle, nil
+	}
+	return windows.OpenProcess(windows.PROCESS_QUERY_INFORMATION, false, p)
+}
+
+func getProcessUsername(handle windows.Handle) string {
+	var t windows.Token
+	err := windows.OpenProcessToken(handle, windows.TOKEN_QUERY, &t)
+	if err != nil {
+		return ""
+	}
+	tu, err := t.GetTokenUser()
+	if err != nil {
+		return ""
+	}
+	account, domain, _, err := tu.User.Sid.LookupAccount("")
+	if err != nil {
+		return ""
+	}
+	return domain + "\\" + account
 }
