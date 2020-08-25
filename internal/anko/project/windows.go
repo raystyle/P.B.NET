@@ -8,15 +8,17 @@ import (
 
 	"github.com/mattn/anko/env"
 
-	"project/internal/module/wmi"
+	"project/internal/module/windows/privilege"
+	"project/internal/module/windows/wmi"
 )
 
 func init() {
-	initInternalModuleWMI()
+	initInternalModuleWindowsWMI()
+	initInternalModuleWindowsPrivilege()
 }
 
-func initInternalModuleWMI() {
-	env.Packages["project/internal/module/wmi"] = map[string]reflect.Value{
+func initInternalModuleWindowsWMI() {
+	env.Packages["project/internal/module/windows/wmi"] = map[string]reflect.Value{
 		// define constants
 		"CIMTypeBool":      reflect.ValueOf(wmi.CIMTypeBool),
 		"CIMTypeChar16":    reflect.ValueOf(wmi.CIMTypeChar16),
@@ -47,10 +49,23 @@ func initInternalModuleWMI() {
 		object           wmi.Object
 		options          wmi.Options
 	)
-	env.PackageTypes["project/internal/module/wmi"] = map[string]reflect.Type{
+	env.PackageTypes["project/internal/module/windows/wmi"] = map[string]reflect.Type{
 		"Client":           reflect.TypeOf(&client).Elem(),
 		"ErrFieldMismatch": reflect.TypeOf(&errFieldMismatch).Elem(),
 		"Object":           reflect.TypeOf(&object).Elem(),
 		"Options":          reflect.TypeOf(&options).Elem(),
 	}
+}
+
+func initInternalModuleWindowsPrivilege() {
+	env.Packages["project/internal/module/windows/privilege"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+
+		// define functions
+		"EnableDebugPrivilege": reflect.ValueOf(privilege.EnableDebugPrivilege),
+	}
+	var ()
+	env.PackageTypes["project/internal/module/windows/privilege"] = map[string]reflect.Type{}
 }

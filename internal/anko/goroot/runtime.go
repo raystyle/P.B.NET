@@ -20,10 +20,12 @@ func initRuntime() {
 		// define variables
 
 		// define functions
-		"GC":         reflect.ValueOf(runtime.GC),
-		"GOMAXPROCS": reflect.ValueOf(runtime.GOMAXPROCS),
-		"GOROOT":     reflect.ValueOf(runtime.GOROOT),
-		"Version":    reflect.ValueOf(runtime.Version),
+		"GC":             reflect.ValueOf(runtime.GC),
+		"GOMAXPROCS":     reflect.ValueOf(runtime.GOMAXPROCS),
+		"GOROOT":         reflect.ValueOf(runtime.GOROOT),
+		"LockOSThread":   reflect.ValueOf(runtime.LockOSThread),
+		"UnlockOSThread": reflect.ValueOf(runtime.UnlockOSThread),
+		"Version":        reflect.ValueOf(runtime.Version),
 	}
 	var ()
 	env.PackageTypes["runtime"] = map[string]reflect.Type{}

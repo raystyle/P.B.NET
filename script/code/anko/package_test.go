@@ -288,6 +288,11 @@ func init() {
 			init: "GithubComPelletierGoTOML",
 		},
 		{
+			name: "github.com/pkg/errors",
+			path: "github.com/pkg/errors@v0.9.1",
+			init: "GithubComPkgErrors",
+		},
+		{
 			name: "github.com/vmihailenco/msgpack/v5",
 			path: "github.com/vmihailenco/msgpack/v5@v5.0.0",
 			init: "GithubComVmihailencoMsgpackV5",
@@ -551,7 +556,8 @@ func init() {
 		name string
 		init string
 	}{
-		{"internal/module/wmi", "InternalModuleWMI"},
+		{"internal/module/windows/wmi", "InternalModuleWindowsWMI"},
+		{"internal/module/windows/privilege", "InternalModuleWindowsPrivilege"},
 	} {
 		_, _ = fmt.Fprintf(pkgBuf, `	"project/%s"`+"\n", item.name)
 		_, _ = fmt.Fprintf(initBuf, "\tinit%s()\n", item.init)

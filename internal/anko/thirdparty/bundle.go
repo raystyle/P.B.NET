@@ -6,12 +6,14 @@ import (
 
 	"github.com/mattn/anko/env"
 	"github.com/pelletier/go-toml"
+	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v5"
 	"github.com/vmihailenco/msgpack/v5/msgpcode"
 )
 
 func init() {
 	initGithubComPelletierGoTOML()
+	initGithubComPkgErrors()
 	initGithubComVmihailencoMsgpackV5()
 	initGithubComVmihailencoMsgpackV5Msgpcode()
 }
@@ -64,6 +66,35 @@ func initGithubComPelletierGoTOML() {
 		"SetOptions":    reflect.TypeOf(&setOptions).Elem(),
 		"Tree":          reflect.TypeOf(&tree).Elem(),
 		"Unmarshaler":   reflect.TypeOf(&unmarshaler).Elem(),
+	}
+}
+
+func initGithubComPkgErrors() {
+	env.Packages["github.com/pkg/errors"] = map[string]reflect.Value{
+		// define constants
+
+		// define variables
+
+		// define functions
+		"As":           reflect.ValueOf(errors.As),
+		"Cause":        reflect.ValueOf(errors.Cause),
+		"Errorf":       reflect.ValueOf(errors.Errorf),
+		"Is":           reflect.ValueOf(errors.Is),
+		"New":          reflect.ValueOf(errors.New),
+		"Unwrap":       reflect.ValueOf(errors.Unwrap),
+		"WithMessage":  reflect.ValueOf(errors.WithMessage),
+		"WithMessagef": reflect.ValueOf(errors.WithMessagef),
+		"WithStack":    reflect.ValueOf(errors.WithStack),
+		"Wrap":         reflect.ValueOf(errors.Wrap),
+		"Wrapf":        reflect.ValueOf(errors.Wrapf),
+	}
+	var (
+		frame      errors.Frame
+		stackTrace errors.StackTrace
+	)
+	env.PackageTypes["github.com/pkg/errors"] = map[string]reflect.Type{
+		"Frame":      reflect.TypeOf(&frame).Elem(),
+		"StackTrace": reflect.TypeOf(&stackTrace).Elem(),
 	}
 }
 
