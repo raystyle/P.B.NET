@@ -78,6 +78,7 @@ type Client struct {
 
 	unknown *ole.IUnknown
 	query   *ole.IDispatch
+	rawSvc  *ole.VARIANT
 	wmi     *ole.IDispatch
 
 	queryQueue chan *execQuery
@@ -184,24 +185,28 @@ func (client *Client) init() error {
 	defer func() {
 		if !ok {
 			query.Release()
+			query.Release()
 		}
 	}()
 	// start connect server, service is a SWbemServices.
 	opts := client.opts
 	args := []interface{}{opts.Host, client.namespace, opts.Username, opts.Password}
-	rawService, err := oleutil.CallMethod(query, "ConnectServer", args...)
+	rawSvc, err := oleutil.CallMethod(query, "ConnectServer", args...)
 	if err != nil {
 		return errors.Wrap(err, "failed to connect server")
 	}
 	client.unknown = unknown
 	client.query = query
-	client.wmi = rawService.ToIDispatch()
+	client.rawSvc = rawSvc
+	client.wmi = rawSvc.ToIDispatch()
 	ok = true
 	return nil
 }
 
 func (client *Client) release() {
 	client.wmi.Release()
+	_ = client.rawSvc.Clear()
+	client.query.Release()
 	client.query.Release()
 	client.unknown.Release()
 	ole.CoUninitialize()
