@@ -83,38 +83,30 @@ type udp6Row struct {
 	pid          uint32
 }
 
-type netStat struct {
-	getExtendedTCPTable *windows.LazyProc
-	getExtendedUDPTable *windows.LazyProc
-}
+var (
+	modIphlpapi = windows.NewLazySystemDLL("iphlpapi.dll")
 
-func newNetstat() (*netStat, error) {
-	// load DLL and find proc
-	lazyDLL := windows.NewLazySystemDLL("iphlpapi.dll")
-	err := lazyDLL.Load()
+	procGetExtendedTCPTable = modIphlpapi.NewProc("GetExtendedTcpTable")
+	procGetExtendedUDPTable = modIphlpapi.NewProc("GetExtendedUdpTable")
+)
+
+type netStat struct{}
+
+func newNetstat() (netStat, error) {
+	err := procGetExtendedTCPTable.Find()
 	if err != nil {
-		return nil, err
+		return netStat{}, err
 	}
-	getExtendedTCPTable := lazyDLL.NewProc("GetExtendedTcpTable")
-	err = getExtendedTCPTable.Find()
+	err = procGetExtendedUDPTable.Find()
 	if err != nil {
-		return nil, err
+		return netStat{}, err
 	}
-	getExtendedUDPTable := lazyDLL.NewProc("GetExtendedUdpTable")
-	err = getExtendedUDPTable.Find()
-	if err != nil {
-		return nil, err
-	}
-	ref := netStat{
-		getExtendedTCPTable: getExtendedTCPTable,
-		getExtendedUDPTable: getExtendedUDPTable,
-	}
-	return &ref, nil
+	return netStat{}, nil
 }
 
 // #nosec
-func (ns *netStat) GetTCP4Conns() ([]*TCP4Conn, error) {
-	buffer, err := ns.getTCPTable(windows.AF_INET)
+func (netStat) GetTCP4Conns() ([]*TCP4Conn, error) {
+	buffer, err := getTCPTable(windows.AF_INET)
 	if err != nil {
 		return nil, err
 	}
@@ -144,8 +136,8 @@ func (ns *netStat) GetTCP4Conns() ([]*TCP4Conn, error) {
 }
 
 // #nosec
-func (ns *netStat) GetTCP6Conns() ([]*TCP6Conn, error) {
-	buffer, err := ns.getTCPTable(windows.AF_INET6)
+func (netStat) GetTCP6Conns() ([]*TCP6Conn, error) {
+	buffer, err := getTCPTable(windows.AF_INET6)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +169,7 @@ func (ns *netStat) GetTCP6Conns() ([]*TCP6Conn, error) {
 }
 
 // #nosec
-func (ns *netStat) getTCPTable(ulAf uint32) ([]byte, error) {
+func getTCPTable(ulAf uint32) ([]byte, error) {
 	const maxAttemptTimes = 64
 	var (
 		buffer    []byte
@@ -185,7 +177,7 @@ func (ns *netStat) getTCPTable(ulAf uint32) ([]byte, error) {
 		dwSize    uint32
 	)
 	for i := 0; i < maxAttemptTimes; i++ {
-		ret, _, errno := ns.getExtendedTCPTable.Call(
+		ret, _, errno := procGetExtendedTCPTable.Call(
 			uintptr(unsafe.Pointer(pTCPTable)),
 			uintptr(unsafe.Pointer(&dwSize)),
 			uintptr(1),         // order
@@ -207,8 +199,8 @@ func (ns *netStat) getTCPTable(ulAf uint32) ([]byte, error) {
 }
 
 // #nosec
-func (ns *netStat) GetUDP4Conns() ([]*UDP4Conn, error) {
-	buffer, err := ns.getUDPTable(windows.AF_INET)
+func (netStat) GetUDP4Conns() ([]*UDP4Conn, error) {
+	buffer, err := getUDPTable(windows.AF_INET)
 	if err != nil {
 		return nil, err
 	}
@@ -234,8 +226,8 @@ func (ns *netStat) GetUDP4Conns() ([]*UDP4Conn, error) {
 }
 
 // #nosec
-func (ns *netStat) GetUDP6Conns() ([]*UDP6Conn, error) {
-	buffer, err := ns.getUDPTable(windows.AF_INET6)
+func (netStat) GetUDP6Conns() ([]*UDP6Conn, error) {
+	buffer, err := getUDPTable(windows.AF_INET6)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +254,7 @@ func (ns *netStat) GetUDP6Conns() ([]*UDP6Conn, error) {
 }
 
 // #nosec
-func (ns *netStat) getUDPTable(ulAf uint32) ([]byte, error) {
+func getUDPTable(ulAf uint32) ([]byte, error) {
 	const maxAttemptTimes = 64
 	var (
 		buffer    []byte
@@ -270,7 +262,7 @@ func (ns *netStat) getUDPTable(ulAf uint32) ([]byte, error) {
 		dwSize    uint32
 	)
 	for i := 0; i < maxAttemptTimes; i++ {
-		ret, _, errno := ns.getExtendedUDPTable.Call(
+		ret, _, errno := procGetExtendedUDPTable.Call(
 			uintptr(unsafe.Pointer(pUDPTable)),
 			uintptr(unsafe.Pointer(&dwSize)),
 			uintptr(1),         // order
