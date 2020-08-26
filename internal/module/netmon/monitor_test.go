@@ -165,7 +165,7 @@ func TestMonitor_EventConnCreated(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait first auto refresh
-	time.Sleep(2 * defaultInterval)
+	time.Sleep(2 * defaultRefreshInterval)
 
 	// connect test tcp listeners
 	tcp4Conn, err := net.Dial("tcp4", tcp4Addr)
@@ -196,7 +196,7 @@ func TestMonitor_EventConnCreated(t *testing.T) {
 	fmt.Println("udp6 listener:", udp6ConnAddr)
 
 	// wait refresh
-	time.Sleep(2 * defaultInterval)
+	time.Sleep(2 * defaultRefreshInterval)
 
 	monitor.Close()
 
@@ -312,7 +312,7 @@ func TestMonitor_EventConnClosed(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait auto refresh
-	time.Sleep(2 * defaultInterval)
+	time.Sleep(2 * defaultRefreshInterval)
 
 	monitor.Close()
 

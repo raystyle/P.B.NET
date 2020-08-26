@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	defaultInterval = 500 * time.Millisecond
-	minInterval     = 100 * time.Millisecond
+	defaultRefreshInterval = 500 * time.Millisecond
+	minimumRefreshInterval = 100 * time.Millisecond
 )
 
 // about events
@@ -50,7 +50,7 @@ type Monitor struct {
 
 // NewMonitor is used to create a network status monitor.
 func NewMonitor(logger logger.Logger, handler EventHandler) (*Monitor, error) {
-	netstat, err := newNetstat()
+	netstat, err := NewNetStat()
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func NewMonitor(logger logger.Logger, handler EventHandler) (*Monitor, error) {
 		logger:     logger,
 		controller: control.NewController(ctx),
 		netstat:    netstat,
-		interval:   defaultInterval,
+		interval:   defaultRefreshInterval,
 		ctx:        ctx,
 		cancel:     cancel,
 	}
@@ -84,8 +84,8 @@ func (mon *Monitor) GetInterval() time.Duration {
 
 // SetInterval is used to set refresh interval, if set zero, it will pause auto refresh.
 func (mon *Monitor) SetInterval(interval time.Duration) {
-	if interval < minInterval {
-		interval = minInterval
+	if interval < minimumRefreshInterval {
+		interval = minimumRefreshInterval
 	}
 	mon.rwm.Lock()
 	defer mon.rwm.Unlock()

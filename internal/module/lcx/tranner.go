@@ -36,13 +36,7 @@ type Tranner struct {
 }
 
 // NewTranner is used to create a tranner.
-func NewTranner(
-	tag string,
-	dstNetwork string,
-	dstAddress string,
-	logger logger.Logger,
-	opts *Options,
-) (*Tranner, error) {
+func NewTranner(tag, dstNetwork, dstAddress string, logger logger.Logger, opts *Options) (*Tranner, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}

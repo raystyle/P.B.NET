@@ -34,13 +34,7 @@ type Listener struct {
 }
 
 // NewListener is used to create a listener.
-func NewListener(
-	tag string,
-	iNetwork string,
-	iAddress string,
-	logger logger.Logger,
-	opts *Options,
-) (*Listener, error) {
+func NewListener(tag, iNetwork, iAddress string, logger logger.Logger, opts *Options) (*Listener, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
