@@ -47,9 +47,10 @@ type Process struct {
 
 // ID is used to identified this Process.
 func (p *Process) ID() string {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, uint64(p.PID))
-	return *(*string)(unsafe.Pointer(&b)) // #nosec
+	id := make([]byte, 16) // PID + timestamp
+	binary.BigEndian.PutUint64(id, uint64(p.PID))
+	binary.BigEndian.PutUint64(id[8:], uint64(p.CreationDate.UnixNano()))
+	return *(*string)(unsafe.Pointer(&id)) // #nosec
 }
 
 // for compare package
