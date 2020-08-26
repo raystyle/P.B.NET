@@ -167,61 +167,53 @@ type dataSource struct {
 }
 
 type compareResult struct {
-	addedConns   []interface{}
-	deletedConns []interface{}
+	createdConns []interface{}
+	closedConns  []interface{}
 }
 
 // compare is used to compare between stored in monitor.
 func (mon *Monitor) compare(ds *dataSource) *compareResult {
 	var (
-		addedConns   []interface{}
-		deletedConns []interface{}
+		createdConns []interface{}
+		closedConns  []interface{}
 	)
 	mon.connsRWM.RLock()
 	defer mon.connsRWM.RUnlock()
 	// TCP4
-	added, deleted := compare.UniqueSlice(
-		tcp4Conns(ds.tcp4Conns), tcp4Conns(mon.tcp4Conns),
-	)
+	added, deleted := compare.UniqueSlice(tcp4Conns(ds.tcp4Conns), tcp4Conns(mon.tcp4Conns))
 	for i := 0; i < len(added); i++ {
-		addedConns = append(addedConns, ds.tcp4Conns[added[i]])
+		createdConns = append(createdConns, ds.tcp4Conns[added[i]])
 	}
 	for i := 0; i < len(deleted); i++ {
-		deletedConns = append(deletedConns, mon.tcp4Conns[deleted[i]])
+		closedConns = append(closedConns, mon.tcp4Conns[deleted[i]])
 	}
 	// TCP6
-	added, deleted = compare.UniqueSlice(
-		tcp6Conns(ds.tcp6Conns), tcp6Conns(mon.tcp6Conns),
-	)
+	added, deleted = compare.UniqueSlice(tcp6Conns(ds.tcp6Conns), tcp6Conns(mon.tcp6Conns))
 	for i := 0; i < len(added); i++ {
-		addedConns = append(addedConns, ds.tcp6Conns[added[i]])
+		createdConns = append(createdConns, ds.tcp6Conns[added[i]])
 	}
 	for i := 0; i < len(deleted); i++ {
-		deletedConns = append(deletedConns, mon.tcp6Conns[deleted[i]])
+		closedConns = append(closedConns, mon.tcp6Conns[deleted[i]])
 	}
 	// UDP4
-	added, deleted = compare.UniqueSlice(
-		udp4Conns(ds.udp4Conns), udp4Conns(mon.udp4Conns),
-	)
+	added, deleted = compare.UniqueSlice(udp4Conns(ds.udp4Conns), udp4Conns(mon.udp4Conns))
 	for i := 0; i < len(added); i++ {
-		addedConns = append(addedConns, ds.udp4Conns[added[i]])
+		createdConns = append(createdConns, ds.udp4Conns[added[i]])
 	}
 	for i := 0; i < len(deleted); i++ {
-		deletedConns = append(deletedConns, mon.udp4Conns[deleted[i]])
+		closedConns = append(closedConns, mon.udp4Conns[deleted[i]])
 	}
 	// UDP6
-	added, deleted = compare.UniqueSlice(
-		udp6Conns(ds.udp6Conns), udp6Conns(mon.udp6Conns),
-	)
+	added, deleted = compare.UniqueSlice(udp6Conns(ds.udp6Conns), udp6Conns(mon.udp6Conns))
 	for i := 0; i < len(added); i++ {
-		addedConns = append(addedConns, ds.udp6Conns[added[i]])
+		createdConns = append(createdConns, ds.udp6Conns[added[i]])
 	}
 	for i := 0; i < len(deleted); i++ {
-		deletedConns = append(deletedConns, mon.udp6Conns[deleted[i]])
+		closedConns = append(closedConns, mon.udp6Conns[deleted[i]])
 	}
 	return &compareResult{
-		addedConns:   addedConns,
-		deletedConns: deletedConns,
+		createdConns: createdConns,
+		closedConns:  closedConns,
 	}
 }
 
@@ -235,11 +227,11 @@ func (mon *Monitor) refresh(ds *dataSource) {
 }
 
 func (mon *Monitor) notice(result *compareResult) {
-	if len(result.addedConns) != 0 {
-		mon.handler(mon.ctx, EventConnCreated, result.addedConns)
+	if len(result.createdConns) != 0 {
+		mon.handler(mon.ctx, EventConnCreated, result.createdConns)
 	}
-	if len(result.deletedConns) != 0 {
-		mon.handler(mon.ctx, EventConnClosed, result.deletedConns)
+	if len(result.closedConns) != 0 {
+		mon.handler(mon.ctx, EventConnClosed, result.closedConns)
 	}
 }
 
