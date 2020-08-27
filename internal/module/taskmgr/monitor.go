@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	defaultRefreshInterval = 500 * time.Millisecond
-	minimumRefreshInterval = 100 * time.Millisecond
+	defaultRefreshInterval = time.Second
+	minimumRefreshInterval = 500 * time.Millisecond
 )
 
 // about events
@@ -147,15 +147,15 @@ type dataSource struct {
 }
 
 type compareResult struct {
-	createdProcesses  []interface{}
-	terminatedProcess []interface{}
+	createdProcesses  []*Process
+	terminatedProcess []*Process
 }
 
 // compare is used to compare between stored in monitor.
 func (mon *Monitor) compare(ds *dataSource) *compareResult {
 	var (
-		createdProcesses  []interface{}
-		terminatedProcess []interface{}
+		createdProcesses  []*Process
+		terminatedProcess []*Process
 	)
 	mon.statusRWM.RLock()
 	defer mon.statusRWM.RUnlock()
@@ -187,6 +187,13 @@ func (mon *Monitor) notice(result *compareResult) {
 	}
 }
 
+// GetProcesses is used to get processes that stored in monitor.
+func (mon *Monitor) GetProcesses() []*Process {
+	mon.statusRWM.RLock()
+	defer mon.statusRWM.RUnlock()
+	return mon.processes
+}
+
 // Pause is used to pause auto refresh.
 func (mon *Monitor) Pause() {
 	mon.controller.Pause()
@@ -201,4 +208,5 @@ func (mon *Monitor) Continue() {
 func (mon *Monitor) Close() {
 	mon.cancel()
 	mon.wg.Wait()
+	mon.tasklist.Close()
 }
