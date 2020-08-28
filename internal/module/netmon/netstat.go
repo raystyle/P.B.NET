@@ -1,4 +1,4 @@
-package netstat
+package netmon
 
 import (
 	"encoding/binary"

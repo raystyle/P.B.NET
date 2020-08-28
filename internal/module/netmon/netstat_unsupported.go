@@ -1,6 +1,6 @@
 // +build !windows
 
-package netstat
+package netmon
 
 import (
 	"errors"
