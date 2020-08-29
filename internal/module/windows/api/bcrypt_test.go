@@ -71,3 +71,36 @@ func TestBCryptGetProperty(t *testing.T) {
 		testBCryptCloseAlgorithmProvider(t, handle)
 	})
 }
+
+func TestBCryptGenerateSymmetricKey(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		handle := testBCryptOpenAlgorithmProvider(t)
+
+		prop := "ChainingMode"
+		mode := windows.StringToUTF16("ChainingModeCBC")
+		err := BCryptSetProperty(handle, prop, (*byte)(unsafe.Pointer(&mode[0])), uint32(len(mode)), 0)
+		require.NoError(t, err)
+
+		prop = "ObjectLength"
+		var length uint32
+		result, err := BCryptGetProperty(handle, prop, (*byte)(unsafe.Pointer(&length)), 4, 0)
+		require.NoError(t, err)
+		require.Equal(t, uint32(4), result)
+
+		bk := BcryptKey{
+			Provider: handle,
+			Object:   make([]byte, length),
+			Secret:   make([]byte, 24),
+		}
+		for i := 0; i < 24; i++ {
+			bk.Secret[i] = byte(i)
+		}
+		err = BCryptGenerateSymmetricKey(&bk)
+		require.NoError(t, err)
+
+		t.Logf("0x%X\n", bk.Handle)
+		t.Log(bk.Object)
+
+		testBCryptCloseAlgorithmProvider(t, handle)
+	})
+}

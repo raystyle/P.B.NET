@@ -96,24 +96,24 @@ func BCryptGetProperty(handle BcryptHandle, prop string, output *byte, size, fla
 	return result, nil
 }
 
-// BCryptGenerateSymmetricKey is used to creates a key object for use with a
+// BcryptKey is include handles and CNG object.
+type BcryptKey struct {
+	Provider BcryptHandle
+	Handle   uintptr // output
+	Object   []byte  // make slice for set size parameter
+	Secret   []byte  // input parameter
+	Flags    uint32  // input parameter
+}
+
+// BCryptGenerateSymmetricKey is used to creates a key object for use with a symmetrical
 // symmetrical key encryption algorithm from a supplied key.
-func BCryptGenerateSymmetricKey(
-	alg uintptr,
-	key *uintptr,
-	pbKeyObject *byte,
-	cbKeyObject uint32,
-	pbSecret *byte,
-	cbSecret uint32,
-	flags uint32,
-) error {
+func BCryptGenerateSymmetricKey(bk *BcryptKey) error {
 	const name = "BCryptGenerateSymmetricKey"
 	ret, _, err := procBCryptGenerateSymmetricKey.Call(
-		alg,
-		uintptr(unsafe.Pointer(key)),
-		uintptr(unsafe.Pointer(pbKeyObject)), uintptr(cbKeyObject),
-		uintptr(unsafe.Pointer(pbSecret)), uintptr(cbSecret),
-		uintptr(flags),
+		uintptr(bk.Provider), uintptr(unsafe.Pointer(&bk.Handle)),
+		uintptr(unsafe.Pointer(&bk.Object[0])), uintptr(uint32(len(bk.Object))),
+		uintptr(unsafe.Pointer(&bk.Secret[0])), uintptr(uint32(len(bk.Secret))),
+		uintptr(bk.Flags),
 	)
 	if ret != 0 {
 		return newError(name, err, "failed to generate symmetric key")

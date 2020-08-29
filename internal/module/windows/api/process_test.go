@@ -4,6 +4,7 @@ package api
 
 import (
 	"fmt"
+	"os"
 	"testing"
 	"unsafe"
 
@@ -38,6 +39,15 @@ func TestGetProcessIDByName(t *testing.T) {
 		}
 
 		testsuite.IsDestroyed(t, &pid)
+	})
+}
+
+func TestOpenProcess(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		handle, err := OpenProcess(windows.PROCESS_QUERY_INFORMATION, false, uint32(os.Getpid()))
+		require.NoError(t, err)
+
+		CloseHandle(handle)
 	})
 }
 
