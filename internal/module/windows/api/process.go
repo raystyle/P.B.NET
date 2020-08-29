@@ -111,48 +111,41 @@ type ProcessBasicInformation struct {
 	InheritedFromUniqueProcessID uintptr
 }
 
-// LoadFromBuffer is used to set structure fields form result buffer.
-func (pbi *ProcessBasicInformation) LoadFromBuffer(buf []byte) {
-	*pbi = *(*ProcessBasicInformation)(unsafe.Pointer(&buf[0]))
-}
-
 // NTQueryInformationProcess is used to query process information.
-func NTQueryInformationProcess(handle windows.Handle, infoClass uint8, buf []byte) (uint32, error) {
+func NTQueryInformationProcess(handle windows.Handle, infoClass uint8, info, size uintptr) (uint32, error) {
 	const name = "NTQueryInformationProcess"
-	var size uint32
+	var returnLength uint32
 	ret, _, err := procNTQueryInformationProcess.Call(
-		uintptr(handle), uintptr(infoClass), uintptr(unsafe.Pointer(&buf[0])),
-		uintptr(len(buf)), uintptr(unsafe.Pointer(&size)),
+		uintptr(handle), uintptr(infoClass), info,
+		size, uintptr(unsafe.Pointer(&returnLength)),
 	)
 	if ret != windows.NO_ERROR {
 		err := err.(windows.Errno)
 		if err == windows.ERROR_INSUFFICIENT_BUFFER {
-			return size, err
+			return returnLength, err
 		}
 		return 0, newAPIError(name, "failed to query process information", err)
 	}
-	return size, nil
+	return returnLength, nil
 }
 
 // ReadProcessMemory is used to read memory from process.
-func ReadProcessMemory(handle windows.Handle, address uintptr, buf []byte) (int, error) {
+func ReadProcessMemory(handle windows.Handle, address, buf, size uintptr) (int, error) {
 	const name = "ReadProcessMemory"
 	var n uint
 	ret, _, err := procReadProcessMemory.Call(
-		uintptr(handle), address, uintptr(unsafe.Pointer(&buf[0])),
-		uintptr(uint(len(buf))), uintptr(unsafe.Pointer(&n)),
+		uintptr(handle), address, buf, size, uintptr(unsafe.Pointer(&n)),
 	)
 	if ret != 1 {
 		return 0, newAPIError(name, "failed to read process memory", err)
 	}
-
 	return int(n), nil
 }
 
 // reference:
 // https://docs.microsoft.com/en-us/windows/win32/api/winternl/ns-winternl-peb
 
-// PEB is the process environment block.
+// PEB is the process environment block that contains process information.
 type PEB struct {
 	InheritedAddressSpace    bool
 	ReadImageFileExecOptions bool
@@ -160,32 +153,41 @@ type PEB struct {
 	Spare                    bool
 	Mutant                   uintptr
 	ImageBaseAddress         uintptr
-	LoaderData               *PEBLDRData
+	LoaderData               uintptr // point to PEBLDRData
 	ProcessParameters        uintptr
+	SubSystemData            uintptr
+	ProcessHeap              uintptr
+	FastPEBLock              uintptr
+	FastPEBLockRoutine       uintptr
+	FastPEBUnlockRoutine     uintptr
+	// ...
 }
 
-// PEBLDRData is
+// PEBLDRData contains information about the loaded modules for the process.
 type PEBLDRData struct {
-	Length      uint32
-	Initialized bool
-	SsHandle    uintptr
-	// InMemoryOrderModuleList
+	Length                            uint32
+	Initialized                       bool
+	SsHandle                          uintptr
+	InLoadOrderModuleVector           ListEntry
+	InMemoryOrderModuleVector         ListEntry
+	InInitializationOrderModuleVector ListEntry
 }
 
-// LDRDataTableEntry is
+// ListEntry include front and back link.
+type ListEntry struct {
+	Flink *ListEntry
+	Blink *ListEntry
+}
+
+// LDRDataTableEntry is loader data table entry
 type LDRDataTableEntry struct {
-	InLoadOrderLinks           *LDRDataTableEntry
-	InMemoryOrderLinks         *LDRDataTableEntry
-	InInitializationOrderLinks *LDRDataTableEntry
-}
-
-// Reserved1 [16]byte
-//	Reserved2 [10]uintptr
-//	ImagePathName
-//	CommandLine
-
-// LSAUnicodeString is
-type LSAUnicodeString struct {
-	Length        uint16
-	MaximumLength uint16
+	InLoadOrderLinks           ListEntry
+	InMemoryOrderLinks         ListEntry
+	InInitializationOrderLinks ListEntry
+	DLLBase                    uintptr
+	EntryPoint                 uintptr
+	SizeOfImage                uint32
+	FullDLLName                LSAUnicodeString
+	BaseDLLName                LSAUnicodeString
+	// ...
 }
