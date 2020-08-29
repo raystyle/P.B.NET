@@ -31,7 +31,7 @@ func GetProcessList() ([]*ProcessBasicInfo, error) {
 	const name = "GetProcessList"
 	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
 	if err != nil {
-		return nil, newAPIError(name, "failed to create process snapshot", err)
+		return nil, newError(name, err, "failed to create process snapshot")
 	}
 	defer func() { _ = windows.Close(snapshot) }()
 	processes := make([]*ProcessBasicInfo, 0, 64)
@@ -40,7 +40,7 @@ func GetProcessList() ([]*ProcessBasicInfo, error) {
 	}
 	err = windows.Process32First(snapshot, processEntry)
 	if err != nil {
-		return nil, newAPIError(name, "failed to call Process32First", err)
+		return nil, newError(name, err, "failed to call Process32First")
 	}
 	for {
 		processes = append(processes, &ProcessBasicInfo{
@@ -55,7 +55,7 @@ func GetProcessList() ([]*ProcessBasicInfo, error) {
 			if err.(syscall.Errno) == windows.ERROR_NO_MORE_FILES {
 				break
 			}
-			return nil, newAPIError(name, "failed to call Process32Next", err)
+			return nil, newError(name, err, "failed to call Process32Next")
 		}
 	}
 	return processes, nil
@@ -66,7 +66,7 @@ func GetProcessIDByName(n string) ([]uint32, error) {
 	const name = "GetProcessIDByName"
 	processes, err := GetProcessList()
 	if err != nil {
-		return nil, newAPIError(name, "failed to get process list", err)
+		return nil, newError(name, err, "failed to get process list")
 	}
 	pid := make([]uint32, 0, 1)
 	for _, process := range processes {
@@ -75,7 +75,7 @@ func GetProcessIDByName(n string) ([]uint32, error) {
 		}
 	}
 	if len(pid) == 0 {
-		return nil, newAPIErrorf(name, nil, "%q is not found", n)
+		return nil, newErrorf(name, nil, "process %q is not found", n)
 	}
 	return pid, nil
 }
@@ -85,7 +85,7 @@ func OpenProcess(desiredAccess uint32, inheritHandle bool, pid uint32) (windows.
 	const name = "OpenProcess"
 	handle, err := windows.OpenProcess(desiredAccess, inheritHandle, pid)
 	if err != nil {
-		return 0, newAPIError(name, "failed to open process", err)
+		return 0, newErrorf(name, err, "failed to open process with PID %d", pid)
 	}
 	return handle, nil
 }
@@ -124,7 +124,7 @@ func NTQueryInformationProcess(handle windows.Handle, infoClass uint8, info, siz
 		if err == windows.ERROR_INSUFFICIENT_BUFFER {
 			return returnLength, err
 		}
-		return 0, newAPIError(name, "failed to query process information", err)
+		return 0, newError(name, err, "failed to query process information")
 	}
 	return returnLength, nil
 }
@@ -137,7 +137,7 @@ func ReadProcessMemory(handle windows.Handle, address, buf, size uintptr) (int, 
 		uintptr(handle), address, buf, size, uintptr(unsafe.Pointer(&n)),
 	)
 	if ret != 1 {
-		return 0, newAPIError(name, "failed to read process memory", err)
+		return 0, newErrorf(name, err, "failed to read process memory at 0x%X", address)
 	}
 	return int(n), nil
 }
