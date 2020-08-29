@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/davecgh/go-spew/spew"
 )
 
-func TestGetVersion(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		major, minor, err := GetVersion()
-		require.NoError(t, err)
+func TestGetVersionNumber(t *testing.T) {
+	major, minor, build := GetVersionNumber()
+	fmt.Println("major:", major, "minor:", minor, "build:", build)
+}
 
-		fmt.Println("major:", major, "minor", minor)
-	})
+func TestGetVersion(t *testing.T) {
+	info := GetVersion()
+	spew.Dump(info)
 }

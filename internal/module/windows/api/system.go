@@ -1,38 +1,40 @@
 package api
 
 import (
-	"fmt"
-
-	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
-
-	"project/internal/convert"
 )
 
-func newAPIError(name, reason string, err error) error {
-	if err != nil {
-		return errors.Errorf("%s: %s, because %s", name, reason, err)
-	}
-	return errors.Errorf("%s: %s", name, reason)
+// GetVersionNumber is used to get NT version number.
+func GetVersionNumber() (major, minor, build int) {
+	ma, mi, bu := windows.RtlGetNtVersionNumbers()
+	return int(ma), int(mi), int(bu)
 }
 
-func newAPIErrorf(name string, err error, format string, v ...interface{}) error {
-	if err != nil {
-		return errors.Errorf("%s: %s, because %s", name, fmt.Sprintf(format, v...), err)
-	}
-	return errors.Errorf("%s: %s", name, fmt.Sprintf(format, v...))
+// VersionInfo contains information about Windows version.
+type VersionInfo struct {
+	Major            uint32
+	Minor            uint32
+	Build            uint32
+	PlatformID       uint32
+	CSDVersion       string
+	ServicePackMajor uint16
+	ServicePackMinor uint16
+	SuiteMask        uint16
+	ProductType      byte
 }
 
-// GetVersion is used to get NT version.
-func GetVersion() (major, minor int, err error) {
-	const name = "GetVersion"
-	ver, err := windows.GetVersion()
-	if err != nil {
-		return 0, 0, newAPIError(name, "failed to get windows version", err)
+// GetVersion is used ti get NT version information.
+func GetVersion() *VersionInfo {
+	ver := windows.RtlGetVersion()
+	return &VersionInfo{
+		Major:            ver.MajorVersion,
+		Minor:            ver.MinorVersion,
+		Build:            ver.BuildNumber,
+		PlatformID:       ver.PlatformId,
+		CSDVersion:       windows.UTF16ToString(ver.CsdVersion[:]),
+		ServicePackMajor: ver.ServicePackMajor,
+		ServicePackMinor: ver.ServicePackMinor,
+		SuiteMask:        ver.SuiteMask,
+		ProductType:      ver.ProductType,
 	}
-	b := convert.LEUint32ToBytes(ver)
-	fmt.Println(b)
-
-	fmt.Println(ver)
-	return 0, 0, nil
 }
