@@ -60,20 +60,17 @@ func BCryptCloseAlgorithmProvider(handle BcryptHandle, flags uint32) error {
 }
 
 // BCryptSetProperty is used to set the value of a named property for a CNG object.
-func BCryptSetProperty(handle BcryptHandle, prop, input string, flags uint32) error {
+func BCryptSetProperty(handle BcryptHandle, prop string, input *byte, size, flags uint32) error {
 	const name = "BCryptSetProperty"
 	propPtr, err := windows.UTF16PtrFromString(prop)
 	if err != nil {
 		return newError(name, err, "failed to call UTF16PtrFromString")
 	}
-	inputPtr, err := windows.UTF16PtrFromString(input)
-	if err != nil {
-		return newError(name, err, "failed to call UTF16PtrFromString")
-	}
 	ret, _, err := procBCryptSetProperty.Call(
 		uintptr(handle), uintptr(unsafe.Pointer(propPtr)),
-		uintptr(unsafe.Pointer(inputPtr)), uintptr(uint32(len(input))),
-		uintptr(flags))
+		uintptr(unsafe.Pointer(input)), uintptr(size),
+		uintptr(flags),
+	)
 	if ret != 0 {
 		return newErrorf(name, err, "failed to set property %q", prop)
 	}
@@ -81,8 +78,22 @@ func BCryptSetProperty(handle BcryptHandle, prop, input string, flags uint32) er
 }
 
 // BCryptGetProperty is used to retrieves the value of a named property for a CNG object.
-func BCryptGetProperty() {
-
+func BCryptGetProperty(handle BcryptHandle, prop string, output *byte, size, flags uint32) (uint32, error) {
+	const name = "BCryptGetProperty"
+	propPtr, err := windows.UTF16PtrFromString(prop)
+	if err != nil {
+		return 0, newError(name, err, "failed to call UTF16PtrFromString")
+	}
+	var result uint32
+	ret, _, err := procBCryptGetProperty.Call(
+		uintptr(handle), uintptr(unsafe.Pointer(propPtr)),
+		uintptr(unsafe.Pointer(output)), uintptr(size), uintptr(unsafe.Pointer(&result)),
+		uintptr(flags),
+	)
+	if ret != 0 {
+		return 0, newErrorf(name, err, "failed to get property %q", prop)
+	}
+	return result, nil
 }
 
 // BCryptGenerateSymmetricKey is used to creates a key object for use with a

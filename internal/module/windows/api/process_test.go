@@ -5,8 +5,10 @@ package api
 import (
 	"fmt"
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows"
 
 	"project/internal/testsuite"
 )
@@ -32,9 +34,40 @@ func TestGetProcessIDByName(t *testing.T) {
 
 		require.NotEmpty(t, pid)
 		for _, pid := range pid {
-			fmt.Println(pid)
+			t.Log("pid:", pid)
 		}
 
 		testsuite.IsDestroyed(t, &pid)
+	})
+}
+
+func TestNTQueryInformationProcess(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		handle := windows.CurrentProcess()
+		var pbi ProcessBasicInformation
+		ic := InfoClassProcessBasicInformation
+
+		_, err := NTQueryInformationProcess(handle, ic, (*byte)(unsafe.Pointer(&pbi)), unsafe.Sizeof(pbi))
+		require.NoError(t, err)
+
+		t.Logf("0x%X\n", pbi.PEBBaseAddress)
+	})
+}
+
+func TestReadProcessMemory(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		handle := windows.CurrentProcess()
+		var pbi ProcessBasicInformation
+		ic := InfoClassProcessBasicInformation
+
+		_, err := NTQueryInformationProcess(handle, ic, (*byte)(unsafe.Pointer(&pbi)), unsafe.Sizeof(pbi))
+		require.NoError(t, err)
+
+		buf := make([]byte, 16)
+		n, err := ReadProcessMemory(handle, pbi.PEBBaseAddress, &buf[0], uintptr(len(buf)))
+		require.NoError(t, err)
+		require.Equal(t, len(buf), n)
+
+		t.Log(buf)
 	})
 }

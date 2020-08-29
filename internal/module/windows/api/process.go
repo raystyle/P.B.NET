@@ -112,11 +112,11 @@ type ProcessBasicInformation struct {
 }
 
 // NTQueryInformationProcess is used to query process information.
-func NTQueryInformationProcess(handle windows.Handle, infoClass uint8, info, size uintptr) (uint32, error) {
+func NTQueryInformationProcess(handle windows.Handle, class uint8, info *byte, size uintptr) (uint32, error) {
 	const name = "NTQueryInformationProcess"
 	var returnLength uint32
 	ret, _, err := procNTQueryInformationProcess.Call(
-		uintptr(handle), uintptr(infoClass), info,
+		uintptr(handle), uintptr(class), uintptr(unsafe.Pointer(info)),
 		size, uintptr(unsafe.Pointer(&returnLength)),
 	)
 	if ret != windows.NO_ERROR {
@@ -130,11 +130,13 @@ func NTQueryInformationProcess(handle windows.Handle, infoClass uint8, info, siz
 }
 
 // ReadProcessMemory is used to read memory from process.
-func ReadProcessMemory(handle windows.Handle, address, buf, size uintptr) (int, error) {
+func ReadProcessMemory(handle windows.Handle, address uintptr, buffer *byte, size uintptr) (int, error) {
 	const name = "ReadProcessMemory"
 	var n uint
 	ret, _, err := procReadProcessMemory.Call(
-		uintptr(handle), address, buf, size, uintptr(unsafe.Pointer(&n)),
+		uintptr(handle), address,
+		uintptr(unsafe.Pointer(buffer)), size,
+		uintptr(unsafe.Pointer(&n)),
 	)
 	if ret != 1 {
 		return 0, newErrorf(name, err, "failed to read process memory at 0x%X", address)
