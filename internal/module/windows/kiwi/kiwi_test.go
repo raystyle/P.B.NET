@@ -12,7 +12,7 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestKiwi_GetAllCredential(t *testing.T) {
+func TestKiwi(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -20,11 +20,8 @@ func TestKiwi_GetAllCredential(t *testing.T) {
 
 	err := kiwi.EnableDebugPrivilege()
 	require.NoError(t, err)
-	err = kiwi.EnableDebugPrivilege()
-	require.NoError(t, err)
+
 	creds, err := kiwi.GetAllCredential()
-	require.NoError(t, err)
-	creds, err = kiwi.GetAllCredential()
 	require.NoError(t, err)
 
 	fmt.Println(creds)
