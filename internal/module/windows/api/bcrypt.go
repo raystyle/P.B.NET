@@ -19,12 +19,13 @@ var (
 	procBCryptSetProperty            = modBcrypt.NewProc("BCryptSetProperty")
 	procBCryptGetProperty            = modBcrypt.NewProc("BCryptGetProperty")
 	procBCryptGenerateSymmetricKey   = modBcrypt.NewProc("BCryptGenerateSymmetricKey")
+	procBCryptDecrypt                = modBcrypt.NewProc("BCryptDecrypt")
 )
 
 // BcryptHandle is a provider by call BCryptOpenAlgorithmProvider.
 type BcryptHandle uintptr
 
-// BCryptOpenAlgorithmProvider loads and initializes a CNG provider.
+// BCryptOpenAlgorithmProvider loads and initializes a CNG provider. // #nosec
 func BCryptOpenAlgorithmProvider(algID, impl string, flags uint32) (BcryptHandle, error) {
 	const name = "BCryptOpenAlgorithmProvider"
 	algIDPtr, err := windows.UTF16PtrFromString(algID)
@@ -49,7 +50,7 @@ func BCryptOpenAlgorithmProvider(algID, impl string, flags uint32) (BcryptHandle
 	return BcryptHandle(handle), nil
 }
 
-// BCryptCloseAlgorithmProvider is used to closes an algorithm provider.
+// BCryptCloseAlgorithmProvider is used to closes an algorithm provider. // #nosec
 func BCryptCloseAlgorithmProvider(handle BcryptHandle, flags uint32) error {
 	const name = "BCryptCloseAlgorithmProvider"
 	ret, _, err := procBCryptCloseAlgorithmProvider.Call(uintptr(handle), uintptr(flags))
@@ -59,7 +60,7 @@ func BCryptCloseAlgorithmProvider(handle BcryptHandle, flags uint32) error {
 	return nil
 }
 
-// BCryptSetProperty is used to set the value of a named property for a CNG object.
+// BCryptSetProperty is used to set the value of a named property for a CNG object. // #nosec
 func BCryptSetProperty(handle BcryptHandle, prop string, input *byte, size, flags uint32) error {
 	const name = "BCryptSetProperty"
 	propPtr, err := windows.UTF16PtrFromString(prop)
@@ -77,7 +78,7 @@ func BCryptSetProperty(handle BcryptHandle, prop string, input *byte, size, flag
 	return nil
 }
 
-// BCryptGetProperty is used to retrieves the value of a named property for a CNG object.
+// BCryptGetProperty is used to retrieves the value of a named property for a CNG object. // #nosec
 func BCryptGetProperty(handle BcryptHandle, prop string, output *byte, size, flags uint32) (uint32, error) {
 	const name = "BCryptGetProperty"
 	propPtr, err := windows.UTF16PtrFromString(prop)
@@ -96,7 +97,7 @@ func BCryptGetProperty(handle BcryptHandle, prop string, output *byte, size, fla
 	return result, nil
 }
 
-// BcryptKey is include handles and CNG object.
+// BcryptKey contains provider handle, bcrypt key handle and CNG object.
 type BcryptKey struct {
 	Provider BcryptHandle
 	Handle   uintptr // output
@@ -106,7 +107,7 @@ type BcryptKey struct {
 }
 
 // BCryptGenerateSymmetricKey is used to creates a key object for use with a symmetrical
-// symmetrical key encryption algorithm from a supplied key.
+// symmetrical key encryption algorithm from a supplied key. // #nosec
 func BCryptGenerateSymmetricKey(bk *BcryptKey) error {
 	const name = "BCryptGenerateSymmetricKey"
 	ret, _, err := procBCryptGenerateSymmetricKey.Call(
@@ -119,4 +120,21 @@ func BCryptGenerateSymmetricKey(bk *BcryptKey) error {
 		return newError(name, err, "failed to generate symmetric key")
 	}
 	return nil
+}
+
+// BCryptDecrypt is used to decrypt a block of data. // #nosec
+func BCryptDecrypt(bk *BcryptKey, input []byte, paddingInfo uintptr, iv, output []byte) (uint32, error) {
+	const name = "BCryptDecrypt"
+	var result uint32
+	ret, _, err := procBCryptDecrypt.Call(
+		bk.Handle,
+		uintptr(unsafe.Pointer(&input[0])), uintptr(uint32(len(input))), paddingInfo,
+		uintptr(unsafe.Pointer(&iv[0])), uintptr(uint32(len(iv))),
+		uintptr(unsafe.Pointer(&output[0])), uintptr(uint32(len(output))),
+		uintptr(unsafe.Pointer(&result)), uintptr(bk.Flags),
+	)
+	if ret != 0 {
+		return result, newError(name, err, "failed to decrypt block data")
+	}
+	return result, nil
 }

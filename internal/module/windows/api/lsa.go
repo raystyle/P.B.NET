@@ -16,9 +16,9 @@ type LSAUnicodeString struct {
 	Buffer        uintptr
 }
 
-// ReadLSAUnicodeString is used to read buffer and return a string.
+// ReadLSAUnicodeString is used to read buffer and return a string. // #nosec
 func ReadLSAUnicodeString(pHandle windows.Handle, lus *LSAUnicodeString) (string, error) {
-	if lus.MaximumLength == 0 {
+	if lus.MaximumLength == 0 || lus.Length == 0 {
 		return "", nil
 	}
 	// read data

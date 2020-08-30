@@ -26,7 +26,7 @@ type ProcessBasicInfo struct {
 	PriorityClassBase int32
 }
 
-// GetProcessList is used to get process list that include PiD and name.
+// GetProcessList is used to get process list that include PiD and name. // #nosec
 func GetProcessList() ([]*ProcessBasicInfo, error) {
 	const name = "GetProcessList"
 	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
@@ -111,7 +111,7 @@ type ProcessBasicInformation struct {
 	InheritedFromUniqueProcessID uintptr
 }
 
-// NTQueryInformationProcess is used to query process information.
+// NTQueryInformationProcess is used to query process information. // #nosec
 func NTQueryInformationProcess(handle windows.Handle, class uint8, info *byte, size uintptr) (uint32, error) {
 	const name = "NTQueryInformationProcess"
 	var returnLength uint32
@@ -129,7 +129,7 @@ func NTQueryInformationProcess(handle windows.Handle, class uint8, info *byte, s
 	return returnLength, nil
 }
 
-// ReadProcessMemory is used to read memory from process.
+// ReadProcessMemory is used to read memory from process. // #nosec
 func ReadProcessMemory(handle windows.Handle, address uintptr, buffer *byte, size uintptr) (int, error) {
 	const name = "ReadProcessMemory"
 	var n uint
@@ -165,6 +165,12 @@ type PEB struct {
 	// ...
 }
 
+// ListEntry include front and back link.
+type ListEntry struct {
+	Flink *ListEntry
+	Blink *ListEntry
+}
+
 // PEBLDRData contains information about the loaded modules for the process.
 type PEBLDRData struct {
 	Length                            uint32
@@ -175,13 +181,7 @@ type PEBLDRData struct {
 	InInitializationOrderModuleVector ListEntry
 }
 
-// ListEntry include front and back link.
-type ListEntry struct {
-	Flink *ListEntry
-	Blink *ListEntry
-}
-
-// LDRDataTableEntry is loader data table entry
+// LDRDataTableEntry is the loader data table entry.
 type LDRDataTableEntry struct {
 	InLoadOrderLinks           ListEntry
 	InMemoryOrderLinks         ListEntry
