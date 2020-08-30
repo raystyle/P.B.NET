@@ -18,28 +18,28 @@ var (
 )
 
 type bcryptHandleKey struct {
-	size uint32
-	tag  uint32  // R U U U
-	hAlg uintptr // algorithm handle
-	key  uintptr // bcryptKey
-	unk0 uintptr
+	size     uint32
+	tag      uint32  // R U U U
+	hAlg     uintptr // algorithm handle
+	key      uintptr // bcryptKey
+	unknown0 uintptr
 }
 
 type bcryptKey81 struct {
-	size    uint32
-	tag     uint32 // K S S M
-	typ     uint32
-	unk0    uint32
-	unk1    uint32
-	unk2    uint32
-	unk3    uint32
-	unk4    uint32
-	unk5    uintptr // before, align in x64
-	unk6    uint32
-	unk7    uint32
-	unk8    uint32
-	unk9    uint32
-	hardKey hardKey
+	size     uint32
+	tag      uint32 // K S S M
+	typ      uint32
+	unknown0 uint32
+	unknown1 uint32
+	unknown2 uint32
+	unknown3 uint32
+	unknown4 uint32
+	unknown5 uintptr // before, align in x64
+	unknown6 uint32
+	unknown7 uint32
+	unknown8 uint32
+	unknown9 uint32
+	hardKey  hardKey
 }
 
 type hardKey struct {
