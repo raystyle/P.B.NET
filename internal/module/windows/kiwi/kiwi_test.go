@@ -16,15 +16,18 @@ func TestKiwi(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	kiwi := NewKiwi(logger.Test)
+	kiwi, err := NewKiwi(logger.Test)
+	require.NoError(t, err)
 
-	err := kiwi.EnableDebugPrivilege()
+	err = kiwi.EnableDebugPrivilege()
 	require.NoError(t, err)
 
 	creds, err := kiwi.GetAllCredential()
 	require.NoError(t, err)
 
 	fmt.Println(creds)
+
+	kiwi.Close()
 
 	testsuite.IsDestroyed(t, kiwi)
 }

