@@ -3,6 +3,7 @@ package kiwi
 import (
 	"bytes"
 	"fmt"
+	"time"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -230,7 +231,7 @@ type lsaEnum struct {
 	offsetToLogonType     uint32
 	offsetToSession       uint32
 	offsetToUsername      uint32
-	offsetToDomain        uint32
+	offsetToDomainName    uint32
 	offsetToCredentials   uint32
 	offsetToSID           uint32
 	offsetToCredentialMgr uint32
@@ -241,12 +242,33 @@ type lsaEnum struct {
 // key = minimum windows build
 var lsaEnums = map[uint32]*lsaEnum{
 	buildMinWin10: {
-		size:         unsafe.Sizeof(msv10List63{}),
-		offsetToLUID: uint32(unsafe.Offsetof(msv10List63{}.luid0)),
+		size:                  unsafe.Sizeof(msv10List63{}),
+		offsetToLUID:          uint32(unsafe.Offsetof(msv10List63{}.luid0)),
+		offsetToLogonType:     uint32(unsafe.Offsetof(msv10List63{}.logonType)),
+		offsetToSession:       uint32(unsafe.Offsetof(msv10List63{}.session)),
+		offsetToUsername:      uint32(unsafe.Offsetof(msv10List63{}.username)),
+		offsetToDomainName:    uint32(unsafe.Offsetof(msv10List63{}.domainName)),
+		offsetToCredentials:   uint32(unsafe.Offsetof(msv10List63{}.credentials)),
+		offsetToSID:           uint32(unsafe.Offsetof(msv10List63{}.sid)),
+		offsetToCredentialMgr: uint32(unsafe.Offsetof(msv10List63{}.credentialMgr)),
+		offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List63{}.logonTime)),
+		offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List63{}.logonServer)),
 	},
 }
 
-func (kiwi *Kiwi) getSessionList(pHandle windows.Handle, patch *patchGeneric) ([]byte, error) {
+// LogonSession contains information about session.
+type LogonSession struct {
+	LogonID     windows.LUID
+	Session     uint32
+	Domain      string
+	Username    string
+	LogonServer string
+	LogonTime   time.Time
+	SID         string
+	Credentials []*Credential
+}
+
+func (kiwi *Kiwi) getSessionList(pHandle windows.Handle, patch *patchGeneric) ([]*LogonSession, error) {
 	kiwi.mu.Lock()
 	defer kiwi.mu.Unlock()
 	if kiwi.logonSessionListAddr == 0 {
@@ -263,17 +285,60 @@ func (kiwi *Kiwi) getSessionList(pHandle windows.Handle, patch *patchGeneric) ([
 		return nil, errors.WithMessage(err, "failed to read session list count")
 	}
 	kiwi.log(logger.Debug, "logon session list count is", count)
-
-	fmt.Println(unsafe.Sizeof(msv10List63{}))
-
 	// get session list
+	// var retCallback bool
+
+	enum := lsaEnums[buildMinWin10]
+
+	const listEntrySize = 2 * unsafe.Sizeof(uintptr(0))
+	listAddr := kiwi.logonSessionListAddr - listEntrySize
 	for i := uint32(0); i < count; i++ {
-		address = kiwi.logonSessionListAddr
-		_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&count)), unsafe.Sizeof(count))
+		listAddr += listEntrySize
+		// get session data address
+		var addr uintptr
+		_, err = api.ReadProcessMemory(pHandle, listAddr, (*byte)(unsafe.Pointer(&addr)), unsafe.Sizeof(addr))
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to read session list count")
+			return nil, errors.WithMessage(err, "failed to read session data address")
 		}
-		break
+		if listAddr == addr {
+			continue
+		}
+		// read session data
+		buf := make([]byte, enum.size)
+		_, err = api.ReadProcessMemory(pHandle, addr, &buf[0], enum.size)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to read read session data")
+		}
+
+		domainNameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToDomainName]))
+		domainName, err := kiwi.readLSAUnicodeString(pHandle, domainNameLus)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println("domain name", domainName)
+
+		usernameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToUsername]))
+		username, err := kiwi.readLSAUnicodeString(pHandle, usernameLus)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println("user name", username)
+
+		logonServerLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToLogonServer]))
+		logonServer, err := kiwi.readLSAUnicodeString(pHandle, logonServerLus)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println("logon server:", logonServer)
+		fmt.Println()
+
+		// session := LogonSession{
+		//
+		//
+		// 	Username:
+		//
+		// }
+
 	}
 
 	return nil, nil

@@ -227,28 +227,38 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 			return nil, errors.WithMessage(err, "failed to read loader data table entry")
 		}
 		// read base dll name
-		bufAddr := ldrEntry.BaseDLLName.Buffer
-		size = uintptr(ldrEntry.BaseDLLName.MaximumLength)
-		baseDLLName := make([]byte, int(size)+256+kiwi.rand.Int(512))
-		_, err = api.ReadProcessMemory(pHandle, bufAddr, &baseDLLName[0], size)
+		name, err := kiwi.readLSAUnicodeString(pHandle, &ldrEntry.BaseDLLName)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to read base dll name")
 		}
-		// make string
-		var utf16Str []uint16
-		sh := (*reflect.SliceHeader)(unsafe.Pointer(&utf16Str))
-		sh.Len = int(ldrEntry.BaseDLLName.Length / 2)
-		sh.Cap = int(ldrEntry.BaseDLLName.Length / 2)
-		sh.Data = uintptr(unsafe.Pointer(&baseDLLName[:ldrEntry.BaseDLLName.Length][0]))
 		// add module
 		modules = append(modules, &basicModuleInfo{
-			name:    string(utf16.Decode(utf16Str)),
+			name:    name,
 			address: ldrEntry.DLLBase,
 			size:    int(ldrEntry.SizeOfImage),
 		})
 	}
 	kiwi.log(logger.Debug, "loaded module count:", len(modules))
 	return modules, nil
+}
+
+func (kiwi *Kiwi) readLSAUnicodeString(pHandle windows.Handle, lus *api.LSAUnicodeString) (string, error) {
+	if lus.MaximumLength == 0 {
+		return "", nil
+	}
+	// read data
+	data := make([]byte, int(lus.MaximumLength))
+	_, err := api.ReadProcessMemory(pHandle, lus.Buffer, &data[0], uintptr(lus.MaximumLength))
+	if err != nil {
+		return "", err
+	}
+	// make string
+	var utf16Str []uint16
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&utf16Str))
+	sh.Len = int(lus.Length / 2)
+	sh.Cap = int(lus.Length / 2)
+	sh.Data = uintptr(unsafe.Pointer(&data[:lus.Length][0]))
+	return string(utf16.Decode(utf16Str)), nil
 }
 
 func (kiwi *Kiwi) getLSASSBasicModuleInfo(pHandle windows.Handle, name string) (*basicModuleInfo, error) {
