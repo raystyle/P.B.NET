@@ -3,12 +3,14 @@ package kiwi
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"time"
 	"unsafe"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
+	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/module/windows/api"
 )
@@ -300,37 +302,49 @@ func (kiwi *Kiwi) getSessionList(pHandle windows.Handle, patch *patchGeneric) ([
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to read session data address")
 		}
-		if listAddr == addr {
-			continue
-		}
-		// read session data
-		buf := make([]byte, enum.size)
-		_, err = api.ReadProcessMemory(pHandle, addr, &buf[0], enum.size)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to read read session data")
-		}
+		for {
+			if listAddr == addr {
+				break
+			}
 
-		domainNameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToDomainName]))
-		domainName, err := kiwi.readLSAUnicodeString(pHandle, domainNameLus)
-		if err != nil {
-			return nil, err
-		}
-		fmt.Println("domain name", domainName)
+			// read session data
+			buf := make([]byte, enum.size)
+			_, err = api.ReadProcessMemory(pHandle, addr, &buf[0], enum.size)
+			if err != nil {
+				return nil, errors.WithMessage(err, "failed to read session data")
+			}
 
-		usernameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToUsername]))
-		username, err := kiwi.readLSAUnicodeString(pHandle, usernameLus)
-		if err != nil {
-			return nil, err
-		}
-		fmt.Println("user name", username)
+			domainNameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToDomainName]))
+			domainName, err := api.ReadLSAUnicodeString(pHandle, domainNameLus)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Println("domain name:", domainName)
 
-		logonServerLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToLogonServer]))
-		logonServer, err := kiwi.readLSAUnicodeString(pHandle, logonServerLus)
-		if err != nil {
-			return nil, err
+			usernameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToUsername]))
+			username, err := api.ReadLSAUnicodeString(pHandle, usernameLus)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Println("user name:", username)
+
+			logonServerLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToLogonServer]))
+			logonServer, err := api.ReadLSAUnicodeString(pHandle, logonServerLus)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Println("logon server:", logonServer)
+
+			sid, err := readSID(pHandle, *(*uintptr)(unsafe.Pointer(&buf[enum.offsetToSID])))
+			if err != nil {
+				return nil, err
+			}
+
+			fmt.Println("SID:", sid)
+
+			fmt.Println()
+			break
 		}
-		fmt.Println("logon server:", logonServer)
-		fmt.Println()
 
 		// session := LogonSession{
 		//
@@ -342,4 +356,28 @@ func (kiwi *Kiwi) getSessionList(pHandle windows.Handle, patch *patchGeneric) ([
 	}
 
 	return nil, nil
+}
+
+func readSID(pHandle windows.Handle, address uintptr) (string, error) {
+	var n byte
+	_, err := api.ReadProcessMemory(pHandle, address+1, &n, 1)
+	if err != nil {
+		return "", errors.WithMessage(err, "failed to read number about SID")
+	}
+	// version + number + SID identifier authority + value
+	size := uintptr(1 + 1 + 6 + 4*n)
+	buf := make([]byte, size)
+	_, err = api.ReadProcessMemory(pHandle, address, &buf[0], size)
+	if err != nil {
+		return "", errors.WithMessage(err, "failed to read SID")
+	}
+	// identifier authority
+	ia := convert.BEBytesToUint32(buf[4:8])
+	format := "S-%d-%d" + strings.Repeat("-%d", int(n))
+	// format SID
+	v := []interface{}{buf[0], ia}
+	for i := 8; i < len(buf); i += 4 {
+		v = append(v, convert.LEBytesToUint32(buf[i:i+4]))
+	}
+	return fmt.Sprintf(format, v...), nil
 }
