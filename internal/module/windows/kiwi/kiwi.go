@@ -38,7 +38,10 @@ type Kiwi struct {
 	modulesRWM sync.RWMutex
 
 	// about decrypt
-	iv []byte
+	iv          []byte
+	hardKeyData []byte
+	key3DES     *api.BcryptKey
+	keyAES      *api.BcryptKey
 
 	// address about logon session
 	logonSessionListAddr      uintptr

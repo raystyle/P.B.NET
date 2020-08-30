@@ -78,7 +78,6 @@ type basicModuleInfo struct {
 
 func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModuleInfo, error) {
 	const paddingSize = 256 + 512
-
 	// read PEB base address
 	var pbi api.ProcessBasicInformation
 	ic := api.InfoClassProcessBasicInformation
@@ -87,7 +86,6 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 		return nil, err
 	}
 	kiwi.logf(logger.Debug, "PEB base address is 0x%X", pbi.PEBBaseAddress)
-
 	// read PEB
 	var peb struct {
 		api.PEB
@@ -99,7 +97,6 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 		return nil, errors.WithMessage(err, "failed to read PEB structure")
 	}
 	kiwi.logf(logger.Debug, "loader data address is 0x%X", peb.LoaderData)
-
 	// read loader data
 	var loaderData struct {
 		api.PEBLDRData
@@ -110,7 +107,6 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read PEB loader data")
 	}
-
 	// read loader data table entry
 	offset := unsafe.Offsetof(api.LDRDataTableEntry{}.InMemoryOrderLinks)
 	begin := uintptr(unsafe.Pointer(loaderData.InMemoryOrderModuleVector.Flink)) - offset

