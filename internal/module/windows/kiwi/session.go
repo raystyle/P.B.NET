@@ -460,10 +460,66 @@ type lsaEnum struct {
 }
 
 var (
+	msv10List51Struct = msv10List51{}
+	msv10List52Struct = msv10List52{}
+	msv10List60Struct = msv10List60{}
+	msv10List61Struct = msv10List61{}
 	msv10List62Struct = msv10List62{}
 	msv10List63Struct = msv10List63{}
-	// key = minimum windows build
+	// key = version smaller than minimum windows build
 	lsaEnums = map[uint32]*lsaEnum{
+		buildMinWin2003: {
+			size:                  unsafe.Sizeof(msv10List62Struct),
+			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List51Struct.logonID)),
+			offsetToLogonType:     uint32(unsafe.Offsetof(msv10List51Struct.logonType)),
+			offsetToSession:       uint32(unsafe.Offsetof(msv10List51Struct.session)),
+			offsetToUsername:      uint32(unsafe.Offsetof(msv10List51Struct.username)),
+			offsetToDomainName:    uint32(unsafe.Offsetof(msv10List51Struct.domainName)),
+			offsetToCredentials:   uint32(unsafe.Offsetof(msv10List51Struct.credentials)),
+			offsetToSID:           uint32(unsafe.Offsetof(msv10List51Struct.sid)),
+			offsetToCredentialMgr: uint32(unsafe.Offsetof(msv10List51Struct.credentialMgr)),
+			offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List51Struct.logonTime)),
+			offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List51Struct.logonServer)),
+		},
+		buildMinWinVista: {
+			size:                  unsafe.Sizeof(msv10List62Struct),
+			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List52Struct.logonID)),
+			offsetToLogonType:     uint32(unsafe.Offsetof(msv10List52Struct.logonType)),
+			offsetToSession:       uint32(unsafe.Offsetof(msv10List52Struct.session)),
+			offsetToUsername:      uint32(unsafe.Offsetof(msv10List52Struct.username)),
+			offsetToDomainName:    uint32(unsafe.Offsetof(msv10List52Struct.domainName)),
+			offsetToCredentials:   uint32(unsafe.Offsetof(msv10List52Struct.credentials)),
+			offsetToSID:           uint32(unsafe.Offsetof(msv10List52Struct.sid)),
+			offsetToCredentialMgr: uint32(unsafe.Offsetof(msv10List52Struct.credentialMgr)),
+			offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List52Struct.logonTime)),
+			offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List52Struct.logonServer)),
+		},
+		buildMinWin7: {
+			size:                  unsafe.Sizeof(msv10List62Struct),
+			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List60Struct.logonID)),
+			offsetToLogonType:     uint32(unsafe.Offsetof(msv10List60Struct.logonType)),
+			offsetToSession:       uint32(unsafe.Offsetof(msv10List60Struct.session)),
+			offsetToUsername:      uint32(unsafe.Offsetof(msv10List60Struct.username)),
+			offsetToDomainName:    uint32(unsafe.Offsetof(msv10List60Struct.domainName)),
+			offsetToCredentials:   uint32(unsafe.Offsetof(msv10List60Struct.credentials)),
+			offsetToSID:           uint32(unsafe.Offsetof(msv10List60Struct.sid)),
+			offsetToCredentialMgr: uint32(unsafe.Offsetof(msv10List60Struct.credentialMgr)),
+			offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List60Struct.logonTime)),
+			offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List60Struct.logonServer)),
+		},
+		buildMinWin8: {
+			size:                  unsafe.Sizeof(msv10List62Struct),
+			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List61Struct.logonID)),
+			offsetToLogonType:     uint32(unsafe.Offsetof(msv10List61Struct.logonType)),
+			offsetToSession:       uint32(unsafe.Offsetof(msv10List61Struct.session)),
+			offsetToUsername:      uint32(unsafe.Offsetof(msv10List61Struct.username)),
+			offsetToDomainName:    uint32(unsafe.Offsetof(msv10List61Struct.domainName)),
+			offsetToCredentials:   uint32(unsafe.Offsetof(msv10List61Struct.credentials)),
+			offsetToSID:           uint32(unsafe.Offsetof(msv10List61Struct.sid)),
+			offsetToCredentialMgr: uint32(unsafe.Offsetof(msv10List61Struct.credentialMgr)),
+			offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List61Struct.logonTime)),
+			offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List61Struct.logonServer)),
+		},
 		buildMinWinBlue: {
 			size:                  unsafe.Sizeof(msv10List62Struct),
 			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List62Struct.logonID)),
