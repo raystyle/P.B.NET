@@ -235,6 +235,122 @@ func (kiwi *Kiwi) searchLogonSessionListAddress(pHandle windows.Handle, patch *p
 // reference:
 // https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/kuhl_m_sekurlsa_utils.h
 
+type msv10List51 struct {
+	fLink         uintptr // point to msv10List51
+	bLink         uintptr // point to msv10List51
+	logonID       windows.LUID
+	username      api.LSAUnicodeString
+	domainName    api.LSAUnicodeString
+	unknown0      uintptr
+	unknown1      uintptr
+	sid           uintptr
+	logonType     uint32
+	session       uint32
+	logonTime     int64
+	logonServer   api.LSAUnicodeString
+	credentials   uintptr
+	unknown19     uint32
+	unknown20     uintptr
+	unknown21     uintptr
+	unknown22     uintptr
+	unknown23     uint32
+	credentialMgr uintptr
+}
+
+type msv10List52 struct {
+	fLink         uintptr // point to msv10List52
+	bLink         uintptr // point to msv10List52
+	logonID       windows.LUID
+	username      api.LSAUnicodeString
+	domainName    api.LSAUnicodeString
+	unknown0      uintptr
+	unknown1      uintptr
+	sid           uintptr
+	logonType     uint32
+	session       uint32
+	logonTime     int64
+	logonServer   api.LSAUnicodeString
+	credentials   uintptr
+	unknown19     uint32
+	unknown20     uintptr
+	unknown21     uintptr
+	unknown22     uint32
+	credentialMgr uintptr
+}
+
+type msv10List60 struct {
+	fLink         uintptr // point to msv10List60
+	bLink         uintptr // point to msv10List60
+	unknown0      uintptr
+	unknown1      uint32
+	unknown2      uintptr
+	unknown3      uint32
+	unknown4      uint32
+	unknown5      uint32
+	hSemaphore6   uintptr
+	unknown7      uintptr
+	hSemaphore8   uintptr
+	unknown9      uintptr
+	unknown10     uintptr
+	unknown11     uint32
+	unknown12     uint32
+	unknown13     uintptr
+	logonID       windows.LUID
+	luid1         windows.LUID
+	username      api.LSAUnicodeString
+	domainName    api.LSAUnicodeString
+	unknown14     uintptr
+	unknown15     uintptr
+	sid           uintptr
+	logonType     uint32
+	session       uint32
+	logonTime     int64
+	logonServer   api.LSAUnicodeString
+	credentials   uintptr
+	unknown19     uint32
+	unknown20     uintptr
+	unknown21     uintptr
+	unknown22     uintptr
+	unknown23     uint32
+	credentialMgr uintptr
+}
+
+type msv10List61 struct {
+	fLink         uintptr // point to msv10List61
+	bLink         uintptr // point to msv10List61
+	unknown0      uintptr
+	unknown1      uint32
+	unknown2      uintptr
+	unknown3      uint32
+	unknown4      uint32
+	unknown5      uint32
+	hSemaphore6   uintptr
+	unknown7      uintptr
+	hSemaphore8   uintptr
+	unknown9      uintptr
+	unknown10     uintptr
+	unknown11     uint32
+	unknown12     uint32
+	unknown13     uintptr
+	logonID       windows.LUID
+	luid1         windows.LUID
+	username      api.LSAUnicodeString
+	domainName    api.LSAUnicodeString
+	unknown14     uintptr
+	unknown15     uintptr
+	sid           uintptr
+	logonType     uint32
+	session       uint32
+	logonTime     int64
+	logonServer   api.LSAUnicodeString
+	credentials   uintptr
+	unknown19     uintptr
+	unknown20     uintptr
+	unknown21     uintptr
+	unknown22     uint32
+	credentialMgr uintptr
+}
+
 type msv10List62 struct {
 	fLink         uintptr // point to msv10List62
 	bLink         uintptr // point to msv10List62

