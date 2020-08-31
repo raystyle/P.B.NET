@@ -22,7 +22,7 @@ var (
 	patternWin10X64LSAInitProtectedMemoryKey = []byte{
 		0x83, 0x64, 0x24, 0x30, 0x00, 0x48, 0x8D, 0x45, 0xE0, 0x44, 0x8B, 0x4D, 0xD8, 0x48, 0x8D, 0x15,
 	}
-
+	// key = build
 	lsaInitProtectedMemoryKeyReferencesX64 = map[uint32]*patchGeneric{
 		buildWinVista: {
 			search: &patchPattern{
@@ -69,7 +69,7 @@ var (
 
 var (
 	patternWinAllX86LSAInitProtectedMemoryKey = []byte{0x6A, 0x02, 0x6A, 0x10, 0x68}
-
+	// key = build
 	lsaInitProtectedMemoryKeyReferencesX86 = map[uint32]*patchGeneric{
 		buildWin7: {
 			search: &patchPattern{
