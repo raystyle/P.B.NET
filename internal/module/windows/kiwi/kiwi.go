@@ -135,7 +135,7 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 
 	kiwi.acquireNT6LSAKeys(pHandle)
 
-	patch := lsaSrvX64References[buildWin10v1903]
+	patch := lsaSrvReferencesX64[buildWin10v1903]
 	sessions, err := kiwi.getLogonSessionList(pHandle, patch)
 	if err != nil {
 		return nil, err

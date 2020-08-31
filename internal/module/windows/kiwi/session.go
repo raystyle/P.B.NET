@@ -38,7 +38,7 @@ var (
 		0x33, 0xFF, 0x45, 0x89, 0x37, 0x48, 0x8B, 0xF3, 0x45, 0x85, 0xC9, 0x74,
 	}
 	// key = build
-	lsaSrvX64References = map[uint32]*patchGeneric{
+	lsaSrvReferencesX64 = map[uint32]*patchGeneric{
 		buildWinXP: {
 			search: &patchPattern{
 				length: len(patternWin5xX64LogonSessionList),
@@ -139,7 +139,7 @@ var (
 		0x8B, 0x4D, 0xE8, 0x8B, 0x45, 0xF4, 0x89, 0x75, 0xEC, 0x89, 0x01, 0x85, 0xFF, 0x74,
 	}
 	// key = build
-	lsaSrvX86References = map[uint32]*patchGeneric{
+	lsaSrvReferencesX86 = map[uint32]*patchGeneric{
 		buildWinXP: {
 			search: &patchPattern{
 				length: len(patternWin5xX86LogonSessionList),
