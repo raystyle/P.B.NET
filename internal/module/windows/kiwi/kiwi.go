@@ -15,6 +15,9 @@ import (
 	"project/internal/random"
 )
 
+// reference:
+// https://github.com/gentilkiwi/mimikatz/blob/master/modules/kull_m_patch.h
+
 // patchGeneric contains special data and offset.
 type patchGeneric struct {
 	search  *patchPattern
@@ -32,6 +35,15 @@ type patchOffsets struct {
 	off1 int
 	off2 int
 	off3 int
+}
+
+// reference:
+// https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/globals_sekurlsa.h
+
+type genericPrimaryCredential struct {
+	Username api.LSAUnicodeString
+	Domain   api.LSAUnicodeString
+	Password api.LSAUnicodeString
 }
 
 // Kiwi is a lite mimikatz.

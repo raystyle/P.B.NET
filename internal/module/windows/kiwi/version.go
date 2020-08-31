@@ -4,6 +4,9 @@ import (
 	"project/internal/module/windows/api"
 )
 
+// reference:
+// https://github.com/gentilkiwi/mimikatz/blob/master/inc/globals.h
+
 var (
 	buildWinXP      uint32 = 2600
 	buildWin2003    uint32 = 3790

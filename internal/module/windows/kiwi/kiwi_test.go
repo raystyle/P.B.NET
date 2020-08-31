@@ -5,7 +5,6 @@ package kiwi
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -23,7 +22,7 @@ func TestKiwi(t *testing.T) {
 	err = kiwi.EnableDebugPrivilege()
 	require.NoError(t, err)
 
-	time.Sleep(10 * time.Second)
+	// time.Sleep(10 * time.Second)
 
 	creds, err := kiwi.GetAllCredential()
 	require.NoError(t, err)

