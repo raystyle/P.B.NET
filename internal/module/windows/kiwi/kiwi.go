@@ -31,7 +31,7 @@ type Kiwi struct {
 	// PID of lsass.exe
 	pid uint32
 
-	// about decrypt
+	// about lsa keys
 	iv      []byte
 	key3DES *api.BcryptKey
 	keyAES  *api.BcryptKey
