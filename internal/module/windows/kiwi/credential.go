@@ -15,4 +15,6 @@ type genericPrimaryCredential struct {
 
 // Credential contain all credential about session.
 type Credential struct {
+	Session *LogonSession
+	Wdigest *Wdigest
 }

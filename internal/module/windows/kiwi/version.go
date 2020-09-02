@@ -13,7 +13,7 @@ var (
 	buildWinVista   uint32 = 6000
 	buildWin7       uint32 = 7000
 	buildWin8       uint32 = 9200
-	buildWinBlue    uint32 = 9600
+	buildWin81      uint32 = 9600
 	buildWin10v1507 uint32 = 10240
 	buildWin10v1511 uint32 = 10586
 	buildWin10v1607 uint32 = 14393
@@ -32,7 +32,7 @@ var (
 	buildMinWinVista uint32 = 5000
 	buildMinWin7     uint32 = 7000
 	buildMinWin8     uint32 = 8000
-	buildMinWinBlue  uint32 = 9400
+	buildMinWin81    uint32 = 9400
 	buildMinWin10    uint32 = 9800
 )
 

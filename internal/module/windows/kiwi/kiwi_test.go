@@ -32,6 +32,8 @@ func TestKiwi_GetAllCredential(t *testing.T) {
 	creds, err = kiwi.GetAllCredential()
 	require.NoError(t, err)
 
+	fmt.Println(creds)
+
 	err = kiwi.Close()
 	require.NoError(t, err)
 

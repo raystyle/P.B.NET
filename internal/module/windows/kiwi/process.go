@@ -31,9 +31,10 @@ func (kiwi *Kiwi) isWow64() (bool, error) {
 }
 
 type basicModuleInfo struct {
-	name    string
-	address uintptr
-	size    int
+	name      string
+	address   uintptr
+	size      int
+	timestamp int64
 }
 
 func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModuleInfo, error) {

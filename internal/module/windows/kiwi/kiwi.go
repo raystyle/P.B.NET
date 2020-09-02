@@ -41,10 +41,6 @@ type Kiwi struct {
 	lsaNT6  *lsaNT6
 	wdigest *wdigest
 
-	// kiwi status
-	closed    bool
-	closedRWM sync.RWMutex
-
 	// prevent dead loop
 	context context.Context
 	cancel  context.CancelFunc

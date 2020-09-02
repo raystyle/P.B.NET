@@ -43,7 +43,7 @@ func (wdigest *wdigest) log(lv logger.Level, log ...interface{}) {
 var (
 	patternWin5xX64PasswordSet = []byte{0x48, 0x3B, 0xDA, 0x74}
 	patternWin6xX64PasswordSet = []byte{0x48, 0x3B, 0xD9, 0x74}
-	// key = build version
+
 	wdigestReferencesX64 = []*patchGeneric{
 		{
 			minBuild: buildWinXP,
@@ -81,7 +81,7 @@ var (
 	patternWin63X86PasswordSet      = []byte{0x74, 0x15, 0x8B, 0x0A, 0x39, 0x4E, 0x10}
 	patternWin64X86PasswordSet      = []byte{0x74, 0x15, 0x8B, 0x0F, 0x39, 0x4E, 0x10}
 	patternWin10v1809X86PasswordSet = []byte{0x74, 0x15, 0x8b, 0x17, 0x39, 0x56, 0x10}
-	// key = build version
+
 	wdigestReferencesX86 = []*patchGeneric{
 		{
 			minBuild: buildWinXP,
@@ -111,7 +111,7 @@ var (
 			offsets: &patchOffsets{off0: -6, off1: 32},
 		},
 		{
-			minBuild: buildMinWinBlue,
+			minBuild: buildMinWin81,
 			search: &patchPattern{
 				length: len(patternWin63X86PasswordSet),
 				data:   patternWin63X86PasswordSet,
@@ -218,7 +218,7 @@ func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID
 	// read linked list address by LUID
 	ticker := time.NewTicker(3 * time.Millisecond)
 	defer ticker.Stop()
-	var resultAddr uintptr // TODO for what?
+	var resultAddr uintptr
 	for {
 		// prevent dead loop
 		select {
