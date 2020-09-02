@@ -7,7 +7,6 @@ import (
 )
 
 // reference:
-//
 // https://docs.microsoft.com/en-us/windows/win32/api/bcrypt
 // https://docs.microsoft.com/en-us/windows/win32/seccng/cng-algorithm-identifiers
 
@@ -19,6 +18,7 @@ var (
 	procBCryptSetProperty            = modBcrypt.NewProc("BCryptSetProperty")
 	procBCryptGetProperty            = modBcrypt.NewProc("BCryptGetProperty")
 	procBCryptGenerateSymmetricKey   = modBcrypt.NewProc("BCryptGenerateSymmetricKey")
+	procBCryptDestroyKey             = modBcrypt.NewProc("BCryptDestroyKey")
 	procBCryptDecrypt                = modBcrypt.NewProc("BCryptDecrypt")
 )
 
@@ -100,10 +100,29 @@ func BCryptGetProperty(handle BcryptHandle, prop string, output *byte, size, fla
 // BcryptKey contains provider handle, bcrypt key handle and CNG object.
 type BcryptKey struct {
 	Provider BcryptHandle
-	Handle   uintptr // output
+	Handle   uintptr // output, key handle
 	Object   []byte  // make slice for set size parameter
 	Secret   []byte  // input parameter
 	Flags    uint32  // input parameter
+}
+
+// Destroy is used to destroy bcrypt key and close provider handle.
+func (bk *BcryptKey) Destroy() error {
+	if bk.Handle != 0 {
+		err := BCryptDestroyKey(bk.Handle)
+		if err != nil {
+			return err
+		}
+		bk.Handle = 0
+	}
+	if bk.Provider != 0 {
+		err := BCryptCloseAlgorithmProvider(bk.Provider, bk.Flags)
+		if err != nil {
+			return err
+		}
+		bk.Provider = 0
+	}
+	return nil
 }
 
 // BCryptGenerateSymmetricKey is used to creates a key object for use with a symmetrical
@@ -118,6 +137,16 @@ func BCryptGenerateSymmetricKey(bk *BcryptKey) error {
 	)
 	if ret != 0 {
 		return newError(name, err, "failed to generate symmetric key")
+	}
+	return nil
+}
+
+// BCryptDestroyKey is used to destroys a key. // #nosec
+func BCryptDestroyKey(handle uintptr) error {
+	const name = "BCryptDestroyKey"
+	ret, _, err := procBCryptDestroyKey.Call(handle)
+	if ret != 0 {
+		return newError(name, err, "failed to destroy symmetric key")
 	}
 	return nil
 }
