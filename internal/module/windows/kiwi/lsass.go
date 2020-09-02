@@ -1,6 +1,7 @@
 package kiwi
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -8,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
+	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/module/windows/api"
 )
@@ -27,12 +29,12 @@ func newLsass(ctx *Kiwi) *lsass {
 	return &lsass{ctx: ctx}
 }
 
-func (lsass *lsass) logf(lv logger.Level, log ...interface{}) {
-	lsass.ctx.logger.Println(lv, "kiwi-lsass", log...)
+func (lsass *lsass) logf(lv logger.Level, format string, log ...interface{}) {
+	lsass.ctx.logger.Printf(lv, "kiwi-lsass", format, log...)
 }
 
-func (lsass *lsass) log(lv logger.Level, format string, log ...interface{}) {
-	lsass.ctx.logger.Printf(lv, "kiwi-lsass", format, log...)
+func (lsass *lsass) log(lv logger.Level, log ...interface{}) {
+	lsass.ctx.logger.Println(lv, "kiwi-lsass", log...)
 }
 
 func (lsass *lsass) getPID() (uint32, error) {
@@ -105,6 +107,30 @@ func (lsass *lsass) GetBasicModuleInfo(pHandle windows.Handle, name string) (*ba
 	return nil, errors.Errorf("module %s is not exist in lsass.exe", name)
 }
 
-func (lsass *lsass) close() {
+func (lsass *lsass) ReadSID(pHandle windows.Handle, address uintptr) (string, error) {
+	var n byte
+	_, err := api.ReadProcessMemory(pHandle, address+1, &n, 1)
+	if err != nil {
+		return "", errors.WithMessage(err, "failed to read number about SID")
+	}
+	// version + number + SID identifier authority + value
+	size := uintptr(1 + 1 + 6 + 4*n)
+	buf := make([]byte, size)
+	_, err = api.ReadProcessMemory(pHandle, address, &buf[0], size)
+	if err != nil {
+		return "", errors.WithMessage(err, "failed to read SID")
+	}
+	// identifier authority
+	ia := convert.BEBytesToUint32(buf[4:8])
+	format := "S-%d-%d" + strings.Repeat("-%d", int(n))
+	// format SID
+	v := []interface{}{buf[0], ia}
+	for i := 8; i < len(buf); i += 4 {
+		v = append(v, convert.LEBytesToUint32(buf[i:i+4]))
+	}
+	return fmt.Sprintf(format, v...), nil
+}
+
+func (lsass *lsass) Close() {
 	lsass.ctx = nil
 }

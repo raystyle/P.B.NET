@@ -109,7 +109,7 @@ var (
 )
 
 func (kiwi *Kiwi) searchWdigestCredentialAddress(pHandle windows.Handle) error {
-	wdigest, err := kiwi.getLSASSBasicModuleInfo(pHandle, "wdigest.DLL")
+	wdigest, err := kiwi.lsass.GetBasicModuleInfo(pHandle, "wdigest.DLL")
 	if err != nil {
 		return err
 	}

