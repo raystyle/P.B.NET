@@ -622,7 +622,6 @@ type LogonSession struct {
 	LogonServer string
 	LogonTime   time.Time
 	SID         string
-	Credentials []*Credential
 }
 
 func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*LogonSession, error) {

