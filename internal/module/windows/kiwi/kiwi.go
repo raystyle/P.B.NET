@@ -26,14 +26,6 @@ type Kiwi struct {
 	wow64 uint8        // 0 = not read, 1 = true, 2 = false
 	mu    sync.Mutex   // lock above fields
 
-	// about lsa keys
-	iv      []byte
-	key3DES *api.BcryptKey
-	keyAES  *api.BcryptKey
-
-	wdigestPrimaryOffset int
-	wdigestCredAddr      uintptr
-
 	// version about windows
 	major uint32
 	minor uint32
@@ -42,6 +34,15 @@ type Kiwi struct {
 
 	lsass   *lsass
 	session *session
+	lsaNT5  *lsaNT5
+	lsaNT6  *lsaNT6
+
+	wdigestPrimaryOffset int
+	wdigestCredAddr      uintptr
+
+	// kiwi status
+	closed    bool
+	closedRWM sync.RWMutex
 
 	// prevent dead loop
 	context context.Context
@@ -53,7 +54,7 @@ func NewKiwi(lg logger.Logger) (*Kiwi, error) {
 	switch arch := runtime.GOARCH; arch {
 	case "386", "amd64":
 	default:
-		return nil, errors.Errorf("current architecture %s is not supported", arch)
+		return nil, errors.Errorf("architecture %s is not supported", arch)
 	}
 	kiwi := &Kiwi{
 		logger: lg,
@@ -65,6 +66,15 @@ func NewKiwi(lg logger.Logger) (*Kiwi, error) {
 	}
 	if wow64 {
 		kiwi.logf(logger.Warning, "running kiwi (x86) in the x64 Windows")
+	}
+	major, _, _ := kiwi.getWindowsVersion()
+	switch major {
+	case 5:
+		kiwi.lsaNT5 = newLSA5(kiwi)
+	case 6, 10:
+		kiwi.lsaNT6 = newLSA6(kiwi)
+	default:
+		return nil, errors.Errorf("unsupported major NT version: %d", major)
 	}
 	kiwi.lsass = newLsass(kiwi)
 	kiwi.session = newSession(kiwi)
@@ -124,32 +134,32 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	return nil, nil
 }
 
-// acquireLSAKeys is used to get IV and generate 3DES key and AES key.
+// acquireLSAKeys is used to get keys to decrypt credentials.
 func (kiwi *Kiwi) acquireLSAKeys(pHandle windows.Handle) error {
-	kiwi.mu.Lock()
-	defer kiwi.mu.Unlock()
-	if kiwi.key3DES != nil {
-		return nil
+	if kiwi.lsaNT5 != nil {
+		return kiwi.lsaNT5.acquireKeys(pHandle)
 	}
-	major, _, _ := kiwi.getWindowsVersion()
-	switch major {
-	case 5:
-		return kiwi.acquireNT5LSAKeys(pHandle)
-	case 6, 10:
-		return kiwi.acquireNT6LSAKeys(pHandle)
-	default:
-		return errors.Errorf("unsupported NT major version: %d", major)
+	if kiwi.lsaNT6 != nil {
+		return kiwi.lsaNT6.acquireKeys(pHandle)
 	}
+	panic("kiwi: internal error")
 }
 
-// Close is used to close kiwi module. TODO destroy key
+// Close is used to close kiwi module.
 func (kiwi *Kiwi) Close() {
 	kiwi.cancel()
 	kiwi.mu.Lock()
 	defer kiwi.mu.Unlock()
-	if kiwi.key3DES != nil {
-		kiwi.key3DES.Destroy()
+	if kiwi.closed {
+		return
 	}
 	kiwi.lsass.Close()
 	kiwi.session.Close()
+	if kiwi.lsaNT5 != nil {
+		kiwi.lsaNT5.Close()
+	}
+	if kiwi.lsaNT6 != nil {
+		kiwi.lsaNT6.Close()
+	}
+	kiwi.closed = true
 }

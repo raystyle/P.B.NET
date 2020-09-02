@@ -39,9 +39,10 @@ type basicModuleInfo struct {
 func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModuleInfo, error) {
 	const paddingSize = 256 + 512
 	// read PEB base address
+	infoClass := api.InfoClassProcessBasicInformation
 	var pbi api.ProcessBasicInformation
-	ic := api.InfoClassProcessBasicInformation
-	_, err := api.NTQueryInformationProcess(pHandle, ic, (*byte)(unsafe.Pointer(&pbi)), unsafe.Sizeof(pbi))
+	size := unsafe.Sizeof(pbi)
+	_, err := api.NTQueryInformationProcess(pHandle, infoClass, (*byte)(unsafe.Pointer(&pbi)), size)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +52,7 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 		api.PEB
 		padding [paddingSize]byte
 	}
-	size := unsafe.Sizeof(peb.PEB) + uintptr(256+kiwi.rand.Int(512))
+	size = unsafe.Sizeof(peb.PEB) + uintptr(256+kiwi.rand.Int(512))
 	_, err = api.ReadProcessMemory(pHandle, pbi.PEBBaseAddress, (*byte)(unsafe.Pointer(&peb)), size)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read PEB structure")
@@ -80,7 +81,11 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 	// prevent dead loop
 	ticker := time.NewTicker(3 * time.Millisecond)
 	defer ticker.Stop()
-	for addr := begin; addr < end; addr = uintptr(unsafe.Pointer(entry.InMemoryOrderLinks.Flink)) - offset {
+	address := begin
+	for {
+		if address >= end {
+			break
+		}
 		// prevent dead loop
 		select {
 		case <-ticker.C:
@@ -88,7 +93,7 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 			return nil, kiwi.context.Err()
 		}
 		size = unsafe.Sizeof(entry.LDRDataTableEntry) + uintptr(256+kiwi.rand.Int(512))
-		_, err = api.ReadProcessMemory(pHandle, addr, (*byte)(unsafe.Pointer(&entry)), size)
+		_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&entry)), size)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to read loader data table entry")
 		}
@@ -103,6 +108,7 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 			address: entry.DLLBase,
 			size:    int(entry.SizeOfImage),
 		})
+		address = uintptr(unsafe.Pointer(entry.InMemoryOrderLinks.Flink)) - offset
 	}
 	kiwi.log(logger.Debug, "loaded module count:", len(modules))
 	return modules, nil

