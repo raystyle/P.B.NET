@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"time"
 	"unicode/utf16"
 	"unsafe"
 
@@ -175,8 +176,17 @@ func (kiwi *Kiwi) getWdigestList(pHandle windows.Handle, logonID windows.LUID) (
 	}
 	kiwi.logf(logger.Debug, "wdigest credential data address is 0x%X", addr)
 	// read linked list address by LUID
+	ticker := time.NewTicker(3 * time.Millisecond)
+	defer ticker.Stop()
 	var resultAddr uintptr // TODO for what?
 	for {
+		// prevent dead loop
+		select {
+		case <-ticker.C:
+		case <-kiwi.context.Done():
+			return nil, kiwi.context.Err()
+		}
+
 		if addr == address {
 			break
 		}

@@ -1,6 +1,7 @@
 package kiwi
 
 import (
+	"time"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -72,26 +73,35 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 	end := peb.LoaderData + unsafe.Offsetof(api.PEBLDRData{}.InLoadOrderModuleVector)
 	kiwi.logf(logger.Debug, "read loader data table entry, begin: 0x%X, end: 0x%X", begin, end)
 	var modules []*basicModuleInfo
-	var ldrEntry struct {
+	var entry struct {
 		api.LDRDataTableEntry
 		padding [paddingSize]byte
 	}
-	for addr := begin; addr < end; addr = uintptr(unsafe.Pointer(ldrEntry.InMemoryOrderLinks.Flink)) - offset {
-		size = unsafe.Sizeof(ldrEntry.LDRDataTableEntry) + uintptr(256+kiwi.rand.Int(512))
-		_, err = api.ReadProcessMemory(pHandle, addr, (*byte)(unsafe.Pointer(&ldrEntry)), size)
+	// prevent dead loop
+	ticker := time.NewTicker(3 * time.Millisecond)
+	defer ticker.Stop()
+	for addr := begin; addr < end; addr = uintptr(unsafe.Pointer(entry.InMemoryOrderLinks.Flink)) - offset {
+		// prevent dead loop
+		select {
+		case <-ticker.C:
+		case <-kiwi.context.Done():
+			return nil, kiwi.context.Err()
+		}
+		size = unsafe.Sizeof(entry.LDRDataTableEntry) + uintptr(256+kiwi.rand.Int(512))
+		_, err = api.ReadProcessMemory(pHandle, addr, (*byte)(unsafe.Pointer(&entry)), size)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to read loader data table entry")
 		}
 		// read base dll name
-		name, err := api.ReadLSAUnicodeString(pHandle, &ldrEntry.BaseDLLName)
+		name, err := api.ReadLSAUnicodeString(pHandle, &entry.BaseDLLName)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to read base dll name")
 		}
 		// add module
 		modules = append(modules, &basicModuleInfo{
 			name:    name,
-			address: ldrEntry.DLLBase,
-			size:    int(ldrEntry.SizeOfImage),
+			address: entry.DLLBase,
+			size:    int(entry.SizeOfImage),
 		})
 	}
 	kiwi.log(logger.Debug, "loaded module count:", len(modules))

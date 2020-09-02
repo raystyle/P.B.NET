@@ -44,8 +44,8 @@ type Kiwi struct {
 	session *session
 
 	// prevent dead loop
-	ctx    context.Context
-	cancel context.CancelFunc
+	context context.Context
+	cancel  context.CancelFunc
 }
 
 // NewKiwi is used to create a new kiwi module.
@@ -68,7 +68,7 @@ func NewKiwi(lg logger.Logger) (*Kiwi, error) {
 	}
 	kiwi.lsass = newLsass(kiwi)
 	kiwi.session = newSession(kiwi)
-	kiwi.ctx, kiwi.cancel = context.WithCancel(context.Background())
+	kiwi.context, kiwi.cancel = context.WithCancel(context.Background())
 	return kiwi, nil
 }
 

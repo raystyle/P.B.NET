@@ -125,7 +125,7 @@ func (lsass *lsass) ReadSID(pHandle windows.Handle, address uintptr) (string, er
 	format := "S-%d-%d" + strings.Repeat("-%d", int(n))
 	// format SID
 	v := []interface{}{buf[0], ia}
-	for i := 8; i < len(buf); i += 4 {
+	for i := 1 + 1 + 6; i < len(buf); i += 4 {
 		v = append(v, convert.LEBytesToUint32(buf[i:i+4]))
 	}
 	return fmt.Sprintf(format, v...), nil
