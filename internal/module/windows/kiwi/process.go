@@ -35,13 +35,13 @@ func (kiwi *Kiwi) isWow64() (bool, error) {
 	return wow64, nil
 }
 
-// readMemory will random read memory.
+// readMemory is used to read process memory with random range.
 func (kiwi *Kiwi) readMemory(pHandle windows.Handle, address uintptr, buffer *byte, size uintptr) error {
 	// TODO recovery random
 	// randomFrontSize := uintptr(128 + kiwi.rand.Int(128))
 	// randomBackSize := uintptr(128 + kiwi.rand.Int(128))
-	randomFrontSize := uintptr(128) // don't edit it unless you known what you do!
-	randomBackSize := uintptr(128)  // don't edit it unless you known what you do!
+	randomFrontSize := uintptr(64) // don't edit it unless you known what you do!
+	randomBackSize := uintptr(64)  // don't edit it unless you known what you do!
 	buf := make([]byte, randomFrontSize+size+randomBackSize)
 	_, err := api.ReadProcessMemory(pHandle, address-randomFrontSize, &buf[0], uintptr(len(buf)))
 	if err != nil {
@@ -82,11 +82,10 @@ type basicModuleInfo struct {
 	name      string
 	address   uintptr
 	size      int
-	timestamp int64
+	timestamp uint32
 }
 
 func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModuleInfo, error) {
-	const paddingSize = 256 + 512
 	// read PEB base address
 	infoClass := api.InfoClassProcessBasicInformation
 	var pbi api.ProcessBasicInformation
@@ -150,7 +149,6 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to read time date stamp")
 		}
-		fmt.Println(timestamp)
 		// add module
 		modules = append(modules, &basicModuleInfo{
 			name:      name,
@@ -164,13 +162,15 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 }
 
 type simpleDOSHeader struct {
-	magic    uint16
+	magic    uint16 // MZ
 	_        [60 - 2]byte
 	fileAddr int32
 }
 
-type fileHeader struct {
-	machine              uint16 // PE
+// nolint:structcheck, unused
+type peFileHeader struct {
+	magic                uint32 // PE
+	machine              uint16
 	numberOfSections     uint16
 	timeDateStamp        uint32
 	pointerToSymbolTable uint32
@@ -179,23 +179,34 @@ type fileHeader struct {
 	characteristics      uint16
 }
 
-func (kiwi *Kiwi) getModuleTimestamp(pHandle windows.Handle, address uintptr) (int64, error) {
-	return 0, nil
-
+func (kiwi *Kiwi) getModuleTimestamp(pHandle windows.Handle, address uintptr) (uint32, error) {
 	const (
 		dosHeaderMagic = 0x5A4D
+		peHeaderMagic  = 0x4550
 	)
 	// read dos header
-	var dosHeader simpleDOSHeader
-	size := unsafe.Sizeof(dosHeader)
-	err := kiwi.readMemory(pHandle, address, (*byte)(unsafe.Pointer(&dosHeader)), size)
+	size := unsafe.Sizeof(simpleDOSHeader{}) + uintptr(64+kiwi.rand.Int(64))
+	buf := make([]byte, size)
+	_, err := api.ReadProcessMemory(pHandle, address, &buf[0], size)
 	if err != nil {
 		return 0, errors.WithMessage(err, "failed to read dos header")
 	}
+	dosHeader := *(*simpleDOSHeader)(unsafe.Pointer(&buf[0]))
 	if dosHeader.magic != dosHeaderMagic {
-		return 0, errors.WithMessage(err, "read invalid dos header")
+		return 0, errors.New("read invalid dos header")
 	}
-	return 0, nil
+	// read PE file header
+	address += uintptr(dosHeader.fileAddr)
+	var fileHeader peFileHeader
+	size = unsafe.Sizeof(fileHeader)
+	err = kiwi.readMemory(pHandle, address, (*byte)(unsafe.Pointer(&fileHeader)), size)
+	if err != nil {
+		return 0, errors.WithMessage(err, "failed to read pe file header")
+	}
+	if fileHeader.magic != peHeaderMagic {
+		return 0, errors.New("read invalid pe file header")
+	}
+	return fileHeader.timeDateStamp, nil
 }
 
 func (kiwi *Kiwi) readSID(pHandle windows.Handle, address uintptr) (string, error) {

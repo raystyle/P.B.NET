@@ -24,10 +24,11 @@ var ErrKiwiClosed = fmt.Errorf("kiwi module is closed")
 type Kiwi struct {
 	logger logger.Logger
 
-	rand  *random.Rand // for getVeryBasicModuleInfo
-	debug bool         // is get debug privilege
-	wow64 uint8        // 0 = not read, 1 = true, 2 = false
-	mu    sync.Mutex   // lock above fields
+	rand *random.Rand
+
+	debug bool       // is get debug privilege
+	wow64 uint8      // 0 = not read, 1 = true, 2 = false
+	mu    sync.Mutex // lock above fields
 
 	// version about windows
 	major uint32
