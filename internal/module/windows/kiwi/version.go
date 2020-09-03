@@ -37,8 +37,6 @@ var (
 )
 
 func (kiwi *Kiwi) getWindowsVersion() (major, minor, build uint32) {
-	kiwi.verMu.Lock()
-	defer kiwi.verMu.Unlock()
 	if kiwi.major == 0 {
 		kiwi.major, kiwi.minor, kiwi.build = api.GetVersionNumber()
 	}

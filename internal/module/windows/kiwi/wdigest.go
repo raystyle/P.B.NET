@@ -163,7 +163,7 @@ func (wdigest *wdigest) searchAddresses(pHandle windows.Handle) error {
 	patch := wdigest.ctx.selectGenericPatch(patches)
 	index := bytes.Index(memory, patch.search.data)
 	if index == -1 {
-		return errors.WithMessage(err, "failed to search wdigest primary pattern")
+		return errors.New("failed to search wdigest primary pattern")
 	}
 	address := module.address + uintptr(index+patch.offsets.off0)
 	var offset int32

@@ -26,21 +26,21 @@ type Kiwi struct {
 
 	rand *random.Rand
 
-	debug bool       // is get debug privilege
-	wow64 uint8      // 0 = not read, 1 = true, 2 = false
-	mu    sync.Mutex // lock above fields
+	debug bool  // is get debug privilege
+	wow64 uint8 // 0 = not read, 1 = true, 2 = false
 
 	// version about windows
 	major uint32
 	minor uint32
 	build uint32
-	verMu sync.Mutex
 
 	lsass   *lsass
 	session *session
 	lsaNT5  *lsaNT5
 	lsaNT6  *lsaNT6
 	wdigest *wdigest
+
+	mu sync.Mutex // global
 
 	// prevent dead loop
 	context context.Context
@@ -162,7 +162,10 @@ func (kiwi *Kiwi) Close() error {
 		kiwi.lsaNT5.Close()
 	}
 	if kiwi.lsaNT6 != nil {
-		kiwi.lsaNT6.Close()
+		err := kiwi.lsaNT6.Close()
+		if err != nil {
+			return err
+		}
 	}
 	kiwi.wdigest.Close()
 	return nil

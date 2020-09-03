@@ -254,7 +254,7 @@ func (session *session) searchAddresses(pHandle windows.Handle) error {
 	patch := session.ctx.selectGenericPatch(patches)
 	index := bytes.Index(memory, patch.search.data)
 	if index == -1 {
-		return errors.WithMessage(err, "failed to search logon session list reference pattern")
+		return errors.New("failed to search logon session list reference pattern")
 	}
 	// read logon session list address
 	address := lsasrv.address + uintptr(index+patch.offsets.off0)

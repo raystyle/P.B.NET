@@ -56,6 +56,26 @@ func (kiwi *Kiwi) readMemory(pHandle windows.Handle, address uintptr, buffer *by
 	return nil
 }
 
+// readMemoryEnd is used to read process memory with random range, but without front.
+func (kiwi *Kiwi) readMemoryEnd(pHandle windows.Handle, address uintptr, buffer *byte, size uintptr) error {
+	// TODO recovery random
+	// randomFrontSize := uintptr(128 + kiwi.rand.Int(128))
+	// randomBackSize := uintptr(128 + kiwi.rand.Int(128))
+	randomBackSize := uintptr(64) // don't edit it unless you known what you do!
+	buf := make([]byte, size+randomBackSize)
+	_, err := api.ReadProcessMemory(pHandle, address, &buf[0], uintptr(len(buf)))
+	if err != nil {
+		return err
+	}
+	var dst []byte
+	dstSH := (*reflect.SliceHeader)(unsafe.Pointer(&dst))
+	dstSH.Len = int(size)
+	dstSH.Cap = int(size)
+	dstSH.Data = uintptr(unsafe.Pointer(buffer))
+	copy(dst, buf[:size])
+	return nil
+}
+
 func (kiwi *Kiwi) readLSAUnicodeString(pHandle windows.Handle, lus *api.LSAUnicodeString) (string, error) {
 	if lus.MaximumLength == 0 || lus.Length == 0 {
 		return "", nil
@@ -185,13 +205,12 @@ func (kiwi *Kiwi) getModuleTimestamp(pHandle windows.Handle, address uintptr) (u
 		peHeaderMagic  = 0x4550
 	)
 	// read dos header
-	size := unsafe.Sizeof(simpleDOSHeader{}) + uintptr(64+kiwi.rand.Int(64))
-	buf := make([]byte, size)
-	_, err := api.ReadProcessMemory(pHandle, address, &buf[0], size)
+	var dosHeader simpleDOSHeader
+	size := unsafe.Sizeof(simpleDOSHeader{})
+	err := kiwi.readMemoryEnd(pHandle, address, (*byte)(unsafe.Pointer(&dosHeader)), size)
 	if err != nil {
 		return 0, errors.WithMessage(err, "failed to read dos header")
 	}
-	dosHeader := *(*simpleDOSHeader)(unsafe.Pointer(&buf[0]))
 	if dosHeader.magic != dosHeaderMagic {
 		return 0, errors.New("read invalid dos header")
 	}
@@ -211,14 +230,14 @@ func (kiwi *Kiwi) getModuleTimestamp(pHandle windows.Handle, address uintptr) (u
 
 func (kiwi *Kiwi) readSID(pHandle windows.Handle, address uintptr) (string, error) {
 	var n byte
-	_, err := api.ReadProcessMemory(pHandle, address+1, &n, 1)
+	err := kiwi.readMemory(pHandle, address+1, &n, 1)
 	if err != nil {
 		return "", errors.WithMessage(err, "failed to read number about SID")
 	}
 	// version + number + SID identifier authority + value
 	size := uintptr(1 + 1 + 6 + 4*n)
 	buf := make([]byte, size)
-	_, err = api.ReadProcessMemory(pHandle, address, &buf[0], size)
+	err = kiwi.readMemory(pHandle, address, &buf[0], size)
 	if err != nil {
 		return "", errors.WithMessage(err, "failed to read SID")
 	}
