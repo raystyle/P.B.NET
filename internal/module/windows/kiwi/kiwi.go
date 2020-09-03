@@ -64,7 +64,7 @@ func NewKiwi(lg logger.Logger) (*Kiwi, error) {
 	if wow64 {
 		kiwi.logf(logger.Warning, "running kiwi (x86) in the x64 Windows")
 	}
-	major, _, _ := kiwi.getWindowsVersion()
+	major, minor, build := kiwi.getWindowsVersion()
 	switch major {
 	case 5:
 		kiwi.lsaNT5 = newLSA5(kiwi)
@@ -73,6 +73,7 @@ func NewKiwi(lg logger.Logger) (*Kiwi, error) {
 	default:
 		return nil, errors.Errorf("unsupported major NT version: %d", major)
 	}
+	kiwi.logf(logger.Debug, "major: %d, minor: %d, build: %d", major, minor, build)
 	kiwi.lsass = newLsass(kiwi)
 	kiwi.session = newSession(kiwi)
 	kiwi.wdigest = newWdigest(kiwi)

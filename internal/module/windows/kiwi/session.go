@@ -781,7 +781,7 @@ func (session *session) readSession(pHandle windows.Handle, buf []byte, enum *ls
 	var sid string
 	sidAddr := *(*uintptr)(unsafe.Pointer(&buf[enum.offsetToSID]))
 	if sidAddr != 0x00 {
-		sid, err = session.ctx.lsass.ReadSID(pHandle, sidAddr)
+		sid, err = session.ctx.readSID(pHandle, sidAddr)
 		if err != nil {
 			return nil, err
 		}
