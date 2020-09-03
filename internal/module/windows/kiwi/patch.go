@@ -30,7 +30,8 @@ type patchOffsets struct {
 // reference:
 // https://github.com/gentilkiwi/mimikatz/blob/master/modules/kull_m_patch.c
 
-func selectGenericPatch(patches []*patchGeneric, build uint32) *patchGeneric {
+func (kiwi *Kiwi) selectGenericPatch(patches []*patchGeneric) *patchGeneric {
+	_, _, build := kiwi.getWindowsVersion()
 	for i := len(patches) - 1; i > 0; i-- {
 		if build >= patches[i].minBuild {
 			return patches[i]

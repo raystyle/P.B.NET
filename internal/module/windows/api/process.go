@@ -167,8 +167,8 @@ type PEB struct {
 
 // ListEntry include front and back link.
 type ListEntry struct {
-	Flink *ListEntry
-	Blink *ListEntry
+	FLink uintptr
+	BLink uintptr
 }
 
 // PEBLDRData contains information about the loaded modules for the process.

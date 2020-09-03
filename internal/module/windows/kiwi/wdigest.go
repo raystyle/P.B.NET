@@ -160,9 +160,7 @@ func (wdigest *wdigest) searchAddresses(pHandle windows.Handle) error {
 	case "amd64":
 		patches = wdigestReferencesX64
 	}
-	_, _, build := wdigest.ctx.getWindowsVersion()
-	patch := selectGenericPatch(patches, build)
-
+	patch := wdigest.ctx.selectGenericPatch(patches)
 	index := bytes.Index(memory, patch.search.data)
 	if index == -1 {
 		return errors.WithMessage(err, "failed to search wdigest primary pattern")

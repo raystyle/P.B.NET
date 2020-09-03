@@ -100,7 +100,7 @@ func (lsass *lsass) GetBasicModuleInfo(pHandle windows.Handle, name string) (*ba
 		lsass.log(logger.Info, "load module information successfully")
 	}
 	for _, module := range lsass.modules {
-		if strings.ToLower(module.name) == strings.ToLower(name) {
+		if strings.EqualFold(module.name, name) {
 			return module, nil
 		}
 	}

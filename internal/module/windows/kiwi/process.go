@@ -71,7 +71,7 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 	}
 	// read loader data table entry
 	offset := unsafe.Offsetof(api.LDRDataTableEntry{}.InMemoryOrderLinks)
-	begin := uintptr(unsafe.Pointer(loaderData.InMemoryOrderModuleVector.Flink)) - offset
+	begin := loaderData.InMemoryOrderModuleVector.FLink - offset
 	end := peb.LoaderData + unsafe.Offsetof(api.PEBLDRData{}.InLoadOrderModuleVector)
 	kiwi.logf(logger.Debug, "read loader data table entry, begin: 0x%X, end: 0x%X", begin, end)
 	var modules []*basicModuleInfo
@@ -82,17 +82,14 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 	// prevent dead loop
 	ticker := time.NewTicker(3 * time.Millisecond)
 	defer ticker.Stop()
-	address := begin
-	for {
-		if address >= end {
-			break
-		}
+	for address := begin; address < end; address = entry.InMemoryOrderLinks.FLink - offset {
 		// prevent dead loop
 		select {
 		case <-ticker.C:
 		case <-kiwi.context.Done():
 			return nil, kiwi.context.Err()
 		}
+		// read entry
 		size = unsafe.Sizeof(entry.LDRDataTableEntry) + uintptr(256+kiwi.rand.Int(512))
 		_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&entry)), size)
 		if err != nil {
@@ -109,7 +106,6 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 			address: entry.DLLBase,
 			size:    int(entry.SizeOfImage),
 		})
-		address = uintptr(unsafe.Pointer(entry.InMemoryOrderLinks.Flink)) - offset
 	}
 	kiwi.log(logger.Debug, "loaded module count:", len(modules))
 	return modules, nil
