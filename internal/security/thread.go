@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"runtime"
+	"sync"
 	"time"
 
 	"project/internal/random"
@@ -54,5 +55,38 @@ func schedule(ctx context.Context, ch chan []byte) {
 			return
 		}
 		runtime.Gosched()
+	}
+}
+
+// SwitchThreadAsync like SwitchThread, but will not wait goroutine run finish.
+func SwitchThreadAsync() <-chan struct{} {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	// must > n * (n in schedule)
+	bc := make(chan []byte, 5120)
+	n := 8 + random.NewRand().Int(8)
+	wg := sync.WaitGroup{}
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			schedule(ctx, bc)
+		}()
+	}
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+		cancel()
+	}()
+	return done
+}
+
+// WaitSwitchThreadAsync is used to wait all goroutine done.
+func WaitSwitchThreadAsync(ctx context.Context, d ...<-chan struct{}) {
+	for _, done := range d {
+		select {
+		case <-done:
+		case <-ctx.Done():
+		}
 	}
 }
