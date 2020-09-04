@@ -56,6 +56,10 @@ a = [1, 2]
 a[0] += 1
 println(a, typeOf(a))
 
+a = []uint8{1, 2}
+a[0] += 1
+println(a, typeOf(a))
+
 a = []uint16{1, 2}
 a[0] += 1
 println(a, typeOf(a))
@@ -99,7 +103,7 @@ func TestCoreRange(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("np", func(t *testing.T) {
+	t.Run("no parameter", func(t *testing.T) {
 		const src = `range()`
 		testRun(t, src, true)
 	})
@@ -128,6 +132,47 @@ func TestCoreRange(t *testing.T) {
 		const src = `range(1, 2, 3, 4)`
 		testRun(t, src, true)
 	})
+}
+
+func TestCoreArrayType(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const src = `
+typ = arrayType(*new(int8), 4)
+if typ.String() != "[4]int8" {
+	panic("invalid type")
+}
+`
+	testRun(t, src, false)
+}
+
+func TestCoreArray(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const src = `
+a = array(*new(asd), 4)
+// if typeOf(a) != "[4]int8" {
+// 	panic("invalid type")
+// }
+// b = *a
+
+a[0] = 123
+println(a)
+`
+	testRun(t, src, false)
+}
+
+func TestCoreSlice(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const src = `
+a = 10
+println(typeOf(a))
+`
+	testRun(t, src, false)
 }
 
 func TestCoreTypeOf(t *testing.T) {

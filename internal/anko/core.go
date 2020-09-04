@@ -8,58 +8,50 @@ import (
 	"github.com/mattn/anko/vm"
 )
 
-func defineBasicType(e *env.Env) {
-	_ = e.DefineType("int8", int8(1))
-	_ = e.DefineType("int16", int16(1))
-	_ = e.DefineType("uint8", uint8(1))
-	_ = e.DefineType("uint16", uint16(1))
-	_ = e.DefineType("uintptr", uintptr(1))
+func defineCoreType(e *env.Env) {
+	for _, item := range [...]*struct {
+		symbol string
+		typ    interface{}
+	}{
+		{"int8", int8(1)},
+		{"int16", int16(1)},
+		{"uint8", uint8(1)},
+		{"uint16", uint16(1)},
+		{"uintptr", uintptr(1)},
+	} {
+		_ = e.DefineType(item.symbol, item.typ)
+	}
 }
 
 // defineCoreFunc is used to add core function.
 // core.Import() with leaks, so we implement it self.
 func defineCoreFunc(e *env.Env) {
-	_ = e.Define("keys", coreKeys)
-	_ = e.Define("range", coreRange)
+	for _, item := range [...]*struct {
+		symbol string
+		f      interface{}
+	}{
+		{"print", fmt.Print},
+		{"println", fmt.Println},
+		{"printf", fmt.Printf},
 
-	_ = e.Define("print", fmt.Print)
-	_ = e.Define("println", fmt.Println)
-	_ = e.Define("printf", fmt.Printf)
+		{"keys", coreKeys},
+		{"range", coreRange},
+		{"arrayType", coreArrayType},
+		{"array", coreArray},
+		{"slice", coreSlice},
 
-	_ = e.Define("typeOf", func(v interface{}) string {
-		return reflect.TypeOf(v).String()
-	})
+		{"panic", corePanic},
 
-	// "ArrayOf":          reflect.ValueOf(arrayOf),
-	// "ArrayToSlice":     reflect.ValueOf(arrayToSlice),
-	// "ByteArrayToSlice": reflect.ValueOf(byteArrayToSlice),
-
-	_ = e.Define("kindOf", func(v interface{}) string {
-		typeOf := reflect.TypeOf(v)
-		if typeOf == nil {
-			return "nil"
-		}
-		return typeOf.Kind().String()
-	})
-
-	// code in eval can't  access parent vm
-	childEnv := e.DeepCopy()
+		{"typeOf", coreTypeOf},
+		{"kindOf", coreKindOf},
+	} {
+		_ = e.Define(item.symbol, item.f)
+	}
+	// code in eval can't access parent env
+	newEnv := e.DeepCopy()
 	_ = e.Define("eval", func(src string) interface{} {
-		return coreEval(childEnv, src)
+		return coreEval(newEnv, src)
 	})
-}
-
-// arrayOf will not create a point about array.
-func arrayOf(typ interface{}, size int) reflect.Type {
-	return reflect.ArrayOf(size, reflect.TypeOf(typ))
-}
-
-func arrayToSlice(array reflect.Value) reflect.Value {
-	return array.Slice(0, array.Len())
-}
-
-func byteArrayToSlice(array reflect.Value) []byte {
-	return arrayToSlice(array).Bytes()
 }
 
 func coreKeys(v interface{}) []interface{} {
@@ -102,11 +94,44 @@ func coreRange(args ...int64) []int64 {
 	return arr
 }
 
+// coreArrayType is used to create a array type like [8]byte.
+func coreArrayType(typ interface{}, size int) reflect.Type {
+	return reflect.ArrayOf(size, reflect.TypeOf(typ))
+}
+
+// coreArray is used to create a array like [8]byte{}.
+func coreArray(typ interface{}, size int) reflect.Value {
+	return reflect.New(coreArrayType(typ, size))
+	// return reflect.ValueOf(ptr).Elem().Interface()
+}
+
+// coreSlice is used to convert array to slice like [8]byte[:]
+func coreSlice(array reflect.Value) interface{} {
+	return array.Slice(0, array.Len()).Interface()
+}
+
+func corePanic(v interface{}) {
+	panic(v)
+}
+
+func coreTypeOf(v interface{}) string {
+	return reflect.TypeOf(v).String()
+}
+
+func coreKindOf(v interface{}) string {
+	typeOf := reflect.TypeOf(v)
+	if typeOf == nil {
+		return "nil kind"
+	}
+	return typeOf.Kind().String()
+}
+
 func coreEval(env *env.Env, src string) interface{} {
 	stmt, err := ParseSrc(src)
 	if err != nil {
 		panic(err)
 	}
+	// must copy env for prevent two env confuse
 	val, err := vm.Run(env.DeepCopy(), nil, stmt)
 	if err != nil {
 		panic(err)

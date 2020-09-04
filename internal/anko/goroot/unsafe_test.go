@@ -124,16 +124,13 @@ unsafe = import("unsafe")
 reflect = import("reflect")
 
 val = 256
-typ = unsafe.ArrayOf(*new(byte), 8) // [8]byte
+typ = arrayType(*new(byte), 8) // [8]byte
 p = unsafe.ConvertWithType(&val, typ)
 p = *p
 
 println(reflect.TypeOf(p))
 
 
-asd = new([]byte)
-asd = p
-println(reflect.TypeOf(asd))
 
 // bs = unsafe.ByteArrayToSlice(p)
 // println(bs[:4], bs[4:])
