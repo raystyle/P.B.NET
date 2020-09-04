@@ -3,7 +3,6 @@ package kiwi
 import (
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
@@ -16,11 +15,8 @@ import (
 type lsass struct {
 	ctx *Kiwi
 
-	pid   uint32
-	pidMu sync.Mutex
-
-	modules    []*basicModuleInfo
-	modulesRWM sync.RWMutex
+	pid     uint32
+	modules []*basicModuleInfo
 }
 
 func newLsass(ctx *Kiwi) *lsass {
@@ -36,8 +32,6 @@ func (lsass *lsass) log(lv logger.Level, log ...interface{}) {
 }
 
 func (lsass *lsass) getPID() (uint32, error) {
-	lsass.pidMu.Lock()
-	defer lsass.pidMu.Unlock()
 	if lsass.pid != 0 {
 		return lsass.pid, nil
 	}
@@ -87,8 +81,6 @@ func (lsass *lsass) OpenProcess() (windows.Handle, error) {
 }
 
 func (lsass *lsass) GetBasicModuleInfo(pHandle windows.Handle, name string) (*basicModuleInfo, error) {
-	lsass.modulesRWM.Lock()
-	defer lsass.modulesRWM.Unlock()
 	if len(lsass.modules) == 0 {
 		modules, err := lsass.ctx.getVeryBasicModuleInfo(pHandle)
 		if err != nil {

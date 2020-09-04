@@ -14,11 +14,10 @@ import (
 	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/module/windows/api"
+	"project/internal/security"
 )
 
 func (kiwi *Kiwi) isWow64() (bool, error) {
-	kiwi.mu.Lock()
-	defer kiwi.mu.Unlock()
 	if kiwi.wow64 != 0 {
 		return kiwi.wow64 == 1, nil
 	}
@@ -107,6 +106,8 @@ type basicModuleInfo struct {
 
 func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModuleInfo, error) {
 	// read PEB base address
+	donePEB := security.SwitchThreadAsync()
+	defer kiwi.waitSwitchThreadAsync(donePEB)
 	infoClass := api.InfoClassProcessBasicInformation
 	var pbi api.ProcessBasicInformation
 	size := unsafe.Sizeof(pbi)
@@ -116,6 +117,8 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 	}
 	kiwi.logf(logger.Debug, "PEB base address is 0x%X", pbi.PEBBaseAddress)
 	// read and calculate PEB.LoaderData address
+	doneLoader := security.SwitchThreadAsync()
+	defer kiwi.waitSwitchThreadAsync(doneLoader)
 	randomOffset := uintptr(4 + kiwi.rand.Int(4))
 	size = uintptr(256 + kiwi.rand.Int(512))
 	buf := make([]byte, size)
@@ -135,6 +138,8 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 		return nil, errors.WithMessage(err, "failed to read PEB loader data")
 	}
 	// read loader data table entry
+	entryLoader := security.SwitchThreadAsync()
+	defer kiwi.waitSwitchThreadAsync(entryLoader)
 	offset := unsafe.Offsetof(api.LDRDataTableEntry{}.InMemoryOrderLinks)
 	begin := loaderData.InMemoryOrderModuleVector.FLink - offset
 	end := loaderDataAddress + unsafe.Offsetof(api.PEBLDRData{}.InLoadOrderModuleVector)

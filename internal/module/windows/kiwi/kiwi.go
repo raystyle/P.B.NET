@@ -15,6 +15,7 @@ import (
 	"project/internal/module/windows/api"
 	"project/internal/module/windows/privilege"
 	"project/internal/random"
+	"project/internal/security"
 )
 
 // ErrKiwiClosed is an error about closed.
@@ -39,6 +40,8 @@ type Kiwi struct {
 	lsaNT5  *lsaNT5
 	lsaNT6  *lsaNT6
 	wdigest *wdigest
+
+	closed bool
 
 	mu sync.Mutex // global
 
@@ -90,6 +93,10 @@ func (kiwi *Kiwi) log(lv logger.Level, log ...interface{}) {
 	kiwi.logger.Println(lv, "kiwi", log...)
 }
 
+func (kiwi *Kiwi) waitSwitchThreadAsync(d ...<-chan struct{}) {
+	security.WaitSwitchThreadAsync(kiwi.context, d...)
+}
+
 // EnableDebugPrivilege is used to enable debug privilege.
 func (kiwi *Kiwi) EnableDebugPrivilege() error {
 	kiwi.mu.Lock()
@@ -107,6 +114,11 @@ func (kiwi *Kiwi) EnableDebugPrivilege() error {
 
 // GetAllCredential is used to get all credentials from lsass.exe memory.
 func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
+	kiwi.mu.Lock()
+	defer kiwi.mu.Unlock()
+	if kiwi.closed {
+		return nil, ErrKiwiClosed
+	}
 	pHandle, err := kiwi.lsass.OpenProcess()
 	if err != nil {
 		return nil, err
@@ -156,6 +168,11 @@ func (kiwi *Kiwi) acquireLSAKeys(pHandle windows.Handle) error {
 // Close is used to close kiwi module.
 func (kiwi *Kiwi) Close() error {
 	kiwi.cancel()
+	kiwi.mu.Lock()
+	defer kiwi.mu.Unlock()
+	if kiwi.closed {
+		return nil
+	}
 	kiwi.lsass.Close()
 	kiwi.session.Close()
 	if kiwi.lsaNT5 != nil {
@@ -168,5 +185,6 @@ func (kiwi *Kiwi) Close() error {
 		}
 	}
 	kiwi.wdigest.Close()
+	kiwi.closed = true
 	return nil
 }

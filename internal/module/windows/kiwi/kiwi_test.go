@@ -5,6 +5,7 @@ package kiwi
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -22,8 +23,6 @@ func TestKiwi_GetAllCredential(t *testing.T) {
 	err = kiwi.EnableDebugPrivilege()
 	require.NoError(t, err)
 
-	// time.Sleep(10 * time.Second)
-
 	creds, err := kiwi.GetAllCredential()
 	require.NoError(t, err)
 
@@ -38,4 +37,10 @@ func TestKiwi_GetAllCredential(t *testing.T) {
 	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, kiwi)
+}
+
+func TestKiwi_GetAllCredentialWait(t *testing.T) {
+	time.Sleep(10 * time.Second)
+
+	TestKiwi_GetAllCredential(t)
 }
