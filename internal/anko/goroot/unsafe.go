@@ -2,6 +2,7 @@ package goroot
 
 import (
 	"reflect"
+	"runtime"
 	"unsafe"
 
 	"github.com/mattn/anko/env"
@@ -18,13 +19,10 @@ func initUnsafe() {
 		// define variables
 
 		// define functions
-		"Convert":          reflect.ValueOf(convert),
-		"ConvertWithType":  reflect.ValueOf(convertWithType),
-		"ArrayOf":          reflect.ValueOf(arrayOf),
-		"ArrayToSlice":     reflect.ValueOf(arrayToSlice),
-		"ByteArrayToSlice": reflect.ValueOf(byteArrayToSlice),
-		"Sizeof":           reflect.ValueOf(sizeOf),
-		"Alignof":          reflect.ValueOf(alignOf),
+		"Convert":         reflect.ValueOf(convert),
+		"ConvertWithType": reflect.ValueOf(convertWithType),
+		"Sizeof":          reflect.ValueOf(sizeOf),
+		"Alignof":         reflect.ValueOf(alignOf),
 	}
 	var (
 		pointer unsafe.Pointer
@@ -45,27 +43,16 @@ func initUnsafe() {
 //
 // newVal must the same type with typ
 // see more information in TestUnsafe()
-func convert(point *interface{}, typ interface{}) reflect.Value {
-	return convertWithType(point, reflect.TypeOf(typ))
+func convert(pointer *interface{}, typ interface{}) interface{} {
+	return convertWithType(pointer, reflect.TypeOf(typ))
 }
 
 //go:nocheckptr
-func convertWithType(point *interface{}, typ reflect.Type) reflect.Value {
-	ptr := reflect.ValueOf(point).Elem().InterfaceData()[1]
-	return reflect.NewAt(typ, unsafe.Pointer(ptr)).Elem() // #nosec
-}
-
-// arrayOf will not create a point about array.
-func arrayOf(typ interface{}, size int) reflect.Type {
-	return reflect.ArrayOf(size, reflect.TypeOf(typ))
-}
-
-func arrayToSlice(array reflect.Value) reflect.Value {
-	return array.Slice(0, array.Len())
-}
-
-func byteArrayToSlice(array reflect.Value) []byte {
-	return arrayToSlice(array).Bytes()
+func convertWithType(pointer *interface{}, typ reflect.Type) interface{} {
+	address := reflect.ValueOf(pointer).Elem().InterfaceData()[1]
+	ptr := reflect.NewAt(typ, unsafe.Pointer(address)).Interface() // #nosec
+	runtime.KeepAlive(pointer)
+	return ptr
 }
 
 func sizeOf(i interface{}) uintptr {

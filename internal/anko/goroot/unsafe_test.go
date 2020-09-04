@@ -12,6 +12,21 @@ import (
 	"project/internal/testsuite"
 )
 
+func TestUnsafeAboutStruct(t *testing.T) {
+	type s struct {
+		A int32
+		B int32
+	}
+	val := int64(256)
+
+	aa := (*s)(unsafe.Pointer(&val))
+	fmt.Println(aa.A)
+	fmt.Println(aa.B)
+
+	n := *(*[8]byte)(unsafe.Pointer(&val))
+	fmt.Println(n)
+}
+
 func testRun(t *testing.T, s string, fail bool, expected interface{}) {
 	src := strings.Repeat(s, 1)
 	stmt, err := anko.ParseSrc(src)
@@ -31,21 +46,6 @@ func testRun(t *testing.T, s string, fail bool, expected interface{}) {
 
 	testsuite.IsDestroyed(t, env)
 	testsuite.IsDestroyed(t, stmt)
-}
-
-func TestUnsafeAboutStruct(t *testing.T) {
-	type s struct {
-		A int32
-		B int32
-	}
-	val := int64(256)
-
-	aa := (*s)(unsafe.Pointer(&val))
-	fmt.Println(aa.A)
-	fmt.Println(aa.B)
-
-	n := *(*[8]byte)(unsafe.Pointer(&val))
-	fmt.Println(n)
 }
 
 func TestUnsafe(t *testing.T) {
@@ -78,27 +78,33 @@ return true
 		// like these golang code
 		// p := (*testStruct)(unsafe.Pointer(&Int64))
 		const src = `
+// 16777217 = []byte{0x01, 0x00, 0x00, 0x01}
+// 72057598349672449 = []byte{0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01}
+
 unsafe = import("unsafe")
 reflect = import("reflect")
 
 val = 256
-ss = make(struct {
+println(&val)
+
+dstType = make(struct {
 	A int32,
 	B int32
 })
-p = unsafe.Convert(&val, ss)
+p = unsafe.Convert(&val, dstType)
 
-pv = p.Interface()
-println(pv.A, pv.B)
+println(p.A, p.B)
 
 // byte order
-if !(pv.A == 256 || pv.B == 256) {
+if !(p.A == 256 || p.B == 256) {
 	return val
 }
 
 // cover memory
-p.Set(reflect.ValueOf(ss))
-if val != 0 {
+p.A = 16777217
+p.B = 16777217
+
+if val != 72057598349672449 {
 	return val
 }
 
@@ -112,25 +118,33 @@ return true
 		// like these golang code
 		// p := (*[8]byte)(unsafe.Pointer(&Int64))
 		const src = `
+// 72057594037927937 is []byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}
+
 unsafe = import("unsafe")
 reflect = import("reflect")
 
 val = 256
-typ = unsafe.ArrayOf(*new(byte), 8)
+typ = unsafe.ArrayOf(*new(byte), 8) // [8]byte
 p = unsafe.ConvertWithType(&val, typ)
+p = *p
 
-pv = p.Interface()
-println(pv[1])
-// can't call pv[1] = 1
+println(reflect.TypeOf(p))
 
-bs = unsafe.ByteArrayToSlice(p)
-println(bs[:4], bs[4:])
+
+asd = new([]byte)
+asd = p
+println(reflect.TypeOf(asd))
+
+// bs = unsafe.ByteArrayToSlice(p)
+// println(bs[:4], bs[4:])
 
 // cover memory
 for i = 0; i < 8; i++ {
-	bs[i] = 0
+	p[i] = 0
 }
-if val != 0 {
+p[0] = 1
+p[7] = 1
+if val != 72057594037927937 {
 	return val
 }
 
