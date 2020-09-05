@@ -39,6 +39,7 @@ func defineCoreFunc(e *env.Env) {
 	}{
 		{"keys", coreKeys},
 		{"range", coreRange},
+		{"instance", coreInstance},
 		{"arrayType", coreArrayType},
 		{"array", coreArray},
 		{"slice", coreSlice},
@@ -63,9 +64,11 @@ func coreKeys(v interface{}) []interface{} {
 }
 
 func coreRange(args ...int64) []int64 {
-	var start, stop int64
-	var step int64 = 1
-
+	var (
+		start int64
+		stop  int64
+	)
+	step := int64(1)
 	switch len(args) {
 	case 0:
 		panic("range expected at least 1 argument, got 0")
@@ -84,12 +87,22 @@ func coreRange(args ...int64) []int64 {
 	default:
 		panic(fmt.Sprintf("range expected at most 3 arguments, got %d", len(args)))
 	}
-
-	var arr []int64
+	var val []int64
 	for i := start; (step > 0 && i < stop) || (step < 0 && i > stop); i += step {
-		arr = append(arr, i)
+		val = append(val, i)
 	}
-	return arr
+	return val
+}
+
+// coreInstance is used to new object with type.
+func coreInstance(typ interface{}) interface{} {
+	var reflectType reflect.Type
+	var ok bool
+	reflectType, ok = typ.(reflect.Type)
+	if !ok {
+		reflectType = reflect.TypeOf(typ)
+	}
+	return reflect.New(reflectType).Interface()
 }
 
 // coreArrayType is used to create a array type like [8]byte.
@@ -99,10 +112,7 @@ func coreArrayType(typ interface{}, size int) reflect.Type {
 
 // coreArray is used to create a array like [8]byte{}.
 func coreArray(typ interface{}, size int) interface{} {
-	t := coreArrayType(typ, size)
-
-	return reflect.New(t).Elem().Interface()
-	// return reflect.ValueOf(ptr).Elem().Interface()
+	return coreInstance(coreArrayType(typ, size))
 }
 
 // coreSlice is used to convert array to slice like [8]byte[:]

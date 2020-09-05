@@ -124,7 +124,7 @@ unsafe = import("unsafe")
 reflect = import("reflect")
 
 val = 256
-typ = arrayType(*new(byte), 8) // [8]byte
+typ = arrayType(make(byte), 8) // [8]byte
 p = unsafe.ConvertWithType(&val, typ)
 p = *p
 

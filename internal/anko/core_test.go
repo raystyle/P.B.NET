@@ -3,10 +3,10 @@ package anko
 import (
 	"testing"
 
-	"project/internal/testsuite"
+	"github.com/mattn/anko/env"
 
-	_ "project/internal/anko/goroot"
-	_ "project/internal/anko/thirdparty"
+	"project/internal/patch/monkey"
+	"project/internal/testsuite"
 )
 
 func TestCoreType(t *testing.T) {
@@ -117,61 +117,23 @@ func TestCoreRange(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("no parameter", func(t *testing.T) {
-		const src = `
-
-fmt = import("fmt")
- msgpack = import("github.com/vmihailenco/msgpack/v5")
-
- data,_ = msgpack.Marshal("acg")
-fmt.Println(data)
-println(data)
-
-var asd = "asd"
-
- // msgpack = nil
-
- io = import("io")
- println(io.ErrUnexpectedEOF)
-
-  acg = "acg"
-  bb = func(){
-
-   println(acg)
-
-  acg = "acg2"
-  }
-  bb()
-
- println(acg)
-
-  for i in []byte{1,2,3} {
-     println(i)
-
-  }
-
-
-
-
-
-return true
-
-`
-		testRun(t, src, false, true)
+		const src = `range()`
+		testRun(t, src, true, nil)
 	})
 
 	t.Run("1p", func(t *testing.T) {
 		const src = `range(3)`
-		testRun(t, src, false, nil)
+		testRun(t, src, false, []int64{0, 1, 2})
 	})
 
 	t.Run("2p", func(t *testing.T) {
 		const src = `range(1, 3)`
-		testRun(t, src, false, nil)
+		testRun(t, src, false, []int64{1, 2})
 	})
 
 	t.Run("3p", func(t *testing.T) {
 		const src = `range(1, 10, 2)`
-		testRun(t, src, false, nil)
+		testRun(t, src, false, []int64{1, 3, 5, 7, 9})
 	})
 
 	t.Run("3p-zero step", func(t *testing.T) {
@@ -185,12 +147,43 @@ return true
 	})
 }
 
+func TestCoreInstance(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const src = `
+sa = make(type sa, make(struct{
+ A string,
+ B string
+}))
+
+i1 = instance(sa)
+i1.A = "acg"
+
+i2 = instance(make(sa))
+i2.A = "abc"
+i2.B = "bbb"
+
+if i1.A != "acg" {
+	return "invalid i1.A"
+}
+if i2.A != "abc" {
+	return "invalid i2.A"
+}
+if i2.B != "bbb" {
+	return "invalid i2.B"
+}
+return true
+`
+	testRun(t, src, false, true)
+}
+
 func TestCoreArrayType(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	const src = `
-typ = arrayType(*new(int8), 4)
+typ = arrayType(make(int8), 4)
 if typ.String() != "[4]int8" {
 	return "invalid type"
 }
@@ -204,19 +197,39 @@ func TestCoreArray(t *testing.T) {
 	defer gm.Compare()
 
 	const src = `
-a = array(*new(int8), 4)
-// if typeOf(a) != "[4]int8" {
-// 	panic("invalid type")
-// }
-// b = *a
+a = array(make(int8), 4)
+println(typeOf(a))
 
-b = a.Interface()
 
-println(a[0])
-a[0] = 123
-println(a)
+if typeOf(a) != "*[4]int8" {
+
+	return "not *[4]int8 type"
+}
+
+
+t1 = make(struct{
+A string
+})
+
+i1 = instance(t1)
+i1.A = "acg"
+
+i2 = instance(t1)
+i2.A = "abc"
+
+
+
+println(*i1)
+println(*i2)
+
+a = *a
+a[1] = 123
+if a != []int8{0, 123, 0, 0} {
+	return "invalid array value"
+}
+return true
 `
-	testRun(t, src, false, nil)
+	testRun(t, src, false, true)
 }
 
 func TestCoreSlice(t *testing.T) {
@@ -224,12 +237,9 @@ func TestCoreSlice(t *testing.T) {
 	defer gm.Compare()
 
 	const src = `
-
-
-
-
+return true
 `
-	testRun(t, src, false, nil)
+	testRun(t, src, false, true)
 }
 
 func TestCoreTypeOf(t *testing.T) {
@@ -271,4 +281,34 @@ return true
 `
 		testRun(t, src, false, true)
 	})
+}
+
+func TestDefineCoreType(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	e := env.NewEnv()
+	patch := func(interface{}, string, interface{}) error {
+		return monkey.Error
+	}
+	pg := monkey.PatchInstanceMethod(e, "DefineType", patch)
+	defer pg.Unpatch()
+
+	defer testsuite.DeferForPanic(t)
+	defineCoreType(e)
+}
+
+func TestDefineCoreFunc(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	e := env.NewEnv()
+	patch := func(interface{}, string, interface{}) error {
+		return monkey.Error
+	}
+	pg := monkey.PatchInstanceMethod(e, "Define", patch)
+	defer pg.Unpatch()
+
+	defer testsuite.DeferForPanic(t)
+	defineCoreFunc(e)
 }

@@ -11,10 +11,37 @@ func TestEnv_Global(t *testing.T) {
 	defer gm.Compare()
 
 	const src = `
-val = make(struct{
-A string,
-B string
-})
+fmt = import("fmt")
+ msgpack = import("github.com/vmihailenco/msgpack/v5")
+
+ data,_ = msgpack.Marshal("acg")
+fmt.Println(data)
+println(data)
+
+var asd = "asd"
+
+ // msgpack = nil
+
+ io = import("io")
+ println(io.ErrUnexpectedEOF)
+
+  acg = "acg"
+  bb = func(){
+
+   println(acg)
+
+  acg = "acg2"
+  }
+  bb()
+
+ println(acg)
+
+  for i in []byte{1,2,3} {
+     println(i)
+
+  }
+
+
 
 
 
