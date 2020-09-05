@@ -187,6 +187,12 @@ typ = arrayType(make(int8), 4)
 if typ.String() != "[4]int8" {
 	return "invalid type"
 }
+
+// i1 = make(typ) undefined
+// i1 = new(typ) undefined
+i1 = instance(typ)
+println(i1)
+
 return true
 `
 	testRun(t, src, false, true)
@@ -198,34 +204,24 @@ func TestCoreArray(t *testing.T) {
 
 	const src = `
 a = array(make(int8), 4)
-println(typeOf(a))
-
-
 if typeOf(a) != "*[4]int8" {
-
 	return "not *[4]int8 type"
 }
-
-
-t1 = make(struct{
-A string
-})
-
-i1 = instance(t1)
-i1.A = "acg"
-
-i2 = instance(t1)
-i2.A = "abc"
-
-
-
-println(*i1)
-println(*i2)
-
 a = *a
+
+p1 = &a
+printf("%p", p1)
+
 a[1] = 123
-if a != []int8{0, 123, 0, 0} {
+if a[1] != 123 {
 	return "invalid array value"
+}
+
+p2 = &a
+printf("%p", p2)
+
+if p1 != p2 {
+	return "address changed"
 }
 return true
 `
@@ -237,6 +233,11 @@ func TestCoreSlice(t *testing.T) {
 	defer gm.Compare()
 
 	const src = `
+s = slice(array(make(int8), 4))
+if typeOf(s) != "[]int8" {
+	return "not []int8 type"
+}
+println(s)
 return true
 `
 	testRun(t, src, false, true)

@@ -95,6 +95,7 @@ func coreRange(args ...int64) []int64 {
 }
 
 // coreInstance is used to new object with type.
+// if is global type, use new or make. if type is created in script, use this.
 func coreInstance(typ interface{}) interface{} {
 	var reflectType reflect.Type
 	var ok bool
@@ -116,7 +117,9 @@ func coreArray(typ interface{}, size int) interface{} {
 }
 
 // coreSlice is used to convert array to slice like [8]byte[:]
-func coreSlice(array reflect.Value) interface{} {
+// must input address about array.
+func coreSlice(ptr interface{}) interface{} {
+	array := reflect.ValueOf(ptr).Elem()
 	return array.Slice(0, array.Len()).Interface()
 }
 
