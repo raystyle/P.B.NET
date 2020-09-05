@@ -5,7 +5,6 @@ import (
 	"reflect"
 
 	"github.com/mattn/anko/env"
-	"github.com/mattn/anko/vm"
 )
 
 func defineCoreType(e *env.Env) {
@@ -19,7 +18,10 @@ func defineCoreType(e *env.Env) {
 		{"uint16", uint16(1)},
 		{"uintptr", uintptr(1)},
 	} {
-		_ = e.DefineType(item.symbol, item.typ)
+		err := e.DefineType(item.symbol, item.typ)
+		if err != nil {
+			panic(fmt.Sprintf("anko: internal error: %s", err))
+		}
 	}
 }
 
@@ -28,12 +30,8 @@ func defineCoreType(e *env.Env) {
 func defineCoreFunc(e *env.Env) {
 	for _, item := range [...]*struct {
 		symbol string
-		f      interface{}
+		fn     interface{}
 	}{
-		{"print", fmt.Print},
-		{"println", fmt.Println},
-		{"printf", fmt.Printf},
-
 		{"keys", coreKeys},
 		{"range", coreRange},
 		{"arrayType", coreArrayType},
@@ -43,13 +41,11 @@ func defineCoreFunc(e *env.Env) {
 		{"typeOf", coreTypeOf},
 		{"kindOf", coreKindOf},
 	} {
-		_ = e.Define(item.symbol, item.f)
+		err := e.Define(item.symbol, item.fn)
+		if err != nil {
+			panic(fmt.Sprintf("anko: internal error: %s", err))
+		}
 	}
-	// code in eval can't access parent env
-	newEnv := e.DeepCopy()
-	_ = e.Define("eval", func(src string) interface{} {
-		return coreEval(newEnv, src)
-	})
 }
 
 func coreKeys(v interface{}) []interface{} {
@@ -118,17 +114,4 @@ func coreKindOf(v interface{}) string {
 		return "nil kind"
 	}
 	return typeOf.Kind().String()
-}
-
-func coreEval(env *env.Env, src string) interface{} {
-	stmt, err := ParseSrc(src)
-	if err != nil {
-		panic(err)
-	}
-	// must copy env for prevent two env confuse
-	val, err := vm.Run(env.DeepCopy(), nil, stmt)
-	if err != nil {
-		panic(err)
-	}
-	return val
 }

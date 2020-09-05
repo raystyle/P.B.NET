@@ -175,6 +175,8 @@ func testRun(t *testing.T, s string, fail bool, expected interface{}) {
 	}
 	require.Equal(t, expected, val)
 
+	env.Close()
+
 	testsuite.IsDestroyed(t, env)
 	testsuite.IsDestroyed(t, stmt)
 }

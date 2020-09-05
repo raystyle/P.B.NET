@@ -217,28 +217,3 @@ println(kindOf(a))
 		testRun(t, src, false, nil)
 	})
 }
-
-func TestCoreEval(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	t.Run("ok", func(t *testing.T) {
-		const src = `eval("println('in eval')")`
-		testRun(t, src, false, nil)
-	})
-
-	t.Run("invalid source", func(t *testing.T) {
-		const src = `eval("a -- a")`
-		testRun(t, src, true, nil)
-	})
-
-	t.Run("eval with error", func(t *testing.T) {
-		const src = "eval(`" + `
-a = 10
-println(a)
-
-println(b)
-` + "`)"
-		testRun(t, src, true, nil)
-	})
-}

@@ -3,9 +3,9 @@ package anko
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/mattn/anko/ast"
-	"github.com/mattn/anko/core"
 	"github.com/mattn/anko/env"
 	"github.com/mattn/anko/parser"
 	"github.com/mattn/anko/vm"
@@ -20,13 +20,8 @@ var (
 )
 
 // NewEnv is used to create an new global scope with packages.
-func NewEnv() *env.Env {
-	e := env.NewEnv()
-	core.ImportToX(e)
-	defineConvert(e)
-	defineCoreType(e)
-	defineCoreFunc(e)
-	return e
+func NewEnv(output io.Writer) *Env {
+	return newEnv(output)
 }
 
 // ParseSrc provides way to parse the code from source.
@@ -42,13 +37,13 @@ func ParseSrc(src string) (ast.Stmt, error) {
 }
 
 // Run executes statement in the specified environment.
-func Run(env *env.Env, stmt ast.Stmt) (interface{}, error) {
+func Run(env *Env, stmt ast.Stmt) (interface{}, error) {
 	return RunContext(context.Background(), env, stmt)
 }
 
 // RunContext executes statement in the specified environment with context.
-func RunContext(ctx context.Context, env *env.Env, stmt ast.Stmt) (interface{}, error) {
-	val, err := vm.RunContext(ctx, env, nil, stmt)
+func RunContext(ctx context.Context, env *Env, stmt ast.Stmt) (interface{}, error) {
+	val, err := vm.RunContext(ctx, env.Env, nil, stmt)
 	if err != nil {
 		if e, ok := err.(*vm.Error); ok {
 			const format = "run with %s at line:%d column:%d"
