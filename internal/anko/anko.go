@@ -21,7 +21,9 @@ var (
 
 // NewEnv is used to create an new global scope with packages.
 func NewEnv() *Env {
-	return newEnv(os.Stdout)
+	e := newEnv(env.NewEnv(), os.Stdout)
+	e.ctx, e.cancel = context.WithCancel(context.Background())
+	return e
 }
 
 // ParseSrc provides way to parse the code from source.

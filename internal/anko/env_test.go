@@ -4,9 +4,12 @@ import (
 	"testing"
 
 	"project/internal/testsuite"
+
+	_ "project/internal/anko/goroot"
+	_ "project/internal/anko/thirdparty"
 )
 
-func TestEnv_Global(t *testing.T) {
+func TestEnv(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
