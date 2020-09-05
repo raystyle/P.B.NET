@@ -141,7 +141,7 @@ func initGithubComVmihailencoMsgpackV5() {
 }
 
 func initGithubComVmihailencoMsgpackV5Msgpcode() {
-	env.Packages["github.com/vmihailenco/msgpack/v5"] = map[string]reflect.Value{
+	env.Packages["github.com/vmihailenco/msgpack/v5/msgpcode"] = map[string]reflect.Value{
 		// define constants
 
 		// define variables
@@ -199,5 +199,5 @@ func initGithubComVmihailencoMsgpackV5Msgpcode() {
 		"IsString":      reflect.ValueOf(msgpcode.IsString),
 	}
 	var ()
-	env.PackageTypes["github.com/vmihailenco/msgpack/v5"] = map[string]reflect.Type{}
+	env.PackageTypes["github.com/vmihailenco/msgpack/v5/msgpcode"] = map[string]reflect.Type{}
 }

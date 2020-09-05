@@ -428,6 +428,7 @@ func initInternalNetTool() {
 		"IPEnabled":             reflect.ValueOf(nettool.IPEnabled),
 		"IPToHost":              reflect.ValueOf(nettool.IPToHost),
 		"IsNetClosingError":     reflect.ValueOf(nettool.IsNetClosingError),
+		"JoinHostPort":          reflect.ValueOf(nettool.JoinHostPort),
 		"SplitHostPort":         reflect.ValueOf(nettool.SplitHostPort),
 	}
 	var ()
@@ -658,13 +659,16 @@ func initInternalSecurity() {
 		// define variables
 
 		// define functions
-		"CoverBytes":    reflect.ValueOf(security.CoverBytes),
-		"CoverString":   reflect.ValueOf(security.CoverString),
-		"FlushMemory":   reflect.ValueOf(security.FlushMemory),
-		"NewBogo":       reflect.ValueOf(security.NewBogo),
-		"NewBytes":      reflect.ValueOf(security.NewBytes),
-		"NewMemory":     reflect.ValueOf(security.NewMemory),
-		"PaddingMemory": reflect.ValueOf(security.PaddingMemory),
+		"CoverBytes":            reflect.ValueOf(security.CoverBytes),
+		"CoverString":           reflect.ValueOf(security.CoverString),
+		"FlushMemory":           reflect.ValueOf(security.FlushMemory),
+		"NewBogo":               reflect.ValueOf(security.NewBogo),
+		"NewBytes":              reflect.ValueOf(security.NewBytes),
+		"NewMemory":             reflect.ValueOf(security.NewMemory),
+		"PaddingMemory":         reflect.ValueOf(security.PaddingMemory),
+		"SwitchThread":          reflect.ValueOf(security.SwitchThread),
+		"SwitchThreadAsync":     reflect.ValueOf(security.SwitchThreadAsync),
+		"WaitSwitchThreadAsync": reflect.ValueOf(security.WaitSwitchThreadAsync),
 	}
 	var (
 		bogo   security.Bogo

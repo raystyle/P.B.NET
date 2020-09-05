@@ -290,7 +290,7 @@ func initGithubComGoOLEGoOLE() {
 }
 
 func initGithubComGoOLEGoOLEOLEUtil() {
-	env.Packages["github.com/go-ole/go-ole"] = map[string]reflect.Value{
+	env.Packages["github.com/go-ole/go-ole/oleutil"] = map[string]reflect.Value{
 		// define constants
 
 		// define variables
@@ -311,5 +311,5 @@ func initGithubComGoOLEGoOLEOLEUtil() {
 		"PutPropertyRef":     reflect.ValueOf(oleutil.PutPropertyRef),
 	}
 	var ()
-	env.PackageTypes["github.com/go-ole/go-ole"] = map[string]reflect.Type{}
+	env.PackageTypes["github.com/go-ole/go-ole/oleutil"] = map[string]reflect.Type{}
 }
