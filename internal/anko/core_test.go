@@ -6,65 +6,95 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestBasicType(t *testing.T) {
+func TestCoreType(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	const src = `
-a = []int8{1, 2}
-a[0] += 1
-a += 3
-println(a, typeOf(a))
-a = a[:2]
+// --------uint--------
 
-a = make([]int8, 0, 3)
-a += 4
-println(a, typeOf(a))
+v = new(uint)
+if typeOf(v) != "*uint" {
+	return "not *uint type"
+}
 
-a = []int16{1, 2}
-a[0] += 1
-println(a, typeOf(a))
+v = new(uint8)
+if typeOf(v) != "*uint8" {
+	return "not *uint8 type"
+}
 
-a = []int32{1, 2}
-a[0] += 1
-println(a, typeOf(a))
+v = new(uint16)
+if typeOf(v) != "*uint16" {
+	return "not *uint16 type"
+}
 
-a = []int64{1, 2}
-a[0] += 1
-println(a, typeOf(a))
+v = new(uint32)
+if typeOf(v) != "*uint32" {
+	return "not *uint32 type"
+}
 
-a = [1, 2]
-a[0] += 1
-println(a, typeOf(a))
+v = new(uint64)
+if typeOf(v) != "*uint64" {
+	return "not *uint64 type"
+}
 
-a = []uint8{1, 2}
-a[0] += 1
-println(a, typeOf(a))
+// --------int--------
 
-a = []uint16{1, 2}
-a[0] += 1
-println(a, typeOf(a))
+v = new(int)
+if typeOf(v) != "*int" {
+	return "not *int type"
+}
 
-a = []uint32{1, 2}
-a[0] += 1
-println(a, typeOf(a))
+v = new(int8)
+if typeOf(v) != "*int8" {
+	return "not *int8 type"
+}
 
-a = []uint64{1, 2}
-a[0] += 1
-println(a, typeOf(a))
+v = new(int16)
+if typeOf(v) != "*int16" {
+	return "not *int16 type"
+}
 
-a = []uintptr{1, 2}
-a[0] += 1
-println(a, typeOf(a))
+v = new(int32)
+if typeOf(v) != "*int32" {
+	return "not *int32 type"
+}
 
-a = 1<<64 - 1
-println(a, typeOf(a))
+v = new(int64)
+if typeOf(v) != "*int64" {
+	return "not *int64 type"
+}
 
-println(1<<64 - 1)
+// --------other--------
 
-b = 1<<64 - 1
+v = new(byte)
+if typeOf(v) != "*uint8" {
+	return "not *uint8 type"
+}
+
+v = new(rune)
+if typeOf(v) != "*int32" {
+	return "not *int32 type"
+}
+
+v = new(uintptr)
+if typeOf(v) != "*uintptr" {
+	return "not *uintptr type"
+}
+
+v = new(float32)
+if typeOf(v) != "*float32" {
+	return "not *float32 type"
+}
+
+v = new(float64)
+if typeOf(v) != "*float64" {
+	return "not *float64 type"
+}
+
+return true
 `
-	testRun(t, src, false, nil)
+	testRun(t, src, false, true)
 }
 
 func TestCoreKeys(t *testing.T) {

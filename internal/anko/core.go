@@ -40,8 +40,6 @@ func defineCoreFunc(e *env.Env) {
 		{"array", coreArray},
 		{"slice", coreSlice},
 
-		{"panic", corePanic},
-
 		{"typeOf", coreTypeOf},
 		{"kindOf", coreKindOf},
 	} {
@@ -108,11 +106,6 @@ func coreArray(typ interface{}, size int) reflect.Value {
 // coreSlice is used to convert array to slice like [8]byte[:]
 func coreSlice(array reflect.Value) interface{} {
 	return array.Slice(0, array.Len()).Interface()
-}
-
-// TODO remove it
-func corePanic(v interface{}) {
-	panic(v)
 }
 
 func coreTypeOf(v interface{}) string {
