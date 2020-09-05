@@ -23,6 +23,7 @@ var (
 func NewEnv() *env.Env {
 	e := env.NewEnv()
 	core.ImportToX(e)
+	defineConvert(e)
 	defineCoreType(e)
 	defineCoreFunc(e)
 	return e

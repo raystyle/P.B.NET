@@ -160,3 +160,20 @@ for {
 		testsuite.IsDestroyed(t, stmt)
 	})
 }
+
+func testRun(t *testing.T, s string, fail bool) {
+	stmt := testParseSrc(t, s)
+
+	env := NewEnv()
+	val, err := Run(env, stmt)
+	if fail {
+		require.Error(t, err)
+		t.Log(val, err)
+	} else {
+		require.NoError(t, err)
+		t.Log(val)
+	}
+
+	testsuite.IsDestroyed(t, env)
+	testsuite.IsDestroyed(t, stmt)
+}
