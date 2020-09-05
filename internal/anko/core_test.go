@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"project/internal/testsuite"
+
+	_ "project/internal/anko/goroot"
+	_ "project/internal/anko/thirdparty"
 )
 
 func TestCoreType(t *testing.T) {
@@ -103,11 +106,10 @@ func TestCoreKeys(t *testing.T) {
 
 	const src = `
 m = {"foo": "bar", "bar": "baz"}
-for key in keys(m) {
-	println(key, m[key])
-}
+println(keys(m))
+return true
 `
-	testRun(t, src, false, nil)
+	testRun(t, src, false, true)
 }
 
 func TestCoreRange(t *testing.T) {
@@ -115,8 +117,46 @@ func TestCoreRange(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("no parameter", func(t *testing.T) {
-		const src = `range()`
-		testRun(t, src, true, nil)
+		const src = `
+
+fmt = import("fmt")
+ msgpack = import("github.com/vmihailenco/msgpack/v5")
+
+ data,_ = msgpack.Marshal("acg")
+fmt.Println(data)
+println(data)
+
+var asd = "asd"
+
+ // msgpack = nil
+
+ io = import("io")
+ println(io.ErrUnexpectedEOF)
+
+  acg = "acg"
+  bb = func(){
+
+   println(acg)
+
+  acg = "acg2"
+  }
+  bb()
+
+ println(acg)
+
+  for i in []byte{1,2,3} {
+     println(i)
+
+  }
+
+
+
+
+
+return true
+
+`
+		testRun(t, src, false, true)
 	})
 
 	t.Run("1p", func(t *testing.T) {
@@ -152,10 +192,11 @@ func TestCoreArrayType(t *testing.T) {
 	const src = `
 typ = arrayType(*new(int8), 4)
 if typ.String() != "[4]int8" {
-	panic("invalid type")
+	return "invalid type"
 }
+return true
 `
-	testRun(t, src, false, nil)
+	testRun(t, src, false, true)
 }
 
 func TestCoreArray(t *testing.T) {
@@ -163,12 +204,15 @@ func TestCoreArray(t *testing.T) {
 	defer gm.Compare()
 
 	const src = `
-a = array(*new(asd), 4)
+a = array(*new(int8), 4)
 // if typeOf(a) != "[4]int8" {
 // 	panic("invalid type")
 // }
 // b = *a
 
+b = a.Interface()
+
+println(a[0])
 a[0] = 123
 println(a)
 `
@@ -180,8 +224,10 @@ func TestCoreSlice(t *testing.T) {
 	defer gm.Compare()
 
 	const src = `
-a = 10
-println(typeOf(a))
+
+
+
+
 `
 	testRun(t, src, false, nil)
 }
@@ -191,10 +237,13 @@ func TestCoreTypeOf(t *testing.T) {
 	defer gm.Compare()
 
 	const src = `
-a = 10
-println(typeOf(a))
+v = 10
+if typeOf(v) != "int64"{
+	return "not int64 type"
+}
+return true
 `
-	testRun(t, src, false, nil)
+	testRun(t, src, false, true)
 }
 
 func TestCoreKindOf(t *testing.T) {
@@ -203,17 +252,23 @@ func TestCoreKindOf(t *testing.T) {
 
 	t.Run("int64", func(t *testing.T) {
 		const src = `
-a = 10
-println(kindOf(a))
+v = 10
+if kindOf(v) != "int64" {
+	return "not int64 kind"
+}
+return true
 `
-		testRun(t, src, false, nil)
+		testRun(t, src, false, true)
 	})
 
 	t.Run("nil", func(t *testing.T) {
 		const src = `
-a = nil
-println(kindOf(a))
+v = nil
+if kindOf(v) != "nil kind" {
+	return "not nil kind"
+}
+return true
 `
-		testRun(t, src, false, nil)
+		testRun(t, src, false, true)
 	})
 }

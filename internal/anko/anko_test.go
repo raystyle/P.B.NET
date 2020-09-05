@@ -20,7 +20,7 @@ func TestNewEnv(t *testing.T) {
 	fmt.Println(Packages)
 	fmt.Println(Types)
 
-	v, err := env.Get("keys")
+	v, err := env.Env.Get("keys")
 	require.NoError(t, err)
 	require.NotNil(t, v)
 
@@ -130,7 +130,7 @@ println(b)
 
 	t.Run("cancel", func(t *testing.T) {
 		env := NewEnv()
-		_ = env.Define("sleep", func() {
+		_ = env.Env.Define("sleep", func() {
 			time.Sleep(time.Second)
 		})
 
@@ -177,6 +177,9 @@ func testRun(t *testing.T, s string, fail bool, expected interface{}) {
 
 	env.Close()
 
+	// testsuite.IsDestroyed(t, env.Env)
+
 	testsuite.IsDestroyed(t, env)
+
 	testsuite.IsDestroyed(t, stmt)
 }

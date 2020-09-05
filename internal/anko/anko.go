@@ -3,7 +3,7 @@ package anko
 import (
 	"context"
 	"fmt"
-	"io"
+	"os"
 
 	"github.com/mattn/anko/ast"
 	"github.com/mattn/anko/env"
@@ -20,8 +20,8 @@ var (
 )
 
 // NewEnv is used to create an new global scope with packages.
-func NewEnv(output io.Writer) *Env {
-	return newEnv(output)
+func NewEnv() *Env {
+	return newEnv(os.Stdout)
 }
 
 // ParseSrc provides way to parse the code from source.

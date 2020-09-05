@@ -6,6 +6,23 @@ import (
 	"project/internal/testsuite"
 )
 
+func TestEnv_Global(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const src = `
+val = make(struct{
+A string,
+B string
+})
+
+
+
+return true
+`
+	testRun(t, src, false, true)
+}
+
 func TestEnv_eval(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

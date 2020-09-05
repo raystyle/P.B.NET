@@ -7,6 +7,11 @@ import (
 	"github.com/mattn/anko/env"
 )
 
+func defineCore(e *env.Env) {
+	defineCoreType(e)
+	defineCoreFunc(e)
+}
+
 func defineCoreType(e *env.Env) {
 	for _, item := range [...]*struct {
 		symbol string
@@ -37,7 +42,6 @@ func defineCoreFunc(e *env.Env) {
 		{"arrayType", coreArrayType},
 		{"array", coreArray},
 		{"slice", coreSlice},
-
 		{"typeOf", coreTypeOf},
 		{"kindOf", coreKindOf},
 	} {
@@ -50,12 +54,12 @@ func defineCoreFunc(e *env.Env) {
 
 func coreKeys(v interface{}) []interface{} {
 	rv := reflect.ValueOf(v)
-	mapKeysValue := rv.MapKeys()
-	mapKeys := make([]interface{}, len(mapKeysValue))
-	for i := 0; i < len(mapKeysValue); i++ {
-		mapKeys[i] = mapKeysValue[i].Interface()
+	keysValue := rv.MapKeys()
+	keys := make([]interface{}, len(keysValue))
+	for i := 0; i < len(keysValue); i++ {
+		keys[i] = keysValue[i].Interface()
 	}
-	return mapKeys
+	return keys
 }
 
 func coreRange(args ...int64) []int64 {
@@ -94,8 +98,10 @@ func coreArrayType(typ interface{}, size int) reflect.Type {
 }
 
 // coreArray is used to create a array like [8]byte{}.
-func coreArray(typ interface{}, size int) reflect.Value {
-	return reflect.New(coreArrayType(typ, size))
+func coreArray(typ interface{}, size int) interface{} {
+	t := coreArrayType(typ, size)
+
+	return reflect.New(t).Elem().Interface()
 	// return reflect.ValueOf(ptr).Elem().Interface()
 }
 
