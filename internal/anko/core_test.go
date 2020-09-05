@@ -64,7 +64,7 @@ println(1<<64 - 1)
 
 b = 1<<64 - 1
 `
-	testRun(t, src, false)
+	testRun(t, src, false, nil)
 }
 
 func TestCoreKeys(t *testing.T) {
@@ -77,7 +77,7 @@ for key in keys(m) {
 	println(key, m[key])
 }
 `
-	testRun(t, src, false)
+	testRun(t, src, false, nil)
 }
 
 func TestCoreRange(t *testing.T) {
@@ -86,32 +86,32 @@ func TestCoreRange(t *testing.T) {
 
 	t.Run("no parameter", func(t *testing.T) {
 		const src = `range()`
-		testRun(t, src, true)
+		testRun(t, src, true, nil)
 	})
 
 	t.Run("1p", func(t *testing.T) {
 		const src = `range(3)`
-		testRun(t, src, false)
+		testRun(t, src, false, nil)
 	})
 
 	t.Run("2p", func(t *testing.T) {
 		const src = `range(1, 3)`
-		testRun(t, src, false)
+		testRun(t, src, false, nil)
 	})
 
 	t.Run("3p", func(t *testing.T) {
 		const src = `range(1, 10, 2)`
-		testRun(t, src, false)
+		testRun(t, src, false, nil)
 	})
 
 	t.Run("3p-zero step", func(t *testing.T) {
 		const src = `range(1, 10, 0)`
-		testRun(t, src, true)
+		testRun(t, src, true, nil)
 	})
 
 	t.Run("4p", func(t *testing.T) {
 		const src = `range(1, 2, 3, 4)`
-		testRun(t, src, true)
+		testRun(t, src, true, nil)
 	})
 }
 
@@ -125,7 +125,7 @@ if typ.String() != "[4]int8" {
 	panic("invalid type")
 }
 `
-	testRun(t, src, false)
+	testRun(t, src, false, nil)
 }
 
 func TestCoreArray(t *testing.T) {
@@ -142,7 +142,7 @@ a = array(*new(asd), 4)
 a[0] = 123
 println(a)
 `
-	testRun(t, src, false)
+	testRun(t, src, false, nil)
 }
 
 func TestCoreSlice(t *testing.T) {
@@ -153,7 +153,7 @@ func TestCoreSlice(t *testing.T) {
 a = 10
 println(typeOf(a))
 `
-	testRun(t, src, false)
+	testRun(t, src, false, nil)
 }
 
 func TestCoreTypeOf(t *testing.T) {
@@ -164,7 +164,7 @@ func TestCoreTypeOf(t *testing.T) {
 a = 10
 println(typeOf(a))
 `
-	testRun(t, src, false)
+	testRun(t, src, false, nil)
 }
 
 func TestCoreKindOf(t *testing.T) {
@@ -176,7 +176,7 @@ func TestCoreKindOf(t *testing.T) {
 a = 10
 println(kindOf(a))
 `
-		testRun(t, src, false)
+		testRun(t, src, false, nil)
 	})
 
 	t.Run("nil", func(t *testing.T) {
@@ -184,7 +184,7 @@ println(kindOf(a))
 a = nil
 println(kindOf(a))
 `
-		testRun(t, src, false)
+		testRun(t, src, false, nil)
 	})
 }
 
@@ -194,12 +194,12 @@ func TestCoreEval(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		const src = `eval("println('in eval')")`
-		testRun(t, src, false)
+		testRun(t, src, false, nil)
 	})
 
 	t.Run("invalid source", func(t *testing.T) {
 		const src = `eval("a -- a")`
-		testRun(t, src, true)
+		testRun(t, src, true, nil)
 	})
 
 	t.Run("eval with error", func(t *testing.T) {
@@ -209,6 +209,6 @@ println(a)
 
 println(b)
 ` + "`)"
-		testRun(t, src, true)
+		testRun(t, src, true, nil)
 	})
 }

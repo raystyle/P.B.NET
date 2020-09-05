@@ -161,7 +161,7 @@ for {
 	})
 }
 
-func testRun(t *testing.T, s string, fail bool) {
+func testRun(t *testing.T, s string, fail bool, expected interface{}) {
 	stmt := testParseSrc(t, s)
 
 	env := NewEnv()
@@ -173,6 +173,7 @@ func testRun(t *testing.T, s string, fail bool) {
 		require.NoError(t, err)
 		t.Log(val)
 	}
+	require.Equal(t, expected, val)
 
 	testsuite.IsDestroyed(t, env)
 	testsuite.IsDestroyed(t, stmt)

@@ -25,6 +25,7 @@ var (
 	typeFloat64   = reflect.TypeOf(float64(0))
 	typeString    = reflect.TypeOf("")
 	typeByteSlice = reflect.TypeOf([]byte{})
+	typeRuneSlice = reflect.TypeOf([]rune{})
 )
 
 func defineConvert(e *env.Env) {
@@ -49,6 +50,7 @@ func defineConvert(e *env.Env) {
 		{"float64", convertToFloat64},
 		{"string", convertToString},
 		{"byteSlice", convertToByteSlice},
+		{"runeSlice", convertToRuneSlice},
 	} {
 		err := e.Define(item.symbol, item.fn)
 		if err != nil {
@@ -123,4 +125,8 @@ func convertToString(v interface{}) string {
 
 func convertToByteSlice(v interface{}) []byte {
 	return reflect.ValueOf(v).Convert(typeByteSlice).Interface().([]byte)
+}
+
+func convertToRuneSlice(v interface{}) []rune {
+	return reflect.ValueOf(v).Convert(typeRuneSlice).Interface().([]rune)
 }

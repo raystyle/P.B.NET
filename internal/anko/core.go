@@ -110,6 +110,7 @@ func coreSlice(array reflect.Value) interface{} {
 	return array.Slice(0, array.Len()).Interface()
 }
 
+// TODO remove it
 func corePanic(v interface{}) {
 	panic(v)
 }
