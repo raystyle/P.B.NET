@@ -9,6 +9,6 @@ import (
 )
 
 func TestEnableDebugPrivilege(t *testing.T) {
-	err := EnableDebugPrivilege()
+	err := EnableDebug()
 	require.NoError(t, err)
 }

@@ -7,8 +7,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// EnableDebugPrivilege is used to enable the debug privilege in the current running process.
-func EnableDebugPrivilege() error {
+// EnablePrivilege is used to enable privilege with privilege name.
+func EnablePrivilege(name string) error {
 	// get current process token
 	handle := windows.CurrentProcess()
 	var token windows.Token
@@ -18,9 +18,9 @@ func EnableDebugPrivilege() error {
 	}
 	// lookup debug privilege
 	debug := new(windows.LUID)
-	err = windows.LookupPrivilegeValue(nil, windows.StringToUTF16Ptr("SeDebugPrivilege"), debug)
+	err = windows.LookupPrivilegeValue(nil, windows.StringToUTF16Ptr(name), debug)
 	if err != nil {
-		return errors.Wrap(err, "failed to lookup debug privilege")
+		return errors.Wrapf(err, "failed to lookup %s", name)
 	}
 	// adjust token privilege
 	privilege := windows.Tokenprivileges{
@@ -32,7 +32,12 @@ func EnableDebugPrivilege() error {
 	}
 	err = windows.AdjustTokenPrivileges(token, false, &privilege, 0, nil, nil)
 	if err != nil {
-		return errors.Wrap(err, "failed to enable debug privilege to current process token")
+		return errors.Wrapf(err, "failed to enable %s with current process token", name)
 	}
 	return nil
+}
+
+// EnableDebug is used to enable the debug privilege.
+func EnableDebug() error {
+	return EnablePrivilege("SeDebugPrivilege")
 }
