@@ -58,6 +58,20 @@ a -- a
 
 		t.Log(err)
 	})
+
+	t.Run("empty", func(t *testing.T) {
+		src := strings.Repeat("", 1)
+		stmt, err := ParseSrc(src)
+		require.Error(t, err)
+		require.Nil(t, stmt)
+	})
+
+	t.Run("exploit", func(t *testing.T) {
+		src := strings.Repeat("\ue031", 1)
+		stmt, err := ParseSrc(src)
+		require.Error(t, err)
+		require.Nil(t, stmt)
+	})
 }
 
 func testParseSrc(t *testing.T, s string) ast.Stmt {

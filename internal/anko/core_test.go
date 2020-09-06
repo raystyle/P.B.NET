@@ -1,9 +1,13 @@
 package anko
 
 import (
+	"context"
+	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/mattn/anko/env"
+	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
 	"project/internal/testsuite"
@@ -312,4 +316,130 @@ func TestDefineCoreFunc(t *testing.T) {
 
 	defer testsuite.DeferForPanic(t)
 	defineCoreFunc(e)
+}
+
+func TestModule(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	e := NewEnv()
+
+	const src = `
+module a { b = 1 }
+c = a
+d = a
+d.b = 2
+
+println(c)
+println(d)
+
+
+return true
+`
+	stmt := testParseSrc(t, src)
+
+	val, err := Run(e, stmt)
+	require.NoError(t, err)
+	require.Equal(t, true, val)
+
+	e.Close()
+
+	e.env.Copy()
+
+	ne := e.env
+	testsuite.IsDestroyed(t, e)
+	testsuite.IsDestroyed(t, ne)
+	testsuite.IsDestroyed(t, stmt)
+}
+
+func TestAnkoModule(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	e := NewEnv()
+
+	const src = `
+module Test {
+	_inner1 = "acg"
+	_inner2 = 1
+
+	func Input(v1, v2) {
+		_inner1 = v1
+		_inner2 = v2
+		return
+	}
+
+	func Output() {
+		return _inner1, _inner2
+	}
+}
+func New() {
+	var mod = Test
+	return mod
+}
+return true
+`
+	stmt := testParseSrc(t, src)
+
+	val, err := Run(e, stmt)
+	require.NoError(t, err)
+	require.Equal(t, true, val)
+
+	// get New function
+	newFn, err := e.Get("New")
+	require.NoError(t, err)
+	create := newFn.(func(context.Context) (reflect.Value, reflect.Value))
+
+	ctx := context.Background()
+
+	f := func() {
+		// create instance
+		mod, re := create(ctx)
+		require.True(t, re.IsNil())
+		module := mod.Interface().(*env.Env)
+
+		// get output function
+		outputFn, err := module.Get("Output")
+		require.NoError(t, err)
+		output := outputFn.(func(context.Context) (reflect.Value, reflect.Value))
+
+		// call output
+		ret, re := output(ctx)
+		require.True(t, re.IsNil())
+		i1 := ret.Index(0).Interface()
+		i2 := ret.Index(1).Interface()
+
+		require.Equal(t, "acg", i1)
+		require.Equal(t, int64(1), i2)
+
+		fmt.Println(i1)
+		fmt.Println(i2)
+
+		// get input function
+		inputFn, err := module.Get("Input")
+		require.NoError(t, err)
+		input := inputFn.(func(context.Context, reflect.Value, reflect.Value) (reflect.Value, reflect.Value))
+
+		// call input
+		ret, re = input(ctx, reflect.ValueOf("aaa"), reflect.ValueOf(int64(2)))
+		require.True(t, re.IsNil())
+		require.True(t, ret.IsNil())
+
+		ret, re = output(ctx)
+		require.True(t, re.IsNil())
+		i1 = ret.Index(0).Interface()
+		i2 = ret.Index(1).Interface()
+
+		require.Equal(t, "aaa", i1)
+		require.Equal(t, int64(2), i2)
+	}
+	f()
+	f()
+
+	e.Close()
+
+	ne := e.env
+	testsuite.IsDestroyed(t, e)
+	testsuite.IsDestroyed(t, ne)
+	testsuite.IsDestroyed(t, stmt)
 }

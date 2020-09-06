@@ -142,7 +142,9 @@ return true
 
 	env.Close()
 
+	ne := env.env
 	testsuite.IsDestroyed(t, env)
+	testsuite.IsDestroyed(t, ne)
 	testsuite.IsDestroyed(t, stmt)
 }
 
@@ -176,7 +178,9 @@ return true
 
 	env.Close()
 
+	ne := env.env
 	testsuite.IsDestroyed(t, env)
+	testsuite.IsDestroyed(t, ne)
 	testsuite.IsDestroyed(t, stmt)
 }
 
@@ -222,7 +226,9 @@ return true
 
 	env.Close()
 
+	ne := env.env
 	testsuite.IsDestroyed(t, env)
+	testsuite.IsDestroyed(t, ne)
 	testsuite.IsDestroyed(t, stmt)
 }
 
@@ -280,7 +286,9 @@ return true
 
 	env.Close()
 
+	ne := env.env
 	testsuite.IsDestroyed(t, env)
+	testsuite.IsDestroyed(t, ne)
 	testsuite.IsDestroyed(t, stmt)
 }
 
@@ -309,7 +317,9 @@ return true
 
 	fmt.Println(output)
 
+	ne := env.env
 	testsuite.IsDestroyed(t, env)
+	testsuite.IsDestroyed(t, ne)
 	testsuite.IsDestroyed(t, stmt)
 }
 
