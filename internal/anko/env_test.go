@@ -148,6 +148,89 @@ return true
 	testsuite.IsDestroyed(t, stmt)
 }
 
+func TestEnv_Get(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	env := NewEnv()
+
+	const src = `
+inner = "test"
+return true
+`
+	stmt := testParseSrc(t, src)
+
+	val, err := Run(env, stmt)
+	require.NoError(t, err)
+	require.Equal(t, true, val)
+
+	t.Run("common", func(t *testing.T) {
+		inner, err := env.Get("inner")
+		require.NoError(t, err)
+		require.Equal(t, "test", inner)
+	})
+
+	t.Run("is not exist", func(t *testing.T) {
+		inner, err := env.Get("foo")
+		require.Error(t, err)
+		require.Nil(t, inner)
+	})
+
+	env.Close()
+
+	testsuite.IsDestroyed(t, env)
+	testsuite.IsDestroyed(t, stmt)
+}
+
+func TestEnv_GetValue(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	e := NewEnv()
+
+	const src = `
+inner = "test"
+pointer = new(string)
+
+
+
+return true
+`
+	stmt := testParseSrc(t, src)
+
+	val, err := Run(e, stmt)
+	require.NoError(t, err)
+	require.Equal(t, true, val)
+
+	t.Run("common", func(t *testing.T) {
+		inner, err := e.GetValue("inner")
+		require.NoError(t, err)
+		require.Equal(t, "test", inner.Interface())
+
+		// pointer
+		pointer, err := e.GetValue("pointer")
+		require.NoError(t, err)
+		require.Equal(t, "", pointer.Elem().Interface())
+
+		pointer.Elem().SetString("set")
+
+		pointer, err = e.GetValue("pointer")
+		require.NoError(t, err)
+		require.Equal(t, "set", pointer.Elem().Interface())
+	})
+
+	t.Run("is not exist", func(t *testing.T) {
+		inner, err := e.GetValue("foo")
+		require.Error(t, err)
+		require.Nil(t, inner.Interface())
+	})
+
+	e.Close()
+
+	testsuite.IsDestroyed(t, e)
+	testsuite.IsDestroyed(t, stmt)
+}
+
 func TestEnv_SetOutput(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
