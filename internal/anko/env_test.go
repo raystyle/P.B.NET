@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 
 	_ "project/internal/anko/goroot"
@@ -130,6 +131,10 @@ func TestEnv_Define(t *testing.T) {
 	err = env.Define("out_nil", nil)
 	require.NoError(t, err)
 
+	// invalid symbol
+	err = env.Define("out_nil.out", nil)
+	require.Error(t, err)
+
 	const src = `
 out_println("println")
 out_print("print\n")
@@ -186,48 +191,103 @@ func TestEnv_GetValue(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	e := NewEnv()
+	env := NewEnv()
 
 	const src = `
 inner = "test"
 pointer = new(string)
-
-
-
 return true
 `
 	stmt := testParseSrc(t, src)
 
-	val, err := Run(e, stmt)
+	val, err := Run(env, stmt)
 	require.NoError(t, err)
 	require.Equal(t, true, val)
 
 	t.Run("common", func(t *testing.T) {
-		inner, err := e.GetValue("inner")
+		inner, err := env.GetValue("inner")
 		require.NoError(t, err)
 		require.Equal(t, "test", inner.Interface())
 
 		// pointer
-		pointer, err := e.GetValue("pointer")
+		pointer, err := env.GetValue("pointer")
 		require.NoError(t, err)
 		require.Equal(t, "", pointer.Elem().Interface())
 
 		pointer.Elem().SetString("set")
 
-		pointer, err = e.GetValue("pointer")
+		pointer, err = env.GetValue("pointer")
 		require.NoError(t, err)
 		require.Equal(t, "set", pointer.Elem().Interface())
 	})
 
 	t.Run("is not exist", func(t *testing.T) {
-		inner, err := e.GetValue("foo")
+		inner, err := env.GetValue("foo")
 		require.Error(t, err)
 		require.Nil(t, inner.Interface())
 	})
 
-	e.Close()
+	env.Close()
 
-	testsuite.IsDestroyed(t, e)
+	testsuite.IsDestroyed(t, env)
+	testsuite.IsDestroyed(t, stmt)
+}
+
+func TestEnv_DefineType(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	type out struct {
+		A string
+		B string
+		c string
+	}
+
+	env := NewEnv()
+
+	o := out{}
+
+	// common
+	err := env.DefineType("out", o)
+	require.NoError(t, err)
+
+	// reflect.Value
+	err = env.DefineType("out2", reflect.TypeOf(o))
+	require.NoError(t, err)
+
+	// nil value
+	err = env.DefineType("out_nil", nil)
+	require.NoError(t, err)
+
+	// invalid symbol
+	err = env.DefineType("out_nil.out", nil)
+	require.Error(t, err)
+
+	const src = `
+out = new(out)
+out.A = "acg"
+out.B = "bbb"
+// out.c = "ccc" // can't access
+println(out)
+
+out2 = new(out2)
+out2.A = "acg"
+out2.B = "bbb"
+println(out2)
+
+// nn = new(out_nil) // error
+
+return true
+`
+	stmt := testParseSrc(t, src)
+
+	val, err := Run(env, stmt)
+	require.NoError(t, err)
+	require.Equal(t, true, val)
+
+	env.Close()
+
+	testsuite.IsDestroyed(t, env)
 	testsuite.IsDestroyed(t, stmt)
 }
 
@@ -258,4 +318,19 @@ return true
 
 	testsuite.IsDestroyed(t, env)
 	testsuite.IsDestroyed(t, stmt)
+}
+
+func TestNewRuntime(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	var rt *runtime
+	patch := func(interface{}, string, interface{}) error {
+		return monkey.Error
+	}
+	pg := monkey.PatchInstanceMethod(rt, "DefineValue", patch)
+	defer pg.Unpatch()
+
+	defer testsuite.DeferForPanic(t)
+	newRuntime(NewEnv())
 }
