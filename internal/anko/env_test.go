@@ -68,17 +68,41 @@ return true
 	})
 
 	t.Run("invalid source", func(t *testing.T) {
-		const src = `eval("a -- a")`
-		testRun(t, src, true, nil)
+		const src = `
+val, err = eval("a -- a")
+if err == nil {
+	return "no error"
+}
+println("val:", val)
+println("error:", err)
+return true
+`
+		testRun(t, src, false, true)
 	})
 
 	t.Run("eval with error", func(t *testing.T) {
-		const src = "eval(`" + `
-a = 10
-println(a)
+		const src = `
+src = "a = 10\n"
+src += "println(a)\n"
+src += "println(b)\n"
+val, err = eval(src)
+if err == nil {
+	return "no error"
+}
+println("val:", val)
+println("error:", err)
+return true
+`
+		testRun(t, src, false, true)
+	})
 
-println(b)
-` + "`)"
-		testRun(t, src, true, nil)
+	t.Run("nest", func(t *testing.T) {
+		const src = `
+a = "out"
+eval("eval('a = \"nest eval\"')")
+println(a)
+return true
+`
+		testRun(t, src, false, true)
 	})
 }

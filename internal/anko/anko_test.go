@@ -17,12 +17,14 @@ func TestNewEnv(t *testing.T) {
 	env := NewEnv()
 	require.NotNil(t, env)
 
-	fmt.Println(Packages)
-	fmt.Println(Types)
+	fmt.Println(len(Packages))
+	fmt.Println(len(Types))
 
-	v, err := env.Env.Get("keys")
+	v, err := env.Get("keys")
 	require.NoError(t, err)
 	require.NotNil(t, v)
+
+	env.Close()
 
 	testsuite.IsDestroyed(t, env)
 }
@@ -80,8 +82,9 @@ println(a)
 		env := NewEnv()
 		val, err := Run(env, stmt)
 		require.NoError(t, err)
-
 		t.Log(val)
+
+		env.Close()
 
 		testsuite.IsDestroyed(t, env)
 		testsuite.IsDestroyed(t, stmt)
@@ -98,12 +101,14 @@ println(a)
 		val, err := Run(env1, stmt)
 		require.NoError(t, err)
 		t.Log(val)
+		env1.Close()
 		testsuite.IsDestroyed(t, env1)
 
 		env2 := NewEnv()
 		val, err = Run(env2, stmt)
 		require.NoError(t, err)
 		t.Log(val)
+		env2.Close()
 		testsuite.IsDestroyed(t, env2)
 
 		testsuite.IsDestroyed(t, stmt)
@@ -121,8 +126,9 @@ println(b)
 		env := NewEnv()
 		val, err := Run(env, stmt)
 		require.Error(t, err)
-
 		t.Log(val, err)
+
+		env.Close()
 
 		testsuite.IsDestroyed(t, env)
 		testsuite.IsDestroyed(t, stmt)
@@ -130,9 +136,10 @@ println(b)
 
 	t.Run("cancel", func(t *testing.T) {
 		env := NewEnv()
-		_ = env.Env.Define("sleep", func() {
+		err := env.Define("sleep", func() {
 			time.Sleep(time.Second)
 		})
+		require.NoError(t, err)
 
 		const src = `
 a = 10
@@ -153,16 +160,17 @@ for {
 
 		val, err := RunContext(ctx, env, stmt)
 		require.Error(t, err)
-
 		t.Log(val, err)
+
+		env.Close()
 
 		testsuite.IsDestroyed(t, env)
 		testsuite.IsDestroyed(t, stmt)
 	})
 }
 
-func testRun(t *testing.T, s string, fail bool, expected interface{}) {
-	stmt := testParseSrc(t, s)
+func testRun(t *testing.T, src string, fail bool, expected interface{}) {
+	stmt := testParseSrc(t, src)
 
 	env := NewEnv()
 	val, err := Run(env, stmt)
@@ -177,9 +185,6 @@ func testRun(t *testing.T, s string, fail bool, expected interface{}) {
 
 	env.Close()
 
-	// testsuite.IsDestroyed(t, env.Env)
-
 	testsuite.IsDestroyed(t, env)
-
 	testsuite.IsDestroyed(t, stmt)
 }

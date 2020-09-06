@@ -12,7 +12,7 @@ import (
 	"github.com/mattn/anko/env"
 )
 
-// runtime is used to prevent loop reference.
+// runtime is used to prevent loop reference and easy clean reference.
 type runtime struct {
 	// store values
 	values    map[string]reflect.Value
@@ -38,7 +38,7 @@ func newRuntime(e *Env) *runtime {
 		{"println", e.println},
 		{"eval", e.eval},
 	} {
-		err := rt.Set(item.symbol, item.fn)
+		err := rt.DefineValue(item.symbol, item.fn)
 		if err != nil {
 			panic(fmt.Sprintf("anko: internal error: %s", err))
 		}
@@ -55,7 +55,7 @@ func (rt *runtime) Get(symbol string) (reflect.Value, error) {
 	return reflect.Value{}, fmt.Errorf("value %q is not defined", symbol)
 }
 
-func (rt *runtime) Set(symbol string, value interface{}) error {
+func (rt *runtime) DefineValue(symbol string, value interface{}) error {
 	var reflectValue reflect.Value
 	if value == nil {
 		reflectValue = env.NilValue
@@ -115,19 +115,19 @@ func (rt *runtime) defineType(symbol string, typ reflect.Type) error {
 func (rt *runtime) Destroy() {
 	rt.valuesRWM.Lock()
 	defer rt.valuesRWM.Unlock()
-	for _, symbol := range [...]string{
-		"printf",
-		"print",
-		"println",
-		"eval",
-	} {
+	for symbol := range rt.values {
 		delete(rt.values, symbol)
+	}
+	rt.typesRWM.Lock()
+	defer rt.typesRWM.Unlock()
+	for symbol := range rt.types {
+		delete(rt.types, symbol)
 	}
 }
 
 // Env is the environment needed for a VM to run in.
 type Env struct {
-	*env.Env
+	env     *env.Env
 	runtime *runtime
 
 	output io.Writer
@@ -142,7 +142,7 @@ func newEnv(e *env.Env, output io.Writer) *Env {
 	defineConvert(e)
 	defineCore(e)
 	en := &Env{
-		Env:    e,
+		env:    e,
 		output: output,
 	}
 	r := newRuntime(en)
@@ -168,7 +168,7 @@ func (e *Env) eval(src string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	ne := newEnv(e.NewEnv(), e.output)
+	ne := newEnv(e.env.NewEnv(), e.output)
 	ne.ctx = e.ctx
 	defer ne.Close()
 	val, err := RunContext(e.ctx, ne, stmt)
@@ -179,8 +179,18 @@ func (e *Env) eval(src string) (interface{}, error) {
 }
 
 // Define will redirect to runtime.
-func (e *Env) Define() {
+func (e *Env) Define(symbol string, value interface{}) error {
+	return e.runtime.DefineValue(symbol, value)
+}
 
+// DefineType will redirect to runtime.
+func (e *Env) DefineType(symbol string, value interface{}) error {
+	return e.runtime.DefineType(symbol, value)
+}
+
+// Get returns interface value from the scope where symbol is first found.
+func (e *Env) Get(symbol string) (interface{}, error) {
+	return e.env.Get(symbol)
 }
 
 // SetOutput is used to set output for printf, print and println.

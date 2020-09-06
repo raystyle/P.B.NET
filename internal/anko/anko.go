@@ -45,7 +45,7 @@ func Run(env *Env, stmt ast.Stmt) (interface{}, error) {
 
 // RunContext executes statement in the specified environment with context.
 func RunContext(ctx context.Context, env *Env, stmt ast.Stmt) (interface{}, error) {
-	val, err := vm.RunContext(ctx, env.Env, nil, stmt)
+	val, err := vm.RunContext(ctx, env.env, nil, stmt)
 	if err != nil {
 		if e, ok := err.(*vm.Error); ok {
 			const format = "run with %s at line:%d column:%d"
