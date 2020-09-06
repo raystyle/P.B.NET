@@ -27,6 +27,7 @@ func NewEnv() *Env {
 }
 
 // ParseSrc provides way to parse the code from source.
+// Warning! source code will be covered after parse.
 func ParseSrc(src string) (ast.Stmt, error) {
 	defer security.CoverString(src)
 	stmt, err := parser.ParseSrc(src)

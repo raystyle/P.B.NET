@@ -178,19 +178,25 @@ func (e *Env) eval(src string) (interface{}, error) {
 	return val, nil
 }
 
-// Define will redirect to runtime.
+// Define is used to define out value to environment.
+// It will redirect to runtime.
 func (e *Env) Define(symbol string, value interface{}) error {
 	return e.runtime.DefineValue(symbol, value)
-}
-
-// DefineType will redirect to runtime.
-func (e *Env) DefineType(symbol string, value interface{}) error {
-	return e.runtime.DefineType(symbol, value)
 }
 
 // Get returns interface value from the scope where symbol is first found.
 func (e *Env) Get(symbol string) (interface{}, error) {
 	return e.env.Get(symbol)
+}
+
+// GetValue returns reflect value from the scope where symbol is first found.
+func (e *Env) GetValue(symbol string) (reflect.Value, error) {
+	return e.env.GetValue(symbol)
+}
+
+// DefineType will redirect to runtime.
+func (e *Env) DefineType(symbol string, value interface{}) error {
+	return e.runtime.DefineType(symbol, value)
 }
 
 // SetOutput is used to set output for printf, print and println.

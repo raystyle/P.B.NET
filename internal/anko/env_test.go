@@ -1,7 +1,12 @@
 package anko
 
 import (
+	"bytes"
+	"fmt"
+	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"project/internal/testsuite"
 
@@ -105,4 +110,69 @@ return true
 `
 		testRun(t, src, false, true)
 	})
+}
+
+func TestEnv_Define(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	env := NewEnv()
+
+	// common
+	err := env.Define("out_println", fmt.Println)
+	require.NoError(t, err)
+
+	// reflect.Value
+	err = env.Define("out_print", reflect.ValueOf(fmt.Print))
+	require.NoError(t, err)
+
+	// nil value
+	err = env.Define("out_nil", nil)
+	require.NoError(t, err)
+
+	const src = `
+out_println("println")
+out_print("print\n")
+out_println(out_nil)
+return true
+`
+	stmt := testParseSrc(t, src)
+
+	val, err := Run(env, stmt)
+	require.NoError(t, err)
+	require.Equal(t, true, val)
+
+	env.Close()
+
+	testsuite.IsDestroyed(t, env)
+	testsuite.IsDestroyed(t, stmt)
+}
+
+func TestEnv_SetOutput(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	output := bytes.NewBuffer(make([]byte, 0, 1024))
+
+	env := NewEnv()
+	env.SetOutput(output)
+
+	const src = `
+printf("%s\n","printf")
+print("print\n")
+println("println")
+return true
+`
+	stmt := testParseSrc(t, src)
+
+	val, err := Run(env, stmt)
+	require.NoError(t, err)
+	require.Equal(t, true, val)
+
+	env.Close()
+
+	fmt.Println(output)
+
+	testsuite.IsDestroyed(t, env)
+	testsuite.IsDestroyed(t, stmt)
 }
