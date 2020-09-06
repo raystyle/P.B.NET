@@ -79,6 +79,13 @@ func CoverString(str string) {
 	runtime.KeepAlive(&str)
 }
 
+// CoverRunes is used to cover []rune if it has secret.
+func CoverRunes(r []rune) {
+	for i := 0; i < len(r); i++ {
+		r[i] = 0
+	}
+}
+
 // Bytes make byte slice discontinuous, it safe for use by multiple goroutines.
 type Bytes struct {
 	data  map[int]byte

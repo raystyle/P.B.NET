@@ -30,6 +30,13 @@ func TestCoverString(t *testing.T) {
 	require.NotEqual(t, s1, s2, "failed to cover string")
 }
 
+func TestCoverRune(t *testing.T) {
+	b1 := []rune{1, 2, 3, 4}
+	b2 := []rune{1, 2, 3, 4}
+	CoverRunes(b2)
+	require.NotEqual(t, b1, b2, "failed to cover runes")
+}
+
 func TestBytes(t *testing.T) {
 	testdata := []byte{1, 2, 3, 4}
 
