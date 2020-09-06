@@ -44,6 +44,8 @@ func testRun(t *testing.T, s string, fail bool, expected interface{}) {
 	}
 	require.Equal(t, expected, val)
 
+	env.Close()
+
 	testsuite.IsDestroyed(t, env)
 	testsuite.IsDestroyed(t, stmt)
 }
@@ -52,7 +54,7 @@ func TestUnsafe(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("sizeOf and alignOf", func(t *testing.T) {
+	t.Run("sizeof and alignof", func(t *testing.T) {
 		const src = `
 unsafe = import("unsafe")
 
@@ -74,8 +76,7 @@ return true
 	})
 
 	t.Run("convert to struct", func(t *testing.T) {
-		// convert to struct
-		// like these golang code
+		// convert to struct, like these golang code
 		// p := (*testStruct)(unsafe.Pointer(&Int64))
 		const src = `
 // 16777217 = []byte{0x01, 0x00, 0x00, 0x01}
@@ -85,7 +86,7 @@ unsafe = import("unsafe")
 reflect = import("reflect")
 
 val = 256
-println(&val)
+valPtr = &val
 
 dstType = make(struct {
 	A int32,
@@ -108,14 +109,17 @@ if val != 72057598349672449 {
 	return val
 }
 
+if valPtr != &val {
+	return "val address is changed"
+}
+
 return true
 `
 		testRun(t, src, false, true)
 	})
 
-	t.Run("convert to byte slice", func(t *testing.T) {
-		// make [8]byte and test ConvertWithType
-		// like these golang code
+	t.Run("convert to array", func(t *testing.T) {
+		// make [8]byte and test ConvertWithType, like these golang code
 		// p := (*[8]byte)(unsafe.Pointer(&Int64))
 		const src = `
 // 72057594037927937 is []byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}
@@ -124,16 +128,13 @@ unsafe = import("unsafe")
 reflect = import("reflect")
 
 val = 256
-typ = arrayType(make(byte), 8) // [8]byte
-p = unsafe.ConvertWithType(&val, typ)
+valPtr = &val
+
+dstTyp = arrayType(make(byte), 8) // [8]byte
+p = unsafe.ConvertWithType(&val, dstTyp)
 p = *p
 
 println(reflect.TypeOf(p))
-
-
-
-// bs = unsafe.ByteArrayToSlice(p)
-// println(bs[:4], bs[4:])
 
 // cover memory
 for i = 0; i < 8; i++ {
@@ -143,6 +144,10 @@ p[0] = 1
 p[7] = 1
 if val != 72057594037927937 {
 	return val
+}
+
+if valPtr != &val {
+	return "val address is changed"
 }
 
 return true

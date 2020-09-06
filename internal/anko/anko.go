@@ -37,7 +37,8 @@ func ParseSrc(src string) (ast.Stmt, error) {
 	}
 	defer security.CoverRunes(r)
 	// prevent invalid code that will crash program
-	// reference: https://github.com/mattn/anko/issues/341
+	// reference:
+	// https://github.com/mattn/anko/issues/341
 	if r[0] == '\ue031' {
 		return nil, errors.New("invalid source code")
 	}

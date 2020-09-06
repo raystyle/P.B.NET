@@ -319,6 +319,8 @@ func TestDefineCoreFunc(t *testing.T) {
 }
 
 // function in the module can only set the root module, instance will bug.
+// reference:
+// https://github.com/mattn/anko/issues/315
 
 func TestModule(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)

@@ -215,7 +215,8 @@ func (e *Env) Close() {
 	e.runtime.Destroy()
 }
 
-// destroyEnv is used to clean env, env.Env without functions about enumerate values and types.
+// destroyEnv is used to clean values and inner env in the environment.
+// env.Env without functions about enumerate values and types.
 func destroyEnv(e *env.Env) {
 	scanner := bufio.NewScanner(strings.NewReader(e.String()))
 	for scanner.Scan() {
