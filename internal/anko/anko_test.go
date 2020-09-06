@@ -185,6 +185,8 @@ func testRun(t *testing.T, src string, fail bool, expected interface{}) {
 
 	env.Close()
 
+	ne := env.env
 	testsuite.IsDestroyed(t, env)
+	testsuite.IsDestroyed(t, ne)
 	testsuite.IsDestroyed(t, stmt)
 }

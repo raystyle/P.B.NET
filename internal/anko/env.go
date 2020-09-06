@@ -1,6 +1,7 @@
 package anko
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -130,6 +131,7 @@ type Env struct {
 	env     *env.Env
 	runtime *runtime
 
+	// for built in function about print
 	output io.Writer
 
 	// control eval
@@ -209,5 +211,29 @@ func (e *Env) Close() {
 	if e.cancel != nil {
 		e.cancel()
 	}
+	destroyEnv(e.env)
 	e.runtime.Destroy()
+}
+
+// destroyEnv is used to clean env, env.Env without functions about enumerate values and types
+func destroyEnv(e *env.Env) {
+	scanner := bufio.NewScanner(strings.NewReader(e.String()))
+	for scanner.Scan() {
+		text := scanner.Text()
+		index := strings.Index(text, " = ")
+		if index == -1 {
+			continue
+		}
+		symbol := text[:index]
+		// clean inner env
+		typ := text[index:]
+		const flag = " = &env.Env"
+		if len(typ) >= len(flag) && typ[:len(flag)] == flag {
+			ie, _ := e.Get(symbol)
+			if ie != nil {
+				destroyEnv(ie.(*env.Env))
+			}
+		}
+		e.Delete(symbol)
+	}
 }

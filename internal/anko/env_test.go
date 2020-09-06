@@ -21,38 +21,31 @@ func TestEnv(t *testing.T) {
 
 	const src = `
 fmt = import("fmt")
- msgpack = import("github.com/vmihailenco/msgpack/v5")
+msgpack = import("github.com/vmihailenco/msgpack/v5")
 
- data,_ = msgpack.Marshal("acg")
+data, err = msgpack.Marshal("acg")
+if err != nil {
+return err
+}
 fmt.Println(data)
-println(data)
 
-var asd = "asd"
+io = import("io")
+println(io.ErrUnexpectedEOF)
 
- // msgpack = nil
+acg = "acg"
+func bb() {
+	println(acg)
+	acg = "acg2"
+}
+bb()
+if acg != "acg2" {
+	println(acg)
+	return acg
+}
 
- io = import("io")
- println(io.ErrUnexpectedEOF)
-
-  acg = "acg"
-  bb = func(){
-
-   println(acg)
-
-  acg = "acg2"
-  }
-  bb()
-
- println(acg)
-
-  for i in []byte{1,2,3} {
-     println(i)
-
-  }
-
-
-
-
+for i in []byte{1,2,3} {
+	println(i)
+}
 
 return true
 `
