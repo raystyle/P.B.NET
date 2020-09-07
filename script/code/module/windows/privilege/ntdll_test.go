@@ -9,7 +9,6 @@ func TestGenerateRtlEnableDisable(t *testing.T) {
 		privilege string
 		comment   string
 	}{
-		{"SECreateToken", "create token"},
 		{"SESecurity", "security"},
 		{"SELoadDriver", "load driver"},
 		{"SESystemTime", "system time"},

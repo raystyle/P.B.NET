@@ -19,7 +19,6 @@ var (
 
 // about privilege id
 const (
-	SECreateToken    uint32 = 2
 	SESecurity       uint32 = 8
 	SELoadDriver     uint32 = 10
 	SESystemTime     uint32 = 12
@@ -49,16 +48,6 @@ func RtlAdjustPrivilege(id uint32, enable, currentThread bool) (bool, error) {
 		return false, errors.Errorf("failed to enable privilege: %d, error: 0x%08X", id, ret)
 	}
 	return previous, nil
-}
-
-// RtlEnableCreateToken is used to enable create token privilege that call RtlAdjustPrivilege.
-func RtlEnableCreateToken() (bool, error) {
-	return RtlAdjustPrivilege(SECreateToken, true, false)
-}
-
-// RtlDisableCreateToken is used to disable create token privilege that call RtlAdjustPrivilege.
-func RtlDisableCreateToken() (bool, error) {
-	return RtlAdjustPrivilege(SECreateToken, false, false)
 }
 
 // RtlEnableSecurity is used to enable security privilege that call RtlAdjustPrivilege.
