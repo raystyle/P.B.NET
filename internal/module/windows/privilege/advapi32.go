@@ -7,6 +7,12 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// about privilege name
+const (
+	SeDebug    = "SeDebugPrivilege"
+	SeShutdown = "SeShutdownPrivilege"
+)
+
 // EnablePrivilege is used to enable privilege with privilege name.
 func EnablePrivilege(name string) error {
 	// get current process token
@@ -20,7 +26,7 @@ func EnablePrivilege(name string) error {
 	debug := new(windows.LUID)
 	err = windows.LookupPrivilegeValue(nil, windows.StringToUTF16Ptr(name), debug)
 	if err != nil {
-		return errors.Wrapf(err, "failed to lookup %s", name)
+		return errors.Wrapf(err, "failed to lookup %q", name)
 	}
 	// adjust token privilege
 	privilege := windows.Tokenprivileges{
@@ -37,7 +43,12 @@ func EnablePrivilege(name string) error {
 	return nil
 }
 
-// EnableDebug is used to enable the debug privilege.
+// EnableDebug is used to enable debug privilege.
 func EnableDebug() error {
-	return EnablePrivilege("SeDebugPrivilege")
+	return EnablePrivilege(SeDebug)
+}
+
+// EnableShutdown is used to enable shutdown privilege.
+func EnableShutdown() error {
+	return EnablePrivilege(SeShutdown)
 }

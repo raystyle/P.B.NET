@@ -32,9 +32,11 @@ const (
 
 // RtlAdjustPrivilege is used to adjust privilege with procRtlAdjustPrivilege.
 func RtlAdjustPrivilege(id uint32, enable, currentThread bool) (bool, error) {
+	op := "disable"
 	var p0 uint32
 	if enable {
 		p0 = 1
+		op = "enable"
 	}
 	var p1 uint32
 	if currentThread {
@@ -45,7 +47,7 @@ func RtlAdjustPrivilege(id uint32, enable, currentThread bool) (bool, error) {
 		uintptr(id), uintptr(p0), uintptr(p1), uintptr(unsafe.Pointer(&previous)),
 	)
 	if ret != 0 {
-		return false, errors.Errorf("failed to enable privilege: %d, error: 0x%08X", id, ret)
+		return false, errors.Errorf("failed to %s privilege: %d, error: 0x%08X", op, id, ret)
 	}
 	return previous, nil
 }

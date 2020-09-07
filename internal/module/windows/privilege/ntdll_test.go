@@ -10,6 +10,7 @@ import (
 func TestRtlAdjustPrivilege(t *testing.T) {
 	_, err := RtlAdjustPrivilege(0, true, true)
 	require.Error(t, err)
+	t.Log(err)
 }
 
 func testIsElevated() bool {
@@ -29,7 +30,6 @@ func TestRtlEnableSecurity(t *testing.T) {
 	}
 	previous, err := RtlEnableSecurity()
 	require.NoError(t, err)
-	require.False(t, previous)
 
 	testRestorePrivilege(t, SESecurity, previous, true)
 }
@@ -40,7 +40,6 @@ func TestRtlDisableSecurity(t *testing.T) {
 	}
 	first, err := RtlEnableSecurity()
 	require.NoError(t, err)
-	require.False(t, first)
 
 	previous, err := RtlDisableSecurity()
 	require.NoError(t, err)
@@ -55,7 +54,6 @@ func TestRtlEnableLoadDriver(t *testing.T) {
 	}
 	previous, err := RtlEnableLoadDriver()
 	require.NoError(t, err)
-	require.False(t, previous)
 
 	testRestorePrivilege(t, SELoadDriver, previous, true)
 }
@@ -66,7 +64,6 @@ func TestRtlDisableLoadDriver(t *testing.T) {
 	}
 	first, err := RtlEnableLoadDriver()
 	require.NoError(t, err)
-	require.False(t, first)
 
 	previous, err := RtlDisableLoadDriver()
 	require.NoError(t, err)
@@ -81,7 +78,6 @@ func TestRtlEnableSystemTime(t *testing.T) {
 	}
 	previous, err := RtlEnableSystemTime()
 	require.NoError(t, err)
-	require.False(t, previous)
 
 	testRestorePrivilege(t, SESystemTime, previous, true)
 }
@@ -92,7 +88,6 @@ func TestRtlDisableSystemTime(t *testing.T) {
 	}
 	first, err := RtlEnableSystemTime()
 	require.NoError(t, err)
-	require.False(t, first)
 
 	previous, err := RtlDisableSystemTime()
 	require.NoError(t, err)
@@ -107,7 +102,6 @@ func TestRtlEnableSystemProf(t *testing.T) {
 	}
 	previous, err := RtlEnableSystemProf()
 	require.NoError(t, err)
-	require.False(t, previous)
 
 	testRestorePrivilege(t, SESystemProf, previous, true)
 }
@@ -118,7 +112,6 @@ func TestRtlDisableSystemProf(t *testing.T) {
 	}
 	first, err := RtlEnableSystemProf()
 	require.NoError(t, err)
-	require.False(t, first)
 
 	previous, err := RtlDisableSystemProf()
 	require.NoError(t, err)
@@ -133,7 +126,6 @@ func TestRtlEnableBackup(t *testing.T) {
 	}
 	previous, err := RtlEnableBackup()
 	require.NoError(t, err)
-	require.False(t, previous)
 
 	testRestorePrivilege(t, SEBackup, previous, true)
 }
@@ -144,7 +136,6 @@ func TestRtlDisableBackup(t *testing.T) {
 	}
 	first, err := RtlEnableBackup()
 	require.NoError(t, err)
-	require.False(t, first)
 
 	previous, err := RtlDisableBackup()
 	require.NoError(t, err)
@@ -159,7 +150,6 @@ func TestRtlEnableShutdown(t *testing.T) {
 	}
 	previous, err := RtlEnableShutdown()
 	require.NoError(t, err)
-	require.False(t, previous)
 
 	testRestorePrivilege(t, SEShutdown, previous, true)
 }
@@ -170,7 +160,6 @@ func TestRtlDisableShutdown(t *testing.T) {
 	}
 	first, err := RtlEnableShutdown()
 	require.NoError(t, err)
-	require.False(t, first)
 
 	previous, err := RtlDisableShutdown()
 	require.NoError(t, err)
@@ -185,7 +174,6 @@ func TestRtlEnableDebug(t *testing.T) {
 	}
 	previous, err := RtlEnableDebug()
 	require.NoError(t, err)
-	require.True(t, previous)
 
 	testRestorePrivilege(t, SEDebug, previous, true)
 }
@@ -196,7 +184,6 @@ func TestRtlDisableDebug(t *testing.T) {
 	}
 	first, err := RtlEnableDebug()
 	require.NoError(t, err)
-	require.True(t, first)
 
 	previous, err := RtlDisableDebug()
 	require.NoError(t, err)
@@ -211,7 +198,6 @@ func TestRtlEnableSystemEnv(t *testing.T) {
 	}
 	previous, err := RtlEnableSystemEnv()
 	require.NoError(t, err)
-	require.False(t, previous)
 
 	testRestorePrivilege(t, SESystemEnv, previous, true)
 }
@@ -222,7 +208,6 @@ func TestRtlDisableSystemEnv(t *testing.T) {
 	}
 	first, err := RtlEnableSystemEnv()
 	require.NoError(t, err)
-	require.False(t, first)
 
 	previous, err := RtlDisableSystemEnv()
 	require.NoError(t, err)
@@ -237,7 +222,6 @@ func TestRtlEnableRemoteShutdown(t *testing.T) {
 	}
 	previous, err := RtlEnableRemoteShutdown()
 	require.NoError(t, err)
-	require.False(t, previous)
 
 	testRestorePrivilege(t, SERemoteShutdown, previous, true)
 }
@@ -248,7 +232,6 @@ func TestRtlDisableRemoteShutdown(t *testing.T) {
 	}
 	first, err := RtlEnableRemoteShutdown()
 	require.NoError(t, err)
-	require.False(t, first)
 
 	previous, err := RtlDisableRemoteShutdown()
 	require.NoError(t, err)
