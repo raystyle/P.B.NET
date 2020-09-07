@@ -35,6 +35,6 @@ func TestGenerateTestRtlEnableDisable(t *testing.T) {
 		"SESystemEnv",
 		"SERemoteShutdown",
 	} {
-		generateTestRtlEnableDisable(t, privilege)
+		generateTestRtlEnableDisable(privilege)
 	}
 }
