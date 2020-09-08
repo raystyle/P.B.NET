@@ -11,6 +11,26 @@ import (
 	"project/internal/xpanic"
 )
 
+func schedule(ctx context.Context, ch chan []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			xpanic.Log(r, "schedule")
+		}
+	}()
+	rand := random.NewRand()
+	n := 100 + rand.Int(100)
+	for i := 0; i < n; i++ {
+		buf := bytes.Buffer{}
+		buf.Write(random.Bytes(16 + rand.Int(1024)))
+		select {
+		case ch <- buf.Bytes():
+		case <-ctx.Done():
+			return
+		}
+		runtime.Gosched()
+	}
+}
+
 // SwitchThread is used to create a lot of goroutine to call "select"
 // that can split syscall to random threads to call.
 func SwitchThread() {
@@ -36,26 +56,6 @@ read:
 		}
 	}
 	time.Sleep(time.Millisecond * time.Duration(5+rand.Int(50)))
-}
-
-func schedule(ctx context.Context, ch chan []byte) {
-	defer func() {
-		if r := recover(); r != nil {
-			xpanic.Log(r, "schedule")
-		}
-	}()
-	rand := random.NewRand()
-	n := 100 + rand.Int(100)
-	for i := 0; i < n; i++ {
-		buf := bytes.Buffer{}
-		buf.Write(random.Bytes(16 + rand.Int(1024)))
-		select {
-		case ch <- buf.Bytes():
-		case <-ctx.Done():
-			return
-		}
-		runtime.Gosched()
-	}
 }
 
 // SwitchThreadAsync like SwitchThread, but will not wait goroutine run finish.

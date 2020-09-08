@@ -10,6 +10,33 @@ import (
 	"project/internal/testsuite"
 )
 
+func TestSchedule(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("panic", func(t *testing.T) {
+		patch := func() *random.Rand {
+			panic(monkey.Panic)
+		}
+		pg := monkey.Patch(random.NewRand, patch)
+		defer pg.Unpatch()
+
+		ch := make(chan []byte, 5120)
+		schedule(context.Background(), ch)
+	})
+
+	t.Run("ctx.Done()", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(time.Second)
+			cancel()
+		}()
+
+		ch := make(chan []byte, 16)
+		schedule(ctx, ch)
+	})
+}
+
 func TestSwitchThread(t *testing.T) {
 	SwitchThread()
 }
@@ -38,33 +65,6 @@ func TestWaitSwitchThreadAsync(t *testing.T) {
 
 		<-done1
 		<-done2
-	})
-}
-
-func TestSchedule(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	t.Run("panic", func(t *testing.T) {
-		patch := func() *random.Rand {
-			panic(monkey.Panic)
-		}
-		pg := monkey.Patch(random.NewRand, patch)
-		defer pg.Unpatch()
-
-		ch := make(chan []byte, 5120)
-		schedule(context.Background(), ch)
-	})
-
-	t.Run("ctx.Done()", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			time.Sleep(time.Second)
-			cancel()
-		}()
-
-		ch := make(chan []byte, 16)
-		schedule(ctx, ch)
 	})
 }
 
