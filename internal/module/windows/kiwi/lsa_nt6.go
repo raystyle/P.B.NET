@@ -325,9 +325,9 @@ func (lsa *lsaNT6) acquireKey(pHandle windows.Handle, address uintptr, algorithm
 	hKey := *(*hardKey)(unsafe.Pointer(&bKey[bcryptKeyOffset]))
 	hardKeyData := make([]byte, int(hKey.secret))
 	address = bhKey.key + bcryptKeyOffset + unsafe.Offsetof(hardKey{}.data)
-	err = lsa.ctx.readMemory(pHandle, address, &hardKeyData[0], uintptr(len(hardKeyData)))
+	err = lsa.ctx.readMemoryEnd(pHandle, address, &hardKeyData[0], uintptr(len(hardKeyData)))
 	if err != nil {
-		return errors.WithMessage(err, "failed to read bcrypt handle key")
+		return errors.WithMessage(err, "failed to read hard key")
 	}
 	lsa.logf(logger.Debug, "%s hard key: 0x%X", algorithm, hardKeyData)
 	return lsa.generateSymmetricKey(hardKeyData, algorithm)

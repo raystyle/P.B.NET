@@ -3,6 +3,7 @@ package kiwi
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 	"strings"
 	"time"
 	"unicode/utf16"
@@ -52,6 +53,7 @@ func (kiwi *Kiwi) readMemory(pHandle windows.Handle, address uintptr, buffer *by
 	dstSH.Cap = int(size)
 	dstSH.Data = uintptr(unsafe.Pointer(buffer))
 	copy(dst, buf[randomFrontSize:randomFrontSize+size])
+	runtime.KeepAlive(buffer)
 	return nil
 }
 
@@ -60,7 +62,7 @@ func (kiwi *Kiwi) readMemoryEnd(pHandle windows.Handle, address uintptr, buffer 
 	// TODO recovery random
 	// randomFrontSize := uintptr(128 + kiwi.rand.Int(128))
 	// randomBackSize := uintptr(128 + kiwi.rand.Int(128))
-	randomBackSize := uintptr(64) // don't edit it unless you known what you do!
+	randomBackSize := uintptr(32) // don't edit it unless you known what you do!
 	buf := make([]byte, size+randomBackSize)
 	_, err := api.ReadProcessMemory(pHandle, address, &buf[0], uintptr(len(buf)))
 	if err != nil {
@@ -72,6 +74,7 @@ func (kiwi *Kiwi) readMemoryEnd(pHandle windows.Handle, address uintptr, buffer 
 	dstSH.Cap = int(size)
 	dstSH.Data = uintptr(unsafe.Pointer(buffer))
 	copy(dst, buf[:size])
+	runtime.KeepAlive(&buffer)
 	return nil
 }
 

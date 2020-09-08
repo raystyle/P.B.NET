@@ -788,8 +788,30 @@ func (session *session) readSession(pHandle windows.Handle, buf []byte, enum *ls
 		if err != nil {
 			return nil, err
 		}
+
+		// for i := 0; i < 100; i++ {
+		//
+		// 	fmt.Println(sid)
+		// }
+
 	}
 	logonID := *(*windows.LUID)(unsafe.Pointer(&buf[enum.offsetToLogonID]))
+	// sessionID := *(*uint32)(unsafe.Pointer(&buf[enum.offsetToLogonID]))
+
+	// logonTimestamp := *(*[8]byte)(unsafe.Pointer(&buf[enum.offsetToLogonTime]))
+	// fmt.Println(logonTimestamp)
+	//
+	// a := *(*int32)(unsafe.Pointer(&logonTimestamp[0]))
+	//
+	// b := *(*int32)(unsafe.Pointer(&logonTimestamp[4]))
+	//
+	// fmt.Println(a)
+	// fmt.Println(b)
+	//
+	// logonTime := time.Unix(int64(a), 0)
+	//
+	// fmt.Println(logonTime)
+
 	logonSession := Session{
 		LogonID:     logonID,
 		Domain:      domainName,
