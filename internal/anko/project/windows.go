@@ -60,11 +60,43 @@ func initInternalModuleWindowsWMI() {
 func initInternalModuleWindowsPrivilege() {
 	env.Packages["project/internal/module/windows/privilege"] = map[string]reflect.Value{
 		// define constants
+		"SEBackup":         reflect.ValueOf(privilege.SEBackup),
+		"SEDebug":          reflect.ValueOf(privilege.SEDebug),
+		"SELoadDriver":     reflect.ValueOf(privilege.SELoadDriver),
+		"SERemoteShutdown": reflect.ValueOf(privilege.SERemoteShutdown),
+		"SESecurity":       reflect.ValueOf(privilege.SESecurity),
+		"SEShutdown":       reflect.ValueOf(privilege.SEShutdown),
+		"SESystemEnv":      reflect.ValueOf(privilege.SESystemEnv),
+		"SESystemProf":     reflect.ValueOf(privilege.SESystemProf),
+		"SESystemTime":     reflect.ValueOf(privilege.SESystemTime),
+		"SeDebug":          reflect.ValueOf(privilege.SeDebug),
+		"SeShutdown":       reflect.ValueOf(privilege.SeShutdown),
 
 		// define variables
 
 		// define functions
-		"EnableDebugPrivilege": reflect.ValueOf(privilege.EnableDebugPrivilege),
+		"EnableDebug":              reflect.ValueOf(privilege.EnableDebug),
+		"EnablePrivilege":          reflect.ValueOf(privilege.EnablePrivilege),
+		"EnableShutdown":           reflect.ValueOf(privilege.EnableShutdown),
+		"RtlAdjustPrivilege":       reflect.ValueOf(privilege.RtlAdjustPrivilege),
+		"RtlDisableBackup":         reflect.ValueOf(privilege.RtlDisableBackup),
+		"RtlDisableDebug":          reflect.ValueOf(privilege.RtlDisableDebug),
+		"RtlDisableLoadDriver":     reflect.ValueOf(privilege.RtlDisableLoadDriver),
+		"RtlDisableRemoteShutdown": reflect.ValueOf(privilege.RtlDisableRemoteShutdown),
+		"RtlDisableSecurity":       reflect.ValueOf(privilege.RtlDisableSecurity),
+		"RtlDisableShutdown":       reflect.ValueOf(privilege.RtlDisableShutdown),
+		"RtlDisableSystemEnv":      reflect.ValueOf(privilege.RtlDisableSystemEnv),
+		"RtlDisableSystemProf":     reflect.ValueOf(privilege.RtlDisableSystemProf),
+		"RtlDisableSystemTime":     reflect.ValueOf(privilege.RtlDisableSystemTime),
+		"RtlEnableBackup":          reflect.ValueOf(privilege.RtlEnableBackup),
+		"RtlEnableDebug":           reflect.ValueOf(privilege.RtlEnableDebug),
+		"RtlEnableLoadDriver":      reflect.ValueOf(privilege.RtlEnableLoadDriver),
+		"RtlEnableRemoteShutdown":  reflect.ValueOf(privilege.RtlEnableRemoteShutdown),
+		"RtlEnableSecurity":        reflect.ValueOf(privilege.RtlEnableSecurity),
+		"RtlEnableShutdown":        reflect.ValueOf(privilege.RtlEnableShutdown),
+		"RtlEnableSystemEnv":       reflect.ValueOf(privilege.RtlEnableSystemEnv),
+		"RtlEnableSystemProf":      reflect.ValueOf(privilege.RtlEnableSystemProf),
+		"RtlEnableSystemTime":      reflect.ValueOf(privilege.RtlEnableSystemTime),
 	}
 	var ()
 	env.PackageTypes["project/internal/module/windows/privilege"] = map[string]reflect.Type{}

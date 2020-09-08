@@ -35,11 +35,15 @@ func initUnsafe() {
 // convert is used to force convert like
 // n := *(*uint32)(unsafe.Pointer(&Float32))
 //
-// you can use these code in anko script
+// you can use these code in anko script:
+// val = 256
+// dstType = make(struct {
+//     A int32,
+//     B int32
+// })
+// p = unsafe.Convert(&val, dstType)
 //
-// p = unsafe.Convert(&val, new(typ))
-// println(p.Interface().A)          // get value in struct
-// p.Set(reflect.ValueOf(newVal))    // set value
+// println(p.A, p.B)
 //
 // newVal must the same type with typ
 // see more information in TestUnsafe()
