@@ -577,67 +577,67 @@ type MockModule struct {
 }
 
 // Start is used to start mock module.
-func (m *MockModule) Start() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.start()
+func (module *MockModule) Start() error {
+	module.mu.Lock()
+	defer module.mu.Unlock()
+	return module.start()
 }
 
-func (m *MockModule) start() error {
-	m.startedMu.Lock()
-	defer m.startedMu.Unlock()
-	if m.started {
+func (module *MockModule) start() error {
+	module.startedMu.Lock()
+	defer module.startedMu.Unlock()
+	if module.started {
 		return errors.New("already started")
 	}
-	m.started = true
+	module.started = true
 	return nil
 }
 
 // Stop is used to stop mock module.
-func (m *MockModule) Stop() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.stop()
-	m.wg.Wait()
+func (module *MockModule) Stop() {
+	module.mu.Lock()
+	defer module.mu.Unlock()
+	module.stop()
+	module.wg.Wait()
 }
 
-func (m *MockModule) stop() {
-	m.startedMu.Lock()
-	defer m.startedMu.Unlock()
-	if m.started {
-		m.started = false
+func (module *MockModule) stop() {
+	module.startedMu.Lock()
+	defer module.startedMu.Unlock()
+	if module.started {
+		module.started = false
 	}
 }
 
 // Restart is used to restart mock module.
-func (m *MockModule) Restart() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.stop()
-	m.wg.Wait()
-	return m.start()
+func (module *MockModule) Restart() error {
+	module.mu.Lock()
+	defer module.mu.Unlock()
+	module.stop()
+	module.wg.Wait()
+	return module.start()
 }
 
 // Name is used to get the name of the mock module.
-func (m *MockModule) Name() string {
+func (module *MockModule) Name() string {
 	return "mock module"
 }
 
 // Info is used to get the information about the mock module.
-func (m *MockModule) Info() string {
-	m.startedMu.Lock()
-	defer m.startedMu.Unlock()
-	if m.started {
+func (module *MockModule) Info() string {
+	module.startedMu.Lock()
+	defer module.startedMu.Unlock()
+	if module.started {
 		return "mock module started info"
 	}
 	return "mock module stopped info"
 }
 
 // Status is used to get the status about the mock module.
-func (m *MockModule) Status() string {
-	m.startedMu.Lock()
-	defer m.startedMu.Unlock()
-	if m.started {
+func (module *MockModule) Status() string {
+	module.startedMu.Lock()
+	defer module.startedMu.Unlock()
+	if module.started {
 		return "mock module started status"
 	}
 	return "mock module stopped status"
