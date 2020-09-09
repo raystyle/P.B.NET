@@ -6,10 +6,10 @@ import (
 	"debug/pe"
 	"flag"
 	"fmt"
-	"html/template"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"text/template"
 
 	"project/external/go-donut/donut"
 
