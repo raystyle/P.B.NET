@@ -18,18 +18,21 @@ import (
 	"time"
 
 	"project/internal/crypto/rand"
+	"project/internal/namer"
 	"project/internal/random"
 	"project/internal/security"
 )
 
 // Options contains options about generate certificate.
 type Options struct {
-	Algorithm   string    `toml:"algorithm"` // "rsa|2048", "ecdsa|p256", "ed25519"
-	DNSNames    []string  `toml:"dns_names"`
-	IPAddresses []string  `toml:"ip_addresses"` // IP SANs
-	Subject     Subject   `toml:"subject"`
-	NotBefore   time.Time `toml:"not_before"`
-	NotAfter    time.Time `toml:"not_after"`
+	Algorithm   string         `toml:"algorithm"` // "rsa|2048", "ecdsa|p256", "ed25519"
+	DNSNames    []string       `toml:"dns_names"`
+	IPAddresses []string       `toml:"ip_addresses"` // IP SANs
+	Subject     Subject        `toml:"subject"`
+	NotBefore   time.Time      `toml:"not_before"`
+	NotAfter    time.Time      `toml:"not_after"`
+	NamerOpts   *namer.Options `toml:"namer_opts"`
+	Namer       namer.Namer    `toml:"-"`
 }
 
 // Subject contains certificate subject information.
@@ -45,24 +48,37 @@ type Subject struct {
 	PostalCode         []string `toml:"postal_code"`
 }
 
-// TODO use namer to generate common name
 func generateCertificate(opts *Options) (*x509.Certificate, error) {
-	cert := x509.Certificate{}
-	cert.SerialNumber = big.NewInt(random.Int64())
-	cert.SubjectKeyId = random.Bytes(4)
-	// Subject.CommonName
-	if opts.Subject.CommonName == "" {
-		cert.Subject.CommonName = random.Cookie(6 + random.Int(8))
-	} else {
-		cert.Subject.CommonName = opts.Subject.CommonName
+	cert := &x509.Certificate{
+		SerialNumber: big.NewInt(random.Int64()),
+		SubjectKeyId: random.Bytes(4),
 	}
-	// Subject.Organization
-	if opts.Subject.Organization == nil {
-		cert.Subject.Organization = []string{random.Cookie(6 + random.Int(8))}
-	} else {
-		cert.Subject.Organization = make([]string, len(opts.Subject.Organization))
-		copy(cert.Subject.Organization, opts.Subject.Organization)
+	err := setCertCommonName(cert, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set common name: %s", err)
 	}
+	err = setCertOrganization(cert, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set organization: %s", err)
+	}
+	// check and set domain name
+	dn := opts.DNSNames
+	for i := 0; i < len(dn); i++ {
+		if !isDomainName(dn[i]) {
+			return nil, fmt.Errorf("%s is not a domain name", dn[i])
+		}
+		cert.DNSNames = append(cert.DNSNames, dn[i])
+	}
+	// check and set IP address
+	ips := opts.IPAddresses
+	for i := 0; i < len(ips); i++ {
+		ip := net.ParseIP(ips[i])
+		if ip == nil {
+			return nil, fmt.Errorf("%s is not a IP", ips[i])
+		}
+		cert.IPAddresses = append(cert.IPAddresses, ip)
+	}
+	setCertTime(cert, opts)
 	// copy []string
 	cert.Subject.Country = make([]string, len(opts.Subject.Country))
 	copy(cert.Subject.Country, opts.Subject.Country)
@@ -77,7 +93,47 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 	cert.Subject.PostalCode = make([]string, len(opts.Subject.PostalCode))
 	copy(cert.Subject.PostalCode, opts.Subject.PostalCode)
 	cert.Subject.SerialNumber = opts.Subject.SerialNumber
-	// set time
+	return cert, nil
+}
+
+func setCertCommonName(cert *x509.Certificate, opts *Options) error {
+	if opts.Subject.CommonName != "" {
+		cert.Subject.CommonName = opts.Subject.CommonName
+		return nil
+	}
+	// generate random common name
+	if opts.Namer == nil {
+		cert.Subject.CommonName = random.Cookie(6 + random.Int(8))
+		return nil
+	}
+	name, err := opts.Namer.Generate(opts.NamerOpts)
+	if err != nil {
+		return err
+	}
+	cert.Subject.CommonName = name
+	return nil
+}
+
+func setCertOrganization(cert *x509.Certificate, opts *Options) error {
+	if len(opts.Subject.Organization) != 0 {
+		cert.Subject.Organization = make([]string, len(opts.Subject.Organization))
+		copy(cert.Subject.Organization, opts.Subject.Organization)
+		return nil
+	}
+	// generate random organization
+	if opts.Namer == nil {
+		cert.Subject.Organization = []string{random.Cookie(6 + random.Int(8))}
+		return nil
+	}
+	name, err := opts.Namer.Generate(opts.NamerOpts)
+	if err != nil {
+		return err
+	}
+	cert.Subject.Organization = []string{name}
+	return nil
+}
+
+func setCertTime(cert *x509.Certificate, opts *Options) {
 	now := time.Date(2018, 11, 27, 0, 0, 0, 0, time.UTC)
 	if opts.NotBefore.IsZero() {
 		years := random.Int(10)
@@ -95,24 +151,6 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 	} else {
 		cert.NotAfter = opts.NotAfter
 	}
-	// check domain name
-	dn := opts.DNSNames
-	for i := 0; i < len(dn); i++ {
-		if !isDomainName(dn[i]) {
-			return nil, fmt.Errorf("%s is not a domain name", dn[i])
-		}
-		cert.DNSNames = append(cert.DNSNames, dn[i])
-	}
-	// check IP address
-	ips := opts.IPAddresses
-	for i := 0; i < len(ips); i++ {
-		ip := net.ParseIP(ips[i])
-		if ip == nil {
-			return nil, fmt.Errorf("%s is not a IP", ips[i])
-		}
-		cert.IPAddresses = append(cert.IPAddresses, ip)
-	}
-	return &cert, nil
 }
 
 // copy from internal/dns/protocol.go

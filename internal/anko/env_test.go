@@ -244,7 +244,9 @@ func TestEnv_DefineType(t *testing.T) {
 
 	env := NewEnv()
 
-	o := out{}
+	o := out{
+		c: "out",
+	}
 
 	// common
 	err := env.DefineType("out", o)

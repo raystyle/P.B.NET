@@ -451,6 +451,9 @@ return true
 
 		// require.Equal(t, "aaa", i1)
 		// require.Equal(t, int64(2), i2)
+
+		fmt.Println(i1)
+		fmt.Println(i2)
 	}
 	f()
 	f()
