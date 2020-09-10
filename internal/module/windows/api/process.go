@@ -3,7 +3,6 @@
 package api
 
 import (
-	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -52,7 +51,7 @@ func GetProcessList() ([]*ProcessBasicInfo, error) {
 		})
 		err = windows.Process32Next(snapshot, processEntry)
 		if err != nil {
-			if err.(syscall.Errno) == windows.ERROR_NO_MORE_FILES {
+			if err.(windows.Errno) == windows.ERROR_NO_MORE_FILES {
 				break
 			}
 			return nil, newError(name, err, "failed to call Process32Next")
