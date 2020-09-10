@@ -18,10 +18,74 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/namer"
 	"project/internal/patch/monkey"
 	"project/internal/patch/toml"
 	"project/internal/testsuite"
+	"project/internal/testsuite/testnamer"
 )
+
+func TestGenerateCertificate(t *testing.T) {
+	t.Run("with namer", func(t *testing.T) {
+		n := testnamer.NewNamer()
+		opts := Options{
+			Namer: n,
+		}
+		cert, err := generateCertificate(&opts)
+		require.NoError(t, err)
+		t.Log("common name:", cert.Subject.CommonName)
+		t.Log("organization:", cert.Subject.Organization[0])
+	})
+
+	t.Run("failed to generate word", func(t *testing.T) {
+		n := testnamer.NewNamerWithGenerateFailed()
+		opts := Options{
+			Namer: n,
+		}
+		cert, err := generateCertificate(&opts)
+		require.Error(t, err)
+		require.Nil(t, cert)
+	})
+
+	t.Run("failed to set organization", func(t *testing.T) {
+		n := testnamer.NewNamer()
+		count := 0
+		patch := func(interface{}, *namer.Options) (string, error) {
+			count += 1
+			if count == 1 {
+				return "foo", nil
+			}
+			return "", monkey.Error
+		}
+		pg := monkey.PatchInstanceMethod(n, "Generate", patch)
+		defer pg.Unpatch()
+
+		opts := Options{
+			Namer: n,
+		}
+		cert, err := generateCertificate(&opts)
+		monkey.IsExistMonkeyError(t, err)
+		require.Nil(t, cert)
+	})
+
+	t.Run("invalid domain name", func(t *testing.T) {
+		opts := Options{
+			DNSNames: []string{"foo-"},
+		}
+		cert, err := generateCertificate(&opts)
+		require.Error(t, err)
+		require.Nil(t, cert)
+	})
+
+	t.Run("invalid IP address", func(t *testing.T) {
+		opts := Options{
+			IPAddresses: []string{"foo ip"},
+		}
+		cert, err := generateCertificate(&opts)
+		require.Error(t, err)
+		require.Nil(t, cert)
+	})
+}
 
 func TestIsDomainName(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
@@ -197,11 +261,11 @@ func TestGenerateED25519(t *testing.T) {
 
 func TestGenerateCA(t *testing.T) {
 	t.Run("compare", func(t *testing.T) {
-		now := time.Now()
-		notAfter := now.AddDate(0, 0, 1)
+		notBefore := time.Now()
+		notAfter := notBefore.AddDate(0, 0, 1)
 		opts := &Options{
 			Algorithm: "rsa|2048",
-			NotBefore: now,
+			NotBefore: notBefore,
 			NotAfter:  notAfter,
 		}
 		opts.Subject.CommonName = "test common name"
@@ -213,7 +277,7 @@ func TestGenerateCA(t *testing.T) {
 		require.Equal(t, "test common name", ca.Certificate.Subject.CommonName)
 		require.Equal(t, []string{"test organization"}, ca.Certificate.Subject.Organization)
 
-		expected := now.Format(timeLayout)
+		expected := notBefore.Format(timeLayout)
 		actual := ca.Certificate.NotBefore.Local().Format(timeLayout)
 		require.Equal(t, expected, actual)
 
@@ -222,20 +286,13 @@ func TestGenerateCA(t *testing.T) {
 		require.Equal(t, expected, actual)
 	})
 
-	t.Run("invalid domain name", func(t *testing.T) {
+	t.Run("failed to generate CA", func(t *testing.T) {
 		opts := Options{
 			DNSNames: []string{"foo-"},
 		}
-		_, err := GenerateCA(&opts)
+		pair, err := GenerateCA(&opts)
 		require.Error(t, err)
-	})
-
-	t.Run("invalid IP address", func(t *testing.T) {
-		opts := Options{
-			IPAddresses: []string{"foo ip"},
-		}
-		_, err := GenerateCA(&opts)
-		require.Error(t, err)
+		require.Nil(t, pair)
 	})
 
 	t.Run("failed to generate private key", func(t *testing.T) {
