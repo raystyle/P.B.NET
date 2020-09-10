@@ -1,10 +1,15 @@
 package api
 
 import (
+	"net"
+	"reflect"
+	"runtime"
 	"unsafe"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
+
+	"project/internal/convert"
 )
 
 // references:
@@ -15,6 +20,73 @@ import (
 // parameters about exported function:
 // https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedtcptable
 // https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedudptable
+
+var (
+	modIphlpapi = windows.NewLazySystemDLL("iphlpapi.dll")
+
+	procGetExtendedTCPTable = modIphlpapi.NewProc("GetExtendedTcpTable")
+	procGetExtendedUDPTable = modIphlpapi.NewProc("GetExtendedUdpTable")
+)
+
+// about TCP connection state, reference MIB_TCP_STATE
+const (
+	_ uint8 = iota
+	TCPStateClosed
+	TCPStateListening
+	TCPStateSYNSent
+	TCPStateSYNReceived
+	TCPStateEstablished
+	TCPStateFinWait1
+	TCPStateFinWait2
+	TCPStateCloseWait
+	TCPStateClosing
+	TCPStateLastAck
+	TCPStateTimeWait
+	TCPStateDeleteTCB
+)
+
+var states = map[uint8]string{
+	TCPStateClosed:      "Closed",
+	TCPStateListening:   "Listening",
+	TCPStateSYNSent:     "SYN_Sent",
+	TCPStateSYNReceived: "SYN_Received",
+	TCPStateEstablished: "Established",
+	TCPStateFinWait1:    "Fin_Wait1",
+	TCPStateFinWait2:    "Fin_Wait2",
+	TCPStateCloseWait:   "Close_Wait",
+	TCPStateClosing:     "Closing",
+	TCPStateLastAck:     "Last_Ack",
+	TCPStateTimeWait:    "Time_Wait",
+	TCPStateDeleteTCB:   "Delete_TCB",
+}
+
+// GetTCPStateString is used to convert state to string.
+func GetTCPStateString(state uint8) string {
+	return states[state]
+}
+
+// TCP4Conn contains information about TCP-over-IPv4 connection.
+type TCP4Conn struct {
+	LocalAddr  net.IP
+	LocalPort  uint16
+	RemoteAddr net.IP
+	RemotePort uint16
+	State      uint8
+	PID        int64
+	Process    string
+}
+
+// TCP6Conn contains information about TCP-over-IPv6 connection.
+type TCP6Conn struct {
+	LocalAddr     net.IP
+	LocalScopeID  uint32
+	LocalPort     uint16
+	RemoteAddr    net.IP
+	RemoteScopeID uint32
+	RemotePort    uint16
+	State         uint8
+	PID           int64
+}
 
 // TCP table class
 const (
@@ -29,34 +101,88 @@ const (
 	TCPTableOwnerModuleAll
 )
 
-// UDP table class
-const (
-	UDPTableBasic uint32 = iota
-	UDPTableOwnerPID
-	UDPTableOwnerModule
-)
-
-var (
-	modIphlpapi = windows.NewLazySystemDLL("iphlpapi.dll")
-
-	procGetExtendedTCPTable = modIphlpapi.NewProc("GetExtendedTcpTable")
-	procGetExtendedUDPTable = modIphlpapi.NewProc("GetExtendedUdpTable")
-)
-
-// TCP over IPv4
-type tcp4Table struct {
+type tcp4TableBasic struct {
 	n     uint32
-	table [1]tcp4Row
+	table [1]tcp4RowBasic
 }
 
-// TCP over IPv4 connection
-type tcp4Row struct {
+type tcp4RowBasic struct {
 	state      uint32
 	localAddr  uint32
-	localPort  uint32
+	localPort  [4]byte
 	remoteAddr uint32
-	remotePort uint32
+	remotePort [4]byte
+}
+
+type tcp4TableOwnerPID struct {
+	n     uint32
+	table [1]tcp4RowOwnerPID
+}
+
+type tcp4RowOwnerPID struct {
+	state      uint32
+	localAddr  uint32
+	localPort  [4]byte
+	remoteAddr uint32
+	remotePort [4]byte
 	pid        uint32
+}
+
+// GetTCP4Conns is used to get TCP-over-IPv4 connections.
+func GetTCP4Conns(class uint32) ([]*TCP4Conn, error) {
+	buffer, err := getTCPTable(windows.AF_INET, class)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to get tcp table")
+	}
+	var conns []*TCP4Conn
+	switch {
+	case class < 3:
+		table := (*tcp4TableBasic)(unsafe.Pointer(&buffer[0]))
+		var rows []tcp4RowBasic
+		sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
+		sh.Data = uintptr(unsafe.Pointer(&table.table))
+		sh.Len = int(table.n)
+		sh.Cap = int(table.n)
+		l := len(rows)
+		conns = make([]*TCP4Conn, l)
+		for i := 0; i < l; i++ {
+			conn := TCP4Conn{
+				LocalAddr:  convert.LEUint32ToBytes(rows[i].localAddr),
+				RemoteAddr: convert.LEUint32ToBytes(rows[i].remoteAddr),
+				State:      uint8(rows[i].state),
+			}
+			conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
+			conn.RemotePort = convert.BEBytesToUint16(rows[i].remotePort[:2])
+			conns[i] = &conn
+		}
+		runtime.KeepAlive(table)
+	case class < 6:
+		table := (*tcp4TableOwnerPID)(unsafe.Pointer(&buffer[0]))
+		var rows []tcp4RowOwnerPID
+		sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
+		sh.Data = uintptr(unsafe.Pointer(&table.table))
+		sh.Len = int(table.n)
+		sh.Cap = int(table.n)
+		l := len(rows)
+		conns = make([]*TCP4Conn, l)
+		for i := 0; i < l; i++ {
+			conn := TCP4Conn{
+				LocalAddr:  convert.LEUint32ToBytes(rows[i].localAddr),
+				RemoteAddr: convert.LEUint32ToBytes(rows[i].remoteAddr),
+				State:      uint8(rows[i].state),
+				PID:        int64(rows[i].pid),
+			}
+			conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
+			conn.RemotePort = convert.BEBytesToUint16(rows[i].remotePort[:2])
+			conns[i] = &conn
+		}
+		runtime.KeepAlive(table)
+	case class < 9:
+
+	default:
+		panic("api/network: internal error")
+	}
+	return conns, nil
 }
 
 // TCP over IPv6
@@ -77,13 +203,9 @@ type tcp6Row struct {
 	pid           uint32
 }
 
-// GetTCP4Conns is used to get TCP-over-IPv4 connections.
-func GetTCP4Conns(ulAf uint32) {
-
-}
-
+// #nosec
 func getTCPTable(ulAf, class uint32) ([]byte, error) {
-	const maxAttemptTimes = 64
+	const maxAttemptTimes = 1024
 	var (
 		buffer   []byte
 		tcpTable *byte
@@ -100,12 +222,19 @@ func getTCPTable(ulAf, class uint32) ([]byte, error) {
 				tcpTable = &buffer[0]
 				continue
 			}
-			return nil, errno
+			return nil, errors.WithStack(errno)
 		}
 		return buffer, nil
 	}
-	return nil, errors.New("failed to get tcp table because reach maximum attempt times")
+	return nil, errors.New("reach maximum attempt times")
 }
+
+// UDP table class
+const (
+	UDPTableBasic uint32 = iota
+	UDPTableOwnerPID
+	UDPTableOwnerModule
+)
 
 // UDP over IPv4
 type udp4Table struct {
