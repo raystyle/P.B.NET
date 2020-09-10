@@ -51,7 +51,7 @@ func TestGenerateCertificate(t *testing.T) {
 		n := testnamer.NewNamer()
 		count := 0
 		patch := func(interface{}, *namer.Options) (string, error) {
-			count += 1
+			count++
 			if count == 1 {
 				return "foo", nil
 			}

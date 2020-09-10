@@ -14,8 +14,8 @@ import (
 //
 // External module is in the project/module, or app/mod. These module usually
 // have the client(Beacon) and server(external program), client is used to send
-// command to the server and receive the result. Client and server can use Pipe
-// and Socket for communication. These module maybe not have high stability and
+// command to the server and receive the result. Client and Server can use Pipe
+// or Socket for communication. These module maybe not have high stability and
 // execute high risk operation.
 // Use Start() to connect the module server, and use Call() to send command.
 type Module interface {
