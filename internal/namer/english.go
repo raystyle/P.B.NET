@@ -148,3 +148,8 @@ func (eng *English) checkWordNumber() error {
 	}
 	return nil
 }
+
+// Type is used to return the namer type.
+func (eng *English) Type() string {
+	return "english"
+}

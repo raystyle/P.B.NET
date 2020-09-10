@@ -3,6 +3,7 @@ package namer
 import (
 	"archive/zip"
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -57,6 +58,8 @@ func TestEnglish(t *testing.T) {
 
 		t.Log(word)
 	}
+
+	fmt.Println(english.Type())
 
 	testsuite.IsDestroyed(t, english)
 }

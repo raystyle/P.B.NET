@@ -18,6 +18,9 @@ type Namer interface {
 
 	// Generate is used to generate a random word.
 	Generate(opts *Options) (string, error)
+
+	// Type is used to get the namer type.
+	Type() string
 }
 
 // Options contains options about all namer.

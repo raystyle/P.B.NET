@@ -1,6 +1,7 @@
 package testnamer
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,6 +20,8 @@ func TestNewNamer(t *testing.T) {
 		require.NoError(t, err)
 		t.Log(word)
 	}
+
+	fmt.Println(namer.Type())
 
 	testsuite.IsDestroyed(t, namer)
 }

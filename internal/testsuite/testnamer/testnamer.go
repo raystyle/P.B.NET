@@ -50,6 +50,11 @@ func (namer *Namer) Generate(*namer.Options) (string, error) {
 	return prefix + stem + suffix, nil
 }
 
+// Type is used to return the namer type.
+func (namer *Namer) Type() string {
+	return "test"
+}
+
 // NewNamer is used to create a namer for test.
 func NewNamer() *Namer {
 	prefixes := make(map[string]struct{})
