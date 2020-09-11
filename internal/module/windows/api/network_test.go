@@ -12,7 +12,7 @@ import (
 func testPrintTCP4Conns(t *testing.T, conns []*TCP4Conn) {
 	fmt.Println("Local Address    Remote Address    State    PID    Process")
 	for _, conn := range conns {
-		fmt.Printf("%s:%d   %s:%d   %s   %d   %s\n",
+		fmt.Printf("%s:%d      %s:%d      %s      %d      %s\n",
 			conn.LocalAddr, conn.LocalPort,
 			conn.RemoteAddr, conn.RemotePort,
 			GetTCPConnState(conn.State), conn.PID, conn.Process,
@@ -24,7 +24,7 @@ func testPrintTCP4Conns(t *testing.T, conns []*TCP4Conn) {
 func testPrintTCP6Conns(t *testing.T, conns []*TCP6Conn) {
 	fmt.Println("Local Address    Remote Address    State    PID    Process")
 	for _, conn := range conns {
-		fmt.Printf("[%s%%%d]:%d   [%s%%%d]:%d   %s   %d   %s\n",
+		fmt.Printf("[%s%%%d]:%d      [%s%%%d]:%d      %s      %d      %s\n",
 			conn.LocalAddr, conn.LocalScopeID, conn.LocalPort,
 			conn.RemoteAddr, conn.RemoteScopeID, conn.RemotePort,
 			GetTCPConnState(conn.State), conn.PID, conn.Process,
@@ -172,5 +172,53 @@ func TestGetTCP6Conns(t *testing.T) {
 
 			testPrintTCP6Conns(t, conns)
 		})
+	})
+}
+
+func testPrintUDP4Conns(t *testing.T, conns []*UDP4Conn) {
+	fmt.Println("Local Address    PID    Process")
+	for _, conn := range conns {
+		fmt.Printf("%s:%d      %d      %s\n",
+			conn.LocalAddr, conn.LocalPort,
+			conn.PID, conn.Process,
+		)
+	}
+	testsuite.IsDestroyed(t, &conns)
+}
+
+func testPrintUDP6Conns(t *testing.T, conns []*UDP6Conn) {
+	fmt.Println("Local Address    Remote Address    State    PID    Process")
+	for _, conn := range conns {
+		fmt.Printf("[%s%%%d]:%d      %d      %s\n",
+			conn.LocalAddr, conn.LocalScopeID, conn.LocalPort,
+			conn.PID, conn.Process,
+		)
+	}
+	testsuite.IsDestroyed(t, &conns)
+}
+
+func TestGetUDP4Conns(t *testing.T) {
+	t.Run("basic", func(t *testing.T) {
+		conns, err := GetUDP4Conns(UDPTableBasic)
+		require.NoError(t, err)
+		require.NotEmpty(t, conns)
+
+		testPrintUDP4Conns(t, conns)
+	})
+
+	t.Run("owner pid", func(t *testing.T) {
+		conns, err := GetUDP4Conns(UDPTableOwnerPID)
+		require.NoError(t, err)
+		require.NotEmpty(t, conns)
+
+		testPrintUDP4Conns(t, conns)
+	})
+
+	t.Run("owner module", func(t *testing.T) {
+		conns, err := GetUDP4Conns(UDPTableOwnerModule)
+		require.NoError(t, err)
+		require.NotEmpty(t, conns)
+
+		testPrintUDP4Conns(t, conns)
 	})
 }
