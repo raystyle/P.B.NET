@@ -222,3 +222,29 @@ func TestGetUDP4Conns(t *testing.T) {
 		testPrintUDP4Conns(t, conns)
 	})
 }
+
+func TestGetUDP6Conns(t *testing.T) {
+	t.Run("basic", func(t *testing.T) {
+		conns, err := GetUDP6Conns(UDPTableBasic)
+		require.NoError(t, err)
+		require.NotEmpty(t, conns)
+
+		testPrintUDP6Conns(t, conns)
+	})
+
+	t.Run("owner pid", func(t *testing.T) {
+		conns, err := GetUDP6Conns(UDPTableOwnerPID)
+		require.NoError(t, err)
+		require.NotEmpty(t, conns)
+
+		testPrintUDP6Conns(t, conns)
+	})
+
+	t.Run("owner module", func(t *testing.T) {
+		conns, err := GetUDP6Conns(UDPTableOwnerModule)
+		require.NoError(t, err)
+		require.NotEmpty(t, conns)
+
+		testPrintUDP6Conns(t, conns)
+	})
+}

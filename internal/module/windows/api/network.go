@@ -283,7 +283,7 @@ func parseTCP4TableOwnerModule(buffer []byte) ([]*TCP4Conn, error) {
 }
 
 // GetTCP6Conns is used to get TCP-over-IPv6 connections.
-// can't use basic class.
+// Warning! can't use basic class.
 func GetTCP6Conns(class uint32) ([]*TCP6Conn, error) {
 	buffer, err := getTCPTable(windows.AF_INET6, class)
 	if err != nil {
@@ -469,10 +469,10 @@ func GetUDP4Conns(class uint32) ([]*UDP4Conn, error) {
 	case UDPTableOwnerPID:
 		conns = parseUDP4TableOwnerPID(buffer)
 	case UDPTableOwnerModule:
-		// conns, err = parseTCP4TableOwnerModule(buffer)
-		// if err != nil {
-		// 	return nil, err
-		// }
+		conns, err = parseUDP4TableOwnerModule(buffer)
+		if err != nil {
+			return nil, err
+		}
 	default:
 		panic("api/network: unreachable code")
 	}
@@ -541,6 +541,77 @@ func parseUDP4TableOwnerPID(buffer []byte) []*UDP4Conn {
 	return conns
 }
 
+type udp4TableOwnerModule struct {
+	n     uint32
+	table [AnySize]udp4RowOwnerModule
+}
+
+type udp4RowOwnerModule struct {
+	localAddr  uint32
+	localPort  [4]byte
+	pid        uint32
+	createTime FileTime
+	specific   int32     // SpecificPortBind
+	dwFlags    int32     // not used
+	moduleInfo [16]int64 // 16 is TCP IP_OWNING_MODULE_SIZE
+}
+
+func parseUDP4TableOwnerModule(buffer []byte) ([]*UDP4Conn, error) {
+	// create process list map
+	processes, err := GetProcessList()
+	if err != nil {
+		return nil, err
+	}
+	pm := make(map[uint32]string, len(processes))
+	for i := 0; i < len(processes); i++ {
+		pm[processes[i].PID] = processes[i].Name
+	}
+	table := (*udp4TableOwnerModule)(unsafe.Pointer(&buffer[0]))
+	var rows []udp4RowOwnerModule
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
+	sh.Data = uintptr(unsafe.Pointer(&table.table))
+	sh.Len = int(table.n)
+	sh.Cap = int(table.n)
+	l := len(rows)
+	conns := make([]*UDP4Conn, l)
+	for i := 0; i < l; i++ {
+		conn := UDP4Conn{
+			LocalAddr:  convert.LEUint32ToBytes(rows[i].localAddr),
+			PID:        int64(rows[i].pid),
+			CreateTime: rows[i].createTime.Time(),
+			ModuleInfo: rows[i].moduleInfo,
+			Process:    pm[rows[i].pid],
+		}
+		conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
+		conns[i] = &conn
+	}
+	runtime.KeepAlive(table)
+	return conns, nil
+}
+
+// GetUDP6Conns is used to get UDP-over-IPv6 connections.
+func GetUDP6Conns(class uint32) ([]*UDP6Conn, error) {
+	buffer, err := getUDPTable(windows.AF_INET6, class)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to get udp table")
+	}
+	var conns []*UDP6Conn
+	switch class {
+	case UDPTableBasic:
+		conns = parseUDP6TableBasic(buffer)
+	// case UDPTableOwnerPID:
+	// 	conns = parseUDP4TableOwnerPID(buffer)
+	// case UDPTableOwnerModule:
+	// 	conns, err = parseUDP4TableOwnerModule(buffer)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	default:
+		panic("api/network: unreachable code")
+	}
+	return conns, nil
+}
+
 type udp6TableBasic struct {
 	n     uint32
 	table [AnySize]udp6RowBasic
@@ -549,7 +620,39 @@ type udp6TableBasic struct {
 type udp6RowBasic struct {
 	localAddr    [4]uint32
 	localScopeID uint32
-	localPort    uint32
+	localPort    [4]byte
+}
+
+func parseUDP6TableBasic(buffer []byte) []*UDP6Conn {
+	table := (*udp6TableBasic)(unsafe.Pointer(&buffer[0]))
+	var rows []udp6RowBasic
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
+	sh.Data = uintptr(unsafe.Pointer(&table.table))
+	sh.Len = int(table.n)
+	sh.Cap = int(table.n)
+	l := len(rows)
+	conns := make([]*UDP6Conn, l)
+	for i := 0; i < l; i++ {
+		conn := UDP6Conn{
+			LocalAddr:    convertUint32sToIPv6(rows[i].localAddr),
+			LocalScopeID: rows[i].localScopeID,
+		}
+		conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
+		conns[i] = &conn
+	}
+	runtime.KeepAlive(table)
+	return conns
+}
+
+type udp6TableOwnerPID struct {
+	n     uint32
+	table [AnySize]udp6RowOwnerPID
+}
+
+type udp6RowOwnerPID struct {
+	localAddr    [4]uint32
+	localScopeID uint32
+	localPort    [4]byte
 	pid          uint32
 }
 
