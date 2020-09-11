@@ -121,6 +121,32 @@ func GetTCP4Conns(class uint32) ([]*TCP4Conn, error) {
 	return conns, nil
 }
 
+// #nosec
+func getTCPTable(ulAf, class uint32) ([]byte, error) {
+	const maxAttemptTimes = 1024
+	var (
+		buffer   []byte
+		tcpTable *byte
+		dwSize   uint32
+	)
+	for i := 0; i < maxAttemptTimes; i++ {
+		ret, _, errno := procGetExtendedTCPTable.Call(
+			uintptr(unsafe.Pointer(tcpTable)), uintptr(unsafe.Pointer(&dwSize)),
+			uintptr(uint32(1)), uintptr(ulAf), uintptr(class), uintptr(uint32(0)),
+		)
+		if ret != windows.NO_ERROR {
+			if windows.Errno(ret) == windows.ERROR_INSUFFICIENT_BUFFER {
+				buffer = make([]byte, dwSize)
+				tcpTable = &buffer[0]
+				continue
+			}
+			return nil, errors.WithStack(errno)
+		}
+		return buffer, nil
+	}
+	return nil, errors.New("reach maximum attempt times")
+}
+
 type tcp4TableBasic struct {
 	n     uint32
 	table [1]tcp4RowBasic
@@ -197,7 +223,7 @@ func parseTCP4TableOwnerPID(buffer []byte) []*TCP4Conn {
 
 type tcp4TableOwnerModule struct {
 	n     uint32
-	table [1]tcp4RowOwnerPID
+	table [1]tcp4RowOwnerModule
 }
 
 type tcp4RowOwnerModule struct {
@@ -207,6 +233,7 @@ type tcp4RowOwnerModule struct {
 	remoteAddr uint32
 	remotePort [4]byte
 	pid        uint32
+	createTime int64 // timestamp
 }
 
 func parseTCP4TableOwnerModule(buffer []byte) []*TCP4Conn {
@@ -249,32 +276,6 @@ type tcp6Row struct {
 	remotePort    uint32
 	state         uint32
 	pid           uint32
-}
-
-// #nosec
-func getTCPTable(ulAf, class uint32) ([]byte, error) {
-	const maxAttemptTimes = 1024
-	var (
-		buffer   []byte
-		tcpTable *byte
-		dwSize   uint32
-	)
-	for i := 0; i < maxAttemptTimes; i++ {
-		ret, _, errno := procGetExtendedTCPTable.Call(
-			uintptr(unsafe.Pointer(tcpTable)), uintptr(unsafe.Pointer(&dwSize)),
-			uintptr(uint32(1)), uintptr(ulAf), uintptr(class), uintptr(uint32(0)),
-		)
-		if ret != windows.NO_ERROR {
-			if windows.Errno(ret) == windows.ERROR_INSUFFICIENT_BUFFER {
-				buffer = make([]byte, dwSize)
-				tcpTable = &buffer[0]
-				continue
-			}
-			return nil, errors.WithStack(errno)
-		}
-		return buffer, nil
-	}
-	return nil, errors.New("reach maximum attempt times")
 }
 
 // UDP table class
