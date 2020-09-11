@@ -45,7 +45,7 @@ const (
 	TCPStateDeleteTCB
 )
 
-var states = map[uint8]string{
+var tcpConnStates = map[uint8]string{
 	TCPStateClosed:      "Closed",
 	TCPStateListening:   "Listening",
 	TCPStateSYNSent:     "SYN_Sent",
@@ -60,9 +60,9 @@ var states = map[uint8]string{
 	TCPStateDeleteTCB:   "Delete_TCB",
 }
 
-// GetTCPStateString is used to convert state to string.
-func GetTCPStateString(state uint8) string {
-	return states[state]
+// GetTCPConnState is used to convert state to string.
+func GetTCPConnState(state uint8) string {
+	return tcpConnStates[state]
 }
 
 // TCP4Conn contains information about TCP-over-IPv4 connection.
@@ -101,6 +101,26 @@ const (
 	TCPTableOwnerModuleAll
 )
 
+// GetTCP4Conns is used to get TCP-over-IPv4 connections.
+func GetTCP4Conns(class uint32) ([]*TCP4Conn, error) {
+	buffer, err := getTCPTable(windows.AF_INET, class)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to get tcp table")
+	}
+	var conns []*TCP4Conn
+	switch {
+	case class < 3:
+		conns = parseTCP4TableBasic(buffer)
+	case class < 6:
+		conns = parseTCP4TableOwnerPID(buffer)
+	case class < 9:
+		conns = parseTCP4TableOwnerModule(buffer)
+	default:
+		panic("api/network: internal error")
+	}
+	return conns, nil
+}
+
 type tcp4TableBasic struct {
 	n     uint32
 	table [1]tcp4RowBasic
@@ -112,6 +132,29 @@ type tcp4RowBasic struct {
 	localPort  [4]byte
 	remoteAddr uint32
 	remotePort [4]byte
+}
+
+func parseTCP4TableBasic(buffer []byte) []*TCP4Conn {
+	table := (*tcp4TableBasic)(unsafe.Pointer(&buffer[0]))
+	var rows []tcp4RowBasic
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
+	sh.Data = uintptr(unsafe.Pointer(&table.table))
+	sh.Len = int(table.n)
+	sh.Cap = int(table.n)
+	l := len(rows)
+	conns := make([]*TCP4Conn, l)
+	for i := 0; i < l; i++ {
+		conn := TCP4Conn{
+			LocalAddr:  convert.LEUint32ToBytes(rows[i].localAddr),
+			RemoteAddr: convert.LEUint32ToBytes(rows[i].remoteAddr),
+			State:      uint8(rows[i].state),
+		}
+		conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
+		conn.RemotePort = convert.BEBytesToUint16(rows[i].remotePort[:2])
+		conns[i] = &conn
+	}
+	runtime.KeepAlive(table)
+	return conns
 }
 
 type tcp4TableOwnerPID struct {
@@ -128,61 +171,66 @@ type tcp4RowOwnerPID struct {
 	pid        uint32
 }
 
-// GetTCP4Conns is used to get TCP-over-IPv4 connections.
-func GetTCP4Conns(class uint32) ([]*TCP4Conn, error) {
-	buffer, err := getTCPTable(windows.AF_INET, class)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get tcp table")
+func parseTCP4TableOwnerPID(buffer []byte) []*TCP4Conn {
+	table := (*tcp4TableOwnerPID)(unsafe.Pointer(&buffer[0]))
+	var rows []tcp4RowOwnerPID
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
+	sh.Data = uintptr(unsafe.Pointer(&table.table))
+	sh.Len = int(table.n)
+	sh.Cap = int(table.n)
+	l := len(rows)
+	conns := make([]*TCP4Conn, l)
+	for i := 0; i < l; i++ {
+		conn := TCP4Conn{
+			LocalAddr:  convert.LEUint32ToBytes(rows[i].localAddr),
+			RemoteAddr: convert.LEUint32ToBytes(rows[i].remoteAddr),
+			State:      uint8(rows[i].state),
+			PID:        int64(rows[i].pid),
+		}
+		conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
+		conn.RemotePort = convert.BEBytesToUint16(rows[i].remotePort[:2])
+		conns[i] = &conn
 	}
-	var conns []*TCP4Conn
-	switch {
-	case class < 3:
-		table := (*tcp4TableBasic)(unsafe.Pointer(&buffer[0]))
-		var rows []tcp4RowBasic
-		sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
-		sh.Data = uintptr(unsafe.Pointer(&table.table))
-		sh.Len = int(table.n)
-		sh.Cap = int(table.n)
-		l := len(rows)
-		conns = make([]*TCP4Conn, l)
-		for i := 0; i < l; i++ {
-			conn := TCP4Conn{
-				LocalAddr:  convert.LEUint32ToBytes(rows[i].localAddr),
-				RemoteAddr: convert.LEUint32ToBytes(rows[i].remoteAddr),
-				State:      uint8(rows[i].state),
-			}
-			conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
-			conn.RemotePort = convert.BEBytesToUint16(rows[i].remotePort[:2])
-			conns[i] = &conn
-		}
-		runtime.KeepAlive(table)
-	case class < 6:
-		table := (*tcp4TableOwnerPID)(unsafe.Pointer(&buffer[0]))
-		var rows []tcp4RowOwnerPID
-		sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
-		sh.Data = uintptr(unsafe.Pointer(&table.table))
-		sh.Len = int(table.n)
-		sh.Cap = int(table.n)
-		l := len(rows)
-		conns = make([]*TCP4Conn, l)
-		for i := 0; i < l; i++ {
-			conn := TCP4Conn{
-				LocalAddr:  convert.LEUint32ToBytes(rows[i].localAddr),
-				RemoteAddr: convert.LEUint32ToBytes(rows[i].remoteAddr),
-				State:      uint8(rows[i].state),
-				PID:        int64(rows[i].pid),
-			}
-			conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
-			conn.RemotePort = convert.BEBytesToUint16(rows[i].remotePort[:2])
-			conns[i] = &conn
-		}
-		runtime.KeepAlive(table)
-	case class < 9:
+	runtime.KeepAlive(table)
+	return conns
+}
 
-	default:
-		panic("api/network: internal error")
+type tcp4TableOwnerModule struct {
+	n     uint32
+	table [1]tcp4RowOwnerPID
+}
+
+type tcp4RowOwnerModule struct {
+	state      uint32
+	localAddr  uint32
+	localPort  [4]byte
+	remoteAddr uint32
+	remotePort [4]byte
+	pid        uint32
+}
+
+func parseTCP4TableOwnerModule(buffer []byte) []*TCP4Conn {
+	table := (*tcp4TableOwnerPID)(unsafe.Pointer(&buffer[0]))
+	var rows []tcp4RowOwnerPID
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
+	sh.Data = uintptr(unsafe.Pointer(&table.table))
+	sh.Len = int(table.n)
+	sh.Cap = int(table.n)
+	l := len(rows)
+	conns := make([]*TCP4Conn, l)
+	for i := 0; i < l; i++ {
+		conn := TCP4Conn{
+			LocalAddr:  convert.LEUint32ToBytes(rows[i].localAddr),
+			RemoteAddr: convert.LEUint32ToBytes(rows[i].remoteAddr),
+			State:      uint8(rows[i].state),
+			PID:        int64(rows[i].pid),
+		}
+		conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
+		conn.RemotePort = convert.BEBytesToUint16(rows[i].remotePort[:2])
+		conns[i] = &conn
 	}
-	return conns, nil
+	runtime.KeepAlive(table)
+	return conns
 }
 
 // TCP over IPv6
