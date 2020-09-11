@@ -116,7 +116,7 @@ func getTCPTable(ulAf, class uint32) ([]byte, error) {
 		dwSize   uint32
 	)
 	for i := 0; i < maxAttemptTimes; i++ {
-		ret, _, errno := procGetExtendedTCPTable.Call(
+		ret, _, _ := procGetExtendedTCPTable.Call(
 			uintptr(unsafe.Pointer(tcpTable)), uintptr(unsafe.Pointer(&dwSize)),
 			uintptr(uint32(1)), uintptr(ulAf), uintptr(class), uintptr(uint32(0)),
 		)
@@ -126,7 +126,7 @@ func getTCPTable(ulAf, class uint32) ([]byte, error) {
 				tcpTable = &buffer[0]
 				continue
 			}
-			return nil, errors.WithStack(errno)
+			return nil, errors.WithStack(windows.Errno(ret))
 		}
 		return buffer, nil
 	}
@@ -151,7 +151,7 @@ func GetTCP4Conns(class uint32) ([]*TCP4Conn, error) {
 			return nil, err
 		}
 	default:
-		panic("api/network: internal error")
+		panic("api/network: unreachable code")
 	}
 	return conns, nil
 }
@@ -282,22 +282,132 @@ func parseTCP4TableOwnerModule(buffer []byte) ([]*TCP4Conn, error) {
 	return conns, nil
 }
 
-// TCP over IPv6
-type tcp6Table struct {
-	n     uint32
-	table [AnySize]tcp6Row
+// GetTCP6Conns is used to get TCP-over-IPv6 connections.
+// can't use basic class.
+func GetTCP6Conns(class uint32) ([]*TCP6Conn, error) {
+	buffer, err := getTCPTable(windows.AF_INET6, class)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to get tcp table")
+	}
+	var conns []*TCP6Conn
+	switch {
+	case class > 2 && class < 6:
+		conns = parseTCP6TableOwnerPID(buffer)
+	case class < 9:
+		conns, err = parseTCP6TableOwnerModule(buffer)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		panic("api/network: unreachable code")
+	}
+	return conns, nil
 }
 
-// TCP over IPv6 connection
-type tcp6Row struct {
+func convertUint32sToIPv6(addr [4]uint32) net.IP {
+	ip := make([]byte, 0, net.IPv6len)
+	for i := 0; i < 4; i++ {
+		ip = append(ip, convert.LEUint32ToBytes(addr[i])...)
+	}
+	return ip
+}
+
+type tcp6TableOwnerPID struct {
+	n     uint32
+	table [AnySize]tcp6RowOwnerPID
+}
+
+type tcp6RowOwnerPID struct {
 	localAddr     [4]uint32
 	localScopeID  uint32
-	localPort     uint32
+	localPort     [4]byte
 	remoteAddr    [4]uint32
 	remoteScopeID uint32
-	remotePort    uint32
+	remotePort    [4]byte
 	state         uint32
 	pid           uint32
+}
+
+func parseTCP6TableOwnerPID(buffer []byte) []*TCP6Conn {
+	table := (*tcp6TableOwnerPID)(unsafe.Pointer(&buffer[0]))
+	var rows []tcp6RowOwnerPID
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
+	sh.Data = uintptr(unsafe.Pointer(&table.table))
+	sh.Len = int(table.n)
+	sh.Cap = int(table.n)
+	l := len(rows)
+	conns := make([]*TCP6Conn, l)
+	for i := 0; i < l; i++ {
+		conn := TCP6Conn{
+			LocalAddr:     convertUint32sToIPv6(rows[i].localAddr),
+			LocalScopeID:  rows[i].localScopeID,
+			RemoteAddr:    convertUint32sToIPv6(rows[i].remoteAddr),
+			RemoteScopeID: rows[i].remoteScopeID,
+			State:         uint8(rows[i].state),
+			PID:           int64(rows[i].pid),
+		}
+		conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
+		conn.RemotePort = convert.BEBytesToUint16(rows[i].remotePort[:2])
+		conns[i] = &conn
+	}
+	runtime.KeepAlive(table)
+	return conns
+}
+
+type tcp6TableOwnerModule struct {
+	n     uint32
+	table [AnySize]tcp6RowOwnerModule
+}
+
+type tcp6RowOwnerModule struct {
+	localAddr     [4]uint32
+	localScopeID  uint32
+	localPort     [4]byte
+	remoteAddr    [4]uint32
+	remoteScopeID uint32
+	remotePort    [4]byte
+	state         uint32
+	pid           uint32
+	createTime    FileTime
+	moduleInfo    [16]int64 // 16 is TCP IP_OWNING_MODULE_SIZE
+}
+
+func parseTCP6TableOwnerModule(buffer []byte) ([]*TCP6Conn, error) {
+	// create process list map
+	processes, err := GetProcessList()
+	if err != nil {
+		return nil, err
+	}
+	pm := make(map[uint32]string, len(processes))
+	for i := 0; i < len(processes); i++ {
+		pm[processes[i].PID] = processes[i].Name
+	}
+	table := (*tcp6TableOwnerModule)(unsafe.Pointer(&buffer[0]))
+	var rows []tcp6RowOwnerModule
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
+	sh.Data = uintptr(unsafe.Pointer(&table.table))
+	sh.Len = int(table.n)
+	sh.Cap = int(table.n)
+	l := len(rows)
+	conns := make([]*TCP6Conn, l)
+	for i := 0; i < l; i++ {
+		conn := TCP6Conn{
+			LocalAddr:     convertUint32sToIPv6(rows[i].localAddr),
+			LocalScopeID:  rows[i].localScopeID,
+			RemoteAddr:    convertUint32sToIPv6(rows[i].remoteAddr),
+			RemoteScopeID: rows[i].remoteScopeID,
+			State:         uint8(rows[i].state),
+			PID:           int64(rows[i].pid),
+			CreateTime:    rows[i].createTime.Time(),
+			ModuleInfo:    rows[i].moduleInfo,
+			Process:       pm[rows[i].pid],
+		}
+		conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
+		conn.RemotePort = convert.BEBytesToUint16(rows[i].remotePort[:2])
+		conns[i] = &conn
+	}
+	runtime.KeepAlive(table)
+	return conns, nil
 }
 
 // UDP table class
