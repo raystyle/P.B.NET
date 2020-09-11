@@ -19,23 +19,6 @@ func NewNetStat() (NetStat, error) {
 	return newNetstat()
 }
 
-// about TCP connection state, reference MIB_TCP_STATE
-const (
-	_ uint8 = iota
-	TCPStateClosed
-	TCPStateListen
-	TCPStateSYNSent
-	TCPStateSYNReceived
-	TCPStateEstablished
-	TCPStateFinWait1
-	TCPStateFinWait2
-	TCPStateCloseWait
-	TCPStateClosing
-	TCPStateLastAck
-	TCPStateTimeWait
-	TCPStateDeleteTCB
-)
-
 // TCP4Conn contains information about TCP Over IPv4 connection.
 type TCP4Conn struct {
 	LocalAddr  net.IP

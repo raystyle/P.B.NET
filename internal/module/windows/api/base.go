@@ -4,6 +4,9 @@ import (
 	"time"
 )
 
+// AnySize is for array.
+const AnySize int = 1
+
 // reference:
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms724284%28v=vs.85%29.aspx
 // https://msdn.microsoft.com/en-us/library/cc230324.aspx

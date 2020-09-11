@@ -4,6 +4,7 @@ import (
 	"net"
 	"reflect"
 	"runtime"
+	"time"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -73,7 +74,9 @@ type TCP4Conn struct {
 	RemotePort uint16
 	State      uint8
 	PID        int64
-	Process    string
+	CreateTime time.Time
+	ModuleInfo [16]int64 // 16 is TCP IP_OWNING_MODULE_SIZE
+	Process    string    // process name
 }
 
 // TCP6Conn contains information about TCP-over-IPv6 connection.
@@ -86,6 +89,9 @@ type TCP6Conn struct {
 	RemotePort    uint16
 	State         uint8
 	PID           int64
+	CreateTime    time.Time
+	ModuleInfo    [16]int64 // 16 is TCP IP_OWNING_MODULE_SIZE
+	Process       string
 }
 
 // TCP table class
@@ -100,26 +106,6 @@ const (
 	TCPTableOwnerModuleConnections
 	TCPTableOwnerModuleAll
 )
-
-// GetTCP4Conns is used to get TCP-over-IPv4 connections.
-func GetTCP4Conns(class uint32) ([]*TCP4Conn, error) {
-	buffer, err := getTCPTable(windows.AF_INET, class)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get tcp table")
-	}
-	var conns []*TCP4Conn
-	switch {
-	case class < 3:
-		conns = parseTCP4TableBasic(buffer)
-	case class < 6:
-		conns = parseTCP4TableOwnerPID(buffer)
-	case class < 9:
-		conns = parseTCP4TableOwnerModule(buffer)
-	default:
-		panic("api/network: internal error")
-	}
-	return conns, nil
-}
 
 // #nosec
 func getTCPTable(ulAf, class uint32) ([]byte, error) {
@@ -147,9 +133,32 @@ func getTCPTable(ulAf, class uint32) ([]byte, error) {
 	return nil, errors.New("reach maximum attempt times")
 }
 
+// GetTCP4Conns is used to get TCP-over-IPv4 connections.
+func GetTCP4Conns(class uint32) ([]*TCP4Conn, error) {
+	buffer, err := getTCPTable(windows.AF_INET, class)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to get tcp table")
+	}
+	var conns []*TCP4Conn
+	switch {
+	case class < 3:
+		conns = parseTCP4TableBasic(buffer)
+	case class < 6:
+		conns = parseTCP4TableOwnerPID(buffer)
+	case class < 9:
+		conns, err = parseTCP4TableOwnerModule(buffer)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		panic("api/network: internal error")
+	}
+	return conns, nil
+}
+
 type tcp4TableBasic struct {
 	n     uint32
-	table [1]tcp4RowBasic
+	table [AnySize]tcp4RowBasic
 }
 
 type tcp4RowBasic struct {
@@ -185,7 +194,7 @@ func parseTCP4TableBasic(buffer []byte) []*TCP4Conn {
 
 type tcp4TableOwnerPID struct {
 	n     uint32
-	table [1]tcp4RowOwnerPID
+	table [AnySize]tcp4RowOwnerPID
 }
 
 type tcp4RowOwnerPID struct {
@@ -223,7 +232,7 @@ func parseTCP4TableOwnerPID(buffer []byte) []*TCP4Conn {
 
 type tcp4TableOwnerModule struct {
 	n     uint32
-	table [1]tcp4RowOwnerModule
+	table [AnySize]tcp4RowOwnerModule
 }
 
 type tcp4RowOwnerModule struct {
@@ -233,12 +242,22 @@ type tcp4RowOwnerModule struct {
 	remoteAddr uint32
 	remotePort [4]byte
 	pid        uint32
-	createTime int64 // timestamp
+	createTime FileTime
+	moduleInfo [16]int64 // 16 is TCP IP_OWNING_MODULE_SIZE
 }
 
-func parseTCP4TableOwnerModule(buffer []byte) []*TCP4Conn {
-	table := (*tcp4TableOwnerPID)(unsafe.Pointer(&buffer[0]))
-	var rows []tcp4RowOwnerPID
+func parseTCP4TableOwnerModule(buffer []byte) ([]*TCP4Conn, error) {
+	// create process list map
+	processes, err := GetProcessList()
+	if err != nil {
+		return nil, err
+	}
+	pm := make(map[uint32]string, len(processes))
+	for i := 0; i < len(processes); i++ {
+		pm[processes[i].PID] = processes[i].Name
+	}
+	table := (*tcp4TableOwnerModule)(unsafe.Pointer(&buffer[0]))
+	var rows []tcp4RowOwnerModule
 	sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
 	sh.Data = uintptr(unsafe.Pointer(&table.table))
 	sh.Len = int(table.n)
@@ -251,19 +270,22 @@ func parseTCP4TableOwnerModule(buffer []byte) []*TCP4Conn {
 			RemoteAddr: convert.LEUint32ToBytes(rows[i].remoteAddr),
 			State:      uint8(rows[i].state),
 			PID:        int64(rows[i].pid),
+			CreateTime: rows[i].createTime.Time(),
+			ModuleInfo: rows[i].moduleInfo,
+			Process:    pm[rows[i].pid],
 		}
 		conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
 		conn.RemotePort = convert.BEBytesToUint16(rows[i].remotePort[:2])
 		conns[i] = &conn
 	}
 	runtime.KeepAlive(table)
-	return conns
+	return conns, nil
 }
 
 // TCP over IPv6
 type tcp6Table struct {
 	n     uint32
-	table [1]tcp6Row
+	table [AnySize]tcp6Row
 }
 
 // TCP over IPv6 connection
@@ -288,7 +310,7 @@ const (
 // UDP over IPv4
 type udp4Table struct {
 	n     uint32
-	table [1]udp4Row
+	table [AnySize]udp4Row
 }
 
 // UDP over IPv4 connection
@@ -301,7 +323,7 @@ type udp4Row struct {
 // UDP over IPv6
 type udp6Table struct {
 	n     uint32
-	table [1]udp6Row
+	table [AnySize]udp6Row
 }
 
 // UDP over IPv6 connection
