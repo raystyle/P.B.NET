@@ -68,6 +68,11 @@ func TestNetStat(t *testing.T) {
 		}
 		testsuite.IsDestroyed(t, &conns)
 	})
+
+	err = netstat.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, netstat)
 }
 
 func TestTCP4Conn_ID(t *testing.T) {

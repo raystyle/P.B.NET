@@ -111,3 +111,7 @@ func (n *netStat) GetUDP6Conns() ([]*UDP6Conn, error) {
 	}
 	return cs, nil
 }
+
+func (n *netStat) Close() error {
+	return nil
+}

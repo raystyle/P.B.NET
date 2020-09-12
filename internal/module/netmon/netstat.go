@@ -12,6 +12,7 @@ type NetStat interface {
 	GetTCP6Conns() ([]*TCP6Conn, error)
 	GetUDP4Conns() ([]*UDP4Conn, error)
 	GetUDP6Conns() ([]*UDP6Conn, error)
+	Close() error
 }
 
 // TCP4Conn contains information about TCP Over IPv4 connection.

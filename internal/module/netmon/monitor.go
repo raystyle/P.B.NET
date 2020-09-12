@@ -274,7 +274,8 @@ func (mon *Monitor) Continue() {
 }
 
 // Close is used to close network status monitor.
-func (mon *Monitor) Close() {
+func (mon *Monitor) Close() error {
 	mon.cancel()
 	mon.wg.Wait()
+	return mon.netstat.Close()
 }

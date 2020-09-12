@@ -40,7 +40,8 @@ func TestMonitor(t *testing.T) {
 	monitor.GetUDP4Conns()
 	monitor.GetUDP6Conns()
 
-	monitor.Close()
+	err = monitor.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, monitor)
 }
@@ -198,7 +199,8 @@ func TestMonitor_EventConnCreated(t *testing.T) {
 	// wait refresh
 	time.Sleep(2 * defaultRefreshInterval)
 
-	monitor.Close()
+	err = monitor.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, monitor)
 
@@ -314,7 +316,8 @@ func TestMonitor_EventConnClosed(t *testing.T) {
 	// wait auto refresh
 	time.Sleep(2 * defaultRefreshInterval)
 
-	monitor.Close()
+	err = monitor.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, monitor)
 
@@ -346,7 +349,8 @@ func TestMonitor_refreshLoop(t *testing.T) {
 		// wait restart
 		time.Sleep(3 * time.Second)
 
-		monitor.Close()
+		err = monitor.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, monitor)
 	})
@@ -369,7 +373,8 @@ func TestMonitor_refreshLoop(t *testing.T) {
 		// wait restart
 		time.Sleep(3 * time.Second)
 
-		monitor.Close()
+		err = monitor.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, monitor)
 	})
