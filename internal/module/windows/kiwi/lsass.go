@@ -59,11 +59,11 @@ func (lsass *lsass) getPID() (uint32, error) {
 
 func (lsass *lsass) OpenProcess() (windows.Handle, error) {
 	// check is running on WOW64
-	wow64, err := lsass.ctx.isWow64()
+	isWow64, err := lsass.ctx.isWow64()
 	if err != nil {
 		return 0, err
 	}
-	if wow64 {
+	if isWow64 {
 		return 0, errors.New("kiwi (x86) can't access x64 process")
 	}
 	pid, err := lsass.getPID()

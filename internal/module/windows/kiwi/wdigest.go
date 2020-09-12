@@ -244,11 +244,14 @@ func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID
 		return nil, nil
 	}
 	wdigest.logf(logger.Debug, "found credential at address: 0x%X", resultAddr)
-	// read primary credential
+	return wdigest.readPrimaryCredential(pHandle, resultAddr)
+}
+
+func (wdigest *wdigest) readPrimaryCredential(pHandle windows.Handle, address uintptr) (*Wdigest, error) {
 	var cred genericPrimaryCredential
-	credAddr := uintptr(int(resultAddr) + wdigest.primaryOffset)
-	size = uintptr(wdigest.primaryOffset + int(unsafe.Sizeof(cred)))
-	err = wdigest.ctx.readMemory(pHandle, credAddr, (*byte)(unsafe.Pointer(&cred)), size)
+	credAddr := uintptr(int(address) + wdigest.primaryOffset)
+	size := uintptr(wdigest.primaryOffset + int(unsafe.Sizeof(cred)))
+	err := wdigest.ctx.readMemory(pHandle, credAddr, (*byte)(unsafe.Pointer(&cred)), size)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read wdigest primary credential")
 	}
@@ -299,7 +302,6 @@ func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID
 		if w.Password == "" {
 			w.Password = "(null)"
 		}
-
 	} else {
 		w.Password = "(not found)"
 	}

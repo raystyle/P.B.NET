@@ -61,11 +61,11 @@ func NewKiwi(lg logger.Logger) (*Kiwi, error) {
 		logger: lg,
 		rand:   random.NewRand(),
 	}
-	wow64, err := kiwi.isWow64()
+	isWow64, err := kiwi.isWow64()
 	if err != nil {
 		return nil, err
 	}
-	if wow64 {
+	if isWow64 {
 		kiwi.logf(logger.Warning, "running kiwi (x86) in the x64 Windows")
 	}
 	major, minor, build := kiwi.getWindowsVersion()

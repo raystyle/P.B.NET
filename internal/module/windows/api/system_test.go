@@ -28,6 +28,8 @@ func TestGetProcessorArchitecture(t *testing.T) {
 func TestGetSystemInfo(t *testing.T) {
 	systemInfo := GetSystemInfo()
 	spew.Dump(systemInfo)
+	fmt.Println(systemInfo.oemID)
+	fmt.Println(systemInfo.reserved)
 
 	arch := GetProcessorArchitecture(systemInfo.ProcessorArchitecture)
 	fmt.Println(arch)
@@ -36,6 +38,8 @@ func TestGetSystemInfo(t *testing.T) {
 func TestGetNativeSystemInfo(t *testing.T) {
 	systemInfo := GetNativeSystemInfo()
 	spew.Dump(systemInfo)
+	fmt.Println(systemInfo.oemID)
+	fmt.Println(systemInfo.reserved)
 
 	arch := GetProcessorArchitecture(systemInfo.ProcessorArchitecture)
 	fmt.Println(arch)

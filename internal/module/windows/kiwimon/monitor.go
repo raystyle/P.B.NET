@@ -12,6 +12,7 @@ import (
 	"project/internal/logger"
 	"project/internal/module/netmon"
 	"project/internal/module/taskmgr"
+	"project/internal/module/windows/api"
 	"project/internal/module/windows/kiwi"
 	"project/internal/nettool"
 	"project/internal/xpanic"
@@ -70,7 +71,14 @@ func NewMonitor(logger logger.Logger, handler Handler, opts *Options) (*Monitor,
 	}
 	monitor.ctx, monitor.cancel = context.WithCancel(context.Background())
 	// initialize process monitor
-	processMonitor, err := taskmgr.NewMonitor(logger, monitor.processMonitorHandler)
+	taskmgrOpts := taskmgr.Options{
+		ShowSessionID:      true,
+		ShowUsername:       true,
+		ShowCommandLine:    true,
+		ShowExecutablePath: true,
+		ShowCreationDate:   true,
+	}
+	processMonitor, err := taskmgr.NewMonitor(logger, monitor.processMonitorHandler, &taskmgrOpts)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create process monitor")
 	}
@@ -78,9 +86,13 @@ func NewMonitor(logger logger.Logger, handler Handler, opts *Options) (*Monitor,
 		processMonitor.SetInterval(opts.ProcessMonitorInterval)
 	}
 	// initialize connection monitor
-	connMonitor, err := netmon.NewMonitor(logger, monitor.connMonitorHandler, nil)
+	netmonOpts := netmon.Options{
+		TCPTableClass: api.TCPTableOwnerPIDAll,
+		UDPTableClass: api.UDPTableOwnerPID,
+	}
+	connMonitor, err := netmon.NewMonitor(logger, monitor.connMonitorHandler, &netmonOpts)
 	if err != nil {
-		processMonitor.Close()
+		_ = processMonitor.Close()
 		return nil, errors.WithMessage(err, "failed to create connection monitor")
 	}
 	if opts.ConnMonitorInterval != 0 {
@@ -178,17 +190,24 @@ func (mon *Monitor) stealCredential(local, remote string, pid int64) {
 }
 
 // Close is used to close kiwi monitor.
-func (mon *Monitor) Close() {
+func (mon *Monitor) Close() error {
 	mon.cancel()
 	mon.mu.Lock()
 	defer mon.mu.Unlock()
 	if mon.processMonitor != nil {
-		mon.processMonitor.Close()
+		err := mon.processMonitor.Close()
+		if err != nil {
+			return err
+		}
 		mon.processMonitor = nil
 	}
 	if mon.connMonitor != nil {
-		mon.connMonitor.Close()
+		err := mon.connMonitor.Close()
+		if err != nil {
+			return err
+		}
 		mon.connMonitor = nil
 	}
 	mon.counter.Wait()
+	return nil
 }

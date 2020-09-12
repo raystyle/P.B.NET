@@ -692,6 +692,7 @@ func (session *session) selectLSAEnum(pHandle windows.Handle) (*lsaEnum, error) 
 // Session contains information about logon session.
 type Session struct {
 	LogonID     windows.LUID
+	LogonType   uint32
 	Session     uint32
 	Domain      string
 	Username    string
@@ -788,35 +789,19 @@ func (session *session) readSession(pHandle windows.Handle, buf []byte, enum *ls
 		if err != nil {
 			return nil, err
 		}
-
-		// for i := 0; i < 100; i++ {
-		//
-		// 	fmt.Println(sid)
-		// }
-
 	}
 	logonID := *(*windows.LUID)(unsafe.Pointer(&buf[enum.offsetToLogonID]))
-	// sessionID := *(*uint32)(unsafe.Pointer(&buf[enum.offsetToLogonID]))
-
-	// logonTimestamp := *(*[8]byte)(unsafe.Pointer(&buf[enum.offsetToLogonTime]))
-	// fmt.Println(logonTimestamp)
-	//
-	// a := *(*int32)(unsafe.Pointer(&logonTimestamp[0]))
-	//
-	// b := *(*int32)(unsafe.Pointer(&logonTimestamp[4]))
-	//
-	// fmt.Println(a)
-	// fmt.Println(b)
-	//
-	// logonTime := time.Unix(int64(a), 0)
-	//
-	// fmt.Println(logonTime)
-
+	logonType := *(*uint32)(unsafe.Pointer(&buf[enum.offsetToLogonType]))
+	sessionInfo := *(*uint32)(unsafe.Pointer(&buf[enum.offsetToSession]))
+	logonFileTime := *(*api.FileTime)(unsafe.Pointer(&buf[enum.offsetToLogonTime]))
 	logonSession := Session{
 		LogonID:     logonID,
+		LogonType:   logonType,
+		Session:     sessionInfo,
 		Domain:      domainName,
 		Username:    username,
 		LogonServer: logonServer,
+		LogonTime:   logonFileTime.Time(),
 		SID:         sid,
 	}
 	return &logonSession, nil

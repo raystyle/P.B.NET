@@ -22,17 +22,16 @@ func (kiwi *Kiwi) isWow64() (bool, error) {
 	if kiwi.wow64 != 0 {
 		return kiwi.wow64 == 1, nil
 	}
-	var wow64 bool
-	err := windows.IsWow64Process(windows.CurrentProcess(), &wow64)
+	isWow64, err := api.IsWow64Process(windows.CurrentProcess())
 	if err != nil {
-		return false, errors.Wrap(err, "failed to call IsWow64Process")
+		return false, err
 	}
-	if wow64 {
+	if isWow64 {
 		kiwi.wow64 = 1
 	} else {
 		kiwi.wow64 = 2
 	}
-	return wow64, nil
+	return isWow64, nil
 }
 
 // readMemory is used to read process memory with random range.

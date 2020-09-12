@@ -21,9 +21,13 @@ func TestKiwi(t *testing.T) {
 func testPrintCredential(creds []*Credential) {
 	for _, cred := range creds {
 		session := cred.Session
+		fmt.Println("Logon ID:    ", session.LogonID)
+		fmt.Println("Logon Type:  ", session.LogonType)
+		fmt.Println("Session:     ", session.Session)
 		fmt.Println("Domain:      ", session.Domain)
 		fmt.Println("Username:    ", session.Username)
-		fmt.Println("Logon server:", session.LogonServer)
+		fmt.Println("Logon Server:", session.LogonServer)
+		fmt.Println("Logon Time:", session.LogonTime)
 		fmt.Println("SID:         ", session.SID)
 		fmt.Println("  wdigest:")
 		if cred.Wdigest != nil {
