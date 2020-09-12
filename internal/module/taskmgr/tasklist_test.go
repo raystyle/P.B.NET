@@ -1,18 +1,22 @@
 package taskmgr
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 
+	"project/internal/module/windows/privilege"
 	"project/internal/testsuite"
 )
 
-func TestTaskList(t *testing.T) {
+func TestTaskList_GetProcesses(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
+
+	err := privilege.EnableDebug()
+	require.NoError(t, err)
 
 	tasklist, err := NewTaskList(nil)
 	require.NoError(t, err)
@@ -22,10 +26,11 @@ func TestTaskList(t *testing.T) {
 
 	require.NotEmpty(t, processes)
 	for _, process := range processes {
-		spew.Dump(process)
+		fmt.Println(process.Name, process.Architecture, process.Username)
 	}
 
-	tasklist.Close()
+	err = tasklist.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, tasklist)
 }

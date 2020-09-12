@@ -1,5 +1,3 @@
-// +build windows
-
 package taskmgr
 
 import (
@@ -48,6 +46,7 @@ func NewTaskList(opts *Options) (TaskList, error) {
 	if opts == nil {
 		opts = &Options{
 			ShowSessionID:      true,
+			ShowUsername:       true,
 			ShowUserModeTime:   true,
 			ShowKernelModeTime: true,
 			ShowMemoryUsed:     true,

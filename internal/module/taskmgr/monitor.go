@@ -46,8 +46,8 @@ type Monitor struct {
 }
 
 // NewMonitor is used to create a system status monitor.
-func NewMonitor(logger logger.Logger, handler EventHandler) (*Monitor, error) {
-	tasklist, err := NewTaskList()
+func NewMonitor(logger logger.Logger, handler EventHandler, opts *Options) (*Monitor, error) {
+	tasklist, err := NewTaskList(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -205,8 +205,8 @@ func (mon *Monitor) Continue() {
 }
 
 // Close is used to close network status monitor.
-func (mon *Monitor) Close() {
+func (mon *Monitor) Close() error {
 	mon.cancel()
 	mon.wg.Wait()
-	mon.tasklist.Close()
+	return mon.tasklist.Close()
 }

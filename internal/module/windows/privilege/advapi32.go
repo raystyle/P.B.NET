@@ -44,11 +44,15 @@ func EnablePrivilege(name string) error {
 }
 
 // EnableDebug is used to enable debug privilege.
+// If no permission to enable, it will not return error, if you want to
+// get the error, use RtlEnableDebug().
 func EnableDebug() error {
 	return EnablePrivilege(SeDebug)
 }
 
 // EnableShutdown is used to enable shutdown privilege.
+// If no permission to enable, it will not return error, if you want to
+// get the error, use RtlEnableShutdown().
 func EnableShutdown() error {
 	return EnablePrivilege(SeShutdown)
 }

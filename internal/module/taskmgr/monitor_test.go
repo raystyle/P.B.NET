@@ -28,7 +28,7 @@ func TestMonitor(t *testing.T) {
 			testMonitorPrintTerminatedProcesses(data.([]*Process))
 		}
 	}
-	monitor, err := NewMonitor(logger.Test, handler)
+	monitor, err := NewMonitor(logger.Test, handler, nil)
 	require.NoError(t, err)
 
 	monitor.SetInterval(500 * time.Millisecond)
@@ -37,7 +37,8 @@ func TestMonitor(t *testing.T) {
 
 	monitor.GetProcesses()
 
-	monitor.Close()
+	err = monitor.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, monitor)
 }
@@ -74,7 +75,7 @@ func TestMonitor_EventProcessCreated(t *testing.T) {
 			}
 		}
 	}
-	monitor, err := NewMonitor(logger.Test, handler)
+	monitor, err := NewMonitor(logger.Test, handler, nil)
 	require.NoError(t, err)
 
 	// wait first auto refresh
@@ -94,7 +95,8 @@ func TestMonitor_EventProcessCreated(t *testing.T) {
 	err = cmd.Process.Release()
 	require.NoError(t, err)
 
-	monitor.Close()
+	err = monitor.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, monitor)
 
@@ -126,7 +128,7 @@ func TestMonitor_EventProcessTerminated(t *testing.T) {
 			}
 		}
 	}
-	monitor, err := NewMonitor(logger.Test, handler)
+	monitor, err := NewMonitor(logger.Test, handler, nil)
 	require.NoError(t, err)
 
 	// wait first auto refresh
@@ -141,7 +143,8 @@ func TestMonitor_EventProcessTerminated(t *testing.T) {
 	// wait refresh
 	time.Sleep(2 * defaultRefreshInterval)
 
-	monitor.Close()
+	err = monitor.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, monitor)
 
@@ -153,7 +156,7 @@ func TestMonitor_refreshLoop(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("failed to refresh", func(t *testing.T) {
-		monitor, err := NewMonitor(logger.Test, nil)
+		monitor, err := NewMonitor(logger.Test, nil, nil)
 		require.NoError(t, err)
 
 		monitor.Pause()
@@ -170,13 +173,14 @@ func TestMonitor_refreshLoop(t *testing.T) {
 		// wait restart
 		time.Sleep(3 * time.Second)
 
-		monitor.Close()
+		err = monitor.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, monitor)
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		monitor, err := NewMonitor(logger.Test, nil)
+		monitor, err := NewMonitor(logger.Test, nil, nil)
 		require.NoError(t, err)
 
 		monitor.Pause()
@@ -193,7 +197,8 @@ func TestMonitor_refreshLoop(t *testing.T) {
 		// wait restart
 		time.Sleep(3 * time.Second)
 
-		monitor.Close()
+		err = monitor.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, monitor)
 	})
