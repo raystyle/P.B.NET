@@ -599,13 +599,13 @@ func GetUDP6Conns(class uint32) ([]*UDP6Conn, error) {
 	switch class {
 	case UDPTableBasic:
 		conns = parseUDP6TableBasic(buffer)
-	// case UDPTableOwnerPID:
-	// 	conns = parseUDP4TableOwnerPID(buffer)
-	// case UDPTableOwnerModule:
-	// 	conns, err = parseUDP4TableOwnerModule(buffer)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
+	case UDPTableOwnerPID:
+		conns = parseUDP6TableOwnerPID(buffer)
+	case UDPTableOwnerModule:
+		conns, err = parseUDP6TableOwnerModule(buffer)
+		if err != nil {
+			return nil, err
+		}
 	default:
 		panic("api/network: unreachable code")
 	}
@@ -654,6 +654,78 @@ type udp6RowOwnerPID struct {
 	localScopeID uint32
 	localPort    [4]byte
 	pid          uint32
+}
+
+func parseUDP6TableOwnerPID(buffer []byte) []*UDP6Conn {
+	table := (*udp6TableOwnerPID)(unsafe.Pointer(&buffer[0]))
+	var rows []udp6RowOwnerPID
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
+	sh.Data = uintptr(unsafe.Pointer(&table.table))
+	sh.Len = int(table.n)
+	sh.Cap = int(table.n)
+	l := len(rows)
+	conns := make([]*UDP6Conn, l)
+	for i := 0; i < l; i++ {
+		conn := UDP6Conn{
+			LocalAddr:    convertUint32sToIPv6(rows[i].localAddr),
+			LocalScopeID: rows[i].localScopeID,
+			PID:          int64(rows[i].pid),
+		}
+		conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
+		conns[i] = &conn
+	}
+	runtime.KeepAlive(table)
+	return conns
+}
+
+type udp6TableOwnerModule struct {
+	n     uint32
+	table [AnySize]udp6RowOwnerModule
+}
+
+type udp6RowOwnerModule struct {
+	localAddr    [4]uint32
+	localScopeID uint32
+	localPort    [4]byte
+	pid          uint32
+	createTime   FileTime
+	specific     int32     // SpecificPortBind
+	dwFlags      int32     // not used
+	moduleInfo   [16]int64 // 16 is TCP IP_OWNING_MODULE_SIZE
+}
+
+func parseUDP6TableOwnerModule(buffer []byte) ([]*UDP6Conn, error) {
+	// create process list map
+	processes, err := GetProcessList()
+	if err != nil {
+		return nil, err
+	}
+	pm := make(map[uint32]string, len(processes))
+	for i := 0; i < len(processes); i++ {
+		pm[processes[i].PID] = processes[i].Name
+	}
+	table := (*udp6TableOwnerModule)(unsafe.Pointer(&buffer[0]))
+	var rows []udp6RowOwnerModule
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&rows))
+	sh.Data = uintptr(unsafe.Pointer(&table.table))
+	sh.Len = int(table.n)
+	sh.Cap = int(table.n)
+	l := len(rows)
+	conns := make([]*UDP6Conn, l)
+	for i := 0; i < l; i++ {
+		conn := UDP6Conn{
+			LocalAddr:    convertUint32sToIPv6(rows[i].localAddr),
+			LocalScopeID: rows[i].localScopeID,
+			PID:          int64(rows[i].pid),
+			CreateTime:   rows[i].createTime.Time(),
+			ModuleInfo:   rows[i].moduleInfo,
+			Process:      pm[rows[i].pid],
+		}
+		conn.LocalPort = convert.BEBytesToUint16(rows[i].localPort[:2])
+		conns[i] = &conn
+	}
+	runtime.KeepAlive(table)
+	return conns, nil
 }
 
 func convertUint32sToIPv6(addr [4]uint32) net.IP {
