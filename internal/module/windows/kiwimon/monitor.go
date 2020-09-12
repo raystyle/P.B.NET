@@ -78,7 +78,7 @@ func NewMonitor(logger logger.Logger, handler Handler, opts *Options) (*Monitor,
 		processMonitor.SetInterval(opts.ProcessMonitorInterval)
 	}
 	// initialize connection monitor
-	connMonitor, err := netmon.NewMonitor(logger, monitor.connMonitorHandler)
+	connMonitor, err := netmon.NewMonitor(logger, monitor.connMonitorHandler, nil)
 	if err != nil {
 		processMonitor.Close()
 		return nil, errors.WithMessage(err, "failed to create connection monitor")

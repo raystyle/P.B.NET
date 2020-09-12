@@ -16,7 +16,7 @@ func TestTaskList_GetProcesses(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	err := privilege.EnableDebugPrivilege()
+	err := privilege.EnableDebug()
 	require.NoError(t, err)
 
 	tasklist, err := newTaskList()

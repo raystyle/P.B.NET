@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
+	"project/internal/module/windows/api"
 	"project/internal/module/windows/wmi"
 )
 
@@ -103,35 +104,36 @@ func (tl *taskList) GetProcesses() ([]*Process, error) {
 			ExecutablePath: processes[i].ExecutablePath,
 			CreationDate:   processes[i].CreationDate,
 		}
-		handle, err := openProcess(ps[i].PID)
-		if err != nil {
-			continue
-		}
-		ps[i].Username = getProcessUsername(handle)
-		// get process architecture
-		if tl.isWow64 != nil {
-			ps[i].Architecture = tl.getProcessArchitecture(handle)
-		} else {
-			ps[i].Architecture = "32"
-		}
-		err = windows.CloseHandle(handle)
-		if err != nil {
-			return nil, err
-		}
+		tl.setProcessInfo(ps[i])
 	}
 	return ps, nil
+}
+
+func (tl *taskList) setProcessInfo(process *Process) {
+	pHandle, err := openProcess(process.PID)
+	if err != nil {
+		return
+	}
+	defer api.CloseHandle(pHandle)
+	process.Username = getProcessUsername(pHandle)
+	// get process architecture
+	if tl.isWow64 != nil {
+		process.Architecture = tl.getProcessArchitecture(pHandle)
+	} else {
+		process.Architecture = "32"
+	}
 }
 
 func (tl *taskList) getProcessArchitecture(handle windows.Handle) string {
 	var wow64 bool
 	ret, _, _ := tl.isWow64.Call(uintptr(handle), uintptr(unsafe.Pointer(&wow64)))
-	if ret != 0 {
-		if wow64 {
-			return "x86"
-		}
-		return "x64"
+	if ret == 0 {
+		return ""
 	}
-	return ""
+	if wow64 {
+		return "x86"
+	}
+	return "x64"
 }
 
 func (tl *taskList) Close() {
@@ -141,11 +143,11 @@ func (tl *taskList) Close() {
 // first use query_limit, if failed use query.
 func openProcess(pid int64) (windows.Handle, error) {
 	p := uint32(pid)
-	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, p)
+	handle, err := api.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, p)
 	if err == nil {
 		return handle, nil
 	}
-	return windows.OpenProcess(windows.PROCESS_QUERY_INFORMATION, false, p)
+	return api.OpenProcess(windows.PROCESS_QUERY_INFORMATION, false, p)
 }
 
 func getProcessUsername(handle windows.Handle) string {

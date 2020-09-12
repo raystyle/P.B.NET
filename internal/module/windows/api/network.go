@@ -169,6 +169,7 @@ type tcp4RowBasic struct {
 	remotePort [4]byte
 }
 
+// #nosec
 func parseTCP4TableBasic(buffer []byte) []*TCP4Conn {
 	table := (*tcp4TableBasic)(unsafe.Pointer(&buffer[0]))
 	var rows []tcp4RowBasic
@@ -206,6 +207,7 @@ type tcp4RowOwnerPID struct {
 	pid        uint32
 }
 
+// #nosec
 func parseTCP4TableOwnerPID(buffer []byte) []*TCP4Conn {
 	table := (*tcp4TableOwnerPID)(unsafe.Pointer(&buffer[0]))
 	var rows []tcp4RowOwnerPID
@@ -246,6 +248,7 @@ type tcp4RowOwnerModule struct {
 	moduleInfo [16]int64 // 16 is TCP IP_OWNING_MODULE_SIZE
 }
 
+// #nosec
 func parseTCP4TableOwnerModule(buffer []byte) ([]*TCP4Conn, error) {
 	// create process list map
 	processes, err := GetProcessList()
@@ -320,6 +323,7 @@ type tcp6RowOwnerPID struct {
 	pid           uint32
 }
 
+// #nosec
 func parseTCP6TableOwnerPID(buffer []byte) []*TCP6Conn {
 	table := (*tcp6TableOwnerPID)(unsafe.Pointer(&buffer[0]))
 	var rows []tcp6RowOwnerPID
@@ -364,6 +368,7 @@ type tcp6RowOwnerModule struct {
 	moduleInfo    [16]int64 // 16 is TCP IP_OWNING_MODULE_SIZE
 }
 
+// #nosec
 func parseTCP6TableOwnerModule(buffer []byte) ([]*TCP6Conn, error) {
 	// create process list map
 	processes, err := GetProcessList()
@@ -489,6 +494,7 @@ type udp4RowBasic struct {
 	localPort [4]byte
 }
 
+// #nosec
 func parseUDP4TableBasic(buffer []byte) []*UDP4Conn {
 	table := (*udp4TableBasic)(unsafe.Pointer(&buffer[0]))
 	var rows []udp4RowBasic
@@ -520,6 +526,7 @@ type udp4RowOwnerPID struct {
 	pid       uint32
 }
 
+// #nosec
 func parseUDP4TableOwnerPID(buffer []byte) []*UDP4Conn {
 	table := (*udp4TableOwnerPID)(unsafe.Pointer(&buffer[0]))
 	var rows []udp4RowOwnerPID
@@ -546,6 +553,7 @@ type udp4TableOwnerModule struct {
 	table [AnySize]udp4RowOwnerModule
 }
 
+// nolint:structcheck, unused
 type udp4RowOwnerModule struct {
 	localAddr  uint32
 	localPort  [4]byte
@@ -556,6 +564,7 @@ type udp4RowOwnerModule struct {
 	moduleInfo [16]int64 // 16 is TCP IP_OWNING_MODULE_SIZE
 }
 
+// #nosec
 func parseUDP4TableOwnerModule(buffer []byte) ([]*UDP4Conn, error) {
 	// create process list map
 	processes, err := GetProcessList()
@@ -623,6 +632,7 @@ type udp6RowBasic struct {
 	localPort    [4]byte
 }
 
+// #nosec
 func parseUDP6TableBasic(buffer []byte) []*UDP6Conn {
 	table := (*udp6TableBasic)(unsafe.Pointer(&buffer[0]))
 	var rows []udp6RowBasic
@@ -656,6 +666,7 @@ type udp6RowOwnerPID struct {
 	pid          uint32
 }
 
+// #nosec
 func parseUDP6TableOwnerPID(buffer []byte) []*UDP6Conn {
 	table := (*udp6TableOwnerPID)(unsafe.Pointer(&buffer[0]))
 	var rows []udp6RowOwnerPID
@@ -683,6 +694,7 @@ type udp6TableOwnerModule struct {
 	table [AnySize]udp6RowOwnerModule
 }
 
+// nolint:structcheck, unused
 type udp6RowOwnerModule struct {
 	localAddr    [4]uint32
 	localScopeID uint32
@@ -694,6 +706,7 @@ type udp6RowOwnerModule struct {
 	moduleInfo   [16]int64 // 16 is TCP IP_OWNING_MODULE_SIZE
 }
 
+// #nosec
 func parseUDP6TableOwnerModule(buffer []byte) ([]*UDP6Conn, error) {
 	// create process list map
 	processes, err := GetProcessList()
