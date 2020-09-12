@@ -11,7 +11,7 @@ var (
 	procGetNativeSystemInfo = modKernel32.NewProc("GetNativeSystemInfo")
 )
 
-// CloseHandle is used to close handle.
+// CloseHandle is used to close handle it will return error.
 func CloseHandle(handle windows.Handle) {
 	_ = windows.CloseHandle(handle)
 }
@@ -106,4 +106,30 @@ func GetNativeSystemInfo() *SystemInfo {
 	systemInfo := new(SystemInfo)
 	_, _, _ = procGetNativeSystemInfo.Call(uintptr(unsafe.Pointer(systemInfo)))
 	return systemInfo
+}
+
+// IsSystem64Bit is used to check system is x64.
+func IsSystem64Bit(unknown bool) bool {
+	systemInfo := GetNativeSystemInfo()
+	switch systemInfo.ProcessorArchitecture {
+	case ProcessorArchitectureARM, ProcessorArchitectureIntel:
+		return false
+	case ProcessorArchitectureAMD64, ProcessorArchitectureARM64, ProcessorArchitectureIA64:
+		return true
+	default:
+		return unknown
+	}
+}
+
+// IsSystem32Bit is used to check system is x86.
+func IsSystem32Bit(unknown bool) bool {
+	systemInfo := GetNativeSystemInfo()
+	switch systemInfo.ProcessorArchitecture {
+	case ProcessorArchitectureARM, ProcessorArchitectureIntel:
+		return true
+	case ProcessorArchitectureAMD64, ProcessorArchitectureARM64, ProcessorArchitectureIA64:
+		return false
+	default:
+		return unknown
+	}
 }

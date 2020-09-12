@@ -16,6 +16,17 @@ var (
 	procReadProcessMemory         = modKernel32.NewProc("ReadProcessMemory")
 )
 
+// IsWow64Process is used to check x86 program is running in the x64 system.
+func IsWow64Process(handle windows.Handle) (bool, error) {
+	const name = "IsWow64Process"
+	var isWow64 bool
+	err := windows.IsWow64Process(handle, &isWow64)
+	if err != nil {
+		return false, newError(name, err, "failed to check is wow64 process")
+	}
+	return isWow64, nil
+}
+
 // ProcessBasicInfo contains process basic information.
 type ProcessBasicInfo struct {
 	Name              string

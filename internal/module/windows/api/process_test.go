@@ -14,6 +14,12 @@ import (
 	"project/internal/testsuite"
 )
 
+func TestIsWow64Process(t *testing.T) {
+	isWow64, err := IsWow64Process(windows.CurrentProcess())
+	require.NoError(t, err)
+	fmt.Println("is wow64:", isWow64)
+}
+
 func TestGetProcessList(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		processes, err := GetProcessList()
