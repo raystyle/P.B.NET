@@ -3,128 +3,144 @@
 package taskmgr
 
 import (
-	"strings"
-	"time"
+	"sync"
 	"unsafe"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
 	"project/internal/module/windows/api"
-	"project/internal/module/windows/wmi"
 )
 
-var wql = wmi.BuildWQLStatement(win32Process{}, "Win32_Process")
+// Options is contains options about tasklist.
+type Options struct {
+	ShowSessionID bool
+	ShowUsername  bool
 
-type win32OperatingSystem struct {
-	OSArchitecture string
-}
+	ShowUserModeTime   bool
+	ShowKernelModeTime bool
+	ShowMemoryUsed     bool
 
-type win32Process struct {
-	Name            string
-	ProcessID       int64
-	ParentProcessID int64
+	ShowHandleCount bool
+	ShowThreadCount bool
 
-	SessionID uint32
+	ShowIOReadBytes  bool
+	ShowIOWriteBytes bool
 
-	// for calculate CPU usage
-	UserModeTime   uint64
-	KernelModeTime uint64
-
-	WorkingSetSize uint64
-
-	HandleCount uint32
-	ThreadCount uint32
-
-	ReadTransferCount  uint64
-	WriteTransferCount uint64
-
-	CommandLine    string
-	ExecutablePath string
-	CreationDate   time.Time
+	ShowArchitecture   bool
+	ShowCommandLine    bool
+	ShowExecutablePath bool
+	ShowCreationDate   bool
 }
 
 type taskList struct {
-	client  *wmi.Client
-	isWow64 *windows.LazyProc
+	opts *Options
+
+	major       uint32
+	modKernel32 *windows.LazyDLL
+	isWow64     *windows.LazyProc
+
+	closeOnce sync.Once
 }
 
-func newTaskList() (*taskList, error) {
-	client, err := wmi.NewClient("root\\cimv2", nil)
-	if err != nil {
-		return nil, err
+// NewTaskList is used to create a new TaskList tool.
+func NewTaskList(opts *Options) (TaskList, error) {
+	if opts == nil {
+		opts = &Options{
+			ShowSessionID:      true,
+			ShowUserModeTime:   true,
+			ShowKernelModeTime: true,
+			ShowMemoryUsed:     true,
+			ShowArchitecture:   true,
+			ShowCommandLine:    true,
+			ShowExecutablePath: true,
+			ShowCreationDate:   true,
+		}
 	}
-	// check current operating system is 64-bit
-	var sys []*win32OperatingSystem
-	err = client.Query("select OSArchitecture from Win32_OperatingSystem", &sys)
-	if err != nil {
-		return nil, err
-	}
-	if len(sys) == 0 {
-		return nil, errors.New("failed to get operating system architecture")
-	}
+	major, _, _ := api.GetVersionNumber()
 	tl := taskList{
-		client: client,
+		opts:  opts,
+		major: major,
 	}
-	if strings.Contains(sys[0].OSArchitecture, "64") {
-		// load proc from kernel DLL
+	if api.IsSystem64Bit(true) {
 		modKernel32 := windows.NewLazySystemDLL("kernel32.dll")
 		proc := modKernel32.NewProc("IsWow64Process")
-		err = proc.Find()
+		err := proc.Find()
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
+		tl.modKernel32 = modKernel32
 		tl.isWow64 = proc
 	}
 	return &tl, nil
 }
 
 func (tl *taskList) GetProcesses() ([]*Process, error) {
-	var processes []*win32Process
-	err := tl.client.Query(wql, &processes)
+	list, err := api.GetProcessList()
 	if err != nil {
 		return nil, err
 	}
-	l := len(processes)
-	ps := make([]*Process, l)
+	l := len(list)
+	processes := make([]*Process, l)
 	for i := 0; i < l; i++ {
-		ps[i] = &Process{
-			Name:           processes[i].Name,
-			PID:            processes[i].ProcessID,
-			PPID:           processes[i].ParentProcessID,
-			SessionID:      processes[i].SessionID,
-			UserModeTime:   processes[i].UserModeTime,
-			KernelModeTime: processes[i].KernelModeTime,
-			MemoryUsed:     processes[i].WorkingSetSize,
-			HandleCount:    processes[i].HandleCount,
-			ThreadCount:    processes[i].ThreadCount,
-			IOReadBytes:    processes[i].ReadTransferCount,
-			IOWriteBytes:   processes[i].WriteTransferCount,
-			CommandLine:    processes[i].CommandLine,
-			ExecutablePath: processes[i].ExecutablePath,
-			CreationDate:   processes[i].CreationDate,
+		processes[i] = &Process{
+			Name: list[i].Name,
+			PID:  int64(list[i].PID),
+			PPID: int64(list[i].PPID),
 		}
-		tl.setProcessInfo(ps[i])
+		if tl.opts.ShowThreadCount {
+			processes[i].ThreadCount = list[i].Threads
+		}
+		tl.getProcessInfo(processes[i])
 	}
-	return ps, nil
+	return processes, nil
 }
 
-func (tl *taskList) setProcessInfo(process *Process) {
-	pHandle, err := openProcess(process.PID)
+func (tl *taskList) getProcessInfo(process *Process) {
+	pHandle, err := tl.openProcess(process.PID)
 	if err != nil {
 		return
 	}
 	defer api.CloseHandle(pHandle)
-	process.Username = getProcessUsername(pHandle)
-	// get process architecture
-	if tl.isWow64 != nil {
+	if tl.opts.ShowUsername {
+		process.Username = getProcessUsername(pHandle)
+	}
+	if tl.opts.ShowArchitecture {
 		process.Architecture = tl.getProcessArchitecture(pHandle)
-	} else {
-		process.Architecture = "32"
 	}
 }
 
+func (tl *taskList) openProcess(pid int64) (windows.Handle, error) {
+	var da uint32
+	if tl.major < 6 {
+		da = windows.PROCESS_QUERY_INFORMATION
+	} else {
+		da = windows.PROCESS_QUERY_LIMITED_INFORMATION
+	}
+	return api.OpenProcess(da, false, uint32(pid))
+}
+
+func getProcessUsername(handle windows.Handle) string {
+	var token windows.Token
+	err := windows.OpenProcessToken(handle, windows.TOKEN_QUERY, &token)
+	if err != nil {
+		return ""
+	}
+	tu, err := token.GetTokenUser()
+	if err != nil {
+		return ""
+	}
+	account, domain, _, err := tu.User.Sid.LookupAccount("")
+	if err != nil {
+		return ""
+	}
+	return domain + "\\" + account
+}
+
 func (tl *taskList) getProcessArchitecture(handle windows.Handle) string {
+	if tl.isWow64 == nil {
+		return "x86"
+	}
 	var wow64 bool
 	ret, _, _ := tl.isWow64.Call(uintptr(handle), uintptr(unsafe.Pointer(&wow64)))
 	if ret == 0 {
@@ -136,33 +152,13 @@ func (tl *taskList) getProcessArchitecture(handle windows.Handle) string {
 	return "x64"
 }
 
-func (tl *taskList) Close() {
-	tl.client.Close()
-}
-
-// first use query_limit, if failed use query.
-func openProcess(pid int64) (windows.Handle, error) {
-	p := uint32(pid)
-	handle, err := api.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, p)
-	if err == nil {
-		return handle, nil
+func (tl *taskList) Close() (err error) {
+	if tl.modKernel32 == nil {
+		return
 	}
-	return api.OpenProcess(windows.PROCESS_QUERY_INFORMATION, false, p)
-}
-
-func getProcessUsername(handle windows.Handle) string {
-	var t windows.Token
-	err := windows.OpenProcessToken(handle, windows.TOKEN_QUERY, &t)
-	if err != nil {
-		return ""
-	}
-	tu, err := t.GetTokenUser()
-	if err != nil {
-		return ""
-	}
-	account, domain, _, err := tu.User.Sid.LookupAccount("")
-	if err != nil {
-		return ""
-	}
-	return domain + "\\" + account
+	tl.closeOnce.Do(func() {
+		handle := windows.Handle(tl.modKernel32.Handle())
+		err = windows.FreeLibrary(handle)
+	})
+	return
 }

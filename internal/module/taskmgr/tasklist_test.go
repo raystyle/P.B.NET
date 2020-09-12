@@ -14,7 +14,7 @@ func TestTaskList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	tasklist, err := NewTaskList()
+	tasklist, err := NewTaskList(nil)
 	require.NoError(t, err)
 
 	processes, err := tasklist.GetProcesses()

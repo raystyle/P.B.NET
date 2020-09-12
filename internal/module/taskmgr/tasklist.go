@@ -9,12 +9,7 @@ import (
 // TaskList is used to get current process list.
 type TaskList interface {
 	GetProcesses() ([]*Process, error)
-	Close()
-}
-
-// NewTaskList is used to create a new TaskList tool.
-func NewTaskList() (TaskList, error) {
-	return newTaskList()
+	Close() error
 }
 
 // Process contains information about process.
@@ -29,7 +24,6 @@ type Process struct {
 	// for calculate CPU usage
 	UserModeTime   uint64
 	KernelModeTime uint64
-
 	// for calculate Memory usage
 	MemoryUsed uint64
 
