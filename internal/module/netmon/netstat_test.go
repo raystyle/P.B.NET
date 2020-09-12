@@ -6,58 +6,67 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/module/windows/api"
+	"project/internal/testsuite"
 )
 
 func TestNetStat(t *testing.T) {
-	netstat, err := NewNetStat()
+	netstat, err := NewNetStat(nil)
 	require.NoError(t, err)
 
 	t.Run("TCP Over IPv4", func(t *testing.T) {
 		conns, err := netstat.GetTCP4Conns()
 		require.NoError(t, err)
-		fmt.Println("Local Address    Remote Address    State    PID")
+		fmt.Println("Local Address      Remote Address      State      PID      Process")
 		for _, conn := range conns {
-			fmt.Printf("%s:%d %s:%d %d %d\n",
+			fmt.Printf("%s:%d      %s:%d      %s      %d      %s\n",
 				conn.LocalAddr, conn.LocalPort,
 				conn.RemoteAddr, conn.RemotePort,
-				conn.State, conn.PID,
+				api.GetTCPConnState(conn.State), conn.PID, conn.Process,
 			)
 		}
+		testsuite.IsDestroyed(t, &conns)
 	})
 
 	t.Run("TCP Over IPV6", func(t *testing.T) {
 		conns, err := netstat.GetTCP6Conns()
 		require.NoError(t, err)
-		fmt.Println("Local Address    Remote Address    State    PID")
+		fmt.Println("Local Address      Remote Address      State      PID      Process")
 		for _, conn := range conns {
-			fmt.Printf("[%s%%%d]:%d [%s%%%d]:%d %d %d\n",
+			fmt.Printf("[%s%%%d]:%d      [%s%%%d]:%d      %s      %d      %s\n",
 				conn.LocalAddr, conn.LocalScopeID, conn.LocalPort,
 				conn.RemoteAddr, conn.RemoteScopeID, conn.RemotePort,
-				conn.State, conn.PID,
+				api.GetTCPConnState(conn.State), conn.PID, conn.Process,
 			)
 		}
+		testsuite.IsDestroyed(t, &conns)
 	})
 
 	t.Run("UDP Over IPv4", func(t *testing.T) {
 		conns, err := netstat.GetUDP4Conns()
 		require.NoError(t, err)
-		fmt.Println("Local Address    PID")
+		fmt.Println("Local Address      PID      Process")
 		for _, conn := range conns {
-			fmt.Printf("%s:%d *:* %d\n",
-				conn.LocalAddr, conn.LocalPort, conn.PID,
+			fmt.Printf("%s:%d      %d      %s\n",
+				conn.LocalAddr, conn.LocalPort,
+				conn.PID, conn.Process,
 			)
 		}
+		testsuite.IsDestroyed(t, &conns)
 	})
 
 	t.Run("UDP Over IPV6", func(t *testing.T) {
 		conns, err := netstat.GetUDP6Conns()
 		require.NoError(t, err)
-		fmt.Println("Local Address    PID")
+		fmt.Println("Local Address      PID      Process")
 		for _, conn := range conns {
-			fmt.Printf("[%s%%%d]:%d *:* %d\n",
-				conn.LocalAddr, conn.LocalScopeID, conn.LocalPort, conn.PID,
+			fmt.Printf("[%s%%%d]:%d      %d      %s\n",
+				conn.LocalAddr, conn.LocalScopeID, conn.LocalPort,
+				conn.PID, conn.Process,
 			)
 		}
+		testsuite.IsDestroyed(t, &conns)
 	})
 }
 

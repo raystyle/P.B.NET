@@ -10,7 +10,7 @@ import (
 )
 
 func testPrintTCP4Conns(t *testing.T, conns []*TCP4Conn) {
-	fmt.Println("Local Address    Remote Address    State    PID    Process")
+	fmt.Println("Local Address      Remote Address      State      PID      Process")
 	for _, conn := range conns {
 		fmt.Printf("%s:%d      %s:%d      %s      %d      %s\n",
 			conn.LocalAddr, conn.LocalPort,
@@ -22,7 +22,7 @@ func testPrintTCP4Conns(t *testing.T, conns []*TCP4Conn) {
 }
 
 func testPrintTCP6Conns(t *testing.T, conns []*TCP6Conn) {
-	fmt.Println("Local Address    Remote Address    State    PID    Process")
+	fmt.Println("Local Address      Remote Address      State      PID      Process")
 	for _, conn := range conns {
 		fmt.Printf("[%s%%%d]:%d      [%s%%%d]:%d      %s      %d      %s\n",
 			conn.LocalAddr, conn.LocalScopeID, conn.LocalPort,
@@ -176,7 +176,7 @@ func TestGetTCP6Conns(t *testing.T) {
 }
 
 func testPrintUDP4Conns(t *testing.T, conns []*UDP4Conn) {
-	fmt.Println("Local Address    PID    Process")
+	fmt.Println("Local Address      PID      Process")
 	for _, conn := range conns {
 		fmt.Printf("%s:%d      %d      %s\n",
 			conn.LocalAddr, conn.LocalPort,
@@ -187,7 +187,7 @@ func testPrintUDP4Conns(t *testing.T, conns []*UDP4Conn) {
 }
 
 func testPrintUDP6Conns(t *testing.T, conns []*UDP6Conn) {
-	fmt.Println("Local Address    Remote Address    State    PID    Process")
+	fmt.Println("Local Address      PID      Process")
 	for _, conn := range conns {
 		fmt.Printf("[%s%%%d]:%d      %d      %s\n",
 			conn.LocalAddr, conn.LocalScopeID, conn.LocalPort,

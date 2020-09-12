@@ -7,6 +7,10 @@ import (
 	"runtime"
 )
 
-func newNetstat() (*netStat, error) {
+// Options is a padding structure.
+type Options struct{}
+
+// NewNetStat is a padding function.
+func NewNetStat(*Options) (NetStat, error) {
 	return nil, errors.New("netstat is not implemented on " + runtime.GOOS)
 }

@@ -28,7 +28,7 @@ func TestMonitor(t *testing.T) {
 			testMonitorPrintClosedConns(t, data)
 		}
 	}
-	monitor, err := NewMonitor(logger.Test, handler)
+	monitor, err := NewMonitor(logger.Test, handler, nil)
 	require.NoError(t, err)
 
 	monitor.SetInterval(200 * time.Millisecond)
@@ -161,7 +161,7 @@ func TestMonitor_EventConnCreated(t *testing.T) {
 			}
 		}
 	}
-	monitor, err := NewMonitor(logger.Test, handler)
+	monitor, err := NewMonitor(logger.Test, handler, nil)
 	require.NoError(t, err)
 
 	// wait first auto refresh
@@ -299,7 +299,7 @@ func TestMonitor_EventConnClosed(t *testing.T) {
 			}
 		}
 	}
-	monitor, err := NewMonitor(logger.Test, handler)
+	monitor, err := NewMonitor(logger.Test, handler, nil)
 	require.NoError(t, err)
 
 	err = tcp4Listener.Close()
@@ -329,7 +329,7 @@ func TestMonitor_refreshLoop(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("failed to refresh", func(t *testing.T) {
-		monitor, err := NewMonitor(logger.Test, nil)
+		monitor, err := NewMonitor(logger.Test, nil, nil)
 		require.NoError(t, err)
 
 		monitor.Pause()
@@ -352,7 +352,7 @@ func TestMonitor_refreshLoop(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		monitor, err := NewMonitor(logger.Test, nil)
+		monitor, err := NewMonitor(logger.Test, nil, nil)
 		require.NoError(t, err)
 
 		monitor.Pause()

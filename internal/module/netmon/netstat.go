@@ -14,11 +14,6 @@ type NetStat interface {
 	GetUDP6Conns() ([]*UDP6Conn, error)
 }
 
-// NewNetStat is used to create a netstat.
-func NewNetStat() (NetStat, error) {
-	return newNetstat()
-}
-
 // TCP4Conn contains information about TCP Over IPv4 connection.
 type TCP4Conn struct {
 	LocalAddr  net.IP
@@ -27,6 +22,7 @@ type TCP4Conn struct {
 	RemotePort uint16
 	State      uint8
 	PID        int64
+	Process    string
 }
 
 // ID is used to identified this connection.
@@ -49,6 +45,7 @@ type TCP6Conn struct {
 	RemotePort    uint16
 	State         uint8
 	PID           int64
+	Process       string
 }
 
 // ID is used to identified this connection.
@@ -68,6 +65,7 @@ type UDP4Conn struct {
 	LocalAddr net.IP
 	LocalPort uint16
 	PID       int64
+	Process   string
 }
 
 // ID is used to identified this connection.
@@ -84,6 +82,7 @@ type UDP6Conn struct {
 	LocalScopeID uint32
 	LocalPort    uint16
 	PID          int64
+	Process      string
 }
 
 // ID is used to identified this connection.

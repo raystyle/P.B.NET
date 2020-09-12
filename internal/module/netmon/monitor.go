@@ -49,8 +49,8 @@ type Monitor struct {
 }
 
 // NewMonitor is used to create a network status monitor.
-func NewMonitor(logger logger.Logger, handler EventHandler) (*Monitor, error) {
-	netstat, err := NewNetStat()
+func NewMonitor(logger logger.Logger, handler EventHandler, opts *Options) (*Monitor, error) {
+	netstat, err := NewNetStat(opts)
 	if err != nil {
 		return nil, err
 	}
