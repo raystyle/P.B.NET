@@ -1,7 +1,14 @@
 package api
 
 import (
+	"unsafe"
+
 	"golang.org/x/sys/windows"
+)
+
+var (
+	procGetSystemInfo       = modKernel32.NewProc("GetSystemInfo")
+	procGetNativeSystemInfo = modKernel32.NewProc("GetNativeSystemInfo")
 )
 
 // CloseHandle is used to close handle.
@@ -41,4 +48,62 @@ func GetVersion() *VersionInfo {
 		SuiteMask:        ver.SuiteMask,
 		ProductType:      ver.ProductType,
 	}
+}
+
+// about processor architecture.
+const (
+	ProcessorArchitectureAMD64   uint16 = 9      // x64 (AMD or Intel)
+	ProcessorArchitectureARM     uint16 = 5      // ARM
+	ProcessorArchitectureARM64   uint16 = 12     // ARM64
+	ProcessorArchitectureIA64    uint16 = 6      // Intel Itanium-based
+	ProcessorArchitectureIntel   uint16 = 0      // x86
+	ProcessorArchitectureUnknown uint16 = 0xFFFF // Unknown architecture
+)
+
+var processorArchitectures = map[uint16]string{
+	ProcessorArchitectureAMD64:   "x64",
+	ProcessorArchitectureARM:     "arm",
+	ProcessorArchitectureARM64:   "arm64",
+	ProcessorArchitectureIA64:    "ia64",
+	ProcessorArchitectureIntel:   "x86",
+	ProcessorArchitectureUnknown: "unknown",
+}
+
+// GetProcessorArchitecture is used to convert architecture to string.
+func GetProcessorArchitecture(arch uint16) string {
+	str, ok := processorArchitectures[arch]
+	if !ok {
+		return "unknown"
+	}
+	return str
+}
+
+// SystemInfo contains system information.
+type SystemInfo struct {
+	ProcessorArchitecture     uint16
+	reserved                  uint16
+	oemID                     uint32 // obsolete
+	PageSize                  uint32
+	MinimumApplicationAddress uint32
+	MaximumApplicationAddress uint32
+	ActiveProcessorMask       uintptr // *uint32
+	NumberOfProcessors        uint32
+	ProcessorType             uint32
+	AllocationGranularity     uint32
+	ProcessorLevel            uint16
+	ProcessorRevision         uint16
+}
+
+// GetSystemInfo is used to get system information. // #nosec
+func GetSystemInfo() *SystemInfo {
+	systemInfo := new(SystemInfo)
+	_, _, _ = procGetSystemInfo.Call(uintptr(unsafe.Pointer(systemInfo)))
+	return systemInfo
+}
+
+// GetNativeSystemInfo is used to get native system information. // #nosec
+func GetNativeSystemInfo() *SystemInfo {
+	systemInfo := new(SystemInfo)
+	_, _, _ = procGetNativeSystemInfo.Call(uintptr(unsafe.Pointer(systemInfo)))
+	return systemInfo
 }
