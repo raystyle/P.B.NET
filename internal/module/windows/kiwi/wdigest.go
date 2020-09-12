@@ -138,6 +138,7 @@ var (
 	}
 )
 
+// #nosec
 func (wdigest *wdigest) searchAddresses(pHandle windows.Handle) error {
 	done := security.SwitchThreadAsync()
 	defer wdigest.ctx.waitSwitchThreadAsync(done)
@@ -197,6 +198,7 @@ type Wdigest struct {
 	Password string
 }
 
+// #nosec
 func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID) (*Wdigest, error) {
 	if wdigest.credAddress == 0 {
 		err := wdigest.searchAddresses(pHandle)
@@ -247,6 +249,7 @@ func (wdigest *wdigest) GetPassword(pHandle windows.Handle, logonID windows.LUID
 	return wdigest.readPrimaryCredential(pHandle, resultAddr)
 }
 
+// #nosec
 func (wdigest *wdigest) readPrimaryCredential(pHandle windows.Handle, address uintptr) (*Wdigest, error) {
 	var cred genericPrimaryCredential
 	credAddr := uintptr(int(address) + wdigest.primaryOffset)

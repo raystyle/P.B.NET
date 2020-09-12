@@ -143,6 +143,7 @@ var (
 // reference:
 // https://github.com/gentilkiwi/mimikatz/blob/master/mimikatz/modules/sekurlsa/crypto/kuhl_m_sekurlsa_nt6.c
 
+// #nosec
 func (lsa *lsaNT6) acquireKeys(pHandle windows.Handle) error {
 	if len(lsa.iv) == 16 && lsa.key3DES != nil && lsa.keyAES != nil {
 		return nil
@@ -266,6 +267,7 @@ type hardKey struct {
 	data   [4]byte // not used
 }
 
+// #nosec
 func (lsa *lsaNT6) acquireKey(pHandle windows.Handle, address uintptr, algorithm string) error {
 	const (
 		bhKeyTag = 0x55555552 // U U U R
@@ -333,6 +335,7 @@ func (lsa *lsaNT6) acquireKey(pHandle windows.Handle, address uintptr, algorithm
 	return lsa.generateSymmetricKey(hardKeyData, algorithm)
 }
 
+// #nosec
 func (lsa *lsaNT6) generateSymmetricKey(hardKeyData []byte, algorithm string) error {
 	done := security.SwitchThreadAsync()
 	defer lsa.ctx.waitSwitchThreadAsync(done)

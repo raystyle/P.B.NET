@@ -34,7 +34,7 @@ func (kiwi *Kiwi) isWow64() (bool, error) {
 	return isWow64, nil
 }
 
-// readMemory is used to read process memory with random range.
+// readMemory is used to read process memory with random range. // #nosec
 func (kiwi *Kiwi) readMemory(pHandle windows.Handle, address uintptr, buffer *byte, size uintptr) error {
 	// TODO recovery random
 	// randomFrontSize := uintptr(128 + kiwi.rand.Int(128))
@@ -56,7 +56,7 @@ func (kiwi *Kiwi) readMemory(pHandle windows.Handle, address uintptr, buffer *by
 	return nil
 }
 
-// readMemoryEnd is used to read process memory with random range, but without front.
+// readMemoryEnd is used to read process memory with random range, but without front. // #nosec
 func (kiwi *Kiwi) readMemoryEnd(pHandle windows.Handle, address uintptr, buffer *byte, size uintptr) error {
 	// TODO recovery random
 	// randomFrontSize := uintptr(128 + kiwi.rand.Int(128))
@@ -77,6 +77,7 @@ func (kiwi *Kiwi) readMemoryEnd(pHandle windows.Handle, address uintptr, buffer 
 	return nil
 }
 
+// #nosec
 func (kiwi *Kiwi) readLSAUnicodeString(pHandle windows.Handle, lus *api.LSAUnicodeString) (string, error) {
 	if lus.MaximumLength == 0 || lus.Length == 0 {
 		return "", nil
@@ -106,6 +107,7 @@ type basicModuleInfo struct {
 	timestamp uint32
 }
 
+// #nosec
 func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModuleInfo, error) {
 	// read PEB base address
 	donePEB := security.SwitchThreadAsync()
@@ -206,6 +208,7 @@ type peFileHeader struct {
 	characteristics      uint16
 }
 
+// #nosec
 func (kiwi *Kiwi) getModuleTimestamp(pHandle windows.Handle, address uintptr) (uint32, error) {
 	const (
 		dosHeaderMagic = 0x5A4D

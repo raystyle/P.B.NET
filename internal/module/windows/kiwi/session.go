@@ -230,6 +230,7 @@ var (
 	}
 )
 
+// #nosec
 func (session *session) searchAddresses(pHandle windows.Handle) error {
 	done := security.SwitchThreadAsync()
 	defer session.ctx.waitSwitchThreadAsync(done)
@@ -551,7 +552,7 @@ type lsaEnum struct {
 	offsetToLogonServer   uint32
 }
 
-// nolint:unused
+// nolint:unused // #nosec
 var (
 	msv10List51Struct   = msv10List51{}
 	msv10List52Struct   = msv10List52{}
@@ -701,6 +702,7 @@ type Session struct {
 	SID         string
 }
 
+// #nosec
 func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*Session, error) {
 	if session.listAddr == 0 {
 		err := session.searchAddresses(pHandle)
@@ -766,6 +768,7 @@ func (session *session) GetLogonSessionList(pHandle windows.Handle) ([]*Session,
 	return logonSessions, nil
 }
 
+// #nosec
 func (session *session) readSession(pHandle windows.Handle, buf []byte, enum *lsaEnum) (*Session, error) {
 	domainNameLus := (*api.LSAUnicodeString)(unsafe.Pointer(&buf[enum.offsetToDomainName]))
 	domainName, err := session.ctx.readLSAUnicodeString(pHandle, domainNameLus)

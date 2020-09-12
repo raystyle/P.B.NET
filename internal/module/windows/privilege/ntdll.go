@@ -45,7 +45,7 @@ func RtlAdjustPrivilege(id uint32, enable, currentThread bool) (bool, error) {
 	var previous bool
 	ret, _, _ := procRtlAdjustPrivilege.Call(
 		uintptr(id), uintptr(p0), uintptr(p1), uintptr(unsafe.Pointer(&previous)),
-	)
+	) // #nosec
 	if ret != 0 {
 		return false, errors.Errorf("failed to %s privilege: %d, error: 0x%08X", op, id, ret)
 	}

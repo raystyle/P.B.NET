@@ -73,7 +73,7 @@ func main() {
 }
 
 func loadNamer(typ, path string) namer.Namer {
-	resource, err := ioutil.ReadFile(path)
+	resource, err := ioutil.ReadFile(path) // #nosec
 	system.CheckError(err)
 	var nr namer.Namer
 	switch typ {

@@ -141,7 +141,9 @@ func (tl *taskList) getProcessArchitecture(handle windows.Handle) string {
 		return "x86"
 	}
 	var wow64 bool
-	ret, _, _ := tl.isWow64.Call(uintptr(handle), uintptr(unsafe.Pointer(&wow64)))
+	ret, _, _ := tl.isWow64.Call(
+		uintptr(handle), uintptr(unsafe.Pointer(&wow64)),
+	) // #nosec
 	if ret == 0 {
 		return ""
 	}
