@@ -13,12 +13,6 @@ import (
 	"project/internal/xpanic"
 )
 
-var gRand *Rand
-
-func init() {
-	gRand = NewRand()
-}
-
 // Rand is used to generate random data.
 type Rand struct {
 	rand *rand.Rand
@@ -88,21 +82,6 @@ func sendData(data chan<- []byte, times int) {
 	}
 }
 
-// String return a string that not include "|".
-func (r *Rand) String(n int) string {
-	if n < 1 {
-		return ""
-	}
-	result := make([]rune, n)
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for i := 0; i < n; i++ {
-		ri := r.rand.Intn(90)
-		result[i] = rune(33 + ri)
-	}
-	return string(result)
-}
-
 // Bytes is used to generate random []byte that size = n.
 func (r *Rand) Bytes(n int) []byte {
 	if n < 1 {
@@ -118,8 +97,8 @@ func (r *Rand) Bytes(n int) []byte {
 	return result
 }
 
-// Cookie return a string that only include number and A-Z a-z.
-func (r *Rand) Cookie(n int) string {
+// String returns a string that only include 0-9, A-Z and a-z.
+func (r *Rand) String(n int) string {
 	if n < 1 {
 		return ""
 	}
@@ -166,7 +145,9 @@ func (r *Rand) Uint64() uint64 {
 	return r.rand.Uint64()
 }
 
-// String return a string that not include "|".
+var gRand = NewRand()
+
+// String returns a string that only include 0-9, A-Z and a-z.
 func String(n int) string {
 	return gRand.String(n)
 }
@@ -174,11 +155,6 @@ func String(n int) string {
 // Bytes is used to generate random []byte that size = n.
 func Bytes(n int) []byte {
 	return gRand.Bytes(n)
-}
-
-// Cookie return a string that only include number and A-Z a-z.
-func Cookie(n int) string {
-	return gRand.Cookie(n)
 }
 
 // Int returns, as an int, a non-negative pseudo-random number in [0,n).

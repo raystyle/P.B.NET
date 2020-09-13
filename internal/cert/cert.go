@@ -103,7 +103,7 @@ func setCertCommonName(cert *x509.Certificate, opts *Options) error {
 	}
 	// generate random common name
 	if opts.Namer == nil {
-		cert.Subject.CommonName = random.Cookie(6 + random.Int(8))
+		cert.Subject.CommonName = random.String(6 + random.Int(8))
 		return nil
 	}
 	name, err := opts.Namer.Generate(opts.NamerOpts)
@@ -122,7 +122,7 @@ func setCertOrganization(cert *x509.Certificate, opts *Options) error {
 	}
 	// generate random organization
 	if opts.Namer == nil {
-		cert.Subject.Organization = []string{random.Cookie(6 + random.Int(8))}
+		cert.Subject.Organization = []string{random.String(6 + random.Int(8))}
 		return nil
 	}
 	name, err := opts.Namer.Generate(opts.NamerOpts)

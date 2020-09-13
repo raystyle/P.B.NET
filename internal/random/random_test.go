@@ -37,21 +37,6 @@ func TestRandom(t *testing.T) {
 		require.Len(t, bytes, 0)
 	})
 
-	t.Run("Cookie", func(t *testing.T) {
-		cookie := Cookie(10)
-		require.Len(t, cookie, 10)
-		t.Log(cookie)
-
-		cookie = Cookie(-1)
-		require.Len(t, cookie, 0)
-	})
-
-	t.Run("Cookie-collide", func(t *testing.T) {
-		for i := 0; i < 10240; i++ {
-			Cookie(32)
-		}
-	})
-
 	t.Run("Int", func(t *testing.T) {
 		i := Int(10)
 		require.True(t, i >= 0 && i < 10)

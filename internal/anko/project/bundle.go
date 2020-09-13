@@ -633,7 +633,6 @@ func initInternalRandom() {
 
 		// define functions
 		"Bytes":      reflect.ValueOf(random.Bytes),
-		"Cookie":     reflect.ValueOf(random.Cookie),
 		"Int":        reflect.ValueOf(random.Int),
 		"Int64":      reflect.ValueOf(random.Int64),
 		"NewRand":    reflect.ValueOf(random.NewRand),
