@@ -3,6 +3,7 @@ package anko
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"reflect"
 	"testing"
 
@@ -464,4 +465,83 @@ return true
 	testsuite.IsDestroyed(t, e)
 	testsuite.IsDestroyed(t, ne)
 	testsuite.IsDestroyed(t, stmt)
+}
+
+type FooStruct struct {
+	function  func(string)
+	Pointer   *int
+	Slice     []string
+	Map       map[string]string
+	Channel   chan string
+	Function  func(string)
+	Interface interface{}
+	Transport http.RoundTripper
+	Str2      FooStruct2
+	Str2p     *FooStruct2
+}
+
+type FooStruct2 struct {
+	Pointer *int
+}
+
+// Println is used to check structure fields are Zero Value.
+func (f *FooStruct) Println() {
+	fmt.Println("func(unexported):", f.function == nil)
+	fmt.Println("pointer:", f.Pointer == nil)
+	fmt.Println("slice:", f.Slice == nil)
+	fmt.Println("map:", f.Map == nil)
+	fmt.Println("chan:", f.Channel == nil)
+	fmt.Println("func:", f.Function == nil)
+	fmt.Println("interface{}:", f.Interface == nil)
+	fmt.Println("interface:", f.Transport == nil)
+	fmt.Println("str2:", f.Str2.Pointer == nil)
+	fmt.Println("str2p:", f.Str2p == nil)
+	fmt.Println()
+}
+
+func TestAnkoMakeStruct(t *testing.T) {
+	// Zero Value
+	fs1 := new(FooStruct)
+	fs1.Println()
+	fs2 := FooStruct{}
+	fs2.Println()
+
+	// some fields not Zero Value
+	e := NewEnv()
+	err := e.DefineType("FooStruct", reflect.TypeOf(fs1).Elem())
+	require.NoError(t, err)
+
+	const src = `
+fs1 = new(FooStruct)
+fs1.Println()
+
+fs2 = make(FooStruct)
+fs2.Println()
+`
+	stmt := testParseSrc(t, src)
+	_, err = Run(e, stmt)
+	require.NoError(t, err)
+
+	f1, err := e.Get("fs1")
+	require.NoError(t, err)
+	f1v := f1.(*FooStruct)
+	testCheckAnkoStruct(t, f1v)
+
+	f2, err := e.Get("fs2")
+	require.NoError(t, err)
+	f2v := f2.(FooStruct)
+	testCheckAnkoStruct(t, &f2v)
+}
+
+func testCheckAnkoStruct(t *testing.T, f *FooStruct) {
+	require.Nil(t, f.function)
+	require.Nil(t, f.Pointer)
+	require.Nil(t, f.Slice)
+	require.Nil(t, f.Map)
+	require.Nil(t, f.Channel)
+	require.Nil(t, f.Function)
+	require.Nil(t, f.Interface)
+	require.Nil(t, f.Transport)
+	require.Nil(t, f.Str2.Pointer)
+	require.Nil(t, f.Str2p)
 }

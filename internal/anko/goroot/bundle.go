@@ -3146,6 +3146,7 @@ func initPathFilepath() {
 	}
 }
 
+// nolint:govet
 func initReflect() {
 	env.Packages["reflect"] = map[string]reflect.Value{
 		// define constants

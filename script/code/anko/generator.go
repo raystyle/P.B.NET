@@ -185,18 +185,21 @@ func init%s() {
 		typeFormat = tabs + `"%s": reflect.TypeOf(&%s).Elem(),` + "\n"
 	)
 
+	// constants
 	buf := new(bytes.Buffer)
 	for _, c := range constants {
 		_, _ = fmt.Fprintf(buf, valFormat, c, name, c)
 	}
 	cs := buf.String()
 
+	// variables
 	buf.Reset()
 	for _, v := range vars {
 		_, _ = fmt.Fprintf(buf, valFormat, v, name, v)
 	}
 	vs := buf.String()
 
+	// functions
 	buf.Reset()
 	for _, fn := range fns {
 		_, _ = fmt.Fprintf(buf, valFormat, fn, name, fn)

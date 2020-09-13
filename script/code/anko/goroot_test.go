@@ -240,6 +240,9 @@ func init() {
 		{`	"crypto/rc4"`, `	"crypto/rc4" // #nosec`},
 		{`	"crypto/sha1"`, `	"crypto/sha1" // #nosec`},
 
+		// skip golangci-lint
+		{"func initReflect()", "// nolint:govet\nfunc initReflect()"},
+
 		// improve variable name
 		{"unknownUserIdError", "unknownUserIDError"},
 		{"unknownGroupIdError", "unknownGroupIDError"},
