@@ -198,7 +198,7 @@ func walkOptions(father string, typ reflect.Type, value reflect.Value) string {
 		fieldTag, ok := fieldType.Tag.Lookup("check")
 		if ok {
 			if fieldTag == "" {
-				panic("empty value in check tag")
+				panic(fmt.Sprintf("empty value in check tag, %s", fieldType.Name))
 			}
 			if fieldTag == "-" {
 				continue

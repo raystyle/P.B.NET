@@ -373,6 +373,15 @@ func TestCheckOptions(t *testing.T) {
 		})
 	})
 
+	t.Run("empty structure tag value", func(t *testing.T) {
+		opts := struct {
+			A string `check:""`
+		}{}
+		result := checkOptions("", opts)
+		require.NotZero(t, result)
+		t.Log("result:", result)
+	})
+
 	t.Run("panic occurred", func(t *testing.T) {
 		opts := struct {
 			P io.Writer
