@@ -8,10 +8,11 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/external/ntp"
+
 	"project/internal/dns"
 	"project/internal/patch/toml"
 	"project/internal/proxy"
-	"project/internal/timesync/ntp"
 )
 
 // NTP is used to create a NTP client to synchronize time.
