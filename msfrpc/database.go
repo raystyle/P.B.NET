@@ -29,7 +29,7 @@ func (msf *MSFRPC) DBConnect(ctx context.Context, opts *DBConnectOptions) error 
 		return errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "success" {
-		return errors.New("failed to connect database")
+		return errors.Errorf("failed to connect database: %s", result.Result)
 	}
 	err = msf.DBAddWorkspace(ctx, defaultWorkspace)
 	if err != nil {

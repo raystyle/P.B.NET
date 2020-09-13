@@ -288,7 +288,7 @@ func (p *program) Start(s service.Service) error {
 	return nil
 }
 
-func (p *program) Stop(_ service.Service) error {
+func (p *program) Stop(service.Service) error {
 	_ = p.webServer.Close()
 	p.wg.Wait()
 	p.monitor.Close()

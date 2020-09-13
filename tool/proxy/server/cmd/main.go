@@ -116,7 +116,7 @@ func (p *program) Start(s service.Service) error {
 	return nil
 }
 
-func (p *program) Stop(_ service.Service) error {
+func (p *program) Stop(service.Service) error {
 	err := p.server.Exit()
 	p.wg.Wait()
 	return err

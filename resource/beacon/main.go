@@ -23,13 +23,13 @@ func main() {
 	// generator will replace it
 	data := []byte("flag-01: config")
 	key := []byte("flag-02: key")
-	config := new(beacon.Config)
+	var config beacon.Config
 	err := config.Load(data, key)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	svc := createService(config)
+	svc := createService(&config)
 	switch {
 	case install:
 		err := svc.Install()
@@ -73,7 +73,7 @@ type program struct {
 	wg     sync.WaitGroup
 }
 
-func (p *program) Start(_ service.Service) error {
+func (p *program) Start(service.Service) error {
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -85,7 +85,7 @@ func (p *program) Start(_ service.Service) error {
 	return nil
 }
 
-func (p *program) Stop(_ service.Service) error {
+func (p *program) Stop(service.Service) error {
 	p.beacon.Exit(nil)
 	p.wg.Wait()
 	return nil

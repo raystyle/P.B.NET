@@ -5,38 +5,18 @@ import (
 	"testing"
 )
 
-var ctrlSyncerNeed = []string{
-	"nodeSend",
-	"nodeAck",
-	"beaconSend",
-	"beaconAck",
-	"query",
-}
-
-var nodeSyncerNeed = []string{
-	// from Controller
-	"sendToNode",
-	"sendToBeacon",
-	"ackToNode",
-	"ackToBeacon",
-	"broadcast",
-	"answer",
-
-	// from Node
-	"nodeSend",
-	"nodeAck",
-
-	// from Beacon
-	"beaconSend",
-	"beaconAck",
-	"query",
-}
-
-var beaconSyncerNeed = []string{
-	"sendToBeacon",
-	"ackToBeacon",
-	"answer",
-}
+var (
+	ctrlSyncerNeed = []string{
+		"nodeSend", "nodeAck", "beaconSend", "beaconAck", "query",
+	}
+	nodeSyncerNeed = []string{
+		"sendToNode", "sendToBeacon", "ackToNode", "ackToBeacon", "broadcast", "answer",
+		"nodeSend", "nodeAck", "beaconSend", "beaconAck", "query",
+	}
+	beaconSyncerNeed = []string{
+		"sendToBeacon", "ackToBeacon", "answer",
+	}
+)
 
 func TestGenerateControllerSyncer(t *testing.T) {
 	t.Run("CheckGUIDSlice", func(t *testing.T) {
