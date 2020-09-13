@@ -142,6 +142,15 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		testsuite.IsDestroyed(t, monitor)
 	})
 
+	t.Run("nil tokens", func(t *testing.T) {
+		var monitor Monitor
+
+		tokens := monitor.Tokens()
+		require.Empty(t, tokens)
+
+		testsuite.IsDestroyed(t, &monitor)
+	})
+
 	err := msfrpc.Close()
 	require.NoError(t, err)
 
@@ -299,6 +308,15 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		monitor.Close()
 
 		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("nil jobs", func(t *testing.T) {
+		var monitor Monitor
+
+		jobs := monitor.Jobs()
+		require.Empty(t, jobs)
+
+		testsuite.IsDestroyed(t, &monitor)
 	})
 
 	err := msfrpc.Close()
@@ -464,6 +482,15 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		monitor.Close()
 
 		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("nil sessions", func(t *testing.T) {
+		var monitor Monitor
+
+		sessions := monitor.Sessions()
+		require.Empty(t, sessions)
+
+		testsuite.IsDestroyed(t, &monitor)
 	})
 
 	err := msfrpc.Close()
@@ -660,6 +687,16 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		monitor.Close()
 
 		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("nil hosts", func(t *testing.T) {
+		var monitor Monitor
+
+		hosts, err := monitor.Hosts(defaultWorkspace)
+		require.NoError(t, err)
+		require.Empty(t, hosts)
+
+		testsuite.IsDestroyed(t, &monitor)
 	})
 
 	err := msfrpc.DBDisconnect(ctx)
@@ -860,6 +897,16 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		testsuite.IsDestroyed(t, monitor)
 	})
 
+	t.Run("nil credentials", func(t *testing.T) {
+		var monitor Monitor
+
+		creds, err := monitor.Credentials(defaultWorkspace)
+		require.NoError(t, err)
+		require.Empty(t, creds)
+
+		testsuite.IsDestroyed(t, &monitor)
+	})
+
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
@@ -991,6 +1038,16 @@ func TestMonitor_lootMonitor(t *testing.T) {
 		monitor.Close()
 
 		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("nil loots", func(t *testing.T) {
+		var monitor Monitor
+
+		loots, err := monitor.Loots(defaultWorkspace)
+		require.NoError(t, err)
+		require.Empty(t, loots)
+
+		testsuite.IsDestroyed(t, &monitor)
 	})
 
 	err := msfrpc.DBDisconnect(ctx)

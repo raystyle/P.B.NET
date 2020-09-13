@@ -90,7 +90,7 @@ type Monitor struct {
 	wg      sync.WaitGroup
 }
 
-// NewMonitor is used to create a monitor.
+// NewMonitor is used to create a data monitor.
 func (msf *MSFRPC) NewMonitor(
 	callbacks *Callbacks,
 	interval time.Duration,
@@ -119,6 +119,9 @@ func (msf *MSFRPC) NewMonitor(
 func (monitor *Monitor) Tokens() []string {
 	monitor.tokensRWM.RLock()
 	defer monitor.tokensRWM.RUnlock()
+	if monitor.tokens == nil {
+		return nil
+	}
 	l := len(monitor.tokens)
 	tokens := make([]string, 0, l)
 	for token := range monitor.tokens {
@@ -131,6 +134,9 @@ func (monitor *Monitor) Tokens() []string {
 func (monitor *Monitor) Jobs() map[string]string {
 	monitor.jobsRWM.RLock()
 	defer monitor.jobsRWM.RUnlock()
+	if monitor.jobs == nil {
+		return nil
+	}
 	jobs := make(map[string]string, len(monitor.jobs))
 	for id, name := range monitor.jobs {
 		jobs[id] = name
@@ -142,6 +148,9 @@ func (monitor *Monitor) Jobs() map[string]string {
 func (monitor *Monitor) Sessions() map[uint64]*SessionInfo {
 	monitor.sessionsRWM.RLock()
 	defer monitor.sessionsRWM.RUnlock()
+	if monitor.sessions == nil {
+		return nil
+	}
 	sessions := make(map[uint64]*SessionInfo, len(monitor.sessions))
 	for id, info := range monitor.sessions {
 		sessions[id] = info
@@ -153,6 +162,10 @@ func (monitor *Monitor) Sessions() map[uint64]*SessionInfo {
 func (monitor *Monitor) Hosts(workspace string) ([]*DBHost, error) {
 	monitor.hostsRWM.RLock()
 	defer monitor.hostsRWM.RUnlock()
+	// not connected database
+	if monitor.hosts == nil {
+		return nil, nil
+	}
 	hosts, ok := monitor.hosts[workspace]
 	if !ok {
 		return nil, errors.Errorf(ErrInvalidWorkspaceFormat, workspace)
@@ -168,6 +181,10 @@ func (monitor *Monitor) Hosts(workspace string) ([]*DBHost, error) {
 func (monitor *Monitor) Credentials(workspace string) ([]*DBCred, error) {
 	monitor.credsRWM.RLock()
 	defer monitor.credsRWM.RUnlock()
+	// not connected database
+	if monitor.creds == nil {
+		return nil, nil
+	}
 	creds, ok := monitor.creds[workspace]
 	if !ok {
 		return nil, errors.Errorf(ErrInvalidWorkspaceFormat, workspace)
@@ -183,6 +200,10 @@ func (monitor *Monitor) Credentials(workspace string) ([]*DBCred, error) {
 func (monitor *Monitor) Loots(workspace string) ([]*DBLoot, error) {
 	monitor.lootsRWM.RLock()
 	defer monitor.lootsRWM.RUnlock()
+	// not connected database
+	if monitor.loots == nil {
+		return nil, nil
+	}
 	loots, ok := monitor.loots[workspace]
 	if !ok {
 		return nil, errors.Errorf(ErrInvalidWorkspaceFormat, workspace)

@@ -486,7 +486,6 @@ func TestMSFRPC_send(t *testing.T) {
 		msfrpc.Kill()
 
 		testsuite.IsDestroyed(t, msfrpc)
-
 	})
 
 	t.Run("unexpected http status code", func(t *testing.T) {
