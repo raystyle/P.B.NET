@@ -247,11 +247,19 @@ func buildSourceCode() bool {
 		{name: "golangci-lint", dir: "golangci-lint-master", build: "cmd/golangci-lint"},
 	}
 	itemsLen := len(items)
-	errCh := make(chan error, itemsLen)
+	resultCh := make(chan bool, itemsLen)
 	for _, item := range items {
 		go func(name, dir, build string) {
 			var err error
-			defer func() { errCh <- err }()
+			defer func() {
+				if err == nil {
+					log.Printf(logger.Info, "build development tool %s successfully", name)
+					resultCh <- true
+					return
+				}
+				log.Printf(logger.Error, "failed to build development tool %s: %s", name, err)
+				resultCh <- false
+			}()
 			var binName string
 			switch runtime.GOOS {
 			case "windows":
@@ -275,14 +283,17 @@ func buildSourceCode() bool {
 				return
 			}
 			// move binary file to GOROOT
-			var eErr error
+			var mvErr error
 			ec := func(_ context.Context, typ uint8, err error, _ *filemgr.SrcDstStat) uint8 {
-				eErr = err
+				if typ == filemgr.ErrCtrlSameFile {
+					return filemgr.ErrCtrlOpReplace
+				}
+				mvErr = err
 				return filemgr.ErrCtrlOpCancel
 			}
 			err = filemgr.Move(ec, goRoot, filepath.Join(buildPath, binName))
-			if eErr != nil {
-				err = eErr
+			if mvErr != nil {
+				err = mvErr
 				return
 			}
 			if err != nil {
@@ -290,16 +301,11 @@ func buildSourceCode() bool {
 			}
 			// delete source code directory
 			err = os.RemoveAll(filepath.Join(developDir, dir))
-			if err != nil {
-				return
-			}
-			log.Printf(logger.Info, "build development tool %s successfully", name)
 		}(item.name, item.dir, item.build)
 	}
 	for i := 0; i < itemsLen; i++ {
-		err := <-errCh
-		if err != nil {
-			log.Println(logger.Error, "failed to build development tool:", err)
+		ok := <-resultCh
+		if !ok {
 			return false
 		}
 	}
