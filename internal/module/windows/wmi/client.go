@@ -338,7 +338,7 @@ func (client *Client) handleGetObject(get *getObject) {
 	params := append([]interface{}{get.Path}, get.Args...)
 	instance, err := oleutil.CallMethod(client.wmi, "Get", params...)
 	if err != nil {
-		result.Err = errors.Wrapf(err, "failed to get object %q", get.Path)
+		result.Err = errors.Wrapf(err, "failed to get object \"%s\"", get.Path)
 		return
 	}
 	result.Object = &Object{raw: instance}
@@ -351,7 +351,7 @@ func (client *Client) handleExecMethod(exec *execMethod) {
 	// get class, don't use client.GetObject() or will block
 	class, err := oleutil.CallMethod(client.wmi, "Get", exec.Path)
 	if err != nil {
-		err = errors.Wrapf(err, "failed to get class %q", exec.Path)
+		err = errors.Wrapf(err, "failed to get class \"%s\"", exec.Path)
 		return
 	}
 	object := Object{raw: class}
@@ -480,7 +480,7 @@ func (client *Client) setStruct(obj *Object, name string, typ reflect.Type, val 
 	// create instance
 	instance, err := oleutil.CallMethod(client.wmi, "Get", class)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create instance from class %q", class)
+		return errors.Wrapf(err, "failed to create instance from class \"%s\"", class)
 	}
 	object := Object{raw: instance}
 	defer object.Clear()

@@ -45,7 +45,7 @@ func BCryptOpenAlgorithmProvider(algID, impl string, flags uint32) (BcryptHandle
 		uintptr(unsafe.Pointer(implPtr)), uintptr(flags),
 	)
 	if ret != 0 {
-		return 0, newErrorf(name, err, "failed to open algorithm provider %q", algID)
+		return 0, newErrorf(name, err, "failed to open algorithm provider \"%s\"", algID)
 	}
 	return BcryptHandle(handle), nil
 }
@@ -73,7 +73,7 @@ func BCryptSetProperty(handle BcryptHandle, prop string, input *byte, size, flag
 		uintptr(flags),
 	)
 	if ret != 0 {
-		return newErrorf(name, err, "failed to set property %q", prop)
+		return newErrorf(name, err, "failed to set property \"%s\"", prop)
 	}
 	return nil
 }
@@ -92,7 +92,7 @@ func BCryptGetProperty(handle BcryptHandle, prop string, output *byte, size, fla
 		uintptr(flags),
 	)
 	if ret != 0 {
-		return 0, newErrorf(name, err, "failed to get property %q", prop)
+		return 0, newErrorf(name, err, "failed to get property \"%s\"", prop)
 	}
 	return result, nil
 }

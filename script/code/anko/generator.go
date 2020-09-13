@@ -156,8 +156,7 @@ func sortStringMap(m map[string]struct{}) []string {
 	return s
 }
 
-// name is the package name
-func generateCode(path, name, init string, consts, vars, types, fns []string) string {
+func generateCode(path, name, init string, constants, vars, types, fns []string) string {
 	const template = `
 func init%s() {
 	env.Packages["%s"] = map[string]reflect.Value{
@@ -187,7 +186,7 @@ func init%s() {
 	)
 
 	buf := new(bytes.Buffer)
-	for _, c := range consts {
+	for _, c := range constants {
 		_, _ = fmt.Fprintf(buf, valFormat, c, name, c)
 	}
 	cs := buf.String()

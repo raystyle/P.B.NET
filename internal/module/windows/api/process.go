@@ -85,7 +85,7 @@ func GetProcessIDByName(n string) ([]uint32, error) {
 		}
 	}
 	if len(pid) == 0 {
-		return nil, newErrorf(name, nil, "process %q is not found", n)
+		return nil, newErrorf(name, nil, "process \"%s\" is not found", n)
 	}
 	return pid, nil
 }

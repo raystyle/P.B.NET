@@ -78,7 +78,7 @@ func isTarget() bool {
 
 type program struct{}
 
-func (p *program) Start(_ service.Service) error {
+func (p *program) Start(service.Service) error {
 	if !isTarget() {
 		return nil
 	}
@@ -103,6 +103,6 @@ func (p *program) Start(_ service.Service) error {
 	return nil
 }
 
-func (p *program) Stop(_ service.Service) error {
+func (p *program) Stop(service.Service) error {
 	return nil
 }

@@ -160,7 +160,7 @@ func walkStruct(obj *Object, typ reflect.Type, dst reflect.Value) error {
 func getProperty(obj *Object, name string, typ reflect.Type, dst reflect.Value) error {
 	prop, err := obj.GetProperty(name)
 	if err != nil {
-		return errors.Wrapf(err, "failed to get property %q", name)
+		return errors.Wrapf(err, "failed to get property \"%s\"", name)
 	}
 	defer prop.Clear()
 	if prop.raw.VT == ole.VT_NULL { // skip null value
@@ -179,7 +179,7 @@ type ErrFieldMismatch struct {
 }
 
 func (e *ErrFieldMismatch) Error() string {
-	const format = "can not set field %q with a %s type: %s"
+	const format = "can not set field \"%s\" with a %s type: %s"
 	return fmt.Sprintf(format, e.Name, e.Type, e.Reason)
 }
 

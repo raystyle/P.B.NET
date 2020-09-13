@@ -106,7 +106,7 @@ func (obj *Object) ExecMethod(method string, args ...interface{}) (*Object, erro
 	defer iDispatch.Release()
 	returnValue, err := oleutil.CallMethod(iDispatch, method, args...)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to call method %q", method)
+		return nil, errors.Wrapf(err, "failed to call method \"%s\"", method)
 	}
 	return &Object{raw: returnValue}, nil
 }
@@ -122,7 +122,7 @@ func (obj *Object) GetProperty(name string) (*Object, error) {
 	defer iDispatch.Release()
 	prop, err := oleutil.GetProperty(iDispatch, name)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get property %q", name)
+		return nil, errors.Wrapf(err, "failed to get property \"%s\"", name)
 	}
 	return &Object{raw: prop}, nil
 }
@@ -148,7 +148,7 @@ func (obj *Object) SetProperty(name string, args ...interface{}) error {
 	}
 	result, err := oleutil.PutProperty(iDispatch, name, args...)
 	if err != nil {
-		return errors.Wrapf(err, "failed to set property %q", name)
+		return errors.Wrapf(err, "failed to set property \"%s\"", name)
 	}
 	defer func() { _ = result.Clear() }()
 	return nil
@@ -163,7 +163,7 @@ func (obj *Object) AddProperty(name string, typ uint8, isArray bool) error {
 	defer properties.Clear()
 	result, err := properties.ExecMethod("Add", name, typ, isArray)
 	if err != nil {
-		return errors.Wrapf(err, "failed to add property %q", name)
+		return errors.Wrapf(err, "failed to add property \"%s\"", name)
 	}
 	result.Clear()
 	return nil
@@ -178,7 +178,7 @@ func (obj *Object) RemoveProperty(name string) error {
 	defer properties.Clear()
 	result, err := properties.ExecMethod("Remove", name)
 	if err != nil {
-		return errors.Wrapf(err, "failed to remove property %q", name)
+		return errors.Wrapf(err, "failed to remove property \"%s\"", name)
 	}
 	result.Clear()
 	return nil

@@ -26,7 +26,7 @@ func EnablePrivilege(name string) error {
 	debug := new(windows.LUID)
 	err = windows.LookupPrivilegeValue(nil, windows.StringToUTF16Ptr(name), debug)
 	if err != nil {
-		return errors.Wrapf(err, "failed to lookup %q", name)
+		return errors.Wrapf(err, "failed to lookup \"%s\"", name)
 	}
 	// adjust token privilege
 	privilege := windows.Tokenprivileges{

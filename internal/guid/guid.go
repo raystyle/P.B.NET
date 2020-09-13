@@ -134,7 +134,7 @@ func New(size int, now func() time.Time) *Generator {
 		g.id += uint32(g.rand.Int(1048576))
 	}
 	g.wg.Add(1)
-	go g.generate()
+	go g.generateLoop()
 	return &g
 }
 
@@ -164,15 +164,15 @@ func (g *Generator) Close() {
 	})
 }
 
-func (g *Generator) generate() {
+func (g *Generator) generateLoop() {
 	defer g.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			xpanic.Log(r, "Generator.generate")
+			xpanic.Log(r, "Generator.generateLoop")
 			// restart
 			time.Sleep(time.Second)
 			g.wg.Add(1)
-			go g.generate()
+			go g.generateLoop()
 			return
 		}
 		close(g.guidQueue)

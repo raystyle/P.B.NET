@@ -53,7 +53,7 @@ func (rt *runtime) Get(symbol string) (reflect.Value, error) {
 	if value, ok := rt.values[symbol]; ok {
 		return value, nil
 	}
-	return reflect.Value{}, fmt.Errorf("value %q is not defined", symbol)
+	return reflect.Value{}, fmt.Errorf("value \"%s\" is not defined", symbol)
 }
 
 func (rt *runtime) DefineValue(symbol string, value interface{}) error {
@@ -86,7 +86,7 @@ func (rt *runtime) Type(symbol string) (reflect.Type, error) {
 	if typ, ok := rt.types[symbol]; ok {
 		return typ, nil
 	}
-	return nil, fmt.Errorf("type %q is not defined", symbol)
+	return nil, fmt.Errorf("type \"%s\" is not defined", symbol)
 }
 
 func (rt *runtime) DefineType(symbol string, typ interface{}) error {
