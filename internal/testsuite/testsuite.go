@@ -196,14 +196,13 @@ func walkOptions(father string, typ reflect.Type, value reflect.Value) string {
 		}
 		// skip filed with check tag
 		fieldTag, ok := fieldType.Tag.Lookup("check")
-		if !ok {
-			continue
-		}
-		if fieldTag == "" {
-			panic("empty value in check tag")
-		}
-		if fieldTag == "-" {
-			continue
+		if ok {
+			if fieldTag == "" {
+				panic("empty value in check tag")
+			}
+			if fieldTag == "-" {
+				continue
+			}
 		}
 		switch fieldType.Type.Kind() {
 		case reflect.Struct, reflect.Ptr, reflect.Interface:

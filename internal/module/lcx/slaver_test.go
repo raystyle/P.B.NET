@@ -222,8 +222,10 @@ func TestSlaver_serve(t *testing.T) {
 
 	t.Run("failed to connect listener", func(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
+		// force change
 		slaver.lAddress = "0.0.0.0:1"
-		slaver.opts.MaxConns = 1 // force change
+		slaver.opts.MaxConns = 1
+		slaver.online = true
 
 		sleeper := new(random.Sleeper)
 		patch1 := func(interface{}, uint, uint) <-chan time.Time {
@@ -490,7 +492,6 @@ func TestSConn_Serve(t *testing.T) {
 		// because of monkey
 		// testsuite.IsDestroyed(t, slaver)
 		// testsuite.IsDestroyed(t, listener)
-
 	})
 
 	t.Run("panic from copy", func(t *testing.T) {
