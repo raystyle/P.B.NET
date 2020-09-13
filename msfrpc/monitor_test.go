@@ -1155,6 +1155,35 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
+func TestMonitor_log(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const (
+		username = "foo"
+		password = "bar"
+		interval = 25 * time.Millisecond
+	)
+
+	msfrpc, err := NewMSFRPC(testAddress, username, password, logger.Test, nil)
+	require.NoError(t, err)
+	msfrpc.token = "TEST"
+
+	monitor := msfrpc.NewMonitor(new(Callbacks), interval, testDBOptions)
+	monitor.Close()
+
+	monitor.logf(logger.Debug, "%s", "foo")
+	monitor.log(logger.Debug, "foo")
+
+	testsuite.IsDestroyed(t, monitor)
+
+	err = msfrpc.Close()
+	require.Error(t, err)
+	msfrpc.Kill()
+
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 func TestMonitor_updateMSFErrorCount(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -1175,7 +1204,6 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 	}}
 	monitor := msfrpc.NewMonitor(&callbacks, interval, testDBOptions)
 	monitor.Close()
-	monitor.context = context.Background()
 
 	t.Run("msfrpcd disconnect", func(t *testing.T) {
 		// mock error
@@ -1225,7 +1253,6 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 	dbOpts.Port = 99999
 	monitor := msfrpc.NewMonitor(&callbacks, interval, &dbOpts)
 	monitor.Close()
-	monitor.context = context.Background()
 
 	t.Run("database disconnect", func(t *testing.T) {
 		// mock error

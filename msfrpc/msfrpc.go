@@ -209,7 +209,7 @@ func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, repla
 	header.Set("Accept", "binary/message-pack")
 	header.Set("Accept-Charset", "utf-8")
 	header.Set("Connection", "keep-alive")
-	// do
+	// send request
 	resp, err := msf.client.Do(req)
 	if err != nil {
 		return errors.WithStack(err)
@@ -267,16 +267,22 @@ func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, repla
 	return err
 }
 
+func (msf *MSFRPC) shuttingDown() bool {
+	return atomic.LoadInt32(&msf.inShutdown) != 0
+}
+
 func (msf *MSFRPC) logf(lv logger.Level, format string, log ...interface{}) {
+	if msf.shuttingDown() {
+		return
+	}
 	msf.logger.Printf(lv, "msfrpc", format, log...)
 }
 
 func (msf *MSFRPC) log(lv logger.Level, log ...interface{}) {
+	if msf.shuttingDown() {
+		return
+	}
 	msf.logger.Println(lv, "msfrpc", log...)
-}
-
-func (msf *MSFRPC) shuttingDown() bool {
-	return atomic.LoadInt32(&msf.inShutdown) != 0
 }
 
 func (msf *MSFRPC) addIOResourceCount(delta int) {

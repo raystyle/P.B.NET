@@ -213,16 +213,6 @@ func TestNewMSFRPC(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("ok", func(t *testing.T) {
-		msfrpc := testGenerateMSFRPC(t)
-
-		err := msfrpc.Close()
-		require.Error(t, err)
-		msfrpc.Kill()
-
-		testsuite.IsDestroyed(t, msfrpc)
-	})
-
 	t.Run("invalid transport option", func(t *testing.T) {
 		opts := Options{}
 		opts.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
@@ -230,6 +220,16 @@ func TestNewMSFRPC(t *testing.T) {
 		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, &opts)
 		require.Error(t, err)
 		require.Nil(t, msfrpc)
+	})
+
+	t.Run("not login", func(t *testing.T) {
+		msfrpc := testGenerateMSFRPC(t)
+
+		err := msfrpc.Close()
+		require.Error(t, err)
+		msfrpc.Kill()
+
+		testsuite.IsDestroyed(t, msfrpc)
 	})
 
 	t.Run("disable TLS", func(t *testing.T) {
@@ -272,6 +272,22 @@ func TestMSFRPC_HijackLogWriter(t *testing.T) {
 	err := msfrpc.Close()
 	require.Error(t, err)
 	msfrpc.Kill()
+
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_log(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc := testGenerateMSFRPC(t)
+
+	err := msfrpc.Close()
+	require.Error(t, err)
+	msfrpc.Kill()
+
+	msfrpc.logf(logger.Debug, "%s", "foo")
+	msfrpc.log(logger.Debug, "foo")
 
 	testsuite.IsDestroyed(t, msfrpc)
 }

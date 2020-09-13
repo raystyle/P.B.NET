@@ -85,6 +85,8 @@ type Monitor struct {
 	loots    map[string]map[*DBLoot]struct{}
 	lootsRWM sync.RWMutex
 
+	inShutdown int32
+
 	context context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -215,7 +217,21 @@ func (monitor *Monitor) Loots(workspace string) ([]*DBLoot, error) {
 	return lootsCp, nil
 }
 
+func (monitor *Monitor) shuttingDown() bool {
+	return atomic.LoadInt32(&monitor.inShutdown) != 0
+}
+
+func (monitor *Monitor) logf(lv logger.Level, format string, log ...interface{}) {
+	if monitor.shuttingDown() {
+		return
+	}
+	monitor.ctx.logger.Printf(lv, "msfrpc-monitor", format, log...)
+}
+
 func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
+	if monitor.shuttingDown() {
+		return
+	}
 	monitor.ctx.logger.Println(lv, "msfrpc-monitor", log...)
 }
 
@@ -231,10 +247,8 @@ func (monitor *Monitor) updateMSFErrorCount(add bool) {
 		}
 		return
 	}
-	select {
-	case <-monitor.context.Done():
+	if monitor.shuttingDown() {
 		return
-	default:
 	}
 	monitor.msfErrorCount++
 	// if use temporary token, need login again.
@@ -265,10 +279,8 @@ func (monitor *Monitor) updateDBErrorCount(add bool) {
 		}
 		return
 	}
-	select {
-	case <-monitor.context.Done():
+	if monitor.shuttingDown() {
 		return
-	default:
 	}
 	monitor.dbErrorCount++
 	// try to reconnect database
@@ -803,6 +815,7 @@ func (monitor *Monitor) DatabaseAlive() bool {
 
 // Close is used to close monitor.
 func (monitor *Monitor) Close() {
+	atomic.StoreInt32(&monitor.inShutdown, 1)
 	monitor.cancel()
 	monitor.wg.Wait()
 }
