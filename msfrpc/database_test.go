@@ -61,7 +61,7 @@ func TestMSFRPC_DBConnect(t *testing.T) {
 		defer func() { testDBOptions.Driver = driver }()
 
 		err := msfrpc.DBConnect(ctx, testDBOptions)
-		require.EqualError(t, err, "failed to connect database")
+		require.EqualError(t, err, "failed to connect database: failed")
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {

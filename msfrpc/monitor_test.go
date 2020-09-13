@@ -1170,8 +1170,14 @@ func TestMonitor_log(t *testing.T) {
 	msfrpc.token = "TEST"
 
 	monitor := msfrpc.NewMonitor(new(Callbacks), interval, testDBOptions)
+
+	// log before close
+	monitor.logf(logger.Debug, "%s", "foo")
+	monitor.log(logger.Debug, "foo")
+
 	monitor.Close()
 
+	// log after close
 	monitor.logf(logger.Debug, "%s", "foo")
 	monitor.log(logger.Debug, "foo")
 
@@ -1204,6 +1210,7 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 	}}
 	monitor := msfrpc.NewMonitor(&callbacks, interval, testDBOptions)
 	monitor.Close()
+	monitor.inShutdown = 0
 
 	t.Run("msfrpcd disconnect", func(t *testing.T) {
 		// mock error
@@ -1253,6 +1260,7 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 	dbOpts.Port = 99999
 	monitor := msfrpc.NewMonitor(&callbacks, interval, &dbOpts)
 	monitor.Close()
+	monitor.inShutdown = 0
 
 	t.Run("database disconnect", func(t *testing.T) {
 		// mock error
