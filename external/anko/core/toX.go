@@ -10,138 +10,151 @@ import (
 	"github.com/mattn/anko/env"
 )
 
-// ImportToX adds all the toX to the env given
+// ImportToX adds all the toX to the env given.
 func ImportToX(e *env.Env) {
+	_ = e.Define("toBool", toBool)
+	_ = e.Define("toString", toString)
+	_ = e.Define("toInt", toInt)
+	_ = e.Define("toFloat", toFloat)
+	_ = e.Define("toChar", toChar)
+	_ = e.Define("toRune", toRune)
+	_ = e.Define("toBoolSlice", toBoolSlice)
+	_ = e.Define("toStringSlice", toStringSlice)
+	_ = e.Define("toIntSlice", toIntSlice)
+	_ = e.Define("toFloatSlice", toFloatSlice)
+	_ = e.Define("toByteSlice", toByteSlice)
+	_ = e.Define("toRuneSlice", toRuneSlice)
+	_ = e.Define("toDuration", toDuration)
+}
 
-	e.Define("toBool", func(v interface{}) bool {
-		rv := reflect.ValueOf(v)
-		if !rv.IsValid() {
-			return false
-		}
-		nt := reflect.TypeOf(true)
-		if rv.Type().ConvertibleTo(nt) {
-			return rv.Convert(nt).Bool()
-		}
-		if rv.Type().ConvertibleTo(reflect.TypeOf(1.0)) && rv.Convert(reflect.TypeOf(1.0)).Float() > 0.0 {
+func toBool(v interface{}) bool {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
+		return false
+	}
+	nt := reflect.TypeOf(true)
+	if rv.Type().ConvertibleTo(nt) {
+		return rv.Convert(nt).Bool()
+	}
+	if rv.Type().ConvertibleTo(reflect.TypeOf(1.0)) &&
+		rv.Convert(reflect.TypeOf(1.0)).Float() > 0.0 {
+		return true
+	}
+	if rv.Kind() == reflect.String {
+		s := strings.ToLower(v.(string))
+		if s == "y" || s == "yes" {
 			return true
 		}
-		if rv.Kind() == reflect.String {
-			s := strings.ToLower(v.(string))
-			if s == "y" || s == "yes" {
-				return true
-			}
-			b, err := strconv.ParseBool(s)
-			if err == nil {
-				return b
-			}
+		b, err := strconv.ParseBool(s)
+		if err == nil {
+			return b
 		}
-		return false
-	})
+	}
+	return false
+}
 
-	e.Define("toString", func(v interface{}) string {
-		if b, ok := v.([]byte); ok {
-			return string(b)
-		}
-		return fmt.Sprint(v)
-	})
+func toString(v interface{}) string {
+	if b, ok := v.([]byte); ok {
+		return string(b)
+	}
+	return fmt.Sprint(v)
+}
 
-	e.Define("toInt", func(v interface{}) int64 {
-		rv := reflect.ValueOf(v)
-		if !rv.IsValid() {
-			return 0
-		}
-		nt := reflect.TypeOf(1)
-		if rv.Type().ConvertibleTo(nt) {
-			return rv.Convert(nt).Int()
-		}
-		if rv.Kind() == reflect.String {
-			i, err := strconv.ParseInt(v.(string), 10, 64)
-			if err == nil {
-				return i
-			}
-			f, err := strconv.ParseFloat(v.(string), 64)
-			if err == nil {
-				return int64(f)
-			}
-		}
-		if rv.Kind() == reflect.Bool {
-			if v.(bool) {
-				return 1
-			}
-		}
+func toInt(v interface{}) int64 {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
 		return 0
-	})
-
-	e.Define("toFloat", func(v interface{}) float64 {
-		rv := reflect.ValueOf(v)
-		if !rv.IsValid() {
-			return 0
+	}
+	nt := reflect.TypeOf(1)
+	if rv.Type().ConvertibleTo(nt) {
+		return rv.Convert(nt).Int()
+	}
+	if rv.Kind() == reflect.String {
+		i, err := strconv.ParseInt(v.(string), 10, 64)
+		if err == nil {
+			return i
 		}
-		nt := reflect.TypeOf(1.0)
-		if rv.Type().ConvertibleTo(nt) {
-			return rv.Convert(nt).Float()
+		f, err := strconv.ParseFloat(v.(string), 64)
+		if err == nil {
+			return int64(f)
 		}
-		if rv.Kind() == reflect.String {
-			f, err := strconv.ParseFloat(v.(string), 64)
-			if err == nil {
-				return f
-			}
+	}
+	if rv.Kind() == reflect.Bool {
+		if v.(bool) {
+			return 1
 		}
-		if rv.Kind() == reflect.Bool {
-			if v.(bool) {
-				return 1.0
-			}
+	}
+	return 0
+}
+
+func toFloat(v interface{}) float64 {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
+		return 0
+	}
+	nt := reflect.TypeOf(1.0)
+	if rv.Type().ConvertibleTo(nt) {
+		return rv.Convert(nt).Float()
+	}
+	if rv.Kind() == reflect.String {
+		f, err := strconv.ParseFloat(v.(string), 64)
+		if err == nil {
+			return f
 		}
-		return 0.0
-	})
-
-	e.Define("toChar", func(s rune) string {
-		return string(s)
-	})
-
-	e.Define("toRune", func(s string) rune {
-		if len(s) == 0 {
-			return 0
+	}
+	if rv.Kind() == reflect.Bool {
+		if v.(bool) {
+			return 1.0
 		}
-		return []rune(s)[0]
-	})
+	}
+	return 0.0
+}
 
-	e.Define("toBoolSlice", func(v []interface{}) []bool {
-		var result []bool
-		toSlice(v, &result)
-		return result
-	})
+func toChar(s rune) string {
+	return string(s)
+}
 
-	e.Define("toStringSlice", func(v []interface{}) []string {
-		var result []string
-		toSlice(v, &result)
-		return result
-	})
+func toRune(s string) rune {
+	if len(s) == 0 {
+		return 0
+	}
+	return []rune(s)[0]
+}
 
-	e.Define("toIntSlice", func(v []interface{}) []int64 {
-		var result []int64
-		toSlice(v, &result)
-		return result
-	})
+func toBoolSlice(v []interface{}) []bool {
+	var result []bool
+	toSlice(v, &result)
+	return result
+}
 
-	e.Define("toFloatSlice", func(v []interface{}) []float64 {
-		var result []float64
-		toSlice(v, &result)
-		return result
-	})
+func toStringSlice(v []interface{}) []string {
+	var result []string
+	toSlice(v, &result)
+	return result
+}
 
-	e.Define("toByteSlice", func(s string) []byte {
-		return []byte(s)
-	})
+func toIntSlice(v []interface{}) []int64 {
+	var result []int64
+	toSlice(v, &result)
+	return result
+}
 
-	e.Define("toRuneSlice", func(s string) []rune {
-		return []rune(s)
-	})
+func toFloatSlice(v []interface{}) []float64 {
+	var result []float64
+	toSlice(v, &result)
+	return result
+}
 
-	e.Define("toDuration", func(v int64) time.Duration {
-		return time.Duration(v)
-	})
+func toByteSlice(s string) []byte {
+	return []byte(s)
+}
 
+func toRuneSlice(s string) []rune {
+	return []rune(s)
+}
+
+func toDuration(v int64) time.Duration {
+	return time.Duration(v)
 }
 
 // toSlice takes in a "generic" slice and converts and copies
@@ -150,8 +163,9 @@ func ImportToX(e *env.Env) {
 func toSlice(from []interface{}, ptr interface{}) {
 	// Value of the pointer to the target
 	obj := reflect.Indirect(reflect.ValueOf(ptr))
-	// We can't just convert from interface{} to whatever the target is (diff memory layout),
-	// so we need to create a New slice of the proper type and copy the values individually
+	// We can't just convert from interface{} to whatever the
+	// target is (diff memory layout), so we need to create a
+	// New slice of the proper type and copy the values individually
 	t := reflect.TypeOf(ptr).Elem()
 	tt := t.Elem()
 	slice := reflect.MakeSlice(t, len(from), len(from))
