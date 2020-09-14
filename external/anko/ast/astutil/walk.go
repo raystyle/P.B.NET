@@ -48,8 +48,7 @@ func walkStmt(stmt ast.Stmt, f WalkFunc) error {
 		if err := walkStmts(stmt.Stmts, f); err != nil {
 			return err
 		}
-	case *ast.BreakStmt:
-	case *ast.ContinueStmt:
+	case *ast.BreakStmt, *ast.ContinueStmt:
 	case *ast.LetMapItemStmt:
 		if err := walkExpr(stmt.RHS, f); err != nil {
 			return err
@@ -67,55 +66,15 @@ func walkStmt(stmt ast.Stmt, f WalkFunc) error {
 		}
 		return walkExprs(stmt.LHSS, f)
 	case *ast.IfStmt:
-		if err := walkExpr(stmt.If, f); err != nil {
-			return err
-		}
-		if err := walkStmt(stmt.Then, f); err != nil {
-			return err
-		}
-		if err := walkStmts(stmt.ElseIf, f); err != nil {
-			return err
-		}
-		if err := walkStmt(stmt.Else, f); err != nil {
-			return err
-		}
+		return walkIfStmt(stmt, f)
 	case *ast.TryStmt:
-		if err := walkStmt(stmt.Try, f); err != nil {
-			return err
-		}
-		if err := walkStmt(stmt.Catch, f); err != nil {
-			return err
-		}
-		if err := walkStmt(stmt.Finally, f); err != nil {
-			return err
-		}
+		return walkTryStmt(stmt, f)
 	case *ast.LoopStmt:
-		if err := walkExpr(stmt.Expr, f); err != nil {
-			return err
-		}
-		if err := walkStmt(stmt.Stmt, f); err != nil {
-			return err
-		}
+		return walkLoopStmt(stmt, f)
 	case *ast.ForStmt:
-		if err := walkExpr(stmt.Value, f); err != nil {
-			return err
-		}
-		if err := walkStmt(stmt.Stmt, f); err != nil {
-			return err
-		}
+		return walkForStmt(stmt, f)
 	case *ast.CForStmt:
-		if err := walkStmt(stmt.Stmt1, f); err != nil {
-			return err
-		}
-		if err := walkExpr(stmt.Expr2, f); err != nil {
-			return err
-		}
-		if err := walkExpr(stmt.Expr3, f); err != nil {
-			return err
-		}
-		if err := walkStmt(stmt.Stmt, f); err != nil {
-			return err
-		}
+		return walkCForStmt(stmt, f)
 	case *ast.ThrowStmt:
 		if err := walkExpr(stmt.Expr, f); err != nil {
 			return err
@@ -125,22 +84,92 @@ func walkStmt(stmt ast.Stmt, f WalkFunc) error {
 			return err
 		}
 	case *ast.SwitchStmt:
-		if err := walkExpr(stmt.Expr, f); err != nil {
-			return err
-		}
-		for _, switchCaseStmt := range stmt.Cases {
-			caseStmt := switchCaseStmt.(*ast.SwitchCaseStmt)
-			if err := walkStmt(caseStmt.Stmt, f); err != nil {
-				return err
-			}
-		}
-		if err := walkStmt(stmt.Default, f); err != nil {
-			return err
-		}
+		return walkSwitchStmt(stmt, f)
 	case *ast.GoroutineStmt:
 		return walkExpr(stmt.Expr, f)
 	default:
 		return fmt.Errorf("unknown statement %v", reflect.TypeOf(stmt))
+	}
+	return nil
+}
+
+func walkIfStmt(stmt *ast.IfStmt, f WalkFunc) error {
+	if err := walkExpr(stmt.If, f); err != nil {
+		return err
+	}
+	if err := walkStmt(stmt.Then, f); err != nil {
+		return err
+	}
+	if err := walkStmts(stmt.ElseIf, f); err != nil {
+		return err
+	}
+	if err := walkStmt(stmt.Else, f); err != nil {
+		return err
+	}
+	return nil
+}
+
+func walkTryStmt(stmt *ast.TryStmt, f WalkFunc) error {
+	if err := walkStmt(stmt.Try, f); err != nil {
+		return err
+	}
+	if err := walkStmt(stmt.Catch, f); err != nil {
+		return err
+	}
+	if err := walkStmt(stmt.Finally, f); err != nil {
+		return err
+	}
+	return nil
+}
+
+func walkLoopStmt(stmt *ast.LoopStmt, f WalkFunc) error {
+	if err := walkExpr(stmt.Expr, f); err != nil {
+		return err
+	}
+	if err := walkStmt(stmt.Stmt, f); err != nil {
+		return err
+	}
+	return nil
+}
+
+func walkForStmt(stmt *ast.ForStmt, f WalkFunc) error {
+	if err := walkExpr(stmt.Value, f); err != nil {
+		return err
+	}
+	if err := walkStmt(stmt.Stmt, f); err != nil {
+		return err
+	}
+	return nil
+}
+
+func walkCForStmt(stmt *ast.CForStmt, f WalkFunc) error {
+	if err := walkStmt(stmt.Stmt1, f); err != nil {
+		return err
+	}
+	if err := walkExpr(stmt.Expr2, f); err != nil {
+		return err
+	}
+	if err := walkExpr(stmt.Expr3, f); err != nil {
+		return err
+	}
+	if err := walkStmt(stmt.Stmt, f); err != nil {
+		return err
+	}
+	return nil
+}
+
+func walkSwitchStmt(stmt *ast.SwitchStmt, f WalkFunc) error {
+	if err := walkExpr(stmt.Expr, f); err != nil {
+		return err
+	}
+	for _, switchCaseStmt := range stmt.Cases {
+		caseStmt := switchCaseStmt.(*ast.SwitchCaseStmt)
+		if err := walkStmt(caseStmt.Stmt, f); err != nil {
+			return err
+		}
+	}
+	if err := walkStmt(stmt.Default, f); err != nil {
+		return err
 	}
 	return nil
 }
