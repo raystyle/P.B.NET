@@ -75,28 +75,6 @@ func (e *Env) SetExternalLookup(externalLookup ExternalLookup) {
 	e.extLookup = externalLookup
 }
 
-// Values returns all values in Env.
-func (e *Env) Values() map[string]reflect.Value {
-	e.rwm.RLock()
-	defer e.rwm.RUnlock()
-	values := make(map[string]reflect.Value, len(e.values))
-	for symbol, value := range e.values {
-		values[symbol] = value
-	}
-	return values
-}
-
-// Types returns all Types in Env.
-func (e *Env) Types() map[string]reflect.Type {
-	e.rwm.RLock()
-	defer e.rwm.RUnlock()
-	types := make(map[string]reflect.Type, len(e.types))
-	for symbol, aType := range e.types {
-		types[symbol] = aType
-	}
-	return types
-}
-
 // String returns string of values and types in current scope.
 func (e *Env) String() string {
 	var buffer bytes.Buffer
@@ -164,7 +142,7 @@ func (e *Env) GetEnvFromPath(path []string) (*Env, error) {
 	for i := 1; i < len(path); i++ {
 		value, ok = env.values[path[i]]
 		if ok {
-			e, ok = value.Interface().(*Env)
+			env, ok = value.Interface().(*Env)
 			if ok {
 				continue
 			}
@@ -178,22 +156,22 @@ func (e *Env) GetEnvFromPath(path []string) (*Env, error) {
 func (e *Env) Copy() *Env {
 	e.rwm.RLock()
 	defer e.rwm.RUnlock()
-	ne := Env{
+	env := Env{
 		parent:    e.parent,
 		extLookup: e.extLookup,
 		values:    make(map[string]reflect.Value, len(e.values)),
 		rwm:       new(sync.RWMutex),
 	}
 	for name, value := range e.values {
-		ne.values[name] = value
+		env.values[name] = value
 	}
 	if e.types != nil {
-		ne.types = make(map[string]reflect.Type, len(e.types))
+		env.types = make(map[string]reflect.Type, len(e.types))
 		for name, t := range e.types {
-			ne.types[name] = t
+			env.types[name] = t
 		}
 	}
-	return &ne
+	return &env
 }
 
 // DeepCopy the Env for current scope and parent scopes.
