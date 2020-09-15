@@ -1,6 +1,7 @@
 package env
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -92,6 +93,54 @@ func (e *Env) GetValue(symbol string) (reflect.Value, error) {
 		return NilValue, fmt.Errorf("undefined symbol \"%s\"", symbol)
 	}
 	return e.parent.GetValue(symbol)
+}
+
+// Delete deletes symbol in current scope.
+func (e *Env) Delete(symbol string) {
+	e.rwm.Lock()
+	defer e.rwm.Unlock()
+	delete(e.values, symbol)
+}
+
+// DeleteGlobal deletes the first matching symbol found in current or parent scope.
+func (e *Env) DeleteGlobal(symbol string) {
+	if e.parent == nil {
+		e.Delete(symbol)
+		return
+	}
+	e.rwm.Lock()
+	defer e.rwm.Unlock()
+	_, ok := e.values[symbol]
+	if ok {
+		delete(e.values, symbol)
+		return
+	}
+	e.parent.DeleteGlobal(symbol)
+}
+
+// Addr returns reflect.Addr of value for first matching symbol found in current or parent scope.
+func (e *Env) Addr(symbol string) (reflect.Value, error) {
+	e.rwm.RLock()
+	defer e.rwm.RUnlock()
+	if v, ok := e.values[symbol]; ok {
+		if v.CanAddr() {
+			return v.Addr(), nil
+		}
+		return NilValue, errors.New("unaddressable")
+	}
+	if e.extLookup != nil {
+		v, err := e.extLookup.Get(symbol)
+		if err == nil {
+			if v.CanAddr() {
+				return v.Addr(), nil
+			}
+			return NilValue, errors.New("unaddressable")
+		}
+	}
+	if e.parent == nil {
+		return NilValue, fmt.Errorf("undefined symbol \"%s\"", symbol)
+	}
+	return e.parent.Addr(symbol)
 }
 
 // Values returns all values in Env.

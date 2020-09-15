@@ -46,6 +46,12 @@ var (
 	ErrSymbolContainsDot = errors.New("symbol contains \".\"")
 )
 
+// ExternalLookup for Env external lookup of values and types.
+type ExternalLookup interface {
+	Get(string) (reflect.Value, error)
+	Type(string) (reflect.Type, error)
+}
+
 // Env is the environment needed for a VM to run in.
 type Env struct {
 	parent    *Env
@@ -54,12 +60,6 @@ type Env struct {
 	values map[string]reflect.Value
 	types  map[string]reflect.Type
 	rwm    *sync.RWMutex
-}
-
-// ExternalLookup for Env external lookup of values and types.
-type ExternalLookup interface {
-	Get(string) (reflect.Value, error)
-	Type(string) (reflect.Type, error)
 }
 
 // NewEnv creates new global scope.
