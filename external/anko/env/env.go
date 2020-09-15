@@ -8,22 +8,6 @@ import (
 	"sync"
 )
 
-// ExternalLookup for Env external lookup of values and types.
-type ExternalLookup interface {
-	Get(string) (reflect.Value, error)
-	Type(string) (reflect.Type, error)
-}
-
-// Env is the environment needed for a VM to run in.
-type Env struct {
-	parent         *Env
-	externalLookup ExternalLookup
-
-	values  map[string]reflect.Value
-	types   map[string]reflect.Type
-	rwMutex *sync.RWMutex
-}
-
 var (
 	// Packages is a where packages can be stored so VM import command can be
 	// used to import them. reflect.Value must be valid or VM may crash.
@@ -46,7 +30,7 @@ var (
 		"interface": reflect.ValueOf([]interface{}{int64(1)}).Index(0).Type(),
 		"bool":      reflect.TypeOf(true),
 		"string":    reflect.TypeOf("a"),
-		"int":       reflect.TypeOf(int(1)),
+		"int":       reflect.TypeOf(1),
 		"int32":     reflect.TypeOf(int32(1)),
 		"int64":     reflect.TypeOf(int64(1)),
 		"uint":      reflect.TypeOf(uint(1)),
@@ -62,33 +46,62 @@ var (
 	ErrSymbolContainsDot = errors.New("symbol contains \".\"")
 )
 
+// Env is the environment needed for a VM to run in.
+type Env struct {
+	parent    *Env
+	extLookup ExternalLookup
+
+	values map[string]reflect.Value
+	types  map[string]reflect.Type
+	rwm    *sync.RWMutex
+}
+
+// ExternalLookup for Env external lookup of values and types.
+type ExternalLookup interface {
+	Get(string) (reflect.Value, error)
+	Type(string) (reflect.Type, error)
+}
+
 // NewEnv creates new global scope.
 func NewEnv() *Env {
 	return &Env{
-		rwMutex: new(sync.RWMutex),
-		values:  make(map[string]reflect.Value),
+		values: make(map[string]reflect.Value),
+		rwm:    new(sync.RWMutex),
 	}
 }
 
 // SetExternalLookup sets an external lookup.
 func (e *Env) SetExternalLookup(externalLookup ExternalLookup) {
-	e.externalLookup = externalLookup
+	e.extLookup = externalLookup
 }
 
-// NewEnv creates new child scope.
-func (e *Env) NewEnv() *Env {
-	return &Env{
-		rwMutex: new(sync.RWMutex),
-		parent:  e,
-		values:  make(map[string]reflect.Value),
+// Values returns all values in Env.
+func (e *Env) Values() map[string]reflect.Value {
+	e.rwm.RLock()
+	defer e.rwm.RUnlock()
+	values := make(map[string]reflect.Value, len(e.values))
+	for symbol, value := range e.values {
+		values[symbol] = value
 	}
+	return values
+}
+
+// Types returns all Types in Env.
+func (e *Env) Types() map[string]reflect.Type {
+	e.rwm.RLock()
+	defer e.rwm.RUnlock()
+	types := make(map[string]reflect.Type, len(e.types))
+	for symbol, aType := range e.types {
+		types[symbol] = aType
+	}
+	return types
 }
 
 // String returns string of values and types in current scope.
 func (e *Env) String() string {
 	var buffer bytes.Buffer
-	e.rwMutex.RLock()
-	defer e.rwMutex.RUnlock()
+	e.rwm.RLock()
+	defer e.rwm.RUnlock()
 	if e.parent == nil {
 		buffer.WriteString("No parent\n")
 	} else {
@@ -101,4 +114,94 @@ func (e *Env) String() string {
 		buffer.WriteString(fmt.Sprintf("%v = %v\n", symbol, aType))
 	}
 	return buffer.String()
+}
+
+// NewEnv creates new child scope.
+func (e *Env) NewEnv() *Env {
+	return &Env{
+		parent: e,
+		values: make(map[string]reflect.Value),
+		rwm:    new(sync.RWMutex),
+	}
+}
+
+// NewModule creates new child scope and define it as a symbol.
+// This is a shortcut for calling e.NewEnv then Define that new Env.
+func (e *Env) NewModule(symbol string) (*Env, error) {
+	module := &Env{
+		parent: e,
+		values: make(map[string]reflect.Value),
+		rwm:    new(sync.RWMutex),
+	}
+	return module, e.Define(symbol, module)
+}
+
+// GetEnvFromPath returns Env from path.
+func (e *Env) GetEnvFromPath(path []string) (*Env, error) {
+	if len(path) < 1 {
+		return e, nil
+	}
+	var (
+		value reflect.Value
+		ok    bool
+	)
+	// find starting env
+	env := e
+	for {
+		value, ok = e.values[path[0]]
+		if ok {
+			env, ok = value.Interface().(*Env)
+			if ok {
+				break
+			}
+		}
+		if env.parent == nil {
+			return nil, fmt.Errorf("no namespace called: %v", path[0])
+		}
+		env = env.parent
+	}
+	// find child env
+	for i := 1; i < len(path); i++ {
+		value, ok = env.values[path[i]]
+		if ok {
+			e, ok = value.Interface().(*Env)
+			if ok {
+				continue
+			}
+		}
+		return nil, fmt.Errorf("no namespace called: %v", path[i])
+	}
+	return env, nil
+}
+
+// Copy the Env for current scope.
+func (e *Env) Copy() *Env {
+	e.rwm.RLock()
+	defer e.rwm.RUnlock()
+	ne := Env{
+		parent:    e.parent,
+		extLookup: e.extLookup,
+		values:    make(map[string]reflect.Value, len(e.values)),
+		rwm:       new(sync.RWMutex),
+	}
+	for name, value := range e.values {
+		ne.values[name] = value
+	}
+	if e.types != nil {
+		ne.types = make(map[string]reflect.Type, len(e.types))
+		for name, t := range e.types {
+			ne.types[name] = t
+		}
+	}
+	return &ne
+}
+
+// DeepCopy the Env for current scope and parent scopes.
+// Note that each scope is a consistent snapshot but not the whole.
+func (e *Env) DeepCopy() *Env {
+	env := e.Copy()
+	if env.parent != nil {
+		env.parent = env.parent.DeepCopy()
+	}
+	return env
 }
