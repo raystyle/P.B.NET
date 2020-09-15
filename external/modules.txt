@@ -1,0 +1,14 @@
+Thank you very much to the authors of the following repository.
+The following repository has been modified.
+
+repository: https://github.com/mattn/anko 
+about:      Scriptable interpreter written in golang
+version:    v0.1.8
+
+repository: https://github.com/Binject/go-donut
+about:      Donut Injector ported to pure Go. For use with https://github.com/TheWover/donut
+version:    unknown(2020.11.16)
+
+repository: https://github.com/beevik/ntp
+about:      a simple ntp client package for go
+version:    v0.3.0
