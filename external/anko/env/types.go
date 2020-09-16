@@ -71,7 +71,7 @@ func (e *Env) Type(symbol string) (reflect.Type, error) {
 		if ok {
 			return typ, nil
 		}
-		return NilType, fmt.Errorf("undefined type '%s'", symbol)
+		return NilType, fmt.Errorf("undefined type \"%s\"", symbol)
 	}
 	return e.parent.Type(symbol)
 }

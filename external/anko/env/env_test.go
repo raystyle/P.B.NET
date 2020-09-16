@@ -1,7 +1,9 @@
 package env
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -284,4 +286,137 @@ func TestEnv_DeepCopy(t *testing.T) {
 	require.NoError(t, err)
 	_, err = copied.Get("b")
 	require.Error(t, err, "copied parent was modified")
+}
+
+type mockExternalLookup struct {
+	values map[string]reflect.Value
+	types  map[string]reflect.Type
+}
+
+func testNewMockExternalLookup() *mockExternalLookup {
+	return &mockExternalLookup{
+		values: make(map[string]reflect.Value),
+		types:  make(map[string]reflect.Type),
+	}
+}
+
+func (mel *mockExternalLookup) SetValue(symbol string, value interface{}) error {
+	if strings.Contains(symbol, ".") {
+		return ErrSymbolContainsDot
+	}
+	if value == nil {
+		mel.values[symbol] = NilValue
+	} else {
+		mel.values[symbol] = reflect.ValueOf(value)
+	}
+	return nil
+}
+
+func (mel *mockExternalLookup) Get(symbol string) (reflect.Value, error) {
+	if value, ok := mel.values[symbol]; ok {
+		return value, nil
+	}
+	return NilValue, fmt.Errorf("undefined symbol '%s'", symbol)
+}
+
+func (mel *mockExternalLookup) DefineType(symbol string, aType interface{}) error {
+	if strings.Contains(symbol, ".") {
+		return ErrSymbolContainsDot
+	}
+	var reflectType reflect.Type
+	if aType == nil {
+		reflectType = NilType
+	} else {
+		var ok bool
+		reflectType, ok = reflectType.(reflect.Type)
+		if !ok {
+			reflectType = reflect.TypeOf(aType)
+		}
+	}
+	mel.types[symbol] = reflectType
+	return nil
+}
+
+func (mel *mockExternalLookup) Type(symbol string) (reflect.Type, error) {
+	if value, ok := mel.types[symbol]; ok {
+		return value, nil
+	}
+	return NilType, fmt.Errorf("undefined symbol '%s'", symbol)
+}
+
+func TestExternalLookupValueAndGet(t *testing.T) {
+	var err error
+	var value interface{}
+	tests := []struct {
+		info        string
+		name        string
+		defineValue interface{}
+		getValue    interface{}
+		kind        reflect.Kind
+		defineErr   error
+		getErr      error
+	}{
+		{info: "nil", name: "a", defineValue: nil, getValue: nil, kind: reflect.Interface},
+		{info: "bool", name: "a", defineValue: true, getValue: true, kind: reflect.Bool},
+		{info: "int16", name: "a", defineValue: int16(1), getValue: int16(1), kind: reflect.Int16},
+		{info: "int32", name: "a", defineValue: int32(1), getValue: int32(1), kind: reflect.Int32},
+		{info: "int64", name: "a", defineValue: int64(1), getValue: int64(1), kind: reflect.Int64},
+		{info: "uint32", name: "a", defineValue: uint32(1), getValue: uint32(1), kind: reflect.Uint32},
+		{info: "uint64", name: "a", defineValue: uint64(1), getValue: uint64(1), kind: reflect.Uint64},
+		{info: "float32", name: "a", defineValue: float32(1), getValue: float32(1), kind: reflect.Float32},
+		{info: "float64", name: "a", defineValue: float64(1), getValue: float64(1), kind: reflect.Float64},
+		{info: "string", name: "a", defineValue: "a", getValue: "a", kind: reflect.String},
+		{
+			info:        "string with dot",
+			name:        "a.a",
+			defineValue: "a",
+			getValue:    nil,
+			kind:        reflect.String,
+			defineErr:   ErrSymbolContainsDot,
+			getErr:      fmt.Errorf("undefined symbol \"a.a\""),
+		},
+		{
+			info:        "string with quotes",
+			name:        "a",
+			defineValue: `"a"`,
+			getValue:    `"a"`,
+			kind:        reflect.String,
+		},
+	}
+
+	for _, test := range tests {
+		testExternalLookup := testNewMockExternalLookup()
+		env := NewEnv()
+		env.SetExternalLookup(testExternalLookup)
+
+		err = testExternalLookup.SetValue(test.name, test.defineValue)
+		if err != nil && test.defineErr != nil {
+			if err.Error() != test.defineErr.Error() {
+				const format = "TestExternalLookupValueAndGet %v - SetValue error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.defineErr)
+				continue
+			}
+		} else if err != test.defineErr {
+			const format = "TestExternalLookupValueAndGet %v - SetValue error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.defineErr)
+			continue
+		}
+
+		value, err = env.Get(test.name)
+		if err != nil && test.getErr != nil {
+			if err.Error() != test.getErr.Error() {
+				const format = "TestExternalLookupValueAndGet %v - Get error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.getErr)
+				continue
+			}
+		} else if err != test.getErr {
+			const format = "TestExternalLookupValueAndGet %v - Get error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.getErr)
+			continue
+		}
+		if value != test.getValue {
+			const format = "TestExternalLookupValueAndGet %v - value check - received %#v expected: %#v"
+			t.Errorf(format, test.info, value, test.getValue)
+		}
+	}
 }
