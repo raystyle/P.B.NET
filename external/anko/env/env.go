@@ -127,10 +127,12 @@ func (e *Env) GetEnvFromPath(path []string) (*Env, error) {
 	)
 	// find starting env
 	env := e
-	e.rwm.RLock()
-	defer e.rwm.RUnlock()
 	for {
-		value, ok = env.values[path[0]]
+		func() {
+			env.rwm.RLock()
+			defer env.rwm.RUnlock()
+			value, ok = env.values[path[0]]
+		}()
 		if ok {
 			env, ok = value.Interface().(*Env)
 			if ok {
