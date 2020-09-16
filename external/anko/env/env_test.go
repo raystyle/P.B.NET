@@ -392,12 +392,12 @@ func TestExternalLookupValueAndGet(t *testing.T) {
 		err = testExternalLookup.SetValue(test.name, test.defineValue)
 		if err != nil && test.defineErr != nil {
 			if err.Error() != test.defineErr.Error() {
-				const format = "TestExternalLookupValueAndGet %v - SetValue error - received: %v - expected: %v"
+				const format = "%v - SetValue error - received: %v - expected: %v"
 				t.Errorf(format, test.info, err, test.defineErr)
 				continue
 			}
 		} else if err != test.defineErr {
-			const format = "TestExternalLookupValueAndGet %v - SetValue error - received: %v - expected: %v"
+			const format = "%v - SetValue error - received: %v - expected: %v"
 			t.Errorf(format, test.info, err, test.defineErr)
 			continue
 		}
@@ -405,18 +405,139 @@ func TestExternalLookupValueAndGet(t *testing.T) {
 		value, err = env.Get(test.name)
 		if err != nil && test.getErr != nil {
 			if err.Error() != test.getErr.Error() {
-				const format = "TestExternalLookupValueAndGet %v - Get error - received: %v - expected: %v"
+				const format = "%v - Get error - received: %v - expected: %v"
 				t.Errorf(format, test.info, err, test.getErr)
 				continue
 			}
 		} else if err != test.getErr {
-			const format = "TestExternalLookupValueAndGet %v - Get error - received: %v - expected: %v"
+			const format = "%v - Get error - received: %v - expected: %v"
 			t.Errorf(format, test.info, err, test.getErr)
 			continue
 		}
 		if value != test.getValue {
-			const format = "TestExternalLookupValueAndGet %v - value check - received %#v expected: %#v"
+			const format = "%v - value check - received %#v expected: %#v"
 			t.Errorf(format, test.info, value, test.getValue)
+		}
+	}
+}
+
+func TestExternalLookupTypeAndGet(t *testing.T) {
+	var err error
+	var valueType reflect.Type
+	tests := []struct {
+		info        string
+		name        string
+		defineValue interface{}
+		defineErr   error
+		typeErr     error
+	}{
+		{info: "nil", name: "a", defineValue: nil},
+		{info: "bool", name: "a", defineValue: true},
+		{info: "int16", name: "a", defineValue: int16(1)},
+		{info: "int32", name: "a", defineValue: int32(1)},
+		{info: "int64", name: "a", defineValue: int64(1)},
+		{info: "uint32", name: "a", defineValue: uint32(1)},
+		{info: "uint64", name: "a", defineValue: uint64(1)},
+		{info: "float32", name: "a", defineValue: float32(1)},
+		{info: "float64", name: "a", defineValue: float64(1)},
+		{info: "string", name: "a", defineValue: "a"},
+		{
+			info:        "string with dot",
+			name:        "a.a",
+			defineValue: nil,
+			defineErr:   ErrSymbolContainsDot,
+			typeErr:     fmt.Errorf("undefined type 'a.a'"),
+		},
+	}
+
+	for _, test := range tests {
+		testExternalLookup := testNewMockExternalLookup()
+		env := NewEnv()
+		env.SetExternalLookup(testExternalLookup)
+
+		err = testExternalLookup.DefineType(test.name, test.defineValue)
+		if err != nil && test.defineErr != nil {
+			if err.Error() != test.defineErr.Error() {
+				const format = "%v - DefineType error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.defineErr)
+				continue
+			}
+		} else if err != test.defineErr {
+			const format = "%v - DefineType error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.defineErr)
+			continue
+		}
+
+		valueType, err = env.Type(test.name)
+		if err != nil && test.typeErr != nil {
+			if err.Error() != test.typeErr.Error() {
+				const format = "%v - Type error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.typeErr)
+				continue
+			}
+		} else if err != test.typeErr {
+			const format = "%v - Type error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.typeErr)
+			continue
+		}
+		if valueType == nil || test.defineValue == nil {
+			if valueType != reflect.TypeOf(test.defineValue) {
+				const format = "%v - Type check - received: %v - expected: %v"
+				t.Errorf(format, test.info, valueType, reflect.TypeOf(test.defineValue))
+			}
+		} else if valueType.String() != reflect.TypeOf(test.defineValue).String() {
+			const format = "%v - Type check - received: %v - expected: %v"
+			t.Errorf(format, test.info, valueType, reflect.TypeOf(test.defineValue))
+		}
+	}
+}
+
+func TestExternalLookupAddr(t *testing.T) {
+	var err error
+	tests := []struct {
+		info        string
+		name        string
+		defineValue interface{}
+		defineErr   error
+		addrErr     error
+	}{
+		{info: "nil", name: "a", defineValue: nil, addrErr: nil},
+		{info: "bool", name: "a", defineValue: true, addrErr: fmt.Errorf("unaddressable")},
+		{info: "int64", name: "a", defineValue: int64(1), addrErr: fmt.Errorf("unaddressable")},
+		{info: "float64", name: "a", defineValue: float64(1), addrErr: fmt.Errorf("unaddressable")},
+		{info: "string", name: "a", defineValue: "a", addrErr: fmt.Errorf("unaddressable")},
+	}
+
+	for _, test := range tests {
+		envParent := NewEnv()
+		testExternalLookup := testNewMockExternalLookup()
+		envParent.SetExternalLookup(testExternalLookup)
+		envChild := envParent.NewEnv()
+
+		err = testExternalLookup.SetValue(test.name, test.defineValue)
+		if err != nil && test.defineErr != nil {
+			if err.Error() != test.defineErr.Error() {
+				const format = "%v - SetValue error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.defineErr)
+				continue
+			}
+		} else if err != test.defineErr {
+			const format = "%v - SetValue error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.defineErr)
+			continue
+		}
+
+		_, err = envChild.Addr(test.name)
+		if err != nil && test.addrErr != nil {
+			if err.Error() != test.addrErr.Error() {
+				const format = "%v - Addr error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.addrErr)
+				continue
+			}
+		} else if err != test.addrErr {
+			const format = "%v - Addr error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.addrErr)
+			continue
 		}
 	}
 }
