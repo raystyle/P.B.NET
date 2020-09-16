@@ -25,6 +25,11 @@ var (
 	// NilValue is the reflect.value of nil.
 	NilValue = reflect.New(reflect.TypeOf((*interface{})(nil)).Elem()).Elem()
 
+	// ErrSymbolContainsDot symbol contains .
+	ErrSymbolContainsDot = errors.New("symbol contains \".\"")
+)
+
+var (
 	// basic type in vm.
 	basicTypes = map[string]reflect.Type{
 		"interface": reflect.ValueOf([]interface{}{int64(1)}).Index(0).Type(),
@@ -41,9 +46,6 @@ var (
 		"float32":   reflect.TypeOf(float32(1)),
 		"float64":   reflect.TypeOf(float64(1)),
 	}
-
-	// ErrSymbolContainsDot symbol contains .
-	ErrSymbolContainsDot = errors.New("symbol contains \".\"")
 )
 
 // ExternalLookup for Env external lookup of values and types.
