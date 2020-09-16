@@ -127,8 +127,10 @@ func (e *Env) GetEnvFromPath(path []string) (*Env, error) {
 	)
 	// find starting env
 	env := e
+	e.rwm.RLock()
+	defer e.rwm.RUnlock()
 	for {
-		value, ok = e.values[path[0]]
+		value, ok = env.values[path[0]]
 		if ok {
 			env, ok = value.Interface().(*Env)
 			if ok {
@@ -141,6 +143,8 @@ func (e *Env) GetEnvFromPath(path []string) (*Env, error) {
 		env = env.parent
 	}
 	// find child env
+	env.rwm.RLock()
+	defer env.rwm.RUnlock()
 	for i := 1; i < len(path); i++ {
 		value, ok = env.values[path[i]]
 		if ok {
