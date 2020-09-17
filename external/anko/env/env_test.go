@@ -345,8 +345,6 @@ func (mel *mockExternalLookup) Type(symbol string) (reflect.Type, error) {
 }
 
 func TestExternalLookupValueAndGet(t *testing.T) {
-	var err error
-	var value interface{}
 	tests := []struct {
 		info        string
 		name        string
@@ -389,7 +387,7 @@ func TestExternalLookupValueAndGet(t *testing.T) {
 		env := NewEnv()
 		env.SetExternalLookup(testExternalLookup)
 
-		err = testExternalLookup.SetValue(test.name, test.defineValue)
+		err := testExternalLookup.SetValue(test.name, test.defineValue)
 		if err != nil && test.defineErr != nil {
 			if err.Error() != test.defineErr.Error() {
 				const format = "%v - SetValue error - received: %v - expected: %v"
@@ -402,7 +400,7 @@ func TestExternalLookupValueAndGet(t *testing.T) {
 			continue
 		}
 
-		value, err = env.Get(test.name)
+		value, err := env.Get(test.name)
 		if err != nil && test.getErr != nil {
 			if err.Error() != test.getErr.Error() {
 				const format = "%v - Get error - received: %v - expected: %v"
@@ -422,8 +420,6 @@ func TestExternalLookupValueAndGet(t *testing.T) {
 }
 
 func TestExternalLookupTypeAndGet(t *testing.T) {
-	var err error
-	var valueType reflect.Type
 	tests := []struct {
 		info        string
 		name        string
@@ -446,7 +442,7 @@ func TestExternalLookupTypeAndGet(t *testing.T) {
 			name:        "a.a",
 			defineValue: nil,
 			defineErr:   ErrSymbolContainsDot,
-			typeErr:     fmt.Errorf("undefined type 'a.a'"),
+			typeErr:     fmt.Errorf("undefined type \"a.a\""),
 		},
 	}
 
@@ -455,7 +451,7 @@ func TestExternalLookupTypeAndGet(t *testing.T) {
 		env := NewEnv()
 		env.SetExternalLookup(testExternalLookup)
 
-		err = testExternalLookup.DefineType(test.name, test.defineValue)
+		err := testExternalLookup.DefineType(test.name, test.defineValue)
 		if err != nil && test.defineErr != nil {
 			if err.Error() != test.defineErr.Error() {
 				const format = "%v - DefineType error - received: %v - expected: %v"
@@ -468,7 +464,7 @@ func TestExternalLookupTypeAndGet(t *testing.T) {
 			continue
 		}
 
-		valueType, err = env.Type(test.name)
+		valueType, err := env.Type(test.name)
 		if err != nil && test.typeErr != nil {
 			if err.Error() != test.typeErr.Error() {
 				const format = "%v - Type error - received: %v - expected: %v"
@@ -493,7 +489,6 @@ func TestExternalLookupTypeAndGet(t *testing.T) {
 }
 
 func TestExternalLookupAddr(t *testing.T) {
-	var err error
 	tests := []struct {
 		info        string
 		name        string
@@ -514,7 +509,7 @@ func TestExternalLookupAddr(t *testing.T) {
 		envParent.SetExternalLookup(testExternalLookup)
 		envChild := envParent.NewEnv()
 
-		err = testExternalLookup.SetValue(test.name, test.defineValue)
+		err := testExternalLookup.SetValue(test.name, test.defineValue)
 		if err != nil && test.defineErr != nil {
 			if err.Error() != test.defineErr.Error() {
 				const format = "%v - SetValue error - received: %v - expected: %v"
