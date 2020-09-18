@@ -370,6 +370,142 @@ func TestEnv_DefineGlobalType_Child(t *testing.T) {
 	}
 }
 
+func TestEnv_DefineGlobalReflectType_Parent(t *testing.T) {
+	tests := []struct {
+		info        string
+		name        string
+		defineValue interface{}
+		defineErr   error
+		typeErr     error
+	}{
+		{info: "nil", name: "a", defineValue: nil},
+		{info: "bool", name: "a", defineValue: true},
+		{info: "int16", name: "a", defineValue: int16(1)},
+		{info: "int32", name: "a", defineValue: int32(1)},
+		{info: "int64", name: "a", defineValue: int64(1)},
+		{info: "uint32", name: "a", defineValue: uint32(1)},
+		{info: "uint64", name: "a", defineValue: uint64(1)},
+		{info: "float32", name: "a", defineValue: float32(1)},
+		{info: "float64", name: "a", defineValue: float64(1)},
+		{info: "string", name: "a", defineValue: "a"},
+		{
+			info:        "string with dot",
+			name:        "a.a",
+			defineValue: nil,
+			defineErr:   ErrSymbolContainsDot,
+			typeErr:     fmt.Errorf("undefined type \"a.a\""),
+		},
+	}
+
+	for _, test := range tests {
+		envParent := NewEnv()
+		envChild := envParent.NewEnv()
+
+		err := envChild.DefineGlobalReflectType(test.name, reflect.TypeOf(test.defineValue))
+		if err != nil && test.defineErr != nil {
+			if err.Error() != test.defineErr.Error() {
+				const format = "%v - Define error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.defineErr)
+				continue
+			}
+		} else if err != test.defineErr {
+			const format = "%v - Define error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.defineErr)
+			continue
+		}
+
+		valueType, err := envParent.Type(test.name)
+		if err != nil && test.typeErr != nil {
+			if err.Error() != test.typeErr.Error() {
+				const format = "%v - Type error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.typeErr)
+				continue
+			}
+		} else if err != test.typeErr {
+			const format = "%v - Type error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.typeErr)
+			continue
+		}
+		if valueType == nil || test.defineValue == nil {
+			if valueType != reflect.TypeOf(test.defineValue) {
+				const format = "%v - Type check - received: %v - expected: %v"
+				t.Errorf(format, test.info, valueType, reflect.TypeOf(test.defineValue))
+			}
+		} else if valueType.String() != reflect.TypeOf(test.defineValue).String() {
+			const format = "%v - Type check - received: %v - expected: %v"
+			t.Errorf(format, test.info, valueType, reflect.TypeOf(test.defineValue))
+		}
+	}
+}
+
+func TestEnv_DefineGlobalReflectType_Child(t *testing.T) {
+	tests := []struct {
+		info        string
+		name        string
+		defineValue interface{}
+		defineErr   error
+		typeErr     error
+	}{
+		{info: "nil", name: "a", defineValue: nil},
+		{info: "bool", name: "a", defineValue: true},
+		{info: "int16", name: "a", defineValue: int16(1)},
+		{info: "int32", name: "a", defineValue: int32(1)},
+		{info: "int64", name: "a", defineValue: int64(1)},
+		{info: "uint32", name: "a", defineValue: uint32(1)},
+		{info: "uint64", name: "a", defineValue: uint64(1)},
+		{info: "float32", name: "a", defineValue: float32(1)},
+		{info: "float64", name: "a", defineValue: float64(1)},
+		{info: "string", name: "a", defineValue: "a"},
+		{
+			info:        "string with dot",
+			name:        "a.a",
+			defineValue: nil,
+			defineErr:   ErrSymbolContainsDot,
+			typeErr:     fmt.Errorf("undefined type \"a.a\""),
+		},
+	}
+
+	for _, test := range tests {
+		envParent := NewEnv()
+		envChild := envParent.NewEnv()
+
+		err := envChild.DefineGlobalReflectType(test.name, reflect.TypeOf(test.defineValue))
+		if err != nil && test.defineErr != nil {
+			if err.Error() != test.defineErr.Error() {
+				const format = "%v - Define error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.defineErr)
+				continue
+			}
+		} else if err != test.defineErr {
+			const format = "%v - Define error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.defineErr)
+			continue
+		}
+
+		valueType, err := envChild.Type(test.name)
+		if err != nil && test.typeErr != nil {
+			if err.Error() != test.typeErr.Error() {
+				const format = "%v - Type error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.typeErr)
+				continue
+			}
+		} else if err != test.typeErr {
+			const format = "%v - Type error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.typeErr)
+			continue
+		}
+		if valueType == nil || test.defineValue == nil {
+			if valueType != reflect.TypeOf(test.defineValue) {
+				const format = "%v - Type check - received: %v - expected: %v"
+				t.Errorf(format, test.info, valueType, reflect.TypeOf(test.defineValue))
+			}
+		} else if valueType.String() != reflect.TypeOf(test.defineValue).String() {
+			const format = "%v - Type check - received: %v - expected: %v"
+			t.Errorf(format, test.info, valueType, reflect.TypeOf(test.defineValue))
+		}
+	}
+}
+
 func TestEnv_Types(t *testing.T) {
 	type Foo struct {
 		A string
