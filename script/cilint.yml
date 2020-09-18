@@ -1,7 +1,6 @@
 run:
   skip-dirs:
     - temp
-    - external
 
 linters-settings:
   golint:

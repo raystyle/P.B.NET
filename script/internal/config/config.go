@@ -8,27 +8,27 @@ import (
 // Config contains configuration about install, build, test and race.
 type Config struct {
 	Common struct {
-		GoRootLatest  string `toml:"go_root_latest"`
-		GoRoot1108    string `toml:"go_root_1_10_8"`
-		ProxyURL      string `toml:"proxy_url"`
-		SkipTLSVerify bool   `toml:"skip_tls_verify"`
-	} `toml:"common"`
+		GoRootLatest  string `json:"go_root_latest"`
+		GoRoot1108    string `json:"go_root_1_10_8"`
+		ProxyURL      string `json:"proxy_url"`
+		SkipTLSVerify bool   `json:"skip_tls_verify"`
+	} `json:"common"`
 
 	Install struct {
-		DownloadAll bool `toml:"download_all"`
-	} `toml:"install"`
+		DownloadAll bool `json:"download_all"`
+	} `json:"install"`
 
 	Build struct {
-	} `toml:"build"`
+	} `json:"build"`
 
 	Develop struct {
-	} `toml:"develop"`
+	} `json:"develop"`
 
 	Test struct {
-	} `toml:"test"`
+	} `json:"test"`
 
 	Race struct {
-	} `toml:"race"`
+	} `json:"race"`
 }
 
 // GoRoot is used to get the go root path.

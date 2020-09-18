@@ -19,7 +19,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/module/filemgr"
-	"project/internal/patch/toml"
+	"project/internal/patch/json"
 	"project/internal/system"
 
 	"project/script/internal/config"
@@ -34,7 +34,7 @@ var (
 )
 
 func main() {
-	flag.StringVar(&cfgPath, "config", "config.toml", "configuration file path")
+	flag.StringVar(&cfgPath, "config", "config.json", "configuration file path")
 	flag.Parse()
 
 	log.SetSource("develop")
@@ -68,7 +68,7 @@ func loadConfigFile() bool {
 		log.Println(logger.Error, "failed to load config file:", err)
 		return false
 	}
-	err = toml.Unmarshal(data, &cfg)
+	err = json.Unmarshal(data, &cfg)
 	if err != nil {
 		log.Println(logger.Error, "failed to load config:", err)
 		return false
