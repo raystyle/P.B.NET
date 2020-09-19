@@ -365,6 +365,98 @@ func TestEnv_Define_Modify(t *testing.T) {
 	})
 }
 
+func TestEnv_Delete(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		env := NewEnv()
+		env.Delete("a")
+	})
+
+	t.Run("add & delete", func(t *testing.T) {
+		env := NewEnv()
+		err := env.Define("a", "a")
+		require.NoError(t, err)
+		env.Delete("a")
+
+		value, err := env.Get("a")
+		require.EqualError(t, err, "undefined symbol \"a\"")
+		require.Nil(t, value)
+	})
+}
+
+func TestEnv_DeleteGlobal(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		env := NewEnv()
+		env.DeleteGlobal("a")
+	})
+
+	t.Run("add & delete", func(t *testing.T) {
+		env := NewEnv()
+		err := env.Define("a", "a")
+		require.NoError(t, err)
+		env.DeleteGlobal("a")
+
+		value, err := env.Get("a")
+		require.EqualError(t, err, "undefined symbol \"a\"")
+		require.Nil(t, value)
+	})
+
+	t.Run("parent & child, var in child, delete in parent", func(t *testing.T) {
+		env := NewEnv()
+		envChild := env.NewEnv()
+		err := envChild.Define("a", "a")
+		require.NoError(t, err)
+		env.DeleteGlobal("a")
+
+		value, err := envChild.Get("a")
+		require.NoError(t, err)
+		require.Equal(t, value, "a")
+
+		envChild.DeleteGlobal("a")
+		value, err = env.Get("a")
+		require.EqualError(t, err, "undefined symbol \"a\"")
+		require.Nil(t, value)
+	})
+
+	t.Run("parent & child, var in child, delete in child", func(t *testing.T) {
+		env := NewEnv()
+		envChild := env.NewEnv()
+		err := envChild.Define("a", "a")
+		require.NoError(t, err)
+		env.DeleteGlobal("a")
+
+		envChild.DeleteGlobal("a")
+
+		value, err := envChild.Get("a")
+		require.EqualError(t, err, "undefined symbol \"a\"")
+		require.Nil(t, value)
+	})
+
+	t.Run("parent & child, var in parent, delete in child", func(t *testing.T) {
+		env := NewEnv()
+		envChild := env.NewEnv()
+		err := env.Define("a", "a")
+		require.NoError(t, err)
+
+		envChild.DeleteGlobal("a")
+
+		value, err := envChild.Get("a")
+		require.EqualError(t, err, "undefined symbol \"a\"")
+		require.Nil(t, value)
+	})
+
+	t.Run("parent & child, var in parent, delete in parent", func(t *testing.T) {
+		env := NewEnv()
+		envChild := env.NewEnv()
+		err := env.Define("a", "a")
+		require.NoError(t, err)
+		env.DeleteGlobal("a")
+
+		value, err := envChild.Get("a")
+		require.EqualError(t, err, "undefined symbol \"a\"")
+		require.Nil(t, value)
+	})
+}
+
 func TestEnv_Addr(t *testing.T) {
 	t.Run("common", func(t *testing.T) {
 		tests := []struct {
