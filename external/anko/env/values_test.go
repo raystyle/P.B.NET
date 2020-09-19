@@ -3,6 +3,7 @@ package env
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -381,6 +382,109 @@ func TestEnv_Delete(t *testing.T) {
 		require.EqualError(t, err, "undefined symbol \"a\"")
 		require.Nil(t, value)
 	})
+}
+
+func TestRaceCreateSameVariable(t *testing.T) {
+	// Test creating same variable in parallel
+
+	waitChan := make(chan struct{}, 1)
+	var waitGroup sync.WaitGroup
+
+	env := NewEnv()
+
+	for i := 0; i < 100; i++ {
+		waitGroup.Add(1)
+		go func(i int) {
+			<-waitChan
+			err := env.Define("a", i)
+			if err != nil {
+				t.Errorf("Define error: %v", err)
+			}
+			_, err = env.Get("a")
+			if err != nil {
+				t.Errorf("Get error: %v", err)
+			}
+			waitGroup.Done()
+		}(i)
+	}
+
+	close(waitChan)
+	waitGroup.Wait()
+
+	_, err := env.Get("a")
+	if err != nil {
+		t.Errorf("Get error: %v", err)
+	}
+}
+
+func TestRaceCreateDifferentVariables(t *testing.T) {
+	// Test creating different variables in parallel
+
+	waitChan := make(chan struct{}, 1)
+	var waitGroup sync.WaitGroup
+
+	env := NewEnv()
+
+	for i := 0; i < 100; i++ {
+		waitGroup.Add(1)
+		go func(i int) {
+			<-waitChan
+			err := env.Define(fmt.Sprint(i), i)
+			if err != nil {
+				t.Errorf("Define error: %v", err)
+			}
+			_, err = env.Get(fmt.Sprint(i))
+			if err != nil {
+				t.Errorf("Get error: %v", err)
+			}
+			waitGroup.Done()
+		}(i)
+	}
+
+	close(waitChan)
+	waitGroup.Wait()
+
+	for i := 0; i < 100; i++ {
+		_, err := env.Get(fmt.Sprint(i))
+		if err != nil {
+			t.Errorf("Get error: %v", err)
+		}
+	}
+}
+
+func TestRaceReadDifferentVariables(t *testing.T) {
+	// Test reading different variables in parallel
+
+	waitChan := make(chan struct{}, 1)
+	var waitGroup sync.WaitGroup
+
+	env := NewEnv()
+
+	for i := 0; i < 100; i++ {
+		err := env.Define(fmt.Sprint(i), i)
+		if err != nil {
+			t.Errorf("Define error: %v", err)
+		}
+		_, err = env.Get(fmt.Sprint(i))
+		if err != nil {
+			t.Errorf("Get error: %v", err)
+		}
+	}
+
+	for i := 0; i < 100; i++ {
+		waitGroup.Add(1)
+		go func(i int) {
+			<-waitChan
+			_, err := env.Get(fmt.Sprint(i))
+			if err != nil {
+				t.Errorf("Get error: %v", err)
+			}
+			waitGroup.Done()
+		}(i)
+	}
+
+	close(waitChan)
+	waitGroup.Wait()
 }
 
 func TestEnv_DeleteGlobal(t *testing.T) {
