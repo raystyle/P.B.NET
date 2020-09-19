@@ -487,6 +487,141 @@ func TestRaceReadDifferentVariables(t *testing.T) {
 	waitGroup.Wait()
 }
 
+func TestRaceSetSameVariable(t *testing.T) {
+	// Test setting same variable in parallel
+
+	waitChan := make(chan struct{}, 1)
+	var waitGroup sync.WaitGroup
+
+	env := NewEnv()
+
+	err := env.Define("a", 0)
+	if err != nil {
+		t.Errorf("Define error: %v", err)
+	}
+	_, err = env.Get("a")
+	if err != nil {
+		t.Errorf("Get error: %v", err)
+	}
+
+	for i := 0; i < 100; i++ {
+		waitGroup.Add(1)
+		go func(i int) {
+			<-waitChan
+			err := env.Set("a", i)
+			if err != nil {
+				t.Errorf("Set error: %v", err)
+			}
+			waitGroup.Done()
+		}(i)
+	}
+
+	close(waitChan)
+	waitGroup.Wait()
+
+	_, err = env.Get("a")
+	if err != nil {
+		t.Errorf("Get error: %v", err)
+	}
+}
+
+func TestRaceSetSameVariableNewEnv(t *testing.T) {
+	// Test setting same variable in parallel with NewEnv
+
+	waitChan := make(chan struct{}, 1)
+	var waitGroup sync.WaitGroup
+
+	env := NewEnv()
+
+	err := env.Define("a", 0)
+	if err != nil {
+		t.Errorf("Define error: %v", err)
+	}
+	_, err = env.Get("a")
+	if err != nil {
+		t.Errorf("Get error: %v", err)
+	}
+
+	for i := 0; i < 100; i++ {
+		waitGroup.Add(1)
+		go func(i int) {
+			<-waitChan
+			env = env.NewEnv().NewEnv()
+			err := env.Set("a", i)
+			if err != nil {
+				t.Errorf("Set error: %v", err)
+			}
+			waitGroup.Done()
+		}(i)
+	}
+}
+
+func TestRaceDefineAndSetSameVariable(t *testing.T) {
+	// Test defining and setting same variable in parallel
+	for i := 0; i < 100; i++ {
+		raceDefineAndSetSameVariable(t)
+	}
+}
+
+func raceDefineAndSetSameVariable(t *testing.T) {
+	waitChan := make(chan struct{}, 1)
+	var waitGroup sync.WaitGroup
+
+	envParent := NewEnv()
+	envChild := envParent.NewEnv()
+
+	for i := 0; i < 2; i++ {
+		waitGroup.Add(1)
+		go func() {
+			<-waitChan
+			err := envParent.Set("a", 1)
+			if err != nil && err.Error() != "undefined symbol 'a'" {
+				t.Errorf("Set error: %v", err)
+			}
+			waitGroup.Done()
+		}()
+		waitGroup.Add(1)
+		go func() {
+			<-waitChan
+			err := envParent.Define("a", 2)
+			if err != nil {
+				t.Errorf("Define error: %v", err)
+			}
+			waitGroup.Done()
+		}()
+		waitGroup.Add(1)
+		go func() {
+			<-waitChan
+			err := envChild.Set("a", 3)
+			if err != nil && err.Error() != "undefined symbol 'a'" {
+				t.Errorf("Set error: %v", err)
+			}
+			waitGroup.Done()
+		}()
+		waitGroup.Add(1)
+		go func() {
+			<-waitChan
+			err := envChild.Define("a", 4)
+			if err != nil {
+				t.Errorf("Define error: %v", err)
+			}
+			waitGroup.Done()
+		}()
+	}
+
+	close(waitChan)
+	waitGroup.Wait()
+
+	_, err := envParent.Get("a") // value of a could be 1, 2, or 3
+	if err != nil {
+		t.Errorf("Get error: %v", err)
+	}
+	_, err = envChild.Get("a") // value of a could be 3 or 4
+	if err != nil {
+		t.Errorf("Get error: %v", err)
+	}
+}
+
 func TestEnv_DeleteGlobal(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		env := NewEnv()
