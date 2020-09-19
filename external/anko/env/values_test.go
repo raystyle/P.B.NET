@@ -575,7 +575,7 @@ func raceDefineAndSetSameVariable(t *testing.T) {
 		go func() {
 			<-waitChan
 			err := envParent.Set("a", 1)
-			if err != nil && err.Error() != "undefined symbol 'a'" {
+			if err != nil && err.Error() != "undefined symbol \"a\"" {
 				t.Errorf("Set error: %v", err)
 			}
 			waitGroup.Done()
@@ -593,7 +593,7 @@ func raceDefineAndSetSameVariable(t *testing.T) {
 		go func() {
 			<-waitChan
 			err := envChild.Set("a", 3)
-			if err != nil && err.Error() != "undefined symbol 'a'" {
+			if err != nil && err.Error() != "undefined symbol \"a\"" {
 				t.Errorf("Set error: %v", err)
 			}
 			waitGroup.Done()
