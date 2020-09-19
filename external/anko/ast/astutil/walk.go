@@ -35,6 +35,7 @@ func walkExprs(exprs []ast.Expr, f WalkFunc) error {
 	return nil
 }
 
+// nolint: gocyclo
 //gocyclo:ignore
 func walkStmt(stmt ast.Stmt, f WalkFunc) error {
 	// short circuit out if there are no functions
@@ -175,6 +176,7 @@ func walkSwitchStmt(stmt *ast.SwitchStmt, f WalkFunc) error {
 	return nil
 }
 
+// nolint: gocyclo
 //gocyclo:ignore
 func walkExpr(expr ast.Expr, f WalkFunc) error {
 	// short circuit out if there are no functions
