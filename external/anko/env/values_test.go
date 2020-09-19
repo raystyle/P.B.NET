@@ -52,6 +52,155 @@ func TestEnv_DefineGlobalValue(t *testing.T) {
 	}
 }
 
+func TestEnv_DefineAndGet(t *testing.T) {
+	tests := []struct {
+		info        string
+		name        string
+		defineValue interface{}
+		getValue    interface{}
+		kind        reflect.Kind
+		defineErr   error
+		getErr      error
+	}{
+		{info: "nil", name: "a", defineValue: reflect.Value{}, getValue: reflect.Value{}, kind: reflect.Invalid},
+		{info: "nil", name: "a", defineValue: nil, getValue: nil, kind: reflect.Interface},
+		{info: "bool", name: "a", defineValue: true, getValue: true, kind: reflect.Bool},
+		{info: "int16", name: "a", defineValue: int16(1), getValue: int16(1), kind: reflect.Int16},
+		{info: "int32", name: "a", defineValue: int32(1), getValue: int32(1), kind: reflect.Int32},
+		{info: "int64", name: "a", defineValue: int64(1), getValue: int64(1), kind: reflect.Int64},
+		{info: "uint32", name: "a", defineValue: uint32(1), getValue: uint32(1), kind: reflect.Uint32},
+		{info: "uint64", name: "a", defineValue: uint64(1), getValue: uint64(1), kind: reflect.Uint64},
+		{info: "float32", name: "a", defineValue: float32(1), getValue: float32(1), kind: reflect.Float32},
+		{info: "float64", name: "a", defineValue: float64(1), getValue: float64(1), kind: reflect.Float64},
+		{info: "string", name: "a", defineValue: "a", getValue: "a", kind: reflect.String},
+		{
+			info:        "string with dot",
+			name:        "a.a",
+			defineValue: "a",
+			getValue:    nil,
+			kind:        reflect.Interface,
+			defineErr:   ErrSymbolContainsDot,
+			getErr:      fmt.Errorf("undefined symbol \"a.a\""),
+		},
+		{
+			info:        "string with quotes",
+			name:        "a",
+			defineValue: `"a"`,
+			getValue:    `"a"`,
+			kind:        reflect.String,
+		},
+	}
+
+	for _, test := range tests {
+		env := NewEnv()
+
+		err := env.Define(test.name, test.defineValue)
+		if err != nil && test.defineErr != nil {
+			if err.Error() != test.defineErr.Error() {
+				const format = "%v - Define error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.defineErr)
+				continue
+			}
+		} else if err != test.defineErr {
+			const format = "%v - Define error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.defineErr)
+			continue
+		}
+
+		value, err := env.Get(test.name)
+		if err != nil && test.getErr != nil {
+			if err.Error() != test.getErr.Error() {
+				const format = "%v - Get error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.getErr)
+				continue
+			}
+		} else if err != test.getErr {
+			const format = "%v - Get error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.getErr)
+			continue
+		}
+		if value != test.getValue {
+			const format = "%v - value check - received %#v expected: %#v"
+			t.Errorf(format, test.info, value, test.getValue)
+		}
+	}
+}
+
+func TestEnv_DefineAndGet_NewEnv(t *testing.T) {
+	tests := []struct {
+		info        string
+		name        string
+		defineValue interface{}
+		getValue    interface{}
+		kind        reflect.Kind
+		defineErr   error
+		getErr      error
+	}{
+		{info: "nil", name: "a", defineValue: reflect.Value{}, getValue: reflect.Value{}, kind: reflect.Invalid},
+		{info: "nil", name: "a", defineValue: nil, getValue: nil, kind: reflect.Interface},
+		{info: "bool", name: "a", defineValue: true, getValue: true, kind: reflect.Bool},
+		{info: "int16", name: "a", defineValue: int16(1), getValue: int16(1), kind: reflect.Int16},
+		{info: "int32", name: "a", defineValue: int32(1), getValue: int32(1), kind: reflect.Int32},
+		{info: "int64", name: "a", defineValue: int64(1), getValue: int64(1), kind: reflect.Int64},
+		{info: "uint32", name: "a", defineValue: uint32(1), getValue: uint32(1), kind: reflect.Uint32},
+		{info: "uint64", name: "a", defineValue: uint64(1), getValue: uint64(1), kind: reflect.Uint64},
+		{info: "float32", name: "a", defineValue: float32(1), getValue: float32(1), kind: reflect.Float32},
+		{info: "float64", name: "a", defineValue: float64(1), getValue: float64(1), kind: reflect.Float64},
+		{info: "string", name: "a", defineValue: "a", getValue: "a", kind: reflect.String},
+		{
+			info:        "string with dot",
+			name:        "a.a",
+			defineValue: "a",
+			getValue:    nil,
+			kind:        reflect.Interface,
+			defineErr:   ErrSymbolContainsDot,
+			getErr:      fmt.Errorf("undefined symbol \"a.a\""),
+		},
+		{
+			info:        "string with quotes",
+			name:        "a",
+			defineValue: `"a"`,
+			getValue:    `"a"`,
+			kind:        reflect.String,
+		},
+	}
+
+	for _, test := range tests {
+		envParent := NewEnv()
+		envChild := envParent.NewEnv()
+
+		err := envParent.Define(test.name, test.defineValue)
+		if err != nil && test.defineErr != nil {
+			if err.Error() != test.defineErr.Error() {
+				const format = "%v - Define error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.defineErr)
+				continue
+			}
+		} else if err != test.defineErr {
+			const format = "%v - Define error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.defineErr)
+			continue
+		}
+
+		value, err := envChild.Get(test.name)
+		if err != nil && test.getErr != nil {
+			if err.Error() != test.getErr.Error() {
+				const format = "%v - Get error - received: %v - expected: %v"
+				t.Errorf(format, test.info, err, test.getErr)
+				continue
+			}
+		} else if err != test.getErr {
+			const format = "%v - Get error - received: %v - expected: %v"
+			t.Errorf(format, test.info, err, test.getErr)
+			continue
+		}
+		if value != test.getValue {
+			const format = "%v - value check - received %#v expected: %#v"
+			t.Errorf(format, test.info, value, test.getValue)
+		}
+	}
+}
+
 func TestEnv_Addr(t *testing.T) {
 	t.Run("common", func(t *testing.T) {
 		tests := []struct {
