@@ -3,14 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,7 +16,6 @@ import (
 
 	"project/internal/logger"
 	"project/internal/module/filemgr"
-	"project/internal/patch/json"
 	"project/internal/system"
 
 	"project/script/internal/config"
@@ -28,19 +24,20 @@ import (
 
 const developDir = "temp/develop"
 
-var (
-	cfgPath string
-	cfg     config.Config
-)
+var cfg config.Config
+
+func init() {
+	log.SetSource("develop")
+}
 
 func main() {
-	flag.StringVar(&cfgPath, "config", "config.json", "configuration file path")
+	var path string
+	flag.StringVar(&path, "config", "config.json", "configuration file path")
 	flag.Parse()
-
-	log.SetSource("develop")
-	for _, step := range []func() bool{
-		printCurrentDirectory,
-		loadConfigFile,
+	if !config.Load(path, &cfg) {
+		return
+	}
+	for _, step := range [...]func() bool{
 		downloadSourceCode,
 		extractSourceCode,
 		buildSourceCode,
@@ -50,55 +47,6 @@ func main() {
 		}
 	}
 	log.Println(logger.Info, "install development tools successfully")
-}
-
-func printCurrentDirectory() bool {
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Println(logger.Error, err)
-		return false
-	}
-	log.Println(logger.Info, "current directory:", dir)
-	return true
-}
-
-func loadConfigFile() bool {
-	data, err := ioutil.ReadFile(cfgPath) // #nosec
-	if err != nil {
-		log.Println(logger.Error, "failed to load config file:", err)
-		return false
-	}
-	err = json.Unmarshal(data, &cfg)
-	if err != nil {
-		log.Println(logger.Error, "failed to load config:", err)
-		return false
-	}
-	log.Println(logger.Info, "load configuration file successfully")
-	log.Println(logger.Info, "Go latest root path:", cfg.Common.GoRootLatest)
-	log.Println(logger.Info, "Go 1.10.8 root path:", cfg.Common.GoRoot1108)
-	// set proxy and TLS configuration
-	tr := http.DefaultTransport.(*http.Transport)
-	proxyURL := cfg.Common.ProxyURL
-	if proxyURL != "" {
-		URL, err := url.Parse(proxyURL)
-		if err != nil {
-			log.Println(logger.Error, "invalid proxy url:", err)
-			return false
-		}
-		tr.Proxy = http.ProxyURL(URL)
-		// set os environment for build
-		err = os.Setenv("HTTP_PROXY", proxyURL)
-		if err != nil {
-			log.Println(logger.Error, "failed to set os env:", err)
-			return false
-		}
-		log.Println(logger.Info, "set proxy url:", proxyURL)
-	}
-	if cfg.Common.SkipTLSVerify {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec
-		log.Println(logger.Warning, "skip tls verify")
-	}
-	return true
 }
 
 func downloadSourceCode() bool {
@@ -312,3 +260,12 @@ func buildSourceCode() bool {
 	log.Println(logger.Info, "build all development tools successfully")
 	return true
 }
+
+// https://raw.githubusercontent.com/golang/tools/master/cmd/goyacc/yacc.go
+// goyacc -o parser.go parser.go.y
+//
+// all : parser.go
+//
+// parser.go : parser.go.y
+//	goyacc -o $@ parser.go.y
+//	gofmt -s -w .
