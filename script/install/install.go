@@ -4,12 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"net/url"
-	"os"
 	"strings"
 
 	"project/internal/logger"
-	"project/internal/patch/json"
 	"project/internal/system"
 
 	"project/script/internal/config"
@@ -17,19 +14,20 @@ import (
 	"project/script/internal/log"
 )
 
-var (
-	cfgPath string
-	cfg     config.Config
-)
+var cfg config.Config
+
+func init() {
+	log.SetSource("install")
+}
 
 func main() {
-	flag.StringVar(&cfgPath, "config", "config.json", "configuration file path")
+	var path string
+	flag.StringVar(&path, "config", "config.json", "configuration file path")
 	flag.Parse()
-
-	log.SetSource("install")
-	for _, step := range []func() bool{
-		printCurrentDirectory,
-		loadConfigFile,
+	if !config.Load(path, &cfg) {
+		return
+	}
+	for _, step := range [...]func() bool{
 		installPatchFiles,
 		listModule,
 		downloadAllModules,
@@ -41,50 +39,6 @@ func main() {
 		}
 	}
 	log.Println(logger.Info, "install successfully")
-}
-
-func printCurrentDirectory() bool {
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Println(logger.Error, err)
-		return false
-	}
-	log.Println(logger.Info, "current directory:", dir)
-	return true
-}
-
-func loadConfigFile() bool {
-	data, err := ioutil.ReadFile(cfgPath) // #nosec
-	if err != nil {
-		log.Println(logger.Error, "failed to load config file:", err)
-		return false
-	}
-	err = json.Unmarshal(data, &cfg)
-	if err != nil {
-		log.Println(logger.Error, "failed to load config:", err)
-		return false
-	}
-	log.Println(logger.Info, "load configuration file successfully")
-	log.Println(logger.Info, "Go latest root path:", cfg.Common.GoRootLatest)
-	log.Println(logger.Info, "Go 1.10.8 root path:", cfg.Common.GoRoot1108)
-	// set proxy and TLS configuration
-	proxyURL := cfg.Common.ProxyURL
-	if proxyURL != "" {
-		// check proxy url
-		_, err = url.Parse(proxyURL)
-		if err != nil {
-			log.Println(logger.Error, "invalid proxy url:", err)
-			return false
-		}
-		// set os environment for build
-		err = os.Setenv("HTTP_PROXY", proxyURL)
-		if err != nil {
-			log.Println(logger.Error, "failed to set os env:", err)
-			return false
-		}
-		log.Println(logger.Info, "set proxy url:", proxyURL)
-	}
-	return true
 }
 
 func installPatchFiles() bool {
