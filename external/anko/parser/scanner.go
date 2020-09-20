@@ -64,6 +64,7 @@ func (s *Scanner) Init(src string) {
 }
 
 // Scan analyses token, and decide identify or literals.
+//gocyclo:ignore
 func (s *Scanner) Scan() (tok int, lit string, pos ast.Position, err error) {
 retry:
 	s.skipBlank()

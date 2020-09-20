@@ -55,6 +55,33 @@ func (l *Lexer) Error(msg string) {
 	l.e = &Error{Message: msg, Pos: l.pos, Fatal: false}
 }
 
+// Parse provides way to parse the code using Scanner.
+func Parse(s *Scanner) (ast.Stmt, error) {
+	l := Lexer{s: s}
+	if yyParse(&l) != 0 {
+		return nil, l.e
+	}
+	return l.stmt, l.e
+}
+
+// ParseSrc provides way to parse the code from source.
+func ParseSrc(src string) (ast.Stmt, error) {
+	scanner := &Scanner{
+		src: []rune(src),
+	}
+	return Parse(scanner)
+}
+
+// EnableErrorVerbose enabled verbose errors from the parser.
+func EnableErrorVerbose() {
+	yyErrorVerbose = true
+}
+
+// EnableDebug enabled debug from the parser.
+func EnableDebug(level int) {
+	yyDebug = level
+}
+
 func toNumber(numString string) (reflect.Value, error) {
 	// hex
 	if len(numString) > 2 && numString[0:2] == "0x" {
@@ -93,31 +120,4 @@ func toNumber(numString string) (reflect.Value, error) {
 
 func stringToValue(aString string) reflect.Value {
 	return reflect.ValueOf(aString)
-}
-
-// Parse provides way to parse the code using Scanner.
-func Parse(s *Scanner) (ast.Stmt, error) {
-	l := Lexer{s: s}
-	if yyParse(&l) != 0 {
-		return nil, l.e
-	}
-	return l.stmt, l.e
-}
-
-// ParseSrc provides way to parse the code from source.
-func ParseSrc(src string) (ast.Stmt, error) {
-	scanner := &Scanner{
-		src: []rune(src),
-	}
-	return Parse(scanner)
-}
-
-// EnableErrorVerbose enabled verbose errors from the parser
-func EnableErrorVerbose() {
-	yyErrorVerbose = true
-}
-
-// EnableDebug enabled debug from the parser
-func EnableDebug(level int) {
-	yyDebug = level
 }
