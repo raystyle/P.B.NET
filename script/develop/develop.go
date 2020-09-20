@@ -70,6 +70,10 @@ func downloadSourceCode() bool {
 			name: "golangci-lint",
 			url:  "https://github.com/golangci/golangci-lint/archive/master.zip",
 		},
+		{
+			name: "go-tools",
+			url:  "https://github.com/golang/tools/archive/master.zip",
+		},
 	}
 	itemsLen := len(items)
 	errCh := make(chan error, itemsLen)
@@ -123,6 +127,7 @@ func extractSourceCode() bool {
 		{name: "gocyclo", dir: "gocyclo-master"},
 		{name: "gosec", dir: "gosec-master"},
 		{name: "golangci-lint", dir: "golangci-lint-master"},
+		{name: "go-tools", dir: "tools-master"},
 	}
 	itemsLen := len(items)
 	errCh := make(chan error, itemsLen)
@@ -193,6 +198,7 @@ func buildSourceCode() bool {
 		{name: "gocyclo", dir: "gocyclo-master", build: "cmd/gocyclo"},
 		{name: "gosec", dir: "gosec-master", build: "cmd/gosec"},
 		{name: "golangci-lint", dir: "golangci-lint-master", build: "cmd/golangci-lint"},
+		{name: "goyacc", dir: "tools-master", build: "cmd/goyacc"},
 	}
 	itemsLen := len(items)
 	resultCh := make(chan bool, itemsLen)
@@ -260,12 +266,3 @@ func buildSourceCode() bool {
 	log.Println(logger.Info, "build all development tools successfully")
 	return true
 }
-
-// https://raw.githubusercontent.com/golang/tools/master/cmd/goyacc/yacc.go
-// goyacc -o parser.go parser.go.y
-//
-// all : parser.go
-//
-// parser.go : parser.go.y
-//	goyacc -o $@ parser.go.y
-//	gofmt -s -w .
