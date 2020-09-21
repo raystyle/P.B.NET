@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mattn/anko/env"
+	"project/external/anko/env"
 )
 
 // ImportToX adds all the toX to the env given.

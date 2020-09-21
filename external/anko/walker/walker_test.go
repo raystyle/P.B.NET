@@ -1,12 +1,12 @@
-package astutil
+package walker
 
 import (
 	"errors"
 	"fmt"
 	"testing"
 
-	"github.com/mattn/anko/ast"
-	"github.com/mattn/anko/parser"
+	"project/external/anko/ast"
+	"project/external/anko/parser"
 )
 
 const (
@@ -120,7 +120,12 @@ fmt.Println(Main(1))
 `
 )
 
+// nolint: gocyclo
+//gocyclo:ignore
 func TestWalk(t *testing.T) {
+	parser.EnableErrorVerbose()
+	parser.EnableDebug(1)
+
 	stmts, err := parser.ParseSrc(goodSrc)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +135,20 @@ func TestWalk(t *testing.T) {
 	err = Walk(stmts, func(e interface{}) error {
 		switch exp := e.(type) {
 		case *ast.CallExpr:
-			return testWalkCallExpr(exp)
+			switch exp.Name {
+			case `testA`:
+				if len(exp.SubExprs) != 3 {
+					return errors.New("invalid parameter count")
+				}
+			case `Main`:
+				if len(exp.SubExprs) != 1 {
+					return errors.New("invalid parameter count")
+				}
+			case `Tester`:
+				if len(exp.SubExprs) != 0 {
+					return errors.New("invalid parameter count")
+				}
+			}
 		case *ast.FuncExpr:
 			if !mainFound && exp.Name == `Main` {
 				mainFound = true
@@ -153,25 +171,10 @@ func TestWalk(t *testing.T) {
 	}
 }
 
-func testWalkCallExpr(exp *ast.CallExpr) error {
-	switch exp.Name {
-	case `testA`:
-		if len(exp.SubExprs) != 3 {
-			return errors.New("invalid parameter count")
-		}
-	case `Main`:
-		if len(exp.SubExprs) != 1 {
-			return errors.New("invalid parameter count")
-		}
-	case `Tester`:
-		if len(exp.SubExprs) != 0 {
-			return errors.New("invalid parameter count")
-		}
-	}
-	return nil
-}
-
 func Example_astWalk() {
+	parser.EnableErrorVerbose()
+	parser.EnableDebug(1)
+
 	src := `
 var fmt = import("fmt")
 
@@ -220,6 +223,9 @@ fmt.Println(Main())
 }
 
 func TestBadCode(t *testing.T) {
+	parser.EnableErrorVerbose()
+	parser.EnableDebug(1)
+
 	var codes = []string{
 		`const 1 = 2`,
 		`a["foo"] = 2, 3`,
