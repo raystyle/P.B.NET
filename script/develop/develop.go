@@ -149,14 +149,17 @@ func extractSourceCode() bool {
 			}
 			src := developDir + "/" + name + ".zip"
 			// extract files
-			var eErr error
+			var uErr error
 			ec := func(_ context.Context, typ uint8, err error, _ *filemgr.SrcDstStat) uint8 {
-				eErr = err
+				if typ == filemgr.ErrCtrlSameFile {
+					return filemgr.ErrCtrlOpReplace
+				}
+				uErr = err
 				return filemgr.ErrCtrlOpCancel
 			}
 			err = filemgr.UnZip(ec, src, developDir)
-			if eErr != nil {
-				err = eErr
+			if uErr != nil {
+				err = uErr
 				return
 			}
 			if err != nil {
