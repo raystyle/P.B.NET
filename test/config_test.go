@@ -56,9 +56,9 @@ func TestMain(m *testing.M) {
 	}
 	if ctrl != nil {
 		// must copy, because it is a global variable
-		ctrlC := ctrl
+		ctrlCp := ctrl
 		ctrl = nil
-		if !testsuite.Destroyed(ctrlC) {
+		if !testsuite.Destroyed(ctrlCp) {
 			fmt.Println("[warning] controller is not destroyed")
 			time.Sleep(time.Minute)
 			os.Exit(1)
