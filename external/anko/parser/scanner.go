@@ -367,16 +367,6 @@ func (s *Scanner) next() {
 	}
 }
 
-// current returns the current offset.
-func (s *Scanner) current() int {
-	return s.offset
-}
-
-// offset sets the offset value.
-func (s *Scanner) set(o int) {
-	s.offset = o
-}
-
 // back moves back offset once to top.
 func (s *Scanner) back() {
 	s.offset--

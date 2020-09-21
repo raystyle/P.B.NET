@@ -52,21 +52,21 @@ type runInfoStruct struct {
 }
 
 // Execute parses script and executes in the specified environment.
-func Execute(env *env.Env, options *Options, script string) (interface{}, error) {
+func Execute(env *env.Env, opts *Options, script string) (interface{}, error) {
 	stmt, err := parser.ParseSrc(script)
 	if err != nil {
 		return nilValue, err
 	}
-	return RunContext(context.Background(), env, options, stmt)
+	return RunContext(context.Background(), env, opts, stmt)
 }
 
 // ExecuteContext parses script and executes in the specified environment with context.
-func ExecuteContext(ctx context.Context, env *env.Env, options *Options, script string) (interface{}, error) {
+func ExecuteContext(ctx context.Context, env *env.Env, opts *Options, script string) (interface{}, error) {
 	stmt, err := parser.ParseSrc(script)
 	if err != nil {
 		return nilValue, err
 	}
-	return RunContext(ctx, env, options, stmt)
+	return RunContext(ctx, env, opts, stmt)
 }
 
 // Run executes statement in the specified environment.
@@ -75,8 +75,8 @@ func Run(env *env.Env, options *Options, stmt ast.Stmt) (interface{}, error) {
 }
 
 // RunContext executes statement in the specified environment with context.
-func RunContext(ctx context.Context, env *env.Env, options *Options, stmt ast.Stmt) (interface{}, error) {
-	runInfo := runInfoStruct{ctx: ctx, env: env, options: options, stmt: stmt, rv: nilValue}
+func RunContext(ctx context.Context, env *env.Env, opts *Options, stmt ast.Stmt) (interface{}, error) {
+	runInfo := runInfoStruct{ctx: ctx, env: env, options: opts, stmt: stmt, rv: nilValue}
 	if runInfo.options == nil {
 		runInfo.options = &Options{}
 	}
