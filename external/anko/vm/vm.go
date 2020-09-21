@@ -10,17 +10,6 @@ import (
 	"project/external/anko/parser"
 )
 
-// Options provides options to run VM with.
-type Options struct {
-	Debug bool // run in Debug mode
-}
-
-// Error is a VM run error.
-type Error struct {
-	Message string
-	Pos     ast.Position
-}
-
 var (
 	// ErrBreak when there is an unexpected break statement
 	ErrBreak = errors.New("unexpected break statement")
@@ -31,6 +20,17 @@ var (
 	// ErrInterrupt when execution has been interrupted
 	ErrInterrupt = errors.New("execution interrupted")
 )
+
+// Options provides options to run VM with.
+type Options struct {
+	Debug bool // run in Debug mode
+}
+
+// Error is a VM run error.
+type Error struct {
+	Message string
+	Pos     ast.Position
+}
 
 var (
 	nilValue = reflect.New(reflect.TypeOf((*interface{})(nil)).Elem()).Elem()
@@ -57,7 +57,6 @@ func Execute(env *env.Env, options *Options, script string) (interface{}, error)
 	if err != nil {
 		return nilValue, err
 	}
-
 	return RunContext(context.Background(), env, options, stmt)
 }
 
@@ -67,7 +66,6 @@ func ExecuteContext(ctx context.Context, env *env.Env, options *Options, script 
 	if err != nil {
 		return nilValue, err
 	}
-
 	return RunContext(ctx, env, options, stmt)
 }
 
