@@ -2,7 +2,6 @@ package vm
 
 import (
 	"context"
-	"errors"
 	"reflect"
 
 	"project/external/anko/ast"
@@ -10,46 +9,28 @@ import (
 	"project/external/anko/parser"
 )
 
-var (
-	// ErrBreak when there is an unexpected break statement
-	ErrBreak = errors.New("unexpected break statement")
-	// ErrContinue when there is an unexpected continue statement
-	ErrContinue = errors.New("unexpected continue statement")
-	// ErrReturn when there is an unexpected return statement
-	ErrReturn = errors.New("unexpected return statement")
-	// ErrInterrupt when execution has been interrupted
-	ErrInterrupt = errors.New("execution interrupted")
-)
-
 // Options provides options to run VM with.
 type Options struct {
 	Debug bool // run in Debug mode
 }
 
-// Error is a VM run error.
-type Error struct {
-	Message string
-	Pos     ast.Position
-}
-
 var (
-	nilValue = reflect.New(reflect.TypeOf((*interface{})(nil)).Elem()).Elem()
+	stringType         = reflect.TypeOf("a")
+	byteType           = reflect.TypeOf(byte('a'))
+	runeType           = reflect.TypeOf('a')
+	interfaceType      = reflect.ValueOf([]interface{}{int64(1)}).Index(0).Type()
+	interfaceSliceType = reflect.TypeOf([]interface{}{})
+	reflectValueType   = reflect.TypeOf(reflect.Value{})
+	errorType          = reflect.ValueOf([]error{nil}).Index(0).Type()
+	vmErrorType        = reflect.TypeOf(&Error{})
+	contextType        = reflect.TypeOf((*context.Context)(nil)).Elem()
+
+	nilValue                  = reflect.New(reflect.TypeOf((*interface{})(nil)).Elem()).Elem()
+	trueValue                 = reflect.ValueOf(true)
+	falseValue                = reflect.ValueOf(false)
+	reflectValueNilValue      = reflect.ValueOf(nilValue)
+	reflectValueErrorNilValue = reflect.ValueOf(reflect.New(errorType).Elem())
 )
-
-// runInfo provides run incoming and outgoing information.
-type runInfoStruct struct {
-	// incoming
-	ctx      context.Context
-	env      *env.Env
-	options  *Options
-	stmt     ast.Stmt
-	expr     ast.Expr
-	operator ast.Operator
-
-	// outgoing
-	rv  reflect.Value
-	err error
-}
 
 // Execute parses script and executes in the specified environment.
 func Execute(env *env.Env, opts *Options, script string) (interface{}, error) {
