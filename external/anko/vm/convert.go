@@ -176,12 +176,12 @@ func convertVMFunctionToType(rv reflect.Value, rt reflect.Type) (reflect.Value, 
 		if rt.NumOut() < 2 {
 			// Go function wants one return value
 			// will try to covert to reflect.Value correct type and return
-			rv, err = convertReflectValueToType(rv, rt.Out(0))
+			v, err := convertReflectValueToType(rv, rt.Out(0))
 			if err != nil {
 				const format = "function wants return type %s but received type %s"
 				panic(fmt.Sprintf(format, rt.Out(0), rv.Type()))
 			}
-			return []reflect.Value{rv}
+			return []reflect.Value{v}
 		}
 
 		// Go function wants more than one return value
