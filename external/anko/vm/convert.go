@@ -1,7 +1,9 @@
 package vm
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"reflect"
 )
 
@@ -10,7 +12,7 @@ var (
 )
 
 // reflectValueSliceToInterfaceSlice convert from a slice of reflect.Value to a interface slice
-// returned in normal reflect.Value form
+// returned in normal reflect.Value form.
 func reflectValueSliceToInterfaceSlice(valueSlice []reflect.Value) reflect.Value {
 	interfaceSlice := make([]interface{}, 0, len(valueSlice))
 	for _, value := range valueSlice {
@@ -27,7 +29,9 @@ func reflectValueSliceToInterfaceSlice(valueSlice []reflect.Value) reflect.Value
 }
 
 // convertReflectValueToType is used to covert the reflect.Value to the reflect.Type
-// if it can not, it returns the original rv and an error
+// if it can not, it returns the original rv and an error.
+// nolint: gocyclo
+//gocyclo:ignore
 func convertReflectValueToType(rv reflect.Value, rt reflect.Type) (reflect.Value, error) {
 	if rt == interfaceType || rv.Type() == rt {
 		// if reflect.Type is interface or the types match, return the provided reflect.Value
@@ -101,7 +105,8 @@ func convertReflectValueToType(rv reflect.Value, rt reflect.Type) (reflect.Value
 	return rv, errInvalidTypeConversion
 }
 
-// convertSliceOrArray is used to covert the reflect.Value slice or array to the slice or array reflect.Type
+// convertSliceOrArray is used to covert the reflect.Value slice or array to
+// the slice or array reflect.Type.
 func convertSliceOrArray(rv reflect.Value, rt reflect.Type) (reflect.Value, error) {
 	rtElemType := rt.Elem()
 
@@ -133,6 +138,78 @@ func convertSliceOrArray(rv reflect.Value, rt reflect.Type) (reflect.Value, erro
 // so it can be passed to a Go function argument with the correct static types
 // it creates a translate function runVMConvertFunction
 func convertVMFunctionToType(rv reflect.Value, rt reflect.Type) (reflect.Value, error) {
+	// only translates runVMFunction type
+	if !checkIfRunVMFunction(rv.Type()) {
+		return rv, errInvalidTypeConversion
+	}
+
+	// create runVMConvertFunction to match reflect.Type
+	// this function is being called by the Go function
+	runVMConvertFunction := func(in []reflect.Value) []reflect.Value {
+		// note: this function is being called by another reflect Call
+		// only way to pass along any errors is by panic
+
+		// make the reflect.Value slice of each of the VM reflect.Value
+		args := make([]reflect.Value, 0, rt.NumIn()+1)
+		// for runVMFunction first arg is always context
+		// TO FIX: use normal context
+		args = append(args, reflect.ValueOf(context.Background()))
+		for i := 0; i < rt.NumIn(); i++ {
+			// have to do the double reflect.ValueOf that runVMFunction expects
+			args = append(args, reflect.ValueOf(in[i]))
+		}
+
+		// Call runVMFunction
+		rvs := rv.Call(args)
+
+		// call processCallReturnValues to process runVMFunction return values
+		// returns normal VM reflect.Value form
+		rv, err := processCallReturnValues(rvs, true, false)
+		if err != nil {
+			panic(err)
+		}
+
+		if rt.NumOut() < 1 {
+			// Go function does not want any return values, so give it none
+			return []reflect.Value{}
+		}
+		if rt.NumOut() < 2 {
+			// Go function wants one return value
+			// will try to covert to reflect.Value correct type and return
+			rv, err = convertReflectValueToType(rv, rt.Out(0))
+			if err != nil {
+				const format = "function wants return type %s but received type %s"
+				panic(fmt.Sprintf(format, rt.Out(0), rv.Type()))
+			}
+			return []reflect.Value{rv}
+		}
+
+		// Go function wants more than one return value
+		// make sure we have a slice/array with enough values
+
+		if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+			const format = "function wants %v return values but received %v"
+			panic(fmt.Sprintf(format, rt.NumOut(), rv.Kind()))
+		}
+		if rv.Len() < rt.NumOut() {
+			const format = "function wants %v return values but received %v values"
+			panic(fmt.Sprintf(format, rt.NumOut(), rv.Len()))
+		}
+
+		// try to covert each value in slice to wanted type and put into a reflect.Value slice
+		rvs = make([]reflect.Value, rt.NumOut())
+		for i := 0; i < rv.Len(); i++ {
+			rvs[i], err = convertReflectValueToType(rv.Index(i), rt.Out(i))
+			if err != nil {
+				const format = "function wants return type %s but received type %s"
+				panic(fmt.Sprintf(format, rt.Out(i), rvs[i].Type()))
+			}
+		}
+
+		// return created reflect.Value slice
+		return rvs
+	}
+
 	// make the reflect.Value function that calls runVMConvertFunction
 	return reflect.MakeFunc(rt, runVMConvertFunction), nil
 }
