@@ -67,3 +67,29 @@ func RunContext(ctx context.Context, env *env.Env, opts *Options, stmt ast.Stmt)
 	}
 	return runInfo.rv.Interface(), runInfo.err
 }
+
+func makeValue(t reflect.Type) (reflect.Value, error) {
+	switch t.Kind() {
+	case reflect.Chan:
+		return reflect.MakeChan(t, 0), nil
+	case reflect.Func:
+		return reflect.MakeFunc(t, nil), nil
+	case reflect.Map:
+		// note creating slice as work around to create map
+		// just doing MakeMap can give incorrect type for defined types
+		value := reflect.MakeSlice(reflect.SliceOf(t), 0, 1)
+		value = reflect.Append(value, reflect.MakeMap(reflect.MapOf(t.Key(), t.Elem())))
+		return value.Index(0), nil
+	case reflect.Ptr:
+		ptrV := reflect.New(t.Elem())
+		v, err := makeValue(t.Elem())
+		if err != nil {
+			return nilValue, err
+		}
+		ptrV.Elem().Set(v)
+		return ptrV, nil
+	case reflect.Slice:
+		return reflect.MakeSlice(t, 0, 0), nil
+	}
+	return reflect.New(t).Elem(), nil
+}
