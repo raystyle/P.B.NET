@@ -86,6 +86,115 @@ func (runInfo *runInfoStruct) funcExpr() {
 	}
 }
 
+// anonCallExpr handles ast.AnonCallExpr which calls a function anonymously.
+func (runInfo *runInfoStruct) anonCallExpr() {
+	anonCallExpr := runInfo.expr.(*ast.AnonCallExpr)
+
+	runInfo.expr = anonCallExpr.Expr
+	runInfo.invokeExpr()
+	if runInfo.err != nil {
+		return
+	}
+
+	if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
+		runInfo.rv = runInfo.rv.Elem()
+	}
+	if runInfo.rv.Kind() != reflect.Func {
+		runInfo.err = newStringError(anonCallExpr, "cannot call type "+runInfo.rv.Kind().String())
+		runInfo.rv = nilValue
+		return
+	}
+
+	runInfo.expr = &ast.CallExpr{
+		Func:     runInfo.rv,
+		SubExprs: anonCallExpr.SubExprs,
+		VarArg:   anonCallExpr.VarArg,
+		Go:       anonCallExpr.Go,
+	}
+	runInfo.expr.SetPosition(anonCallExpr.Expr.Position())
+	runInfo.invokeExpr()
+}
+
+// callExpr handles *ast.CallExpr which calls a function.
+func (runInfo *runInfoStruct) callExpr() {
+	// Note that if the function type looks the same as the VM function type,
+	// the returned values will probably be wrong.
+
+	callExpr := runInfo.expr.(*ast.CallExpr)
+
+	f := callExpr.Func
+	if !f.IsValid() {
+		// if function is not valid try to get by function name
+		f, runInfo.err = runInfo.env.GetValue(callExpr.Name)
+		if runInfo.err != nil {
+			runInfo.err = newError(callExpr, runInfo.err)
+			runInfo.rv = nilValue
+			return
+		}
+	}
+
+	if f.Kind() == reflect.Interface && !f.IsNil() {
+		f = f.Elem()
+	}
+	if f.Kind() != reflect.Func {
+		runInfo.err = newStringError(callExpr, "cannot call type "+f.Kind().String())
+		runInfo.rv = nilValue
+		return
+	}
+
+	var rvs []reflect.Value
+	var args []reflect.Value
+	var useCallSlice bool
+	fType := f.Type()
+	// check if this is a runVMFunction type
+	isRunVMFunction := checkIfRunVMFunction(fType)
+	// create/convert the args to the function
+	args, useCallSlice = runInfo.makeCallArgs(fType, isRunVMFunction, callExpr)
+	if runInfo.err != nil {
+		return
+	}
+
+	if !runInfo.options.Debug {
+		// captures panic
+		defer recoverFunc(runInfo)
+	}
+
+	runInfo.rv = nilValue
+
+	// useCallSlice lets us know to use CallSlice instead of Call because of the format of the args
+	if useCallSlice {
+		if callExpr.Go {
+			go f.CallSlice(args)
+			return
+		}
+		rvs = f.CallSlice(args)
+	} else {
+		if callExpr.Go {
+			go f.Call(args)
+			return
+		}
+		rvs = f.Call(args)
+	}
+
+	// TOFIX: how VM pointers/addressing work
+	// Until then, this is a work around to set pointers back to VM variables
+	// This will probably panic for some functions and/or calls that are variadic
+	if !isRunVMFunction {
+		for i, expr := range callExpr.SubExprs {
+			if addrExpr, ok := expr.(*ast.AddrExpr); ok {
+				if identExpr, ok := addrExpr.Expr.(*ast.IdentExpr); ok {
+					runInfo.rv = args[i].Elem()
+					runInfo.expr = identExpr
+					runInfo.invokeLetExpr()
+				}
+			}
+		}
+	}
+
+	// processCallReturnValues to get/convert return values to normal rv form
+	runInfo.rv, runInfo.err = processCallReturnValues(rvs, isRunVMFunction, true)
+}
+
 // checkIfRunVMFunction checking the number and types of the reflect.Type.
 // If it matches the types for a runVMFunction this will return true, otherwise false.
 func checkIfRunVMFunction(rt reflect.Type) bool {

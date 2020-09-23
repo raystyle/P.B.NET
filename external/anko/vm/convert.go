@@ -7,12 +7,10 @@ import (
 	"reflect"
 )
 
-var (
-	errInvalidTypeConversion = errors.New("invalid type conversion")
-)
+var errInvalidTypeConversion = errors.New("invalid type conversion")
 
-// reflectValueSliceToInterfaceSlice convert from a slice of reflect.Value to a interface slice
-// returned in normal reflect.Value form.
+// reflectValueSliceToInterfaceSlice convert from a slice of reflect.Value to a
+// interface slice returned in normal reflect.Value form.
 func reflectValueSliceToInterfaceSlice(valueSlice []reflect.Value) reflect.Value {
 	interfaceSlice := make([]interface{}, 0, len(valueSlice))
 	for _, value := range valueSlice {

@@ -2,6 +2,7 @@ package vm
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"project/external/anko/ast"
@@ -66,6 +67,22 @@ func RunContext(ctx context.Context, env *env.Env, opts *Options, stmt ast.Stmt)
 		runInfo.err = nil
 	}
 	return runInfo.rv.Interface(), runInfo.err
+}
+
+// recoverFunc generic recover function.
+func recoverFunc(runInfo *runInfoStruct) {
+	recoverInterface := recover()
+	if recoverInterface == nil {
+		return
+	}
+	switch value := recoverInterface.(type) {
+	case *Error:
+		runInfo.err = value
+	case error:
+		runInfo.err = value
+	default:
+		runInfo.err = fmt.Errorf("%v", recoverInterface)
+	}
 }
 
 func makeValue(t reflect.Type) (reflect.Value, error) {
