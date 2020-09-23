@@ -1,9 +1,90 @@
 package vm
 
 import (
+	"context"
 	"fmt"
 	"reflect"
+
+	"project/external/anko/ast"
 )
+
+// funcExpr creates a function that reflect Call can use.
+// When called, it will run runVMFunction, to run the function statements
+func (runInfo *runInfoStruct) funcExpr() {
+	funcExpr := runInfo.expr.(*ast.FuncExpr)
+
+	// create the inTypes needed by reflect.FuncOf
+	inTypes := make([]reflect.Type, len(funcExpr.Params)+1)
+	// for runVMFunction first arg is always context
+	inTypes[0] = contextType
+	for i := 1; i < len(inTypes); i++ {
+		inTypes[i] = reflectValueType
+	}
+	if funcExpr.VarArg {
+		inTypes[len(inTypes)-1] = interfaceSliceType
+	}
+	// create funcType, output is always slice of reflect.Type with two values
+	out := []reflect.Type{reflectValueType, reflectValueType}
+	funcType := reflect.FuncOf(inTypes, out, funcExpr.VarArg)
+
+	// for adding env into saved function
+	envFunc := runInfo.env
+
+	// create a function that can be used by reflect.MakeFunc
+	// this function is a translator that converts a function call into a vm run
+	// returns slice of reflect.Type with two values:
+	// return value of the function and error value of the run
+	runVMFunction := func(in []reflect.Value) []reflect.Value {
+		runInfo := runInfoStruct{
+			ctx:     in[0].Interface().(context.Context),
+			options: runInfo.options,
+			env:     envFunc.NewEnv(),
+			stmt:    funcExpr.Stmt,
+			rv:      nilValue,
+		}
+		// add Params to newEnv, except last Params
+		for i := 0; i < len(funcExpr.Params)-1; i++ {
+			runInfo.rv = in[i+1].Interface().(reflect.Value)
+			_ = runInfo.env.DefineValue(funcExpr.Params[i], runInfo.rv)
+		}
+		// add last Params to newEnv
+		if len(funcExpr.Params) > 0 {
+			if funcExpr.VarArg {
+				// function is variadic, add last Params to newEnv without
+				// convert to Interface and then reflect.Value
+				runInfo.rv = in[len(funcExpr.Params)]
+				_ = runInfo.env.DefineValue(funcExpr.Params[len(funcExpr.Params)-1], runInfo.rv)
+			} else {
+				// function is not variadic, add last Params to newEnv
+				runInfo.rv = in[len(funcExpr.Params)].Interface().(reflect.Value)
+				_ = runInfo.env.DefineValue(funcExpr.Params[len(funcExpr.Params)-1], runInfo.rv)
+			}
+		}
+
+		// run function statements
+		runInfo.runSingleStmt()
+		if runInfo.err != nil && runInfo.err != ErrReturn {
+			runInfo.err = newError(funcExpr, runInfo.err)
+			// return nil value and error
+			// need to do single reflect.ValueOf because nilValue is already reflect.Value of nil
+			// need to do double reflect.ValueOf of newError in order to match
+			err := reflect.ValueOf(reflect.ValueOf(newError(funcExpr, runInfo.err)))
+			return []reflect.Value{reflectValueNilValue, err}
+		}
+
+		// the reflect.ValueOf of rv is needed to work in the reflect.Value slice
+		// reflectValueErrorNilValue is already a double reflect.ValueOf
+		return []reflect.Value{reflect.ValueOf(runInfo.rv), reflectValueErrorNilValue}
+	}
+
+	// make the reflect.Value function that calls runVMFunction
+	runInfo.rv = reflect.MakeFunc(funcType, runVMFunction)
+
+	// if function name is not empty, define it in the env
+	if funcExpr.Name != "" {
+		_ = runInfo.env.DefineValue(funcExpr.Name, runInfo.rv)
+	}
+}
 
 // checkIfRunVMFunction checking the number and types of the reflect.Type.
 // If it matches the types for a runVMFunction this will return true, otherwise false.
