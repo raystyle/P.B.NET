@@ -85,6 +85,71 @@ func recoverFunc(runInfo *runInfoStruct) {
 	}
 }
 
+// appendSlice appends rhs to lhs, function assumes lhsV and rhsV are slice or array.
+// nolint: gocyclo
+//gocyclo:ignore
+func appendSlice(expr ast.Expr, lhsV reflect.Value, rhsV reflect.Value) (reflect.Value, error) {
+	lhsT := lhsV.Type().Elem()
+	rhsT := rhsV.Type().Elem()
+
+	if lhsT == rhsT {
+		return reflect.AppendSlice(lhsV, rhsV), nil
+	}
+
+	if rhsT.ConvertibleTo(lhsT) {
+		for i := 0; i < rhsV.Len(); i++ {
+			lhsV = reflect.Append(lhsV, rhsV.Index(i).Convert(lhsT))
+		}
+		return lhsV, nil
+	}
+
+	leftHasSubArray := lhsT.Kind() == reflect.Slice || lhsT.Kind() == reflect.Array
+	rightHasSubArray := rhsT.Kind() == reflect.Slice || rhsT.Kind() == reflect.Array
+
+	if leftHasSubArray != rightHasSubArray && lhsT != interfaceType && rhsT != interfaceType {
+		return nilValue, newStringError(expr, "invalid type conversion")
+	}
+
+	if !leftHasSubArray && !rightHasSubArray {
+		for i := 0; i < rhsV.Len(); i++ {
+			value := rhsV.Index(i)
+			if rhsT == interfaceType {
+				value = value.Elem()
+			}
+			if lhsT == value.Type() {
+				lhsV = reflect.Append(lhsV, value)
+			} else if value.Type().ConvertibleTo(lhsT) {
+				lhsV = reflect.Append(lhsV, value.Convert(lhsT))
+			} else {
+				return nilValue, newStringError(expr, "invalid type conversion")
+			}
+		}
+		return lhsV, nil
+	}
+
+	if (leftHasSubArray || lhsT == interfaceType) && (rightHasSubArray || rhsT == interfaceType) {
+		for i := 0; i < rhsV.Len(); i++ {
+			value := rhsV.Index(i)
+			if rhsT == interfaceType {
+				value = value.Elem()
+				if value.Kind() != reflect.Slice && value.Kind() != reflect.Array {
+					return nilValue, newStringError(expr, "invalid type conversion")
+				}
+			}
+			newSlice, err := appendSlice(expr, reflect.MakeSlice(lhsT, 0, value.Len()), value)
+			if err != nil {
+				return nilValue, err
+			}
+			lhsV = reflect.Append(lhsV, newSlice)
+		}
+		return lhsV, nil
+	}
+
+	return nilValue, newStringError(expr, "invalid type conversion")
+}
+
+// nolint: gocyclo
+//gocyclo:ignore
 func makeType(runInfo *runInfoStruct, typeStruct *ast.TypeStruct) reflect.Type {
 	switch typeStruct.Kind {
 	case ast.TypeDefault:
@@ -180,6 +245,18 @@ func makeType(runInfo *runInfoStruct, typeStruct *ast.TypeStruct) reflect.Type {
 	}
 }
 
+func getTypeFromEnv(runInfo *runInfoStruct, typeStruct *ast.TypeStruct) reflect.Type {
+	var e *env.Env
+	e, runInfo.err = runInfo.env.GetEnvFromPath(typeStruct.Env)
+	if runInfo.err != nil {
+		return nil
+	}
+
+	var t reflect.Type
+	t, runInfo.err = e.Type(typeStruct.Name)
+	return t
+}
+
 func makeValue(t reflect.Type) (reflect.Value, error) {
 	switch t.Kind() {
 	case reflect.Chan:
@@ -204,4 +281,27 @@ func makeValue(t reflect.Type) (reflect.Value, error) {
 		return reflect.MakeSlice(t, 0, 0), nil
 	}
 	return reflect.New(t).Elem(), nil
+}
+
+// precedenceOfKinds returns the greater of two kinds, string > float > int.
+func precedenceOfKinds(kind1 reflect.Kind, kind2 reflect.Kind) reflect.Kind {
+	if kind1 == kind2 {
+		return kind1
+	}
+	switch kind1 {
+	case reflect.String:
+		return kind1
+	case reflect.Float64, reflect.Float32:
+		switch kind2 {
+		case reflect.String:
+			return kind2
+		}
+		return kind1
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		switch kind2 {
+		case reflect.String, reflect.Float64, reflect.Float32:
+			return kind2
+		}
+	}
+	return kind1
 }
