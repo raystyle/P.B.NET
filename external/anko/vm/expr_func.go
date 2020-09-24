@@ -195,6 +195,115 @@ func (runInfo *runInfoStruct) callExpr() {
 	runInfo.rv, runInfo.err = processCallReturnValues(rvs, isRunVMFunction, true)
 }
 
+// makeCallArgs creates the arguments reflect.Value slice for the four different kinds of functions.
+// Also returns true if CallSlice should be used on the arguments, or false if Call should be used.
+func (runInfo *runInfoStruct) makeCallArgs(rt reflect.Type, isRunVMFunction bool, callExpr *ast.CallExpr) ([]reflect.Value, bool) {
+	// number of arguments
+	numInReal := rt.NumIn()
+	numIn := numInReal
+	if isRunVMFunction {
+		// for runVMFunction the first arg is context so does not count against number of SubExprs
+		numIn--
+	}
+	if numIn < 1 {
+		// no arguments needed
+		if isRunVMFunction {
+			// for runVMFunction first arg is always context
+			return []reflect.Value{reflect.ValueOf(runInfo.ctx)}, false
+		}
+		return []reflect.Value{}, false
+	}
+
+	// number of expressions
+	numExprs := len(callExpr.SubExprs)
+	// checks to short circuit wrong number of arguments
+	if (!rt.IsVariadic() && !callExpr.VarArg && numIn != numExprs) ||
+		(rt.IsVariadic() && callExpr.VarArg && (numIn < numExprs || numIn > numExprs+1)) ||
+		(rt.IsVariadic() && !callExpr.VarArg && numIn > numExprs+1) ||
+		(!rt.IsVariadic() && callExpr.VarArg && numIn < numExprs) {
+		const format = "function wants %v arguments but received %v"
+		runInfo.err = newStringError(callExpr, fmt.Sprintf(format, numIn, numExprs))
+		runInfo.rv = nilValue
+		return nil, false
+	}
+	if rt.IsVariadic() && rt.In(numInReal-1).Kind() != reflect.Slice &&
+		rt.In(numInReal-1).Kind() != reflect.Array {
+		const errStr = "function is variadic but last parameter is of type "
+		runInfo.err = newStringError(callExpr, errStr+rt.In(numInReal-1).String())
+		runInfo.rv = nilValue
+		return nil, false
+	}
+
+	var args []reflect.Value
+	indexIn := 0
+	indexInReal := 0
+	indexExpr := 0
+
+	if numInReal > numExprs {
+		args = make([]reflect.Value, 0, numInReal)
+	} else {
+		args = make([]reflect.Value, 0, numExprs)
+	}
+	if isRunVMFunction {
+		// for runVMFunction first arg is always context
+		args = append(args, reflect.ValueOf(runInfo.ctx))
+		indexInReal++
+	}
+
+	// create arguments except the last one
+	for indexInReal < numInReal-1 && indexExpr < numExprs-1 {
+		runInfo.expr = callExpr.SubExprs[indexExpr]
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return nil, false
+		}
+		if isRunVMFunction {
+			args = append(args, reflect.ValueOf(runInfo.rv))
+		} else {
+			runInfo.rv, runInfo.err = convertReflectValueToType(runInfo.rv, rt.In(indexInReal))
+			if runInfo.err != nil {
+				const format = "function wants argument type %s but received type %s"
+				errStr := fmt.Sprintf(format, rt.In(indexInReal), runInfo.rv.Type())
+				runInfo.err = newStringError(callExpr.SubExprs[indexExpr], errStr)
+				runInfo.rv = nilValue
+				return nil, false
+			}
+			args = append(args, runInfo.rv)
+		}
+		indexIn++
+		indexInReal++
+		indexExpr++
+	}
+
+	if !rt.IsVariadic() && !callExpr.VarArg {
+		// function is not variadic and call is not variadic
+		// add last arguments and return
+		runInfo.expr = callExpr.SubExprs[indexExpr]
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return nil, false
+		}
+		if runInfo.err != nil {
+			return nil, false
+		}
+		if isRunVMFunction {
+			args = append(args, reflect.ValueOf(runInfo.rv))
+		} else {
+			runInfo.rv, runInfo.err = convertReflectValueToType(runInfo.rv, rt.In(indexInReal))
+			if runInfo.err != nil {
+				const format = "function wants argument type %s but received type %s"
+				errStr := fmt.Sprintf(format, rt.In(indexInReal), runInfo.rv.Type())
+				runInfo.err = newStringError(callExpr.SubExprs[indexExpr], errStr)
+				runInfo.rv = nilValue
+				return nil, false
+			}
+			args = append(args, runInfo.rv)
+		}
+		return args, false
+	}
+
+}
+
 // checkIfRunVMFunction checking the number and types of the reflect.Type.
 // If it matches the types for a runVMFunction this will return true, otherwise false.
 func checkIfRunVMFunction(rt reflect.Type) bool {
