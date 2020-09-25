@@ -8,6 +8,8 @@ import (
 )
 
 // invokeExpr evaluates one expression.
+// nolint: gocyclo
+//gocyclo:ignore
 func (runInfo *runInfoStruct) invokeExpr() {
 	switch expr := runInfo.expr.(type) {
 
@@ -152,6 +154,69 @@ func (runInfo *runInfoStruct) invokeExpr() {
 			m.SetMapIndex(key, runInfo.rv)
 		}
 		runInfo.rv = m
+
+	// dereferenceExpr
+	case *ast.DerefExpr:
+		runInfo.expr = expr.Expr
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+
+		if runInfo.rv.Kind() != reflect.Ptr {
+			runInfo.err = newStringError(expr.Expr, "cannot deference non-pointer")
+			runInfo.rv = nilValue
+			return
+		}
+		runInfo.rv = runInfo.rv.Elem()
+
+	// AddrExpr
+	case *ast.AddrExpr:
+		runInfo.expr = expr.Expr
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+
+		if runInfo.rv.CanAddr() {
+			runInfo.rv = runInfo.rv.Addr()
+		} else {
+			i := runInfo.rv.Interface()
+			runInfo.rv = reflect.ValueOf(&i)
+		}
+
+	// UnaryExpr
+	case *ast.UnaryExpr:
+		runInfo.expr = expr.Expr
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+
+		switch expr.Operator {
+		case "-":
+			switch runInfo.rv.Kind() {
+			case reflect.Int64:
+				runInfo.rv = reflect.ValueOf(-runInfo.rv.Int())
+			case reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int, reflect.Bool:
+				runInfo.rv = reflect.ValueOf(-toInt64(runInfo.rv))
+			case reflect.Float64:
+				runInfo.rv = reflect.ValueOf(-runInfo.rv.Float())
+			default:
+				runInfo.rv = reflect.ValueOf(-toFloat64(runInfo.rv))
+			}
+		case "^":
+			runInfo.rv = reflect.ValueOf(^toInt64(runInfo.rv))
+		case "!":
+			if toBool(runInfo.rv) {
+				runInfo.rv = falseValue
+			} else {
+				runInfo.rv = trueValue
+			}
+		default:
+			runInfo.err = newStringError(expr, "unknown operator")
+			runInfo.rv = nilValue
+		}
 
 	default:
 		runInfo.err = newStringError(expr, "unknown expression")
