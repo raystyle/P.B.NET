@@ -85,6 +85,31 @@ func recoverFunc(runInfo *runInfoStruct) {
 	}
 }
 
+func getMapIndex(key reflect.Value, aMap reflect.Value) reflect.Value {
+	if aMap.IsNil() {
+		return nilValue
+	}
+
+	var err error
+	key, err = convertReflectValueToType(key, aMap.Type().Key())
+	if err != nil {
+		return nilValue
+	}
+
+	// From reflect MapIndex:
+	// It returns the zero Value if key is not found in the map or if v represents a nil map.
+	value := aMap.MapIndex(key)
+	if !value.IsValid() {
+		return nilValue
+	}
+
+	if aMap.Type().Elem() == interfaceType && !value.IsNil() {
+		value = reflect.ValueOf(value.Interface())
+	}
+
+	return value
+}
+
 // appendSlice appends rhs to lhs, function assumes lhsV and rhsV are slice or array.
 // nolint: gocyclo
 //gocyclo:ignore

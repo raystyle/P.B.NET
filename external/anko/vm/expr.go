@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"project/external/anko/ast"
+	"project/external/anko/env"
 )
 
 // invokeExpr evaluates one expression.
@@ -215,6 +216,69 @@ func (runInfo *runInfoStruct) invokeExpr() {
 			}
 		default:
 			runInfo.err = newStringError(expr, "unknown operator")
+			runInfo.rv = nilValue
+		}
+
+	// ParenExpr
+	case *ast.ParenExpr:
+		runInfo.expr = expr.SubExpr
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+
+	// MemberExpr
+	case *ast.MemberExpr:
+		runInfo.expr = expr.Expr
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+
+		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
+			runInfo.rv = runInfo.rv.Elem()
+		}
+
+		if e, ok := runInfo.rv.Interface().(*env.Env); ok {
+			runInfo.rv, runInfo.err = e.GetValue(expr.Name)
+			if runInfo.err != nil {
+				runInfo.err = newError(expr, runInfo.err)
+				runInfo.rv = nilValue
+			}
+			return
+		}
+
+		value := runInfo.rv.MethodByName(expr.Name)
+		if value.IsValid() {
+			runInfo.rv = value
+			return
+		}
+
+		if runInfo.rv.Kind() == reflect.Ptr {
+			runInfo.rv = runInfo.rv.Elem()
+		}
+
+		switch runInfo.rv.Kind() {
+		case reflect.Struct:
+			field, found := runInfo.rv.Type().FieldByName(expr.Name)
+			if found {
+				runInfo.rv = runInfo.rv.FieldByIndex(field.Index)
+				return
+			}
+			if runInfo.rv.CanAddr() {
+				runInfo.rv = runInfo.rv.Addr()
+				method, found := runInfo.rv.Type().MethodByName(expr.Name)
+				if found {
+					runInfo.rv = runInfo.rv.Method(method.Index)
+					return
+				}
+			}
+			runInfo.err = newStringError(expr, "no member named '"+expr.Name+"' for struct")
+			runInfo.rv = nilValue
+		case reflect.Map:
+			runInfo.rv = getMapIndex(reflect.ValueOf(expr.Name), runInfo.rv)
+		default:
+			runInfo.err = newStringError(expr, "type "+runInfo.rv.Kind().String()+" does not support member operation")
 			runInfo.rv = nilValue
 		}
 
