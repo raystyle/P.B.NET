@@ -10,11 +10,6 @@ import (
 	"project/external/anko/parser"
 )
 
-// Options provides options to run VM with.
-type Options struct {
-	Debug bool // run in Debug mode
-}
-
 var (
 	stringType         = reflect.TypeOf("a")
 	byteType           = reflect.TypeOf(byte('a'))
@@ -32,6 +27,11 @@ var (
 	reflectValueNilValue      = reflect.ValueOf(nilValue)
 	reflectValueErrorNilValue = reflect.ValueOf(reflect.New(errorType).Elem())
 )
+
+// Options provides options to run VM with.
+type Options struct {
+	Debug bool // run in Debug mode
+}
 
 // Execute parses script and executes in the specified environment.
 func Execute(env *env.Env, opts *Options, script string) (interface{}, error) {
@@ -106,6 +106,70 @@ func isNum(v reflect.Value) bool {
 		return true
 	}
 	return false
+}
+
+// equal returns true when lhsV and rhsV is same value.
+// nolint: gocyclo
+//gocyclo:ignore
+func equal(lhsV, rhsV reflect.Value) bool {
+	lhsIsNil, rhsIsNil := isNil(lhsV), isNil(rhsV)
+	if lhsIsNil && rhsIsNil {
+		return true
+	}
+	if (!lhsIsNil && rhsIsNil) || (lhsIsNil && !rhsIsNil) {
+		return false
+	}
+	if lhsV.Kind() == reflect.Interface || lhsV.Kind() == reflect.Ptr {
+		lhsV = lhsV.Elem()
+	}
+	if rhsV.Kind() == reflect.Interface || rhsV.Kind() == reflect.Ptr {
+		rhsV = rhsV.Elem()
+	}
+
+	// Compare a string and a number.
+	// This will attempt to convert the string to a number,
+	// while leaving the other side alone. Code further
+	// down takes care of converting integers and floats as needed.
+	if isNum(lhsV) && rhsV.Kind() == reflect.String {
+		rhsF, err := tryToFloat64(rhsV)
+		if err != nil {
+			// Couldn't convert RHS to a float, they can't be compared.
+			return false
+		}
+		rhsV = reflect.ValueOf(rhsF)
+	} else if lhsV.Kind() == reflect.String && isNum(rhsV) {
+		// If the LHS is a string formatted as an int, try that before trying float
+		lhsI, err := tryToInt64(lhsV)
+		if err != nil {
+			// if LHS is a float, e.g. "1.2", we need to set lhsV to a float64
+			lhsF, err := tryToFloat64(lhsV)
+			if err != nil {
+				return false
+			}
+			lhsV = reflect.ValueOf(lhsF)
+		} else {
+			lhsV = reflect.ValueOf(lhsI)
+		}
+	}
+
+	if isNum(lhsV) && isNum(rhsV) {
+		return fmt.Sprintf("%v", lhsV) == fmt.Sprintf("%v", rhsV)
+	}
+
+	// Try to compare booleans to strings and numbers
+	if lhsV.Kind() == reflect.Bool || rhsV.Kind() == reflect.Bool {
+		lhsB, err := tryToBool(lhsV)
+		if err != nil {
+			return false
+		}
+		rhsB, err := tryToBool(rhsV)
+		if err != nil {
+			return false
+		}
+		return lhsB == rhsB
+	}
+
+	return reflect.DeepEqual(lhsV.Interface(), rhsV.Interface())
 }
 
 func getMapIndex(key reflect.Value, aMap reflect.Value) reflect.Value {

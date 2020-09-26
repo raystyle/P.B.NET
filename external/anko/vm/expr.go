@@ -486,6 +486,27 @@ func (runInfo *runInfoStruct) invokeExpr() {
 		runInfo.expr = expr.RHS
 		runInfo.invokeExpr()
 
+	// LenExpr
+	case *ast.LenExpr:
+		runInfo.expr = expr.Expr
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+
+		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
+			runInfo.rv = runInfo.rv.Elem()
+		}
+
+		switch runInfo.rv.Kind() {
+		case reflect.Slice, reflect.Array, reflect.Map, reflect.String, reflect.Chan:
+			runInfo.rv = reflect.ValueOf(int64(runInfo.rv.Len()))
+		default:
+			errStr := fmt.Sprintf("type %s does not support len operation", runInfo.rv.Kind())
+			runInfo.err = newStringError(expr, errStr)
+			runInfo.rv = nilValue
+		}
+
 	default:
 		runInfo.err = newStringError(expr, "unknown expression")
 		runInfo.rv = nilValue
