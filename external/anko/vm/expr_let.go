@@ -279,6 +279,117 @@ func (runInfo *runInfoStruct) invokeLetExpr() {
 			runInfo.rv = nilValue
 		}
 
+	// SliceExpr
+	case *ast.SliceExpr:
+		value := runInfo.rv
+
+		runInfo.expr = expr.Item
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+		item := runInfo.rv
+
+		if item.Kind() == reflect.Interface && !item.IsNil() {
+			item = item.Elem()
+		}
+
+		switch item.Kind() {
+
+		// Slice && Array
+		case reflect.Slice, reflect.Array:
+			var beginIndex int
+			endIndex := item.Len()
+
+			if expr.Begin != nil {
+				runInfo.expr = expr.Begin
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					return
+				}
+				beginIndex, runInfo.err = tryToInt(runInfo.rv)
+				if runInfo.err != nil {
+					runInfo.err = newStringError(expr, "index must be a number")
+					runInfo.rv = nilValue
+					return
+				}
+				// (0 <= low) <= high <= len(a)
+				if beginIndex < 0 {
+					runInfo.err = newStringError(expr, "index out of range")
+					runInfo.rv = nilValue
+					return
+				}
+			}
+
+			if expr.End != nil {
+				runInfo.expr = expr.End
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					return
+				}
+				endIndex, runInfo.err = tryToInt(runInfo.rv)
+				if runInfo.err != nil {
+					runInfo.err = newStringError(expr, "index must be a number")
+					runInfo.rv = nilValue
+					return
+				}
+				// 0 <= low <= (high <= len(a))
+				if endIndex > item.Len() {
+					runInfo.err = newStringError(expr, "index out of range")
+					runInfo.rv = nilValue
+					return
+				}
+			}
+
+			// 0 <= (low <= high) <= len(a)
+			if beginIndex > endIndex {
+				runInfo.err = newStringError(expr, "index out of range")
+				runInfo.rv = nilValue
+				return
+			}
+
+			sliceCap := item.Cap()
+			if expr.Cap != nil {
+				runInfo.expr = expr.Cap
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					return
+				}
+				sliceCap, runInfo.err = tryToInt(runInfo.rv)
+				if runInfo.err != nil {
+					runInfo.err = newStringError(expr, "cap must be a number")
+					runInfo.rv = nilValue
+					return
+				}
+				//  0 <= low <= (high <= max <= cap(a))
+				if sliceCap < endIndex || sliceCap > item.Cap() {
+					runInfo.err = newStringError(expr, "cap out of range")
+					runInfo.rv = nilValue
+					return
+				}
+			}
+
+			item = item.Slice3(beginIndex, endIndex, sliceCap)
+
+			if !item.CanSet() {
+				runInfo.err = newStringError(expr, "slice cannot be assigned")
+				runInfo.rv = nilValue
+				return
+			}
+			item.Set(value)
+
+		// String
+		case reflect.String:
+			const errStr = "type string does not support slice operation for assignment"
+			runInfo.err = newStringError(expr, errStr)
+			runInfo.rv = nilValue
+
+		default:
+			errStr := "type " + item.Kind().String() + " does not support slice operation"
+			runInfo.err = newStringError(expr, errStr)
+			runInfo.rv = nilValue
+		}
+
 	// dereference expr
 	case *ast.DerefExpr:
 		value := runInfo.rv
