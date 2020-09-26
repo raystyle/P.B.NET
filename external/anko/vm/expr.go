@@ -737,6 +737,36 @@ func (runInfo *runInfoStruct) invokeExpr() {
 		runInfo.expr = expr
 		runInfo.callExpr()
 
+	// IncludeExpr
+	case *ast.IncludeExpr:
+		runInfo.expr = expr.ItemExpr
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+		itemExpr := runInfo.rv
+
+		runInfo.expr = expr.ListExpr
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+
+		if runInfo.rv.Kind() != reflect.Slice && runInfo.rv.Kind() != reflect.Array {
+			const errStr = "second argument must be slice or array; but have "
+			runInfo.err = newStringError(expr, errStr+runInfo.rv.Kind().String())
+			runInfo.rv = nilValue
+			return
+		}
+
+		for i := 0; i < runInfo.rv.Len(); i++ {
+			if equal(itemExpr, runInfo.rv.Index(i)) {
+				runInfo.rv = trueValue
+				return
+			}
+		}
+		runInfo.rv = falseValue
+
 	default:
 		runInfo.err = newStringError(expr, "unknown expression")
 		runInfo.rv = nilValue
