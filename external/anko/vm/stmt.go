@@ -37,5 +37,95 @@ type runInfoStruct struct {
 
 // runSingleStmt executes statement in the specified environment with context.
 func (runInfo *runInfoStruct) runSingleStmt() {
+	select {
+	case <-runInfo.ctx.Done():
+		runInfo.rv = nilValue
+		runInfo.err = ErrInterrupt
+		return
+	default:
+	}
 
+	switch stmt := runInfo.stmt.(type) {
+
+	// nil
+	case nil:
+
+	// StmtsStmt
+	case *ast.StmtsStmt:
+		for _, stmt := range stmt.Stmts {
+			switch stmt.(type) {
+			case *ast.BreakStmt:
+				runInfo.err = ErrBreak
+				return
+			case *ast.ContinueStmt:
+				runInfo.err = ErrContinue
+				return
+			case *ast.ReturnStmt:
+				runInfo.stmt = stmt
+				runInfo.runSingleStmt()
+				if runInfo.err != nil {
+					return
+				}
+				runInfo.err = ErrReturn
+				return
+			default:
+				runInfo.stmt = stmt
+				runInfo.runSingleStmt()
+				if runInfo.err != nil {
+					return
+				}
+			}
+		}
+
+	// ExprStmt
+	case *ast.ExprStmt:
+		runInfo.expr = stmt.Expr
+		runInfo.invokeExpr()
+
+	// VarStmt
+	case *ast.VarStmt:
+		// get right side expression values
+		rvs := make([]reflect.Value, len(stmt.Exprs))
+		var i int
+		for i, runInfo.expr = range stmt.Exprs {
+			runInfo.invokeExpr()
+			if runInfo.err != nil {
+				return
+			}
+			if e, ok := runInfo.rv.Interface().(*env.Env); ok {
+				rvs[i] = reflect.ValueOf(e.DeepCopy())
+			} else {
+				rvs[i] = runInfo.rv
+			}
+		}
+
+		if len(rvs) == 1 && len(stmt.Names) > 1 {
+			// only one right side value but many left side names
+			value := rvs[0]
+			if value.Kind() == reflect.Interface && !value.IsNil() {
+				value = value.Elem()
+			}
+			if (value.Kind() == reflect.Slice || value.Kind() == reflect.Array) && value.Len() > 0 {
+				// value is slice/array, add each value to left side names
+				for i := 0; i < value.Len() && i < len(stmt.Names); i++ {
+					_ = runInfo.env.DefineValue(stmt.Names[i], value.Index(i))
+				}
+				// return last value of slice/array
+				runInfo.rv = value.Index(value.Len() - 1)
+				return
+			}
+		}
+
+		// define all names with right side values
+		for i = 0; i < len(rvs) && i < len(stmt.Names); i++ {
+			_ = runInfo.env.DefineValue(stmt.Names[i], rvs[i])
+		}
+
+		// return last right side value
+		runInfo.rv = rvs[len(rvs)-1]
+
+	default:
+		runInfo.err = newStringError(stmt, "unknown statement")
+		runInfo.rv = nilValue
+	}
 }
