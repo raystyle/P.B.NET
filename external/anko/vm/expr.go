@@ -273,12 +273,164 @@ func (runInfo *runInfoStruct) invokeExpr() {
 					return
 				}
 			}
-			runInfo.err = newStringError(expr, "no member named '"+expr.Name+"' for struct")
+			errStr := fmt.Sprintf("no member named \"%s\" for struct", expr.Name)
+			runInfo.err = newStringError(expr, errStr)
 			runInfo.rv = nilValue
 		case reflect.Map:
 			runInfo.rv = getMapIndex(reflect.ValueOf(expr.Name), runInfo.rv)
 		default:
-			runInfo.err = newStringError(expr, "type "+runInfo.rv.Kind().String()+" does not support member operation")
+			errStr := fmt.Sprintf("type %s does not support member operation", runInfo.rv.Kind())
+			runInfo.err = newStringError(expr, errStr)
+			runInfo.rv = nilValue
+		}
+
+	// ItemExpr
+	case *ast.ItemExpr:
+		runInfo.expr = expr.Item
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+		item := runInfo.rv
+
+		runInfo.expr = expr.Index
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+
+		if item.Kind() == reflect.Interface && !item.IsNil() {
+			item = item.Elem()
+		}
+
+		switch item.Kind() {
+		case reflect.String, reflect.Slice, reflect.Array:
+			var index int
+			index, runInfo.err = tryToInt(runInfo.rv)
+			if runInfo.err != nil {
+				runInfo.err = newStringError(expr, "index must be a number")
+				runInfo.rv = nilValue
+				return
+			}
+			if index < 0 || index >= item.Len() {
+				runInfo.err = newStringError(expr, "index out of range")
+				runInfo.rv = nilValue
+				return
+			}
+			if item.Kind() != reflect.String {
+				runInfo.rv = item.Index(index)
+			} else {
+				// String
+				runInfo.rv = item.Index(index).Convert(stringType)
+			}
+		case reflect.Map:
+			runInfo.rv = getMapIndex(runInfo.rv, item)
+		default:
+			errStr := fmt.Sprintf("type %s does not support index operation", item.Kind())
+			runInfo.err = newStringError(expr, errStr)
+			runInfo.rv = nilValue
+		}
+
+	// SliceExpr
+	case *ast.SliceExpr:
+		runInfo.expr = expr.Item
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+		item := runInfo.rv
+
+		if item.Kind() == reflect.Interface && !item.IsNil() {
+			item = item.Elem()
+		}
+
+		switch item.Kind() {
+		case reflect.String, reflect.Slice, reflect.Array:
+			var beginIndex int
+			endIndex := item.Len()
+
+			if expr.Begin != nil {
+				runInfo.expr = expr.Begin
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					return
+				}
+				beginIndex, runInfo.err = tryToInt(runInfo.rv)
+				if runInfo.err != nil {
+					runInfo.err = newStringError(expr, "index must be a number")
+					runInfo.rv = nilValue
+					return
+				}
+				// (0 <= low) <= high <= len(a)
+				if beginIndex < 0 {
+					runInfo.err = newStringError(expr, "index out of range")
+					runInfo.rv = nilValue
+					return
+				}
+			}
+
+			if expr.End != nil {
+				runInfo.expr = expr.End
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					return
+				}
+				endIndex, runInfo.err = tryToInt(runInfo.rv)
+				if runInfo.err != nil {
+					runInfo.err = newStringError(expr, "index must be a number")
+					runInfo.rv = nilValue
+					return
+				}
+				// 0 <= low <= (high <= len(a))
+				if endIndex > item.Len() {
+					runInfo.err = newStringError(expr, "index out of range")
+					runInfo.rv = nilValue
+					return
+				}
+			}
+
+			// 0 <= (low <= high) <= len(a)
+			if beginIndex > endIndex {
+				runInfo.err = newStringError(expr, "index out of range")
+				runInfo.rv = nilValue
+				return
+			}
+
+			if item.Kind() == reflect.String {
+				if expr.Cap != nil {
+					runInfo.err = newStringError(expr, "type string does not support cap")
+					runInfo.rv = nilValue
+					return
+				}
+				runInfo.rv = item.Slice(beginIndex, endIndex)
+				return
+			}
+
+			sliceCap := item.Cap()
+			if expr.Cap != nil {
+				runInfo.expr = expr.Cap
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					return
+				}
+				sliceCap, runInfo.err = tryToInt(runInfo.rv)
+				if runInfo.err != nil {
+					runInfo.err = newStringError(expr, "cap must be a number")
+					runInfo.rv = nilValue
+					return
+				}
+				//  0 <= low <= (high <= max <= cap(a))
+				if sliceCap < endIndex || sliceCap > item.Cap() {
+					runInfo.err = newStringError(expr, "cap out of range")
+					runInfo.rv = nilValue
+					return
+				}
+			}
+
+			runInfo.rv = item.Slice3(beginIndex, endIndex, sliceCap)
+		default:
+			errStr := fmt.Sprintf("type %s does not support slice operation", item.Kind())
+			runInfo.err = newStringError(expr, errStr)
 			runInfo.rv = nilValue
 		}
 
