@@ -85,6 +85,29 @@ func recoverFunc(runInfo *runInfoStruct) {
 	}
 }
 
+func isNil(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		// from reflect IsNil:
+		// Note that IsNil is not always equivalent to a regular comparison with nil in Go.
+		// For example, if v was created by calling ValueOf with an uninitialized interface variable i,
+		// i==nil will be true but v.IsNil will panic as v will be the zero Value.
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
+func isNum(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64:
+		return true
+	}
+	return false
+}
+
 func getMapIndex(key reflect.Value, aMap reflect.Value) reflect.Value {
 	if aMap.IsNil() {
 		return nilValue

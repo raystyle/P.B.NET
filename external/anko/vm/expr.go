@@ -434,6 +434,58 @@ func (runInfo *runInfoStruct) invokeExpr() {
 			runInfo.rv = nilValue
 		}
 
+	// LetsExpr
+	case *ast.LetsExpr:
+		var i int
+		for i, runInfo.expr = range expr.RHSS {
+			runInfo.invokeExpr()
+			if runInfo.err != nil {
+				return
+			}
+			if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
+				runInfo.rv = runInfo.rv.Elem()
+			}
+			if i < len(expr.LHSS) {
+				runInfo.expr = expr.LHSS[i]
+				runInfo.invokeLetExpr()
+				if runInfo.err != nil {
+					return
+				}
+			}
+
+		}
+
+	// TernaryOpExpr
+	case *ast.TernaryOpExpr:
+		runInfo.expr = expr.Expr
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+
+		if toBool(runInfo.rv) {
+			runInfo.expr = expr.LHS
+		} else {
+			runInfo.expr = expr.RHS
+		}
+		runInfo.invokeExpr()
+
+	// NilCoalescingOpExpr
+	case *ast.NilCoalescingOpExpr:
+		// if left side has no error and is not nil, returns left side
+		// otherwise returns right side
+		runInfo.expr = expr.LHS
+		runInfo.invokeExpr()
+		if runInfo.err == nil {
+			if !isNil(runInfo.rv) {
+				return
+			}
+		} else {
+			runInfo.err = nil
+		}
+		runInfo.expr = expr.RHS
+		runInfo.invokeExpr()
+
 	default:
 		runInfo.err = newStringError(expr, "unknown expression")
 		runInfo.rv = nilValue
