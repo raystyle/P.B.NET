@@ -615,9 +615,127 @@ func (runInfo *runInfoStruct) invokeExpr() {
 		}
 
 		// if expr.Name has a dot in it, it should give a syntax error, so no needs to check err
-		runInfo.env.DefineReflectType(expr.Name, runInfo.rv.Type())
+		_ = runInfo.env.DefineReflectType(expr.Name, runInfo.rv.Type())
 
 		runInfo.rv = reflect.ValueOf(runInfo.rv.Type())
+
+	// ChanExpr
+	case *ast.ChanExpr:
+		runInfo.expr = expr.RHS
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
+			runInfo.rv = runInfo.rv.Elem()
+		}
+
+		var lhs reflect.Value
+		rhs := runInfo.rv
+
+		if expr.LHS == nil {
+			// lhs is nil
+			if rhs.Kind() != reflect.Chan {
+				// rhs is not channel
+				runInfo.err = newStringError(expr, "receive from non-chan type "+rhs.Kind().String())
+				runInfo.rv = nilValue
+				return
+			}
+		} else {
+			// lhs is not nil
+			runInfo.expr = expr.LHS
+			runInfo.invokeExpr()
+			if runInfo.err != nil {
+				return
+			}
+			if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
+				runInfo.rv = runInfo.rv.Elem()
+			}
+			if runInfo.rv.Kind() != reflect.Chan {
+				// lhs is not channel
+				// lhs <- chan rhs or lhs <- rhs
+				runInfo.err = newStringError(expr, "send to non-chan type "+runInfo.rv.Kind().String())
+				runInfo.rv = nilValue
+				return
+			}
+			lhs = runInfo.rv
+		}
+
+		var chosen int
+		var ok bool
+
+		if rhs.Kind() == reflect.Chan {
+			// rhs is channel
+			// receive from rhs channel
+			cases := []reflect.SelectCase{{
+				Dir:  reflect.SelectRecv,
+				Chan: reflect.ValueOf(runInfo.ctx.Done()),
+			}, {
+				Dir:  reflect.SelectRecv,
+				Chan: rhs,
+			}}
+			chosen, runInfo.rv, ok = reflect.Select(cases)
+			if chosen == 0 {
+				runInfo.err = ErrInterrupt
+				runInfo.rv = nilValue
+				return
+			}
+			if !ok {
+				runInfo.rv = nilValue
+				return
+			}
+			rhs = runInfo.rv
+		}
+
+		if expr.LHS == nil {
+			// <- chan rhs is receive
+			return
+		}
+
+		// chan lhs <- chan rhs is receive & send
+		// or
+		// chan lhs <- rhs is send
+
+		runInfo.rv = nilValue
+		rhs, runInfo.err = convertReflectValueToType(rhs, lhs.Type().Elem())
+		if runInfo.err != nil {
+			const format = "cannot use type %s as type %s to send to chan"
+			errStr := fmt.Sprintf(format, rhs.Type(), lhs.Type().Elem())
+			runInfo.err = newStringError(expr, errStr)
+			return
+		}
+		// send rhs to lhs channel
+		cases := []reflect.SelectCase{{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(runInfo.ctx.Done()),
+		}, {
+			Dir:  reflect.SelectSend,
+			Chan: lhs,
+			Send: rhs,
+		}}
+		if !runInfo.options.Debug {
+			// captures panic
+			defer recoverFunc(runInfo)
+		}
+		chosen, _, _ = reflect.Select(cases)
+		if chosen == 0 {
+			runInfo.err = ErrInterrupt
+		}
+
+	// FuncExpr
+	case *ast.FuncExpr:
+		runInfo.expr = expr
+		runInfo.funcExpr()
+
+	// AnonCallExpr
+	case *ast.AnonCallExpr:
+		runInfo.expr = expr
+		runInfo.anonCallExpr()
+
+	// CallExpr
+	case *ast.CallExpr:
+		runInfo.expr = expr
+		runInfo.callExpr()
 
 	default:
 		runInfo.err = newStringError(expr, "unknown expression")
