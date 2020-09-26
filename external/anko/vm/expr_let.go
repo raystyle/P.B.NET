@@ -112,6 +112,173 @@ func (runInfo *runInfoStruct) invokeLetExpr() {
 			runInfo.rv = nilValue
 		}
 
+	// ItemExpr
+	case *ast.ItemExpr:
+		value := runInfo.rv
+
+		runInfo.expr = expr.Item
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+		item := runInfo.rv
+
+		runInfo.expr = expr.Index
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+
+		if item.Kind() == reflect.Interface && !item.IsNil() {
+			item = item.Elem()
+		}
+
+		switch item.Kind() {
+
+		// Slice && Array
+		case reflect.Slice, reflect.Array:
+			var index int
+			index, runInfo.err = tryToInt(runInfo.rv)
+			if runInfo.err != nil {
+				runInfo.err = newStringError(expr, "index must be a number")
+				runInfo.rv = nilValue
+				return
+			}
+
+			if index == item.Len() {
+				// try to do automatic append
+				value, runInfo.err = convertReflectValueToType(value, item.Type().Elem())
+				if runInfo.err != nil {
+					const format = "type %s cannot be assigned to type %s for slice index"
+					errStr := fmt.Sprintf(format, value.Type(), item.Type().Elem())
+					runInfo.err = newStringError(expr, errStr)
+					runInfo.rv = nilValue
+					return
+				}
+				item = reflect.Append(item, value)
+				runInfo.rv = item
+				runInfo.expr = expr.Item
+				runInfo.invokeLetExpr()
+				runInfo.rv = item.Index(index)
+				return
+			}
+
+			if index < 0 || index >= item.Len() {
+				runInfo.err = newStringError(expr, "index out of range")
+				runInfo.rv = nilValue
+				return
+			}
+			item = item.Index(index)
+			if !item.CanSet() {
+				runInfo.err = newStringError(expr, "index cannot be assigned")
+				runInfo.rv = nilValue
+				return
+			}
+
+			value, runInfo.err = convertReflectValueToType(value, item.Type())
+			if runInfo.err != nil {
+				const format = "type %s cannot be assigned to type %s for slice index"
+				errStr := fmt.Sprintf(format, value.Type(), item.Type())
+				runInfo.err = newStringError(expr, errStr)
+				runInfo.rv = nilValue
+				return
+			}
+
+			item.Set(value)
+			runInfo.rv = item
+
+		// Map
+		case reflect.Map:
+			runInfo.rv, runInfo.err = convertReflectValueToType(runInfo.rv, item.Type().Key())
+			if runInfo.err != nil {
+				const format = "index type %s cannot be used for map index type %s"
+				errStr := fmt.Sprintf(format, runInfo.rv.Type(), item.Type().Key())
+				runInfo.err = newStringError(expr, errStr)
+				runInfo.rv = nilValue
+				return
+			}
+
+			value, runInfo.err = convertReflectValueToType(value, item.Type().Elem())
+			if runInfo.err != nil {
+				const format = "type %s cannot be assigned to type %s for map"
+				errStr := fmt.Sprintf(format, value.Type(), item.Type().Elem())
+				runInfo.err = newStringError(expr, errStr)
+				runInfo.rv = nilValue
+				return
+			}
+
+			if item.IsNil() {
+				// make new map
+				item = reflect.MakeMap(item.Type())
+				item.SetMapIndex(runInfo.rv, value)
+				mapIndex := runInfo.rv
+				// assign new map
+				runInfo.rv = item
+				runInfo.expr = expr.Item
+				runInfo.invokeLetExpr()
+				runInfo.rv = item.MapIndex(mapIndex)
+				return
+			}
+			item.SetMapIndex(runInfo.rv, value)
+
+		// String
+		case reflect.String:
+			var index int
+			index, runInfo.err = tryToInt(runInfo.rv)
+			if runInfo.err != nil {
+				runInfo.err = newStringError(expr, "index must be a number")
+				runInfo.rv = nilValue
+				return
+			}
+
+			value, runInfo.err = convertReflectValueToType(value, item.Type())
+			if runInfo.err != nil {
+				const format = "type %s cannot be assigned to type %s"
+				errStr := fmt.Sprintf(format, value.Type(), item.Type())
+				runInfo.err = newStringError(expr, errStr)
+				runInfo.rv = nilValue
+				return
+			}
+
+			if index == item.Len() {
+				// automatic append
+				if item.CanSet() {
+					item.SetString(item.String() + value.String())
+					return
+				}
+
+				runInfo.rv = reflect.ValueOf(item.String() + value.String())
+				runInfo.expr = expr.Item
+				runInfo.invokeLetExpr()
+				return
+			}
+
+			if index < 0 || index >= item.Len() {
+				runInfo.err = newStringError(expr, "index out of range")
+				runInfo.rv = nilValue
+				return
+			}
+
+			if item.CanSet() {
+				str := item.Slice(0, index).String() + value.String() +
+					item.Slice(index+1, item.Len()).String()
+				item.SetString(str)
+				runInfo.rv = item
+				return
+			}
+			str := item.Slice(0, index).String() + value.String() +
+				item.Slice(index+1, item.Len()).String()
+			runInfo.rv = reflect.ValueOf(str)
+			runInfo.expr = expr.Item
+			runInfo.invokeLetExpr()
+
+		default:
+			const format = "type %s does not support index operation"
+			errStr := fmt.Sprintf(format, item.Kind())
+			runInfo.err = newStringError(expr, errStr)
+			runInfo.rv = nilValue
+		}
+
 	// dereference expr
 	case *ast.DerefExpr:
 		value := runInfo.rv
