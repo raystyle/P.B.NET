@@ -316,7 +316,7 @@ func (mel *mockExternalLookup) Get(symbol string) (reflect.Value, error) {
 	if value, ok := mel.values[symbol]; ok {
 		return value, nil
 	}
-	return NilValue, fmt.Errorf("undefined symbol '%s'", symbol)
+	return NilValue, fmt.Errorf("undefined symbol \"%s\"", symbol)
 }
 
 func (mel *mockExternalLookup) DefineType(symbol string, aType interface{}) error {
@@ -341,7 +341,7 @@ func (mel *mockExternalLookup) Type(symbol string) (reflect.Type, error) {
 	if value, ok := mel.types[symbol]; ok {
 		return value, nil
 	}
-	return NilType, fmt.Errorf("undefined symbol '%s'", symbol)
+	return NilType, fmt.Errorf("undefined symbol \"%s\"", symbol)
 }
 
 func TestExternalLookupValueAndGet(t *testing.T) {
