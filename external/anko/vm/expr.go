@@ -507,6 +507,118 @@ func (runInfo *runInfoStruct) invokeExpr() {
 			runInfo.rv = nilValue
 		}
 
+	// ImportExpr
+	case *ast.ImportExpr:
+		runInfo.expr = expr.Name
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+		runInfo.rv, runInfo.err = convertReflectValueToType(runInfo.rv, stringType)
+		if runInfo.err != nil {
+			runInfo.rv = nilValue
+			return
+		}
+		name := runInfo.rv.String()
+		runInfo.rv = nilValue
+
+		methods, ok := env.Packages[name]
+		if !ok {
+			runInfo.err = newStringError(expr, "package not found: "+name)
+			return
+		}
+		var err error
+		pack := runInfo.env.NewEnv()
+		for methodName, methodValue := range methods {
+			err = pack.DefineValue(methodName, methodValue)
+			if err != nil {
+				runInfo.err = newStringError(expr, "import DefineValue error: "+err.Error())
+				return
+			}
+		}
+
+		types, ok := env.PackageTypes[name]
+		if ok {
+			for typeName, typeValue := range types {
+				err = pack.DefineReflectType(typeName, typeValue)
+				if err != nil {
+					runInfo.err = newStringError(expr, "import DefineReflectType error: "+err.Error())
+					return
+				}
+			}
+		}
+
+		runInfo.rv = reflect.ValueOf(pack)
+
+	// MakeExpr
+	case *ast.MakeExpr:
+		t := makeType(runInfo, expr.TypeData)
+		if runInfo.err != nil {
+			runInfo.rv = nilValue
+			return
+		}
+		if t == nil {
+			runInfo.err = newStringError(expr, "cannot make type nil")
+			runInfo.rv = nilValue
+			return
+		}
+
+		switch expr.TypeData.Kind {
+		case ast.TypeSlice:
+			aLen := 0
+			if expr.LenExpr != nil {
+				runInfo.expr = expr.LenExpr
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					return
+				}
+				aLen = toInt(runInfo.rv)
+			}
+			aCap := aLen
+			if expr.CapExpr != nil {
+				runInfo.expr = expr.CapExpr
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					return
+				}
+				aCap = toInt(runInfo.rv)
+			}
+			if aLen > aCap {
+				runInfo.err = newStringError(expr, "make slice len > cap")
+				runInfo.rv = nilValue
+				return
+			}
+			runInfo.rv = reflect.MakeSlice(t, aLen, aCap)
+			return
+		case ast.TypeChan:
+			aLen := 0
+			if expr.LenExpr != nil {
+				runInfo.expr = expr.LenExpr
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					return
+				}
+				aLen = toInt(runInfo.rv)
+			}
+			runInfo.rv = reflect.MakeChan(t, aLen)
+			return
+		}
+
+		runInfo.rv, runInfo.err = makeValue(t)
+
+	// MakeTypeExpr
+	case *ast.MakeTypeExpr:
+		runInfo.expr = expr.Type
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+
+		// if expr.Name has a dot in it, it should give a syntax error, so no needs to check err
+		runInfo.env.DefineReflectType(expr.Name, runInfo.rv.Type())
+
+		runInfo.rv = reflect.ValueOf(runInfo.rv.Type())
+
 	default:
 		runInfo.err = newStringError(expr, "unknown expression")
 		runInfo.rv = nilValue
