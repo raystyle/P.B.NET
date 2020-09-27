@@ -10,8 +10,8 @@ import (
 
 // funcExpr creates a function that reflect Call can use. When called,
 // it will run runVMFunction, to run the function statements.
-func (runInfo *runInfoStruct) funcExpr() {
-	funcExpr := runInfo.expr.(*ast.FuncExpr)
+func (ri *runInfo) funcExpr() {
+	funcExpr := ri.expr.(*ast.FuncExpr)
 
 	// create the inTypes needed by reflect.FuncOf
 	inTypes := make([]reflect.Type, len(funcExpr.Params)+1)
@@ -28,19 +28,19 @@ func (runInfo *runInfoStruct) funcExpr() {
 	funcType := reflect.FuncOf(inTypes, out, funcExpr.VarArg)
 
 	// for adding env into saved function
-	envFunc := runInfo.env
+	envFunc := ri.env
 
 	// create a function that can be used by reflect.MakeFunc
 	// this function is a translator that converts a function call into a vm run
 	// returns slice of reflect.Type with two values:
 	// return value of the function and error value of the run
 	runVMFunction := func(in []reflect.Value) []reflect.Value {
-		runInfo := runInfoStruct{
-			ctx:     in[0].Interface().(context.Context),
-			options: runInfo.options,
-			env:     envFunc.NewEnv(),
-			stmt:    funcExpr.Stmt,
-			rv:      nilValue,
+		runInfo := runInfo{
+			ctx:  in[0].Interface().(context.Context),
+			opts: ri.opts,
+			env:  envFunc.NewEnv(),
+			stmt: funcExpr.Stmt,
+			rv:   nilValue,
 		}
 		// add Params to newEnv, except last Params
 		for i := 0; i < len(funcExpr.Params)-1; i++ {
@@ -78,57 +78,57 @@ func (runInfo *runInfoStruct) funcExpr() {
 	}
 
 	// make the reflect.Value function that calls runVMFunction
-	runInfo.rv = reflect.MakeFunc(funcType, runVMFunction)
+	ri.rv = reflect.MakeFunc(funcType, runVMFunction)
 
 	// if function name is not empty, define it in the env
 	if funcExpr.Name != "" {
-		_ = runInfo.env.DefineValue(funcExpr.Name, runInfo.rv)
+		_ = ri.env.DefineValue(funcExpr.Name, ri.rv)
 	}
 }
 
 // anonCallExpr handles ast.AnonCallExpr which calls a function anonymously.
-func (runInfo *runInfoStruct) anonCallExpr() {
-	anonCallExpr := runInfo.expr.(*ast.AnonCallExpr)
+func (ri *runInfo) anonCallExpr() {
+	anonCallExpr := ri.expr.(*ast.AnonCallExpr)
 
-	runInfo.expr = anonCallExpr.Expr
-	runInfo.invokeExpr()
-	if runInfo.err != nil {
+	ri.expr = anonCallExpr.Expr
+	ri.invokeExpr()
+	if ri.err != nil {
 		return
 	}
 
-	if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-		runInfo.rv = runInfo.rv.Elem()
+	if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+		ri.rv = ri.rv.Elem()
 	}
-	if runInfo.rv.Kind() != reflect.Func {
-		runInfo.err = newStringError(anonCallExpr, "cannot call type "+runInfo.rv.Kind().String())
-		runInfo.rv = nilValue
+	if ri.rv.Kind() != reflect.Func {
+		ri.err = newStringError(anonCallExpr, "cannot call type "+ri.rv.Kind().String())
+		ri.rv = nilValue
 		return
 	}
 
-	runInfo.expr = &ast.CallExpr{
-		Func:     runInfo.rv,
+	ri.expr = &ast.CallExpr{
+		Func:     ri.rv,
 		SubExprs: anonCallExpr.SubExprs,
 		VarArg:   anonCallExpr.VarArg,
 		Go:       anonCallExpr.Go,
 	}
-	runInfo.expr.SetPosition(anonCallExpr.Expr.Position())
-	runInfo.invokeExpr()
+	ri.expr.SetPosition(anonCallExpr.Expr.Position())
+	ri.invokeExpr()
 }
 
 // callExpr handles *ast.CallExpr which calls a function.
-func (runInfo *runInfoStruct) callExpr() {
+func (ri *runInfo) callExpr() {
 	// Note that if the function type looks the same as the VM function type,
 	// the returned values will probably be wrong.
 
-	callExpr := runInfo.expr.(*ast.CallExpr)
+	callExpr := ri.expr.(*ast.CallExpr)
 
 	f := callExpr.Func
 	if !f.IsValid() {
 		// if function is not valid try to get by function name
-		f, runInfo.err = runInfo.env.GetValue(callExpr.Name)
-		if runInfo.err != nil {
-			runInfo.err = newError(callExpr, runInfo.err)
-			runInfo.rv = nilValue
+		f, ri.err = ri.env.GetValue(callExpr.Name)
+		if ri.err != nil {
+			ri.err = newError(callExpr, ri.err)
+			ri.rv = nilValue
 			return
 		}
 	}
@@ -137,8 +137,8 @@ func (runInfo *runInfoStruct) callExpr() {
 		f = f.Elem()
 	}
 	if f.Kind() != reflect.Func {
-		runInfo.err = newStringError(callExpr, "cannot call type "+f.Kind().String())
-		runInfo.rv = nilValue
+		ri.err = newStringError(callExpr, "cannot call type "+f.Kind().String())
+		ri.rv = nilValue
 		return
 	}
 
@@ -149,17 +149,17 @@ func (runInfo *runInfoStruct) callExpr() {
 	// check if this is a runVMFunction type
 	isRunVMFunction := checkIfRunVMFunction(fType)
 	// create/convert the args to the function
-	args, useCallSlice = runInfo.makeCallArgs(fType, isRunVMFunction, callExpr)
-	if runInfo.err != nil {
+	args, useCallSlice = ri.makeCallArgs(fType, isRunVMFunction, callExpr)
+	if ri.err != nil {
 		return
 	}
 
-	if !runInfo.options.Debug {
+	if !ri.opts.Debug {
 		// captures panic
-		defer recoverFunc(runInfo)
+		defer recoverFunc(ri)
 	}
 
-	runInfo.rv = nilValue
+	ri.rv = nilValue
 
 	// useCallSlice lets us know to use CallSlice instead of Call because of the format of the args
 	if useCallSlice {
@@ -183,23 +183,23 @@ func (runInfo *runInfoStruct) callExpr() {
 		for i, expr := range callExpr.SubExprs {
 			if addrExpr, ok := expr.(*ast.AddrExpr); ok {
 				if identExpr, ok := addrExpr.Expr.(*ast.IdentExpr); ok {
-					runInfo.rv = args[i].Elem()
-					runInfo.expr = identExpr
-					runInfo.invokeLetExpr()
+					ri.rv = args[i].Elem()
+					ri.expr = identExpr
+					ri.invokeLetExpr()
 				}
 			}
 		}
 	}
 
 	// processCallReturnValues to get/convert return values to normal rv form
-	runInfo.rv, runInfo.err = processCallReturnValues(rvs, isRunVMFunction, true)
+	ri.rv, ri.err = processCallReturnValues(rvs, isRunVMFunction, true)
 }
 
 // makeCallArgs creates the arguments reflect.Value slice for the four different kinds of functions.
 // Also returns true if CallSlice should be used on the arguments, or false if Call should be used.
 // nolint: gocyclo
 //gocyclo:ignore
-func (ri *runInfoStruct) makeCallArgs(rt reflect.Type, runVMFunc bool, ce *ast.CallExpr) ([]reflect.Value, bool) {
+func (ri *runInfo) makeCallArgs(rt reflect.Type, runVMFunc bool, ce *ast.CallExpr) ([]reflect.Value, bool) {
 	// number of arguments
 	numInReal := rt.NumIn()
 	numIn := numInReal

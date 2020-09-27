@@ -11,73 +11,73 @@ import (
 // invokeExpr evaluates one expression.
 // nolint: gocyclo
 //gocyclo:ignore
-func (runInfo *runInfoStruct) invokeExpr() {
-	switch expr := runInfo.expr.(type) {
+func (ri *runInfo) invokeExpr() {
+	switch expr := ri.expr.(type) {
 
 	// OpExpr
 	case *ast.OpExpr:
-		runInfo.operator = expr.Op
-		runInfo.invokeOperator()
+		ri.op = expr.Op
+		ri.invokeOperator()
 
 	// IdentExpr
 	case *ast.IdentExpr:
-		runInfo.rv, runInfo.err = runInfo.env.GetValue(expr.Lit)
-		if runInfo.err != nil {
-			runInfo.err = newError(expr, runInfo.err)
+		ri.rv, ri.err = ri.env.GetValue(expr.Lit)
+		if ri.err != nil {
+			ri.err = newError(expr, ri.err)
 		}
 
 	// LiteralExpr
 	case *ast.LiteralExpr:
-		runInfo.rv = expr.Literal
+		ri.rv = expr.Literal
 
 	// ArrayExpr
 	case *ast.ArrayExpr:
 		if expr.TypeData == nil {
 			slice := make([]interface{}, len(expr.Exprs))
 			var i int
-			for i, runInfo.expr = range expr.Exprs {
-				runInfo.invokeExpr()
-				if runInfo.err != nil {
+			for i, ri.expr = range expr.Exprs {
+				ri.invokeExpr()
+				if ri.err != nil {
 					return
 				}
-				slice[i] = runInfo.rv.Interface()
+				slice[i] = ri.rv.Interface()
 			}
-			runInfo.rv = reflect.ValueOf(slice)
+			ri.rv = reflect.ValueOf(slice)
 			return
 		}
 
-		t := makeType(runInfo, expr.TypeData)
-		if runInfo.err != nil {
-			runInfo.rv = nilValue
+		t := makeType(ri, expr.TypeData)
+		if ri.err != nil {
+			ri.rv = nilValue
 			return
 		}
 		if t == nil {
-			runInfo.err = newStringError(expr, "cannot make type nil")
-			runInfo.rv = nilValue
+			ri.err = newStringError(expr, "cannot make type nil")
+			ri.rv = nilValue
 			return
 		}
 
 		slice := reflect.MakeSlice(t, len(expr.Exprs), len(expr.Exprs))
 		var i int
 		valueType := t.Elem()
-		for i, runInfo.expr = range expr.Exprs {
-			runInfo.invokeExpr()
-			if runInfo.err != nil {
+		for i, ri.expr = range expr.Exprs {
+			ri.invokeExpr()
+			if ri.err != nil {
 				return
 			}
 
-			runInfo.rv, runInfo.err = convertReflectValueToType(runInfo.rv, valueType)
-			if runInfo.err != nil {
+			ri.rv, ri.err = convertReflectValueToType(ri.rv, valueType)
+			if ri.err != nil {
 				const format = "cannot use type %s as type %s as slice value"
-				errStr := fmt.Sprintf(format, runInfo.rv.Type(), valueType)
-				runInfo.err = newStringError(expr, errStr)
-				runInfo.rv = nilValue
+				errStr := fmt.Sprintf(format, ri.rv.Type(), valueType)
+				ri.err = newStringError(expr, errStr)
+				ri.rv = nilValue
 				return
 			}
 
-			slice.Index(i).Set(runInfo.rv)
+			slice.Index(i).Set(ri.rv)
 		}
-		runInfo.rv = slice
+		ri.rv = slice
 
 		// MapExpr
 	case *ast.MapExpr:
@@ -85,217 +85,217 @@ func (runInfo *runInfoStruct) invokeExpr() {
 			var i int
 			var key reflect.Value
 			m := make(map[interface{}]interface{}, len(expr.Keys))
-			for i, runInfo.expr = range expr.Keys {
-				runInfo.invokeExpr()
-				if runInfo.err != nil {
+			for i, ri.expr = range expr.Keys {
+				ri.invokeExpr()
+				if ri.err != nil {
 					return
 				}
-				key = runInfo.rv
+				key = ri.rv
 
-				runInfo.expr = expr.Values[i]
-				runInfo.invokeExpr()
-				if runInfo.err != nil {
+				ri.expr = expr.Values[i]
+				ri.invokeExpr()
+				if ri.err != nil {
 					return
 				}
 
-				m[key.Interface()] = runInfo.rv.Interface()
+				m[key.Interface()] = ri.rv.Interface()
 			}
-			runInfo.rv = reflect.ValueOf(m)
+			ri.rv = reflect.ValueOf(m)
 			return
 		}
 
-		t := makeType(runInfo, expr.TypeData)
-		if runInfo.err != nil {
-			runInfo.rv = nilValue
+		t := makeType(ri, expr.TypeData)
+		if ri.err != nil {
+			ri.rv = nilValue
 			return
 		}
 		if t == nil {
-			runInfo.err = newStringError(expr, "cannot make type nil")
-			runInfo.rv = nilValue
+			ri.err = newStringError(expr, "cannot make type nil")
+			ri.rv = nilValue
 			return
 		}
 
-		runInfo.rv, runInfo.err = makeValue(t)
-		if runInfo.err != nil {
-			runInfo.rv = nilValue
+		ri.rv, ri.err = makeValue(t)
+		if ri.err != nil {
+			ri.rv = nilValue
 			return
 		}
 
 		var i int
 		var key reflect.Value
-		m := runInfo.rv
+		m := ri.rv
 		keyType := t.Key()
 		valueType := t.Elem()
-		for i, runInfo.expr = range expr.Keys {
-			runInfo.invokeExpr()
-			if runInfo.err != nil {
+		for i, ri.expr = range expr.Keys {
+			ri.invokeExpr()
+			if ri.err != nil {
 				return
 			}
-			key, runInfo.err = convertReflectValueToType(runInfo.rv, keyType)
-			if runInfo.err != nil {
+			key, ri.err = convertReflectValueToType(ri.rv, keyType)
+			if ri.err != nil {
 				const format = "cannot use type %s as type %s as map key"
-				runInfo.err = newStringError(expr, fmt.Sprintf(format, key.Type(), keyType))
-				runInfo.rv = nilValue
+				ri.err = newStringError(expr, fmt.Sprintf(format, key.Type(), keyType))
+				ri.rv = nilValue
 				return
 			}
 
-			runInfo.expr = expr.Values[i]
-			runInfo.invokeExpr()
-			if runInfo.err != nil {
+			ri.expr = expr.Values[i]
+			ri.invokeExpr()
+			if ri.err != nil {
 				return
 			}
-			runInfo.rv, runInfo.err = convertReflectValueToType(runInfo.rv, valueType)
-			if runInfo.err != nil {
+			ri.rv, ri.err = convertReflectValueToType(ri.rv, valueType)
+			if ri.err != nil {
 				const format = "cannot use type %s as type %s as map value"
-				runInfo.err = newStringError(expr, fmt.Sprintf(format, runInfo.rv.Type(), valueType))
-				runInfo.rv = nilValue
+				ri.err = newStringError(expr, fmt.Sprintf(format, ri.rv.Type(), valueType))
+				ri.rv = nilValue
 				return
 			}
 
-			m.SetMapIndex(key, runInfo.rv)
+			m.SetMapIndex(key, ri.rv)
 		}
-		runInfo.rv = m
+		ri.rv = m
 
 	// dereferenceExpr
 	case *ast.DerefExpr:
-		runInfo.expr = expr.Expr
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.Expr
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
 
-		if runInfo.rv.Kind() != reflect.Ptr {
-			runInfo.err = newStringError(expr.Expr, "cannot deference non-pointer")
-			runInfo.rv = nilValue
+		if ri.rv.Kind() != reflect.Ptr {
+			ri.err = newStringError(expr.Expr, "cannot deference non-pointer")
+			ri.rv = nilValue
 			return
 		}
-		runInfo.rv = runInfo.rv.Elem()
+		ri.rv = ri.rv.Elem()
 
 	// AddrExpr
 	case *ast.AddrExpr:
-		runInfo.expr = expr.Expr
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.Expr
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
 
-		if runInfo.rv.CanAddr() {
-			runInfo.rv = runInfo.rv.Addr()
+		if ri.rv.CanAddr() {
+			ri.rv = ri.rv.Addr()
 		} else {
-			i := runInfo.rv.Interface()
-			runInfo.rv = reflect.ValueOf(&i)
+			i := ri.rv.Interface()
+			ri.rv = reflect.ValueOf(&i)
 		}
 
 	// UnaryExpr
 	case *ast.UnaryExpr:
-		runInfo.expr = expr.Expr
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.Expr
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
 
 		switch expr.Operator {
 		case "-":
-			switch runInfo.rv.Kind() {
+			switch ri.rv.Kind() {
 			case reflect.Int64:
-				runInfo.rv = reflect.ValueOf(-runInfo.rv.Int())
+				ri.rv = reflect.ValueOf(-ri.rv.Int())
 			case reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int, reflect.Bool:
-				runInfo.rv = reflect.ValueOf(-toInt64(runInfo.rv))
+				ri.rv = reflect.ValueOf(-toInt64(ri.rv))
 			case reflect.Float64:
-				runInfo.rv = reflect.ValueOf(-runInfo.rv.Float())
+				ri.rv = reflect.ValueOf(-ri.rv.Float())
 			default:
-				runInfo.rv = reflect.ValueOf(-toFloat64(runInfo.rv))
+				ri.rv = reflect.ValueOf(-toFloat64(ri.rv))
 			}
 		case "^":
-			runInfo.rv = reflect.ValueOf(^toInt64(runInfo.rv))
+			ri.rv = reflect.ValueOf(^toInt64(ri.rv))
 		case "!":
-			if toBool(runInfo.rv) {
-				runInfo.rv = falseValue
+			if toBool(ri.rv) {
+				ri.rv = falseValue
 			} else {
-				runInfo.rv = trueValue
+				ri.rv = trueValue
 			}
 		default:
-			runInfo.err = newStringError(expr, "unknown operator")
-			runInfo.rv = nilValue
+			ri.err = newStringError(expr, "unknown operator")
+			ri.rv = nilValue
 		}
 
 	// ParenExpr
 	case *ast.ParenExpr:
-		runInfo.expr = expr.SubExpr
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.SubExpr
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
 
 	// MemberExpr
 	case *ast.MemberExpr:
-		runInfo.expr = expr.Expr
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.Expr
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
 
-		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-			runInfo.rv = runInfo.rv.Elem()
+		if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+			ri.rv = ri.rv.Elem()
 		}
 
-		if e, ok := runInfo.rv.Interface().(*env.Env); ok {
-			runInfo.rv, runInfo.err = e.GetValue(expr.Name)
-			if runInfo.err != nil {
-				runInfo.err = newError(expr, runInfo.err)
-				runInfo.rv = nilValue
+		if e, ok := ri.rv.Interface().(*env.Env); ok {
+			ri.rv, ri.err = e.GetValue(expr.Name)
+			if ri.err != nil {
+				ri.err = newError(expr, ri.err)
+				ri.rv = nilValue
 			}
 			return
 		}
 
-		value := runInfo.rv.MethodByName(expr.Name)
+		value := ri.rv.MethodByName(expr.Name)
 		if value.IsValid() {
-			runInfo.rv = value
+			ri.rv = value
 			return
 		}
 
-		if runInfo.rv.Kind() == reflect.Ptr {
-			runInfo.rv = runInfo.rv.Elem()
+		if ri.rv.Kind() == reflect.Ptr {
+			ri.rv = ri.rv.Elem()
 		}
 
-		switch runInfo.rv.Kind() {
+		switch ri.rv.Kind() {
 		case reflect.Struct:
-			field, found := runInfo.rv.Type().FieldByName(expr.Name)
+			field, found := ri.rv.Type().FieldByName(expr.Name)
 			if found {
-				runInfo.rv = runInfo.rv.FieldByIndex(field.Index)
+				ri.rv = ri.rv.FieldByIndex(field.Index)
 				return
 			}
-			if runInfo.rv.CanAddr() {
-				runInfo.rv = runInfo.rv.Addr()
-				method, found := runInfo.rv.Type().MethodByName(expr.Name)
+			if ri.rv.CanAddr() {
+				ri.rv = ri.rv.Addr()
+				method, found := ri.rv.Type().MethodByName(expr.Name)
 				if found {
-					runInfo.rv = runInfo.rv.Method(method.Index)
+					ri.rv = ri.rv.Method(method.Index)
 					return
 				}
 			}
 			errStr := fmt.Sprintf("no member named \"%s\" for struct", expr.Name)
-			runInfo.err = newStringError(expr, errStr)
-			runInfo.rv = nilValue
+			ri.err = newStringError(expr, errStr)
+			ri.rv = nilValue
 		case reflect.Map:
-			runInfo.rv = getMapIndex(reflect.ValueOf(expr.Name), runInfo.rv)
+			ri.rv = getMapIndex(reflect.ValueOf(expr.Name), ri.rv)
 		default:
-			errStr := fmt.Sprintf("type %s does not support member operation", runInfo.rv.Kind())
-			runInfo.err = newStringError(expr, errStr)
-			runInfo.rv = nilValue
+			errStr := fmt.Sprintf("type %s does not support member operation", ri.rv.Kind())
+			ri.err = newStringError(expr, errStr)
+			ri.rv = nilValue
 		}
 
 	// ItemExpr
 	case *ast.ItemExpr:
-		runInfo.expr = expr.Item
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.Item
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		item := runInfo.rv
+		item := ri.rv
 
-		runInfo.expr = expr.Index
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.Index
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
 
@@ -306,39 +306,39 @@ func (runInfo *runInfoStruct) invokeExpr() {
 		switch item.Kind() {
 		case reflect.String, reflect.Slice, reflect.Array:
 			var index int
-			index, runInfo.err = tryToInt(runInfo.rv)
-			if runInfo.err != nil {
-				runInfo.err = newStringError(expr, "index must be a number")
-				runInfo.rv = nilValue
+			index, ri.err = tryToInt(ri.rv)
+			if ri.err != nil {
+				ri.err = newStringError(expr, "index must be a number")
+				ri.rv = nilValue
 				return
 			}
 			if index < 0 || index >= item.Len() {
-				runInfo.err = newStringError(expr, "index out of range")
-				runInfo.rv = nilValue
+				ri.err = newStringError(expr, "index out of range")
+				ri.rv = nilValue
 				return
 			}
 			if item.Kind() != reflect.String {
-				runInfo.rv = item.Index(index)
+				ri.rv = item.Index(index)
 			} else {
 				// String
-				runInfo.rv = item.Index(index).Convert(stringType)
+				ri.rv = item.Index(index).Convert(stringType)
 			}
 		case reflect.Map:
-			runInfo.rv = getMapIndex(runInfo.rv, item)
+			ri.rv = getMapIndex(ri.rv, item)
 		default:
 			errStr := fmt.Sprintf("type %s does not support index operation", item.Kind())
-			runInfo.err = newStringError(expr, errStr)
-			runInfo.rv = nilValue
+			ri.err = newStringError(expr, errStr)
+			ri.rv = nilValue
 		}
 
 	// SliceExpr
 	case *ast.SliceExpr:
-		runInfo.expr = expr.Item
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.Item
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		item := runInfo.rv
+		item := ri.rv
 
 		if item.Kind() == reflect.Interface && !item.IsNil() {
 			item = item.Elem()
@@ -350,105 +350,105 @@ func (runInfo *runInfoStruct) invokeExpr() {
 			endIndex := item.Len()
 
 			if expr.Begin != nil {
-				runInfo.expr = expr.Begin
-				runInfo.invokeExpr()
-				if runInfo.err != nil {
+				ri.expr = expr.Begin
+				ri.invokeExpr()
+				if ri.err != nil {
 					return
 				}
-				beginIndex, runInfo.err = tryToInt(runInfo.rv)
-				if runInfo.err != nil {
-					runInfo.err = newStringError(expr, "index must be a number")
-					runInfo.rv = nilValue
+				beginIndex, ri.err = tryToInt(ri.rv)
+				if ri.err != nil {
+					ri.err = newStringError(expr, "index must be a number")
+					ri.rv = nilValue
 					return
 				}
 				// (0 <= low) <= high <= len(a)
 				if beginIndex < 0 {
-					runInfo.err = newStringError(expr, "index out of range")
-					runInfo.rv = nilValue
+					ri.err = newStringError(expr, "index out of range")
+					ri.rv = nilValue
 					return
 				}
 			}
 
 			if expr.End != nil {
-				runInfo.expr = expr.End
-				runInfo.invokeExpr()
-				if runInfo.err != nil {
+				ri.expr = expr.End
+				ri.invokeExpr()
+				if ri.err != nil {
 					return
 				}
-				endIndex, runInfo.err = tryToInt(runInfo.rv)
-				if runInfo.err != nil {
-					runInfo.err = newStringError(expr, "index must be a number")
-					runInfo.rv = nilValue
+				endIndex, ri.err = tryToInt(ri.rv)
+				if ri.err != nil {
+					ri.err = newStringError(expr, "index must be a number")
+					ri.rv = nilValue
 					return
 				}
 				// 0 <= low <= (high <= len(a))
 				if endIndex > item.Len() {
-					runInfo.err = newStringError(expr, "index out of range")
-					runInfo.rv = nilValue
+					ri.err = newStringError(expr, "index out of range")
+					ri.rv = nilValue
 					return
 				}
 			}
 
 			// 0 <= (low <= high) <= len(a)
 			if beginIndex > endIndex {
-				runInfo.err = newStringError(expr, "index out of range")
-				runInfo.rv = nilValue
+				ri.err = newStringError(expr, "index out of range")
+				ri.rv = nilValue
 				return
 			}
 
 			if item.Kind() == reflect.String {
 				if expr.Cap != nil {
-					runInfo.err = newStringError(expr, "type string does not support cap")
-					runInfo.rv = nilValue
+					ri.err = newStringError(expr, "type string does not support cap")
+					ri.rv = nilValue
 					return
 				}
-				runInfo.rv = item.Slice(beginIndex, endIndex)
+				ri.rv = item.Slice(beginIndex, endIndex)
 				return
 			}
 
 			sliceCap := item.Cap()
 			if expr.Cap != nil {
-				runInfo.expr = expr.Cap
-				runInfo.invokeExpr()
-				if runInfo.err != nil {
+				ri.expr = expr.Cap
+				ri.invokeExpr()
+				if ri.err != nil {
 					return
 				}
-				sliceCap, runInfo.err = tryToInt(runInfo.rv)
-				if runInfo.err != nil {
-					runInfo.err = newStringError(expr, "cap must be a number")
-					runInfo.rv = nilValue
+				sliceCap, ri.err = tryToInt(ri.rv)
+				if ri.err != nil {
+					ri.err = newStringError(expr, "cap must be a number")
+					ri.rv = nilValue
 					return
 				}
 				//  0 <= low <= (high <= max <= cap(a))
 				if sliceCap < endIndex || sliceCap > item.Cap() {
-					runInfo.err = newStringError(expr, "cap out of range")
-					runInfo.rv = nilValue
+					ri.err = newStringError(expr, "cap out of range")
+					ri.rv = nilValue
 					return
 				}
 			}
 
-			runInfo.rv = item.Slice3(beginIndex, endIndex, sliceCap)
+			ri.rv = item.Slice3(beginIndex, endIndex, sliceCap)
 		default:
 			errStr := fmt.Sprintf("type %s does not support slice operation", item.Kind())
-			runInfo.err = newStringError(expr, errStr)
-			runInfo.rv = nilValue
+			ri.err = newStringError(expr, errStr)
+			ri.rv = nilValue
 		}
 
 	// LetsExpr
 	case *ast.LetsExpr:
 		var i int
-		for i, runInfo.expr = range expr.RHSS {
-			runInfo.invokeExpr()
-			if runInfo.err != nil {
+		for i, ri.expr = range expr.RHSS {
+			ri.invokeExpr()
+			if ri.err != nil {
 				return
 			}
-			if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-				runInfo.rv = runInfo.rv.Elem()
+			if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+				ri.rv = ri.rv.Elem()
 			}
 			if i < len(expr.LHSS) {
-				runInfo.expr = expr.LHSS[i]
-				runInfo.invokeLetExpr()
-				if runInfo.err != nil {
+				ri.expr = expr.LHSS[i]
+				ri.invokeLetExpr()
+				if ri.err != nil {
 					return
 				}
 			}
@@ -457,82 +457,82 @@ func (runInfo *runInfoStruct) invokeExpr() {
 
 	// TernaryOpExpr
 	case *ast.TernaryOpExpr:
-		runInfo.expr = expr.Expr
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.Expr
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
 
-		if toBool(runInfo.rv) {
-			runInfo.expr = expr.LHS
+		if toBool(ri.rv) {
+			ri.expr = expr.LHS
 		} else {
-			runInfo.expr = expr.RHS
+			ri.expr = expr.RHS
 		}
-		runInfo.invokeExpr()
+		ri.invokeExpr()
 
 	// NilCoalescingOpExpr
 	case *ast.NilCoalescingOpExpr:
 		// if left side has no error and is not nil, returns left side
 		// otherwise returns right side
-		runInfo.expr = expr.LHS
-		runInfo.invokeExpr()
-		if runInfo.err == nil {
-			if !isNil(runInfo.rv) {
+		ri.expr = expr.LHS
+		ri.invokeExpr()
+		if ri.err == nil {
+			if !isNil(ri.rv) {
 				return
 			}
 		} else {
-			runInfo.err = nil
+			ri.err = nil
 		}
-		runInfo.expr = expr.RHS
-		runInfo.invokeExpr()
+		ri.expr = expr.RHS
+		ri.invokeExpr()
 
 	// LenExpr
 	case *ast.LenExpr:
-		runInfo.expr = expr.Expr
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.Expr
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
 
-		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-			runInfo.rv = runInfo.rv.Elem()
+		if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+			ri.rv = ri.rv.Elem()
 		}
 
-		switch runInfo.rv.Kind() {
+		switch ri.rv.Kind() {
 		case reflect.Slice, reflect.Array, reflect.Map, reflect.String, reflect.Chan:
-			runInfo.rv = reflect.ValueOf(int64(runInfo.rv.Len()))
+			ri.rv = reflect.ValueOf(int64(ri.rv.Len()))
 		default:
-			errStr := fmt.Sprintf("type %s does not support len operation", runInfo.rv.Kind())
-			runInfo.err = newStringError(expr, errStr)
-			runInfo.rv = nilValue
+			errStr := fmt.Sprintf("type %s does not support len operation", ri.rv.Kind())
+			ri.err = newStringError(expr, errStr)
+			ri.rv = nilValue
 		}
 
 	// ImportExpr
 	case *ast.ImportExpr:
-		runInfo.expr = expr.Name
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.Name
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		runInfo.rv, runInfo.err = convertReflectValueToType(runInfo.rv, stringType)
-		if runInfo.err != nil {
-			runInfo.rv = nilValue
+		ri.rv, ri.err = convertReflectValueToType(ri.rv, stringType)
+		if ri.err != nil {
+			ri.rv = nilValue
 			return
 		}
-		name := runInfo.rv.String()
-		runInfo.rv = nilValue
+		name := ri.rv.String()
+		ri.rv = nilValue
 
 		methods, ok := env.Packages[name]
 		if !ok {
-			runInfo.err = newStringError(expr, "package not found: "+name)
+			ri.err = newStringError(expr, "package not found: "+name)
 			return
 		}
 		var err error
-		pack := runInfo.env.NewEnv()
+		pack := ri.env.NewEnv()
 		for methodName, methodValue := range methods {
 			err = pack.DefineValue(methodName, methodValue)
 			if err != nil {
-				runInfo.err = newStringError(expr, "import DefineValue error: "+err.Error())
+				ri.err = newStringError(expr, "import DefineValue error: "+err.Error())
 				return
 			}
 		}
@@ -542,24 +542,24 @@ func (runInfo *runInfoStruct) invokeExpr() {
 			for typeName, typeValue := range types {
 				err = pack.DefineReflectType(typeName, typeValue)
 				if err != nil {
-					runInfo.err = newStringError(expr, "import DefineReflectType error: "+err.Error())
+					ri.err = newStringError(expr, "import DefineReflectType error: "+err.Error())
 					return
 				}
 			}
 		}
 
-		runInfo.rv = reflect.ValueOf(pack)
+		ri.rv = reflect.ValueOf(pack)
 
 	// MakeExpr
 	case *ast.MakeExpr:
-		t := makeType(runInfo, expr.TypeData)
-		if runInfo.err != nil {
-			runInfo.rv = nilValue
+		t := makeType(ri, expr.TypeData)
+		if ri.err != nil {
+			ri.rv = nilValue
 			return
 		}
 		if t == nil {
-			runInfo.err = newStringError(expr, "cannot make type nil")
-			runInfo.rv = nilValue
+			ri.err = newStringError(expr, "cannot make type nil")
+			ri.rv = nilValue
 			return
 		}
 
@@ -567,98 +567,98 @@ func (runInfo *runInfoStruct) invokeExpr() {
 		case ast.TypeSlice:
 			aLen := 0
 			if expr.LenExpr != nil {
-				runInfo.expr = expr.LenExpr
-				runInfo.invokeExpr()
-				if runInfo.err != nil {
+				ri.expr = expr.LenExpr
+				ri.invokeExpr()
+				if ri.err != nil {
 					return
 				}
-				aLen = toInt(runInfo.rv)
+				aLen = toInt(ri.rv)
 			}
 			aCap := aLen
 			if expr.CapExpr != nil {
-				runInfo.expr = expr.CapExpr
-				runInfo.invokeExpr()
-				if runInfo.err != nil {
+				ri.expr = expr.CapExpr
+				ri.invokeExpr()
+				if ri.err != nil {
 					return
 				}
-				aCap = toInt(runInfo.rv)
+				aCap = toInt(ri.rv)
 			}
 			if aLen > aCap {
-				runInfo.err = newStringError(expr, "make slice len > cap")
-				runInfo.rv = nilValue
+				ri.err = newStringError(expr, "make slice len > cap")
+				ri.rv = nilValue
 				return
 			}
-			runInfo.rv = reflect.MakeSlice(t, aLen, aCap)
+			ri.rv = reflect.MakeSlice(t, aLen, aCap)
 			return
 		case ast.TypeChan:
 			aLen := 0
 			if expr.LenExpr != nil {
-				runInfo.expr = expr.LenExpr
-				runInfo.invokeExpr()
-				if runInfo.err != nil {
+				ri.expr = expr.LenExpr
+				ri.invokeExpr()
+				if ri.err != nil {
 					return
 				}
-				aLen = toInt(runInfo.rv)
+				aLen = toInt(ri.rv)
 			}
-			runInfo.rv = reflect.MakeChan(t, aLen)
+			ri.rv = reflect.MakeChan(t, aLen)
 			return
 		}
 
-		runInfo.rv, runInfo.err = makeValue(t)
+		ri.rv, ri.err = makeValue(t)
 
 	// MakeTypeExpr
 	case *ast.MakeTypeExpr:
-		runInfo.expr = expr.Type
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.Type
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
 
 		// if expr.Name has a dot in it, it should give a syntax error, so no needs to check err
-		_ = runInfo.env.DefineReflectType(expr.Name, runInfo.rv.Type())
+		_ = ri.env.DefineReflectType(expr.Name, ri.rv.Type())
 
-		runInfo.rv = reflect.ValueOf(runInfo.rv.Type())
+		ri.rv = reflect.ValueOf(ri.rv.Type())
 
 	// ChanExpr
 	case *ast.ChanExpr:
-		runInfo.expr = expr.RHS
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.RHS
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-			runInfo.rv = runInfo.rv.Elem()
+		if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+			ri.rv = ri.rv.Elem()
 		}
 
 		var lhs reflect.Value
-		rhs := runInfo.rv
+		rhs := ri.rv
 
 		if expr.LHS == nil {
 			// lhs is nil
 			if rhs.Kind() != reflect.Chan {
 				// rhs is not channel
-				runInfo.err = newStringError(expr, "receive from non-chan type "+rhs.Kind().String())
-				runInfo.rv = nilValue
+				ri.err = newStringError(expr, "receive from non-chan type "+rhs.Kind().String())
+				ri.rv = nilValue
 				return
 			}
 		} else {
 			// lhs is not nil
-			runInfo.expr = expr.LHS
-			runInfo.invokeExpr()
-			if runInfo.err != nil {
+			ri.expr = expr.LHS
+			ri.invokeExpr()
+			if ri.err != nil {
 				return
 			}
-			if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-				runInfo.rv = runInfo.rv.Elem()
+			if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+				ri.rv = ri.rv.Elem()
 			}
-			if runInfo.rv.Kind() != reflect.Chan {
+			if ri.rv.Kind() != reflect.Chan {
 				// lhs is not channel
 				// lhs <- chan rhs or lhs <- rhs
-				runInfo.err = newStringError(expr, "send to non-chan type "+runInfo.rv.Kind().String())
-				runInfo.rv = nilValue
+				ri.err = newStringError(expr, "send to non-chan type "+ri.rv.Kind().String())
+				ri.rv = nilValue
 				return
 			}
-			lhs = runInfo.rv
+			lhs = ri.rv
 		}
 
 		var chosen int
@@ -669,22 +669,22 @@ func (runInfo *runInfoStruct) invokeExpr() {
 			// receive from rhs channel
 			cases := []reflect.SelectCase{{
 				Dir:  reflect.SelectRecv,
-				Chan: reflect.ValueOf(runInfo.ctx.Done()),
+				Chan: reflect.ValueOf(ri.ctx.Done()),
 			}, {
 				Dir:  reflect.SelectRecv,
 				Chan: rhs,
 			}}
-			chosen, runInfo.rv, ok = reflect.Select(cases)
+			chosen, ri.rv, ok = reflect.Select(cases)
 			if chosen == 0 {
-				runInfo.err = ErrInterrupt
-				runInfo.rv = nilValue
+				ri.err = ErrInterrupt
+				ri.rv = nilValue
 				return
 			}
 			if !ok {
-				runInfo.rv = nilValue
+				ri.rv = nilValue
 				return
 			}
-			rhs = runInfo.rv
+			rhs = ri.rv
 		}
 
 		if expr.LHS == nil {
@@ -696,79 +696,79 @@ func (runInfo *runInfoStruct) invokeExpr() {
 		// or
 		// chan lhs <- rhs is send
 
-		runInfo.rv = nilValue
-		rhs, runInfo.err = convertReflectValueToType(rhs, lhs.Type().Elem())
-		if runInfo.err != nil {
+		ri.rv = nilValue
+		rhs, ri.err = convertReflectValueToType(rhs, lhs.Type().Elem())
+		if ri.err != nil {
 			const format = "cannot use type %s as type %s to send to chan"
 			errStr := fmt.Sprintf(format, rhs.Type(), lhs.Type().Elem())
-			runInfo.err = newStringError(expr, errStr)
+			ri.err = newStringError(expr, errStr)
 			return
 		}
 		// send rhs to lhs channel
 		cases := []reflect.SelectCase{{
 			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(runInfo.ctx.Done()),
+			Chan: reflect.ValueOf(ri.ctx.Done()),
 		}, {
 			Dir:  reflect.SelectSend,
 			Chan: lhs,
 			Send: rhs,
 		}}
-		if !runInfo.options.Debug {
+		if !ri.opts.Debug {
 			// captures panic
-			defer recoverFunc(runInfo)
+			defer recoverFunc(ri)
 		}
 		chosen, _, _ = reflect.Select(cases)
 		if chosen == 0 {
-			runInfo.err = ErrInterrupt
+			ri.err = ErrInterrupt
 		}
 
 	// FuncExpr
 	case *ast.FuncExpr:
-		runInfo.expr = expr
-		runInfo.funcExpr()
+		ri.expr = expr
+		ri.funcExpr()
 
 	// AnonCallExpr
 	case *ast.AnonCallExpr:
-		runInfo.expr = expr
-		runInfo.anonCallExpr()
+		ri.expr = expr
+		ri.anonCallExpr()
 
 	// CallExpr
 	case *ast.CallExpr:
-		runInfo.expr = expr
-		runInfo.callExpr()
+		ri.expr = expr
+		ri.callExpr()
 
 	// IncludeExpr
 	case *ast.IncludeExpr:
-		runInfo.expr = expr.ItemExpr
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.ItemExpr
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		itemExpr := runInfo.rv
+		itemExpr := ri.rv
 
-		runInfo.expr = expr.ListExpr
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = expr.ListExpr
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
 
-		if runInfo.rv.Kind() != reflect.Slice && runInfo.rv.Kind() != reflect.Array {
+		if ri.rv.Kind() != reflect.Slice && ri.rv.Kind() != reflect.Array {
 			const errStr = "second argument must be slice or array; but have "
-			runInfo.err = newStringError(expr, errStr+runInfo.rv.Kind().String())
-			runInfo.rv = nilValue
+			ri.err = newStringError(expr, errStr+ri.rv.Kind().String())
+			ri.rv = nilValue
 			return
 		}
 
-		for i := 0; i < runInfo.rv.Len(); i++ {
-			if equal(itemExpr, runInfo.rv.Index(i)) {
-				runInfo.rv = trueValue
+		for i := 0; i < ri.rv.Len(); i++ {
+			if equal(itemExpr, ri.rv.Index(i)) {
+				ri.rv = trueValue
 				return
 			}
 		}
-		runInfo.rv = falseValue
+		ri.rv = falseValue
 
 	default:
-		runInfo.err = newStringError(expr, "unknown expression")
-		runInfo.rv = nilValue
+		ri.err = newStringError(expr, "unknown expression")
+		ri.rv = nilValue
 	}
 }

@@ -7,220 +7,222 @@ import (
 	"project/external/anko/ast"
 )
 
-func (runInfo *runInfoStruct) invokeOperator() {
-	switch operator := runInfo.operator.(type) {
+// nolint: gocyclo
+//gocyclo:ignore
+func (ri *runInfo) invokeOperator() {
+	switch op := ri.op.(type) {
 
 	// BinaryOperator
 	case *ast.BinaryOperator:
-		runInfo.expr = operator.LHS
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = op.LHS
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-			runInfo.rv = runInfo.rv.Elem()
+		if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+			ri.rv = ri.rv.Elem()
 		}
 
-		switch operator.Operator {
+		switch op.Operator {
 		case "||":
-			if toBool(runInfo.rv) {
-				runInfo.rv = trueValue
+			if toBool(ri.rv) {
+				ri.rv = trueValue
 				return
 			}
 		case "&&":
-			if !toBool(runInfo.rv) {
-				runInfo.rv = falseValue
+			if !toBool(ri.rv) {
+				ri.rv = falseValue
 				return
 			}
 		default:
-			runInfo.err = newStringError(operator, "unknown operator")
-			runInfo.rv = nilValue
+			ri.err = newStringError(op, "unknown operator")
+			ri.rv = nilValue
 			return
 		}
 
-		runInfo.expr = operator.RHS
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = op.RHS
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-			runInfo.rv = runInfo.rv.Elem()
+		if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+			ri.rv = ri.rv.Elem()
 		}
 
-		if toBool(runInfo.rv) {
-			runInfo.rv = trueValue
+		if toBool(ri.rv) {
+			ri.rv = trueValue
 		} else {
-			runInfo.rv = falseValue
+			ri.rv = falseValue
 		}
 
 	// ComparisonOperator
 	case *ast.ComparisonOperator:
-		runInfo.expr = operator.LHS
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = op.LHS
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-			runInfo.rv = runInfo.rv.Elem()
+		if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+			ri.rv = ri.rv.Elem()
 		}
-		lhsV := runInfo.rv
+		lhsV := ri.rv
 
-		runInfo.expr = operator.RHS
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = op.RHS
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-			runInfo.rv = runInfo.rv.Elem()
+		if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+			ri.rv = ri.rv.Elem()
 		}
 
-		switch operator.Operator {
+		switch op.Operator {
 		case "==":
-			runInfo.rv = reflect.ValueOf(equal(lhsV, runInfo.rv))
+			ri.rv = reflect.ValueOf(equal(lhsV, ri.rv))
 		case "!=":
-			runInfo.rv = reflect.ValueOf(!equal(lhsV, runInfo.rv))
+			ri.rv = reflect.ValueOf(!equal(lhsV, ri.rv))
 		case "<":
-			runInfo.rv = reflect.ValueOf(toFloat64(lhsV) < toFloat64(runInfo.rv))
+			ri.rv = reflect.ValueOf(toFloat64(lhsV) < toFloat64(ri.rv))
 		case "<=":
-			runInfo.rv = reflect.ValueOf(toFloat64(lhsV) <= toFloat64(runInfo.rv))
+			ri.rv = reflect.ValueOf(toFloat64(lhsV) <= toFloat64(ri.rv))
 		case ">":
-			runInfo.rv = reflect.ValueOf(toFloat64(lhsV) > toFloat64(runInfo.rv))
+			ri.rv = reflect.ValueOf(toFloat64(lhsV) > toFloat64(ri.rv))
 		case ">=":
-			runInfo.rv = reflect.ValueOf(toFloat64(lhsV) >= toFloat64(runInfo.rv))
+			ri.rv = reflect.ValueOf(toFloat64(lhsV) >= toFloat64(ri.rv))
 		default:
-			runInfo.err = newStringError(operator, "unknown operator")
-			runInfo.rv = nilValue
+			ri.err = newStringError(op, "unknown operator")
+			ri.rv = nilValue
 		}
 
 	// AddOperator
 	case *ast.AddOperator:
-		runInfo.expr = operator.LHS
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = op.LHS
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-			runInfo.rv = runInfo.rv.Elem()
+		if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+			ri.rv = ri.rv.Elem()
 		}
-		lhsV := runInfo.rv
+		lhsV := ri.rv
 
-		runInfo.expr = operator.RHS
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = op.RHS
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-			runInfo.rv = runInfo.rv.Elem()
+		if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+			ri.rv = ri.rv.Elem()
 		}
 
-		switch operator.Operator {
+		switch op.Operator {
 		case "+":
 			lhsKind := lhsV.Kind()
-			rhsKind := runInfo.rv.Kind()
+			rhsKind := ri.rv.Kind()
 
 			if lhsKind == reflect.Slice || lhsKind == reflect.Array {
 				if rhsKind == reflect.Slice || rhsKind == reflect.Array {
 					// append slice to slice
-					runInfo.rv, runInfo.err = appendSlice(operator, lhsV, runInfo.rv)
+					ri.rv, ri.err = appendSlice(op, lhsV, ri.rv)
 					return
 				}
 				// try to append rhs non-slice to lhs slice
-				runInfo.rv, runInfo.err = convertReflectValueToType(runInfo.rv, lhsV.Type().Elem())
-				if runInfo.err != nil {
-					runInfo.err = newStringError(operator, "invalid type conversion")
-					runInfo.rv = nilValue
+				ri.rv, ri.err = convertReflectValueToType(ri.rv, lhsV.Type().Elem())
+				if ri.err != nil {
+					ri.err = newStringError(op, "invalid type conversion")
+					ri.rv = nilValue
 					return
 				}
-				runInfo.rv = reflect.Append(lhsV, runInfo.rv)
+				ri.rv = reflect.Append(lhsV, ri.rv)
 				return
 			}
 			if rhsKind == reflect.Slice || rhsKind == reflect.Array {
 				// can not append rhs slice to lhs non-slice
-				runInfo.err = newStringError(operator, "invalid type conversion")
-				runInfo.rv = nilValue
+				ri.err = newStringError(op, "invalid type conversion")
+				ri.rv = nilValue
 				return
 			}
 
 			kind := precedenceOfKinds(lhsKind, rhsKind)
 			switch kind {
 			case reflect.String:
-				runInfo.rv = reflect.ValueOf(toString(lhsV) + toString(runInfo.rv))
+				ri.rv = reflect.ValueOf(toString(lhsV) + toString(ri.rv))
 			case reflect.Float64, reflect.Float32:
-				runInfo.rv = reflect.ValueOf(toFloat64(lhsV) + toFloat64(runInfo.rv))
+				ri.rv = reflect.ValueOf(toFloat64(lhsV) + toFloat64(ri.rv))
 			default:
-				runInfo.rv = reflect.ValueOf(toInt64(lhsV) + toInt64(runInfo.rv))
+				ri.rv = reflect.ValueOf(toInt64(lhsV) + toInt64(ri.rv))
 			}
 
 		case "-":
 			switch lhsV.Kind() {
 			case reflect.Float64, reflect.Float32:
-				runInfo.rv = reflect.ValueOf(toFloat64(lhsV) - toFloat64(runInfo.rv))
+				ri.rv = reflect.ValueOf(toFloat64(lhsV) - toFloat64(ri.rv))
 				return
 			}
-			switch runInfo.rv.Kind() {
+			switch ri.rv.Kind() {
 			case reflect.Float64, reflect.Float32:
-				runInfo.rv = reflect.ValueOf(toFloat64(lhsV) - toFloat64(runInfo.rv))
+				ri.rv = reflect.ValueOf(toFloat64(lhsV) - toFloat64(ri.rv))
 			default:
-				runInfo.rv = reflect.ValueOf(toInt64(lhsV) - toInt64(runInfo.rv))
+				ri.rv = reflect.ValueOf(toInt64(lhsV) - toInt64(ri.rv))
 			}
 
 		case "|":
-			runInfo.rv = reflect.ValueOf(toInt64(lhsV) | toInt64(runInfo.rv))
+			ri.rv = reflect.ValueOf(toInt64(lhsV) | toInt64(ri.rv))
 		default:
-			runInfo.err = newStringError(operator, "unknown operator")
-			runInfo.rv = nilValue
+			ri.err = newStringError(op, "unknown operator")
+			ri.rv = nilValue
 		}
 
 	// MultiplyOperator
 	case *ast.MultiplyOperator:
-		runInfo.expr = operator.LHS
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = op.LHS
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-			runInfo.rv = runInfo.rv.Elem()
+		if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+			ri.rv = ri.rv.Elem()
 		}
-		lhsV := runInfo.rv
+		lhsV := ri.rv
 
-		runInfo.expr = operator.RHS
-		runInfo.invokeExpr()
-		if runInfo.err != nil {
+		ri.expr = op.RHS
+		ri.invokeExpr()
+		if ri.err != nil {
 			return
 		}
-		if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
-			runInfo.rv = runInfo.rv.Elem()
+		if ri.rv.Kind() == reflect.Interface && !ri.rv.IsNil() {
+			ri.rv = ri.rv.Elem()
 		}
 
-		switch operator.Operator {
+		switch op.Operator {
 		case "*":
-			if lhsV.Kind() == reflect.String && (runInfo.rv.Kind() == reflect.Int ||
-				runInfo.rv.Kind() == reflect.Int32 || runInfo.rv.Kind() == reflect.Int64) {
-				runInfo.rv = reflect.ValueOf(strings.Repeat(toString(lhsV), int(toInt64(runInfo.rv))))
+			if lhsV.Kind() == reflect.String && (ri.rv.Kind() == reflect.Int ||
+				ri.rv.Kind() == reflect.Int32 || ri.rv.Kind() == reflect.Int64) {
+				ri.rv = reflect.ValueOf(strings.Repeat(toString(lhsV), int(toInt64(ri.rv))))
 				return
 			}
-			if lhsV.Kind() == reflect.Float64 || runInfo.rv.Kind() == reflect.Float64 {
-				runInfo.rv = reflect.ValueOf(toFloat64(lhsV) * toFloat64(runInfo.rv))
+			if lhsV.Kind() == reflect.Float64 || ri.rv.Kind() == reflect.Float64 {
+				ri.rv = reflect.ValueOf(toFloat64(lhsV) * toFloat64(ri.rv))
 				return
 			}
-			runInfo.rv = reflect.ValueOf(toInt64(lhsV) * toInt64(runInfo.rv))
+			ri.rv = reflect.ValueOf(toInt64(lhsV) * toInt64(ri.rv))
 		case "/":
-			runInfo.rv = reflect.ValueOf(toFloat64(lhsV) / toFloat64(runInfo.rv))
+			ri.rv = reflect.ValueOf(toFloat64(lhsV) / toFloat64(ri.rv))
 		case "%":
-			runInfo.rv = reflect.ValueOf(toInt64(lhsV) % toInt64(runInfo.rv))
+			ri.rv = reflect.ValueOf(toInt64(lhsV) % toInt64(ri.rv))
 		case ">>":
-			runInfo.rv = reflect.ValueOf(toInt64(lhsV) >> uint64(toInt64(runInfo.rv)))
+			ri.rv = reflect.ValueOf(toInt64(lhsV) >> uint64(toInt64(ri.rv)))
 		case "<<":
-			runInfo.rv = reflect.ValueOf(toInt64(lhsV) << uint64(toInt64(runInfo.rv)))
+			ri.rv = reflect.ValueOf(toInt64(lhsV) << uint64(toInt64(ri.rv)))
 		case "&":
-			runInfo.rv = reflect.ValueOf(toInt64(lhsV) & toInt64(runInfo.rv))
+			ri.rv = reflect.ValueOf(toInt64(lhsV) & toInt64(ri.rv))
 		default:
-			runInfo.err = newStringError(operator, "unknown operator")
-			runInfo.rv = nilValue
+			ri.err = newStringError(op, "unknown operator")
+			ri.rv = nilValue
 		}
 
 	default:
-		runInfo.err = newStringError(operator, "unknown operator")
-		runInfo.rv = nilValue
+		ri.err = newStringError(op, "unknown operator")
+		ri.rv = nilValue
 	}
 }

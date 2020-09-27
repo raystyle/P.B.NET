@@ -58,9 +58,9 @@ func Run(env *env.Env, options *Options, stmt ast.Stmt) (interface{}, error) {
 
 // RunContext executes statement in the specified environment with context.
 func RunContext(ctx context.Context, env *env.Env, opts *Options, stmt ast.Stmt) (interface{}, error) {
-	runInfo := runInfoStruct{ctx: ctx, env: env, options: opts, stmt: stmt, rv: nilValue}
-	if runInfo.options == nil {
-		runInfo.options = &Options{}
+	runInfo := runInfo{ctx: ctx, env: env, opts: opts, stmt: stmt, rv: nilValue}
+	if runInfo.opts == nil {
+		runInfo.opts = &Options{}
 	}
 	runInfo.runSingleStmt()
 	if runInfo.err == ErrReturn {
@@ -70,7 +70,7 @@ func RunContext(ctx context.Context, env *env.Env, opts *Options, stmt ast.Stmt)
 }
 
 // recoverFunc generic recover function.
-func recoverFunc(runInfo *runInfoStruct) {
+func recoverFunc(runInfo *runInfo) {
 	recoverInterface := recover()
 	if recoverInterface == nil {
 		return
@@ -262,7 +262,7 @@ func appendSlice(expr ast.Expr, lhsV reflect.Value, rhsV reflect.Value) (reflect
 
 // nolint: gocyclo
 //gocyclo:ignore
-func makeType(runInfo *runInfoStruct, typeStruct *ast.TypeStruct) reflect.Type {
+func makeType(runInfo *runInfo, typeStruct *ast.TypeStruct) reflect.Type {
 	switch typeStruct.Kind {
 	case ast.TypeDefault:
 		return getTypeFromEnv(runInfo, typeStruct)
@@ -312,7 +312,7 @@ func makeType(runInfo *runInfoStruct, typeStruct *ast.TypeStruct) reflect.Type {
 		if t == nil {
 			return nil
 		}
-		if !runInfo.options.Debug {
+		if !runInfo.opts.Debug {
 			// captures panic
 			defer recoverFunc(runInfo)
 		}
@@ -345,7 +345,7 @@ func makeType(runInfo *runInfoStruct, typeStruct *ast.TypeStruct) reflect.Type {
 			}
 			fields = append(fields, reflect.StructField{Name: typeStruct.StructNames[i], Type: t})
 		}
-		if !runInfo.options.Debug {
+		if !runInfo.opts.Debug {
 			// captures panic
 			defer recoverFunc(runInfo)
 		}
@@ -357,7 +357,7 @@ func makeType(runInfo *runInfoStruct, typeStruct *ast.TypeStruct) reflect.Type {
 	}
 }
 
-func getTypeFromEnv(runInfo *runInfoStruct, typeStruct *ast.TypeStruct) reflect.Type {
+func getTypeFromEnv(runInfo *runInfo, typeStruct *ast.TypeStruct) reflect.Type {
 	var e *env.Env
 	e, runInfo.err = runInfo.env.GetEnvFromPath(typeStruct.Env)
 	if runInfo.err != nil {
