@@ -300,6 +300,53 @@ func (runInfo *runInfoStruct) runSingleStmt() {
 
 		runInfo.env = e
 
+	// LoopStmt
+	case *ast.LoopStmt:
+		e := runInfo.env
+		runInfo.env = e.NewEnv()
+
+		for {
+			select {
+			case <-runInfo.ctx.Done():
+				runInfo.err = ErrInterrupt
+				runInfo.rv = nilValue
+				runInfo.env = e
+				return
+			default:
+			}
+
+			if stmt.Expr != nil {
+				runInfo.expr = stmt.Expr
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					break
+				}
+				if !toBool(runInfo.rv) {
+					break
+				}
+			}
+
+			runInfo.stmt = stmt.Stmt
+			runInfo.runSingleStmt()
+			if runInfo.err != nil {
+				if runInfo.err == ErrContinue {
+					runInfo.err = nil
+					continue
+				}
+				if runInfo.err == ErrReturn {
+					runInfo.env = e
+					return
+				}
+				if runInfo.err == ErrBreak {
+					runInfo.err = nil
+				}
+				break
+			}
+		}
+
+		runInfo.rv = nilValue
+		runInfo.env = e
+
 	// ForStmt
 	case *ast.ForStmt:
 		runInfo.expr = stmt.Value
@@ -449,6 +496,68 @@ func (runInfo *runInfoStruct) runSingleStmt() {
 			runInfo.rv = nilValue
 			runInfo.env = e
 		}
+
+	// CForStmt
+	case *ast.CForStmt:
+		env := runInfo.env
+		runInfo.env = env.NewEnv()
+
+		if stmt.Stmt1 != nil {
+			runInfo.stmt = stmt.Stmt1
+			runInfo.runSingleStmt()
+			if runInfo.err != nil {
+				runInfo.env = env
+				return
+			}
+		}
+
+		for {
+			select {
+			case <-runInfo.ctx.Done():
+				runInfo.err = ErrInterrupt
+				runInfo.rv = nilValue
+				runInfo.env = env
+				return
+			default:
+			}
+
+			if stmt.Expr2 != nil {
+				runInfo.expr = stmt.Expr2
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					break
+				}
+				if !toBool(runInfo.rv) {
+					break
+				}
+			}
+
+			runInfo.stmt = stmt.Stmt
+			runInfo.runSingleStmt()
+			if runInfo.err == ErrContinue {
+				runInfo.err = nil
+			}
+			if runInfo.err != nil {
+				if runInfo.err == ErrReturn {
+					runInfo.env = env
+					return
+				}
+				if runInfo.err == ErrBreak {
+					runInfo.err = nil
+				}
+				break
+			}
+
+			if stmt.Expr3 != nil {
+				runInfo.expr = stmt.Expr3
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					break
+				}
+			}
+		}
+		runInfo.rv = nilValue
+		runInfo.env = env
 
 	default:
 		runInfo.err = newStringError(stmt, "unknown statement")
