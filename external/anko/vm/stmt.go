@@ -300,6 +300,156 @@ func (runInfo *runInfoStruct) runSingleStmt() {
 
 		runInfo.env = e
 
+	// ForStmt
+	case *ast.ForStmt:
+		runInfo.expr = stmt.Value
+		runInfo.invokeExpr()
+		value := runInfo.rv
+		if runInfo.err != nil {
+			return
+		}
+		if value.Kind() == reflect.Interface && !value.IsNil() {
+			value = value.Elem()
+		}
+
+		e := runInfo.env
+		runInfo.env = e.NewEnv()
+
+		switch value.Kind() {
+		case reflect.Slice, reflect.Array:
+			for i := 0; i < value.Len(); i++ {
+				select {
+				case <-runInfo.ctx.Done():
+					runInfo.err = ErrInterrupt
+					runInfo.rv = nilValue
+					runInfo.env = e
+					return
+				default:
+				}
+
+				iv := value.Index(i)
+				if iv.Kind() == reflect.Interface && !iv.IsNil() {
+					iv = iv.Elem()
+				}
+				if iv.Kind() == reflect.Ptr {
+					iv = iv.Elem()
+				}
+				_ = runInfo.env.DefineValue(stmt.Vars[0], iv)
+
+				runInfo.stmt = stmt.Stmt
+				runInfo.runSingleStmt()
+				if runInfo.err != nil {
+					if runInfo.err == ErrContinue {
+						runInfo.err = nil
+						continue
+					}
+					if runInfo.err == ErrReturn {
+						runInfo.env = e
+						return
+					}
+					if runInfo.err == ErrBreak {
+						runInfo.err = nil
+					}
+					break
+				}
+			}
+			runInfo.rv = nilValue
+			runInfo.env = e
+
+		case reflect.Map:
+			keys := value.MapKeys()
+			for i := 0; i < len(keys); i++ {
+				select {
+				case <-runInfo.ctx.Done():
+					runInfo.err = ErrInterrupt
+					runInfo.rv = nilValue
+					runInfo.env = e
+					return
+				default:
+				}
+
+				_ = runInfo.env.DefineValue(stmt.Vars[0], keys[i])
+
+				if len(stmt.Vars) > 1 {
+					_ = runInfo.env.DefineValue(stmt.Vars[1], value.MapIndex(keys[i]))
+				}
+
+				runInfo.stmt = stmt.Stmt
+				runInfo.runSingleStmt()
+				if runInfo.err != nil {
+					if runInfo.err == ErrContinue {
+						runInfo.err = nil
+						continue
+					}
+					if runInfo.err == ErrReturn {
+						runInfo.env = e
+						return
+					}
+					if runInfo.err == ErrBreak {
+						runInfo.err = nil
+					}
+					break
+				}
+			}
+			runInfo.rv = nilValue
+			runInfo.env = e
+
+		case reflect.Chan:
+			var chosen int
+			var ok bool
+			for {
+				cases := []reflect.SelectCase{{
+					Dir:  reflect.SelectRecv,
+					Chan: reflect.ValueOf(runInfo.ctx.Done()),
+				}, {
+					Dir:  reflect.SelectRecv,
+					Chan: value,
+				}}
+				chosen, runInfo.rv, ok = reflect.Select(cases)
+				if chosen == 0 {
+					runInfo.err = ErrInterrupt
+					runInfo.rv = nilValue
+					break
+				}
+				if !ok {
+					break
+				}
+
+				if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
+					runInfo.rv = runInfo.rv.Elem()
+				}
+				if runInfo.rv.Kind() == reflect.Ptr {
+					runInfo.rv = runInfo.rv.Elem()
+				}
+
+				_ = runInfo.env.DefineValue(stmt.Vars[0], runInfo.rv)
+
+				runInfo.stmt = stmt.Stmt
+				runInfo.runSingleStmt()
+				if runInfo.err != nil {
+					if runInfo.err == ErrContinue {
+						runInfo.err = nil
+						continue
+					}
+					if runInfo.err == ErrReturn {
+						runInfo.env = e
+						return
+					}
+					if runInfo.err == ErrBreak {
+						runInfo.err = nil
+					}
+					break
+				}
+			}
+			runInfo.rv = nilValue
+			runInfo.env = e
+
+		default:
+			runInfo.err = newStringError(stmt, "for cannot loop over type "+value.Kind().String())
+			runInfo.rv = nilValue
+			runInfo.env = e
+		}
+
 	default:
 		runInfo.err = newStringError(stmt, "unknown statement")
 		runInfo.rv = nilValue
