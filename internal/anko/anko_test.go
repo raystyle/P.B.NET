@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mattn/anko/ast"
 	"github.com/stretchr/testify/require"
+
+	"project/external/anko/ast"
 
 	"project/internal/testsuite"
 )

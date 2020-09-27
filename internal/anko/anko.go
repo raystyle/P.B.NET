@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mattn/anko/ast"
-	"github.com/mattn/anko/env"
-	"github.com/mattn/anko/parser"
-	"github.com/mattn/anko/vm"
+	"project/external/anko/ast"
+	"project/external/anko/env"
+	"project/external/anko/parser"
+	"project/external/anko/vm"
 
 	"project/internal/security"
 )

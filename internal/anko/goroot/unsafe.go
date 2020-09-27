@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/mattn/anko/env"
+	"project/external/anko/env"
 )
 
 func init() {

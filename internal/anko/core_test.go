@@ -7,8 +7,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/mattn/anko/env"
 	"github.com/stretchr/testify/require"
+
+	"project/external/anko/env"
 
 	"project/internal/patch/monkey"
 	"project/internal/testsuite"

@@ -3,7 +3,7 @@ package anko
 import (
 	"testing"
 
-	"github.com/mattn/anko/env"
+	"project/external/anko/env"
 
 	"project/internal/patch/monkey"
 	"project/internal/testsuite"

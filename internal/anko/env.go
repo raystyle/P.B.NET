@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mattn/anko/core"
-	"github.com/mattn/anko/env"
+	"project/external/anko/core"
+	"project/external/anko/env"
 )
 
 // runtime is used to prevent loop reference and easy clean reference.
