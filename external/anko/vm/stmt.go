@@ -3,6 +3,7 @@ package vm
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	"project/external/anko/ast"
@@ -499,14 +500,14 @@ func (runInfo *runInfoStruct) runSingleStmt() {
 
 	// CForStmt
 	case *ast.CForStmt:
-		env := runInfo.env
-		runInfo.env = env.NewEnv()
+		e := runInfo.env
+		runInfo.env = e.NewEnv()
 
 		if stmt.Stmt1 != nil {
 			runInfo.stmt = stmt.Stmt1
 			runInfo.runSingleStmt()
 			if runInfo.err != nil {
-				runInfo.env = env
+				runInfo.env = e
 				return
 			}
 		}
@@ -516,7 +517,7 @@ func (runInfo *runInfoStruct) runSingleStmt() {
 			case <-runInfo.ctx.Done():
 				runInfo.err = ErrInterrupt
 				runInfo.rv = nilValue
-				runInfo.env = env
+				runInfo.env = e
 				return
 			default:
 			}
@@ -539,7 +540,7 @@ func (runInfo *runInfoStruct) runSingleStmt() {
 			}
 			if runInfo.err != nil {
 				if runInfo.err == ErrReturn {
-					runInfo.env = env
+					runInfo.env = e
 					return
 				}
 				if runInfo.err == ErrBreak {
@@ -557,7 +558,97 @@ func (runInfo *runInfoStruct) runSingleStmt() {
 			}
 		}
 		runInfo.rv = nilValue
-		runInfo.env = env
+		runInfo.env = e
+
+	// ReturnStmt
+	case *ast.ReturnStmt:
+		switch len(stmt.Exprs) {
+		case 0:
+			runInfo.rv = nilValue
+			return
+		case 1:
+			runInfo.expr = stmt.Exprs[0]
+			runInfo.invokeExpr()
+			return
+		}
+		rvs := make([]interface{}, len(stmt.Exprs))
+		var i int
+		for i, runInfo.expr = range stmt.Exprs {
+			runInfo.invokeExpr()
+			if runInfo.err != nil {
+				return
+			}
+			rvs[i] = runInfo.rv.Interface()
+		}
+		runInfo.rv = reflect.ValueOf(rvs)
+
+	// ThrowStmt
+	case *ast.ThrowStmt:
+		runInfo.expr = stmt.Expr
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+		runInfo.err = newStringError(stmt, fmt.Sprint(runInfo.rv.Interface()))
+
+	// ModuleStmt
+	case *ast.ModuleStmt:
+		e := runInfo.env
+		runInfo.env, runInfo.err = e.NewModule(stmt.Name)
+		if runInfo.err != nil {
+			return
+		}
+		runInfo.stmt = stmt.Stmt
+		runInfo.runSingleStmt()
+		runInfo.env = e
+		if runInfo.err != nil {
+			return
+		}
+		runInfo.rv = nilValue
+
+	// SwitchStmt
+	case *ast.SwitchStmt:
+		e := runInfo.env
+		runInfo.env = e.NewEnv()
+
+		runInfo.expr = stmt.Expr
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			runInfo.env = e
+			return
+		}
+		value := runInfo.rv
+
+		for _, switchCaseStmt := range stmt.Cases {
+			caseStmt := switchCaseStmt.(*ast.SwitchCaseStmt)
+			for _, runInfo.expr = range caseStmt.Exprs {
+				runInfo.invokeExpr()
+				if runInfo.err != nil {
+					runInfo.env = e
+					return
+				}
+				if equal(runInfo.rv, value) {
+					runInfo.stmt = caseStmt.Stmt
+					runInfo.runSingleStmt()
+					runInfo.env = e
+					return
+				}
+			}
+		}
+
+		if stmt.Default == nil {
+			runInfo.rv = nilValue
+		} else {
+			runInfo.stmt = stmt.Default
+			runInfo.runSingleStmt()
+		}
+
+		runInfo.env = e
+
+	// GoroutineStmt
+	case *ast.GoroutineStmt:
+		runInfo.expr = stmt.Expr
+		runInfo.invokeExpr()
 
 	default:
 		runInfo.err = newStringError(stmt, "unknown statement")
