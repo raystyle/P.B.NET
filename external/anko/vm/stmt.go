@@ -206,6 +206,100 @@ func (runInfo *runInfoStruct) runSingleStmt() {
 		}
 		runInfo.rv = rvs[0]
 
+	// IfStmt
+	case *ast.IfStmt:
+		// if
+		runInfo.expr = stmt.If
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+
+		e := runInfo.env
+
+		if toBool(runInfo.rv) {
+			// then
+			runInfo.rv = nilValue
+			runInfo.stmt = stmt.Then
+			runInfo.env = e.NewEnv()
+			runInfo.runSingleStmt()
+			runInfo.env = e
+			return
+		}
+
+		for _, statement := range stmt.ElseIf {
+			elseIf := statement.(*ast.IfStmt)
+
+			// else if - if
+			runInfo.env = e.NewEnv()
+			runInfo.expr = elseIf.If
+			runInfo.invokeExpr()
+			if runInfo.err != nil {
+				runInfo.env = e
+				return
+			}
+
+			if !toBool(runInfo.rv) {
+				continue
+			}
+
+			// else if - then
+			runInfo.rv = nilValue
+			runInfo.stmt = elseIf.Then
+			runInfo.env = e.NewEnv()
+			runInfo.runSingleStmt()
+			runInfo.env = e
+			return
+		}
+
+		if stmt.Else != nil {
+			// else
+			runInfo.rv = nilValue
+			runInfo.stmt = stmt.Else
+			runInfo.env = e.NewEnv()
+			runInfo.runSingleStmt()
+		}
+
+		runInfo.env = e
+
+	// TryStmt
+	case *ast.TryStmt:
+		// only the try statement will ignore any error except ErrInterrupt
+		// all other parts will return the error
+
+		e := runInfo.env
+		runInfo.env = e.NewEnv()
+
+		runInfo.stmt = stmt.Try
+		runInfo.runSingleStmt()
+
+		if runInfo.err != nil {
+			if runInfo.err == ErrInterrupt {
+				runInfo.env = e
+				return
+			}
+
+			// Catch
+			runInfo.stmt = stmt.Catch
+			if stmt.Var != "" {
+				_ = runInfo.env.DefineValue(stmt.Var, reflect.ValueOf(runInfo.err))
+			}
+			runInfo.err = nil
+			runInfo.runSingleStmt()
+			if runInfo.err != nil {
+				runInfo.env = e
+				return
+			}
+		}
+
+		if stmt.Finally != nil {
+			// Finally
+			runInfo.stmt = stmt.Finally
+			runInfo.runSingleStmt()
+		}
+
+		runInfo.env = e
+
 	default:
 		runInfo.err = newStringError(stmt, "unknown statement")
 		runInfo.rv = nilValue
