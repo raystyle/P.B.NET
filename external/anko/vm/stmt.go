@@ -124,6 +124,88 @@ func (runInfo *runInfoStruct) runSingleStmt() {
 		// return last right side value
 		runInfo.rv = rvs[len(rvs)-1]
 
+	// LetsStmt
+	case *ast.LetsStmt:
+		// get right side expression values
+		rvs := make([]reflect.Value, len(stmt.RHSS))
+		var i int
+		for i, runInfo.expr = range stmt.RHSS {
+			runInfo.invokeExpr()
+			if runInfo.err != nil {
+				return
+			}
+			if e, ok := runInfo.rv.Interface().(*env.Env); ok {
+				rvs[i] = reflect.ValueOf(e.DeepCopy())
+			} else {
+				rvs[i] = runInfo.rv
+			}
+		}
+
+		if len(rvs) == 1 && len(stmt.LHSS) > 1 {
+			// only one right side value but many left side expressions
+			value := rvs[0]
+			if value.Kind() == reflect.Interface && !value.IsNil() {
+				value = value.Elem()
+			}
+			if (value.Kind() == reflect.Slice || value.Kind() == reflect.Array) && value.Len() > 0 {
+				// value is slice/array, add each value to left side expression
+				for i := 0; i < value.Len() && i < len(stmt.LHSS); i++ {
+					runInfo.rv = value.Index(i)
+					runInfo.expr = stmt.LHSS[i]
+					runInfo.invokeLetExpr()
+					if runInfo.err != nil {
+						return
+					}
+				}
+				// return last value of slice/array
+				runInfo.rv = value.Index(value.Len() - 1)
+				return
+			}
+		}
+
+		// invoke all left side expressions with right side values
+		for i = 0; i < len(rvs) && i < len(stmt.LHSS); i++ {
+			value := rvs[i]
+			if value.Kind() == reflect.Interface && !value.IsNil() {
+				value = value.Elem()
+			}
+			runInfo.rv = value
+			runInfo.expr = stmt.LHSS[i]
+			runInfo.invokeLetExpr()
+			if runInfo.err != nil {
+				return
+			}
+		}
+
+		// return last right side value
+		runInfo.rv = rvs[len(rvs)-1]
+
+	// LetMapItemStmt
+	case *ast.LetMapItemStmt:
+		runInfo.expr = stmt.RHS
+		runInfo.invokeExpr()
+		if runInfo.err != nil {
+			return
+		}
+		var rvs []reflect.Value
+		if isNil(runInfo.rv) {
+			rvs = []reflect.Value{nilValue, falseValue}
+		} else {
+			rvs = []reflect.Value{runInfo.rv, trueValue}
+		}
+		var i int
+		for i, runInfo.expr = range stmt.LHSS {
+			runInfo.rv = rvs[i]
+			if runInfo.rv.Kind() == reflect.Interface && !runInfo.rv.IsNil() {
+				runInfo.rv = runInfo.rv.Elem()
+			}
+			runInfo.invokeLetExpr()
+			if runInfo.err != nil {
+				return
+			}
+		}
+		runInfo.rv = rvs[0]
+
 	default:
 		runInfo.err = newStringError(stmt, "unknown statement")
 		runInfo.rv = nilValue
