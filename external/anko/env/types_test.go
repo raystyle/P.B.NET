@@ -54,6 +54,12 @@ func TestEnv_DefineType(t *testing.T) {
 		},
 	}
 
+	env := NewEnv()
+	err := env.DefineGlobalType("a", "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, test := range tests {
 		env := NewEnv()
 
@@ -395,6 +401,12 @@ func TestEnv_DefineGlobalReflectType_Parent(t *testing.T) {
 			defineErr:   ErrSymbolContainsDot,
 			typeErr:     fmt.Errorf("undefined type \"a.a\""),
 		},
+	}
+
+	env := NewEnv()
+	err := env.DefineGlobalReflectType("a", reflect.TypeOf("a"))
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	for _, test := range tests {

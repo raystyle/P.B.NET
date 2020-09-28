@@ -11,8 +11,13 @@ import (
 
 func TestEnv_DefineGlobal(t *testing.T) {
 	envParent := NewEnv()
+	err := envParent.DefineGlobal("a", "a")
+	if err != nil {
+		t.Fatal("DefineGlobal error:", err)
+	}
+
 	envChild := envParent.NewEnv()
-	err := envChild.DefineGlobal("a", "a")
+	err = envChild.DefineGlobal("a", "a")
 	if err != nil {
 		t.Fatal("DefineGlobal error:", err)
 	}
@@ -33,8 +38,13 @@ func TestEnv_DefineGlobal(t *testing.T) {
 
 func TestEnv_DefineGlobalValue(t *testing.T) {
 	envParent := NewEnv()
+	err := envParent.DefineGlobalValue("a", reflect.ValueOf("a"))
+	if err != nil {
+		t.Fatal("DefineGlobal error:", err)
+	}
+
 	envChild := envParent.NewEnv()
-	err := envChild.DefineGlobalValue("a", reflect.ValueOf("a"))
+	err = envChild.DefineGlobalValue("a", reflect.ValueOf("a"))
 	if err != nil {
 		t.Fatal("DefineGlobalValue error:", err)
 	}

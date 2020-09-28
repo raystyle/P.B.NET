@@ -100,7 +100,7 @@ func (e *Env) DeleteType(symbol string) {
 	delete(e.types, symbol)
 }
 
-// DeleteType deletes the first matching symbol found in current or parent scope.
+// DeleteGlobalType deletes the first matching symbol found in current or parent scope.
 func (e *Env) DeleteGlobalType(symbol string) {
 	if e.parent == nil {
 		e.DeleteType(symbol)
