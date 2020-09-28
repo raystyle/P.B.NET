@@ -93,6 +93,29 @@ func (e *Env) Type(symbol string) (reflect.Type, error) {
 	return e.parent.Type(symbol)
 }
 
+// DeleteType deletes symbol in current scope.
+func (e *Env) DeleteType(symbol string) {
+	e.rwm.Lock()
+	defer e.rwm.Unlock()
+	delete(e.types, symbol)
+}
+
+// DeleteType deletes the first matching symbol found in current or parent scope.
+func (e *Env) DeleteGlobalType(symbol string) {
+	if e.parent == nil {
+		e.DeleteType(symbol)
+		return
+	}
+	e.rwm.Lock()
+	defer e.rwm.Unlock()
+	_, ok := e.types[symbol]
+	if ok {
+		delete(e.types, symbol)
+		return
+	}
+	e.parent.DeleteGlobalType(symbol)
+}
+
 // Types returns all Types in Env.
 func (e *Env) Types() map[string]reflect.Type {
 	e.rwm.RLock()
