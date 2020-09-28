@@ -366,24 +366,6 @@ func TestEnv_Define_Modify(t *testing.T) {
 	})
 }
 
-func TestEnv_Delete(t *testing.T) {
-	t.Run("empty", func(t *testing.T) {
-		env := NewEnv()
-		env.Delete("a")
-	})
-
-	t.Run("add & delete", func(t *testing.T) {
-		env := NewEnv()
-		err := env.Define("a", "a")
-		require.NoError(t, err)
-		env.Delete("a")
-
-		value, err := env.Get("a")
-		require.EqualError(t, err, "undefined symbol \"a\"")
-		require.Nil(t, value)
-	})
-}
-
 func TestRaceCreateSameVariable(t *testing.T) {
 	// Test creating same variable in parallel
 
@@ -620,6 +602,24 @@ func raceDefineAndSetSameVariable(t *testing.T) {
 	if err != nil {
 		t.Errorf("Get error: %v", err)
 	}
+}
+
+func TestEnv_Delete(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		env := NewEnv()
+		env.Delete("a")
+	})
+
+	t.Run("add & delete", func(t *testing.T) {
+		env := NewEnv()
+		err := env.Define("a", "a")
+		require.NoError(t, err)
+		env.Delete("a")
+
+		value, err := env.Get("a")
+		require.EqualError(t, err, "undefined symbol \"a\"")
+		require.Nil(t, value)
+	})
 }
 
 func TestEnv_DeleteGlobal(t *testing.T) {

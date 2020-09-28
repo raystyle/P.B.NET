@@ -506,6 +506,97 @@ func TestEnv_DefineGlobalReflectType_Child(t *testing.T) {
 	}
 }
 
+func TestEnv_DeleteType(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		env := NewEnv()
+		env.DeleteType("a")
+	})
+
+	t.Run("add & delete", func(t *testing.T) {
+		env := NewEnv()
+		err := env.DefineType("a", "a")
+		require.NoError(t, err)
+		env.DeleteType("a")
+
+		typ, err := env.Type("a")
+		require.EqualError(t, err, "undefined type \"a\"")
+		require.Nil(t, typ)
+	})
+}
+
+func TestEnv_DeleteGlobalType(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		env := NewEnv()
+		env.DeleteGlobal("a")
+	})
+
+	t.Run("add & delete", func(t *testing.T) {
+		env := NewEnv()
+		err := env.DefineType("a", "a")
+		require.NoError(t, err)
+		env.DeleteGlobalType("a")
+
+		typ, err := env.Type("a")
+		require.EqualError(t, err, "undefined type \"a\"")
+		require.Nil(t, typ)
+	})
+
+	t.Run("parent & child, var in child, delete in parent", func(t *testing.T) {
+		env := NewEnv()
+		envChild := env.NewEnv()
+		err := envChild.DefineType("a", "a")
+		require.NoError(t, err)
+		env.DeleteGlobalType("a")
+
+		typ, err := envChild.Type("a")
+		require.NoError(t, err)
+		require.Equal(t, typ.String(), "string")
+
+		envChild.DeleteGlobalType("a")
+		typ, err = env.Type("a")
+		require.EqualError(t, err, "undefined type \"a\"")
+		require.Nil(t, typ)
+	})
+
+	t.Run("parent & child, var in child, delete in child", func(t *testing.T) {
+		env := NewEnv()
+		envChild := env.NewEnv()
+		err := envChild.DefineType("a", "a")
+		require.NoError(t, err)
+		env.DeleteGlobalType("a")
+
+		envChild.DeleteGlobalType("a")
+		typ, err := envChild.Type("a")
+		require.EqualError(t, err, "undefined type \"a\"")
+		require.Nil(t, typ)
+	})
+
+	t.Run("parent & child, var in parent, delete in child", func(t *testing.T) {
+		env := NewEnv()
+		envChild := env.NewEnv()
+		err := env.DefineType("a", "a")
+		require.NoError(t, err)
+
+		envChild.DeleteGlobalType("a")
+
+		typ, err := envChild.Type("a")
+		require.EqualError(t, err, "undefined type \"a\"")
+		require.Nil(t, typ)
+	})
+
+	t.Run("parent & child, var in parent, delete in parent", func(t *testing.T) {
+		env := NewEnv()
+		envChild := env.NewEnv()
+		err := env.DefineType("a", "a")
+		require.NoError(t, err)
+		env.DeleteGlobalType("a")
+
+		typ, err := envChild.Type("a")
+		require.EqualError(t, err, "undefined type \"a\"")
+		require.Nil(t, typ)
+	})
+}
+
 func TestEnv_Types(t *testing.T) {
 	type Foo struct {
 		A string
