@@ -254,3 +254,121 @@ func TestSlicesAutoAppend(t *testing.T) {
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
+
+func TestMakeSlices(t *testing.T) {
+	tests := []Test{
+		{Script: `make([]foo)`, RunError: fmt.Errorf("undefined type \"foo\"")},
+
+		{Script: `make([]nilT)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
+		{Script: `make([][]nilT)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
+		{Script: `make([][][]nilT)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
+
+		{Script: `make([]bool, 1++)`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `make([]bool, 0, 1++)`, RunError: fmt.Errorf("invalid operation")},
+
+		// spaces and/or newlines
+		{Script: `[]`, RunOutput: []interface{}{}},
+		{Script: `[ ]`, RunOutput: []interface{}{}},
+		{Script: `[
+]`, RunOutput: []interface{}{}},
+		{Script: `[
+ ]`, RunOutput: []interface{}{}},
+
+		{Script: `make(slice2x)`, Types: map[string]interface{}{"slice2x": [][]interface{}{}}, RunOutput: [][]interface{}{}},
+
+		{Script: `make([]bool)`, RunOutput: []bool{}},
+		{Script: `make([]int32)`, RunOutput: []int32{}},
+		{Script: `make([]int64)`, RunOutput: []int64{}},
+		{Script: `make([]float32)`, RunOutput: []float32{}},
+		{Script: `make([]float64)`, RunOutput: []float64{}},
+		{Script: `make([]string)`, RunOutput: []string{}},
+
+		{Script: `make([]bool, 0)`, RunOutput: []bool{}},
+		{Script: `make([]int32, 0)`, RunOutput: []int32{}},
+		{Script: `make([]int64, 0)`, RunOutput: []int64{}},
+		{Script: `make([]float32, 0)`, RunOutput: []float32{}},
+		{Script: `make([]float64, 0)`, RunOutput: []float64{}},
+		{Script: `make([]string, 0)`, RunOutput: []string{}},
+
+		{Script: `make([]bool, 2)`, RunOutput: []bool{false, false}},
+		{Script: `make([]int32, 2)`, RunOutput: []int32{int32(0), int32(0)}},
+		{Script: `make([]int64, 2)`, RunOutput: []int64{int64(0), int64(0)}},
+		{Script: `make([]float32, 2)`, RunOutput: []float32{float32(0), float32(0)}},
+		{Script: `make([]float64, 2)`, RunOutput: []float64{float64(0), float64(0)}},
+		{Script: `make([]string, 2)`, RunOutput: []string{"", ""}},
+
+		{Script: `make([]bool, 0, 2)`, RunOutput: []bool{}},
+		{Script: `make([]int32, 0, 2)`, RunOutput: []int32{}},
+		{Script: `make([]int64, 0, 2)`, RunOutput: []int64{}},
+		{Script: `make([]float32, 0, 2)`, RunOutput: []float32{}},
+		{Script: `make([]float64, 0, 2)`, RunOutput: []float64{}},
+		{Script: `make([]string, 0, 2)`, RunOutput: []string{}},
+
+		{Script: `make([]bool, 2, 2)`, RunOutput: []bool{false, false}},
+		{Script: `make([]int32, 2, 2)`, RunOutput: []int32{int32(0), int32(0)}},
+		{Script: `make([]int64, 2, 2)`, RunOutput: []int64{int64(0), int64(0)}},
+		{Script: `make([]float32, 2, 2)`, RunOutput: []float32{float32(0), float32(0)}},
+		{Script: `make([]float64, 2, 2)`, RunOutput: []float64{float64(0), float64(0)}},
+		{Script: `make([]string, 2, 2)`, RunOutput: []string{"", ""}},
+
+		{Script: `a = make([]bool, 0); a += true; a += false`, RunOutput: []bool{true, false}, Output: map[string]interface{}{"a": []bool{true, false}}},
+		{Script: `a = make([]int32, 0); a += 1; a += 2`, RunOutput: []int32{int32(1), int32(2)}, Output: map[string]interface{}{"a": []int32{int32(1), int32(2)}}},
+		{Script: `a = make([]int64, 0); a += 1; a += 2`, RunOutput: []int64{int64(1), int64(2)}, Output: map[string]interface{}{"a": []int64{int64(1), int64(2)}}},
+		{Script: `a = make([]float32, 0); a += 1.1; a += 2.2`, RunOutput: []float32{float32(1.1), float32(2.2)}, Output: map[string]interface{}{"a": []float32{float32(1.1), float32(2.2)}}},
+		{Script: `a = make([]float64, 0); a += 1.1; a += 2.2`, RunOutput: []float64{float64(1.1), float64(2.2)}, Output: map[string]interface{}{"a": []float64{float64(1.1), float64(2.2)}}},
+		{Script: `a = make([]string, 0); a += "a"; a += "b"`, RunOutput: []string{"a", "b"}, Output: map[string]interface{}{"a": []string{"a", "b"}}},
+
+		{Script: `a = make([]bool, 2); a[0] = true; a[1] = false`, RunOutput: false, Output: map[string]interface{}{"a": []bool{true, false}}},
+		{Script: `a = make([]int32, 2); a[0] = 1; a[1] = 2`, RunOutput: int64(2), Output: map[string]interface{}{"a": []int32{int32(1), int32(2)}}},
+		{Script: `a = make([]int64, 2); a[0] = 1; a[1] = 2`, RunOutput: int64(2), Output: map[string]interface{}{"a": []int64{int64(1), int64(2)}}},
+		{Script: `a = make([]float32, 2); a[0] = 1.1; a[1] = 2.2`, RunOutput: float64(2.2), Output: map[string]interface{}{"a": []float32{float32(1.1), float32(2.2)}}},
+		{Script: `a = make([]float64, 2); a[0] = 1.1; a[1] = 2.2`, RunOutput: float64(2.2), Output: map[string]interface{}{"a": []float64{float64(1.1), float64(2.2)}}},
+		{Script: `a = make([]string, 2); a[0] = "a"; a[1] = "b"`, RunOutput: "b", Output: map[string]interface{}{"a": []string{"a", "b"}}},
+
+		{Script: `make([]boolA)`, Types: map[string]interface{}{"boolA": []bool{}}, RunOutput: [][]bool{}},
+		{Script: `make([]int32A)`, Types: map[string]interface{}{"int32A": []int32{}}, RunOutput: [][]int32{}},
+		{Script: `make([]int64A)`, Types: map[string]interface{}{"int64A": []int64{}}, RunOutput: [][]int64{}},
+		{Script: `make([]float32A)`, Types: map[string]interface{}{"float32A": []float32{}}, RunOutput: [][]float32{}},
+		{Script: `make([]float64A)`, Types: map[string]interface{}{"float64A": []float64{}}, RunOutput: [][]float64{}},
+		{Script: `make([]stringA)`, Types: map[string]interface{}{"stringA": []string{}}, RunOutput: [][]string{}},
+
+		{Script: `make([]slice)`, Types: map[string]interface{}{"slice": []interface{}{}}, RunOutput: [][]interface{}{}},
+		{Script: `a = make([]slice)`, Types: map[string]interface{}{"slice": []interface{}{}}, RunOutput: [][]interface{}{}, Output: map[string]interface{}{"a": [][]interface{}{}}},
+
+		{Script: `make([][]bool)`, RunOutput: [][]bool{}},
+		{Script: `make([][]int32)`, RunOutput: [][]int32{}},
+		{Script: `make([][]int64)`, RunOutput: [][]int64{}},
+		{Script: `make([][]float32)`, RunOutput: [][]float32{}},
+		{Script: `make([][]float64)`, RunOutput: [][]float64{}},
+		{Script: `make([][]string)`, RunOutput: [][]string{}},
+
+		{Script: `make([][]bool)`, RunOutput: [][]bool{}},
+		{Script: `make([][]int32)`, RunOutput: [][]int32{}},
+		{Script: `make([][]int64)`, RunOutput: [][]int64{}},
+		{Script: `make([][]float32)`, RunOutput: [][]float32{}},
+		{Script: `make([][]float64)`, RunOutput: [][]float64{}},
+		{Script: `make([][]string)`, RunOutput: [][]string{}},
+
+		{Script: `make([][][]bool)`, RunOutput: [][][]bool{}},
+		{Script: `make([][][]int32)`, RunOutput: [][][]int32{}},
+		{Script: `make([][][]int64)`, RunOutput: [][][]int64{}},
+		{Script: `make([][][]float32)`, RunOutput: [][][]float32{}},
+		{Script: `make([][][]float64)`, RunOutput: [][][]float64{}},
+		{Script: `make([][][]string)`, RunOutput: [][][]string{}},
+
+		// slice type errors
+		{Script: `[]nilT{"a"}`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
+		{Script: `[]int64{1++}`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `[]int64{"a"}`, RunError: fmt.Errorf("cannot use type string as type int64 as slice value")},
+
+		// slice type
+		{Script: `[]interface{nil}`, RunOutput: []interface{}{nil}},
+		{Script: `[]bool{true, false}`, RunOutput: []bool{true, false}},
+		{Script: `[]int32{1}`, RunOutput: []int32{int32(1)}},
+		{Script: `[]int64{2}`, RunOutput: []int64{int64(2)}},
+		{Script: `[]float32{3.5}`, RunOutput: []float32{float32(3.5)}},
+		{Script: `[]float64{4.5}`, RunOutput: []float64{float64(4.5)}},
+		{Script: `[]string{"a"}`, RunOutput: []string{"a"}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
