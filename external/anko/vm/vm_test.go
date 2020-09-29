@@ -138,14 +138,12 @@ type TestOptions struct {
 	Timeout      time.Duration
 }
 
-// runTests runs VM tests.
 func runTests(t *testing.T, tests []Test, testOptions *TestOptions, options *Options) {
 	for _, test := range tests {
 		runTest(t, test, testOptions, options)
 	}
 }
 
-// runTest runs VM test.
 // nolint: gocyclo
 //gocyclo:ignore
 func runTest(t *testing.T, test Test, testOptions *TestOptions, options *Options) {
