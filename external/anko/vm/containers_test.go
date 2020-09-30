@@ -423,7 +423,7 @@ func TestSliceOfSlices(t *testing.T) {
 		{Script: `a = [1, 2, 3]; a[:3]`, RunOutput: []interface{}{int64(1), int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
 		{Script: `a = [1, 2, 3]; a[:4]`, RunError: fmt.Errorf("index out of range"), RunOutput: nil, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
 
-		{Script: `b[1:2] = 4`, RunError: fmt.Errorf("undefined symbol 'b'")},
+		{Script: `b[1:2] = 4`, RunError: fmt.Errorf("undefined symbol \"b\"")},
 		{Script: `a = [1, 2, 3]; a[1++:2] = 4`, RunError: fmt.Errorf("invalid operation"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
 		{Script: `a = [1, 2, 3]; a[1:2++] = 4`, RunError: fmt.Errorf("invalid operation"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
 		{Script: `a = [1, 2, 3]; a[nil:2] = 4`, RunError: fmt.Errorf("index must be a number"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
@@ -572,6 +572,269 @@ func TestSliceOfSlices(t *testing.T) {
 
 		// cap assigned
 		{Script: `a = [1,2,3,4]; a[1:1:1] = 3`, RunError: fmt.Errorf("slice cannot be assigned"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3), int64(4)}}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestSliceAppendSlices(t *testing.T) {
+	tests := []Test{
+		{Script: `a += 1`, Input: map[string]interface{}{"a": []bool{true}}, RunError: fmt.Errorf("invalid type conversion")},
+		{Script: `a += 1.1`, Input: map[string]interface{}{"a": []bool{true}}, RunError: fmt.Errorf("invalid type conversion")},
+		{Script: `a += "a"`, Input: map[string]interface{}{"a": []bool{true}}, RunError: fmt.Errorf("invalid type conversion")},
+		{Script: `a += b`, Input: map[string]interface{}{"a": "a", "b": []bool{true}}, RunError: fmt.Errorf("invalid type conversion")},
+
+		{Script: `a += b`, Input: map[string]interface{}{"a": []bool{true}, "b": []string{"b"}}, RunError: fmt.Errorf("invalid type conversion")},
+		{Script: `b += a`, Input: map[string]interface{}{"a": []bool{true}, "b": []string{"b"}}, RunError: fmt.Errorf("invalid type conversion")},
+
+		{Script: `a += nil`, Input: map[string]interface{}{"a": []bool{true}}, RunOutput: []bool{true, false}, Output: map[string]interface{}{"a": []bool{true, false}}},
+
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []bool{}}, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []bool{}, "b": []interface{}{}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []bool{true}}, RunOutput: []interface{}{true}, Output: map[string]interface{}{"a": []bool{true}, "b": []interface{}{true}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []bool{true, false}}, RunOutput: []interface{}{true, false}, Output: map[string]interface{}{"a": []bool{true, false}, "b": []interface{}{true, false}}},
+
+		{Script: `b = [true]; b += a`, Input: map[string]interface{}{"a": []bool{}}, RunOutput: []interface{}{true}, Output: map[string]interface{}{"a": []bool{}, "b": []interface{}{true}}},
+		{Script: `b = [true]; b += a`, Input: map[string]interface{}{"a": []bool{true}}, RunOutput: []interface{}{true, true}, Output: map[string]interface{}{"a": []bool{true}, "b": []interface{}{true, true}}},
+		{Script: `b = [true]; b += a`, Input: map[string]interface{}{"a": []bool{true, false}}, RunOutput: []interface{}{true, true, false}, Output: map[string]interface{}{"a": []bool{true, false}, "b": []interface{}{true, true, false}}},
+
+		{Script: `b = [true, false]; b += a`, Input: map[string]interface{}{"a": []bool{}}, RunOutput: []interface{}{true, false}, Output: map[string]interface{}{"a": []bool{}, "b": []interface{}{true, false}}},
+		{Script: `b = [true, false]; b += a`, Input: map[string]interface{}{"a": []bool{true}}, RunOutput: []interface{}{true, false, true}, Output: map[string]interface{}{"a": []bool{true}, "b": []interface{}{true, false, true}}},
+		{Script: `b = [true, false]; b += a`, Input: map[string]interface{}{"a": []bool{true, false}}, RunOutput: []interface{}{true, false, true, false}, Output: map[string]interface{}{"a": []bool{true, false}, "b": []interface{}{true, false, true, false}}},
+
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []int32{}}, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []int32{}, "b": []interface{}{}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []int32{1}}, RunOutput: []interface{}{int32(1)}, Output: map[string]interface{}{"a": []int32{1}, "b": []interface{}{int32(1)}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []int32{1, 2}}, RunOutput: []interface{}{int32(1), int32(2)}, Output: map[string]interface{}{"a": []int32{1, 2}, "b": []interface{}{int32(1), int32(2)}}},
+
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []int32{}}, RunOutput: []interface{}{int64(1)}, Output: map[string]interface{}{"a": []int32{}, "b": []interface{}{int64(1)}}},
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []int32{1}}, RunOutput: []interface{}{int64(1), int32(1)}, Output: map[string]interface{}{"a": []int32{1}, "b": []interface{}{int64(1), int32(1)}}},
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []int32{1, 2}}, RunOutput: []interface{}{int64(1), int32(1), int32(2)}, Output: map[string]interface{}{"a": []int32{1, 2}, "b": []interface{}{int64(1), int32(1), int32(2)}}},
+
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []int32{}}, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []int32{}, "b": []interface{}{int64(1), int64(2)}}},
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []int32{1}}, RunOutput: []interface{}{int64(1), int64(2), int32(1)}, Output: map[string]interface{}{"a": []int32{1}, "b": []interface{}{int64(1), int64(2), int32(1)}}},
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []int32{1, 2}}, RunOutput: []interface{}{int64(1), int64(2), int32(1), int32(2)}, Output: map[string]interface{}{"a": []int32{1, 2}, "b": []interface{}{int64(1), int64(2), int32(1), int32(2)}}},
+
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []int32{}}, RunOutput: []interface{}{1.1}, Output: map[string]interface{}{"a": []int32{}, "b": []interface{}{1.1}}},
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []int32{1}}, RunOutput: []interface{}{1.1, int32(1)}, Output: map[string]interface{}{"a": []int32{1}, "b": []interface{}{1.1, int32(1)}}},
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []int32{1, 2}}, RunOutput: []interface{}{1.1, int32(1), int32(2)}, Output: map[string]interface{}{"a": []int32{1, 2}, "b": []interface{}{1.1, int32(1), int32(2)}}},
+
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []int32{}}, RunOutput: []interface{}{1.1, 2.2}, Output: map[string]interface{}{"a": []int32{}, "b": []interface{}{1.1, 2.2}}},
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []int32{1}}, RunOutput: []interface{}{1.1, 2.2, int32(1)}, Output: map[string]interface{}{"a": []int32{1}, "b": []interface{}{1.1, 2.2, int32(1)}}},
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []int32{1, 2}}, RunOutput: []interface{}{1.1, 2.2, int32(1), int32(2)}, Output: map[string]interface{}{"a": []int32{1, 2}, "b": []interface{}{1.1, 2.2, int32(1), int32(2)}}},
+
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []int32{}}, RunOutput: []interface{}{int64(1), 2.2}, Output: map[string]interface{}{"a": []int32{}, "b": []interface{}{int64(1), 2.2}}},
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []int32{1}}, RunOutput: []interface{}{int64(1), 2.2, int32(1)}, Output: map[string]interface{}{"a": []int32{1}, "b": []interface{}{int64(1), 2.2, int32(1)}}},
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []int32{1, 2}}, RunOutput: []interface{}{int64(1), 2.2, int32(1), int32(2)}, Output: map[string]interface{}{"a": []int32{1, 2}, "b": []interface{}{int64(1), 2.2, int32(1), int32(2)}}},
+
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []int32{}}, RunOutput: []interface{}{1.1, int64(2)}, Output: map[string]interface{}{"a": []int32{}, "b": []interface{}{1.1, int64(2)}}},
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []int32{1}}, RunOutput: []interface{}{1.1, int64(2), int32(1)}, Output: map[string]interface{}{"a": []int32{1}, "b": []interface{}{1.1, int64(2), int32(1)}}},
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []int32{1, 2}}, RunOutput: []interface{}{1.1, int64(2), int32(1), int32(2)}, Output: map[string]interface{}{"a": []int32{1, 2}, "b": []interface{}{1.1, int64(2), int32(1), int32(2)}}},
+
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []int64{}}, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []int64{}, "b": []interface{}{}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []int64{1}}, RunOutput: []interface{}{int64(1)}, Output: map[string]interface{}{"a": []int64{1}, "b": []interface{}{int64(1)}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []int64{1, 2}}, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []int64{1, 2}, "b": []interface{}{int64(1), int64(2)}}},
+
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []int64{}}, RunOutput: []interface{}{int64(1)}, Output: map[string]interface{}{"a": []int64{}, "b": []interface{}{int64(1)}}},
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []int64{1}}, RunOutput: []interface{}{int64(1), int64(1)}, Output: map[string]interface{}{"a": []int64{1}, "b": []interface{}{int64(1), int64(1)}}},
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []int64{1, 2}}, RunOutput: []interface{}{int64(1), int64(1), int64(2)}, Output: map[string]interface{}{"a": []int64{1, 2}, "b": []interface{}{int64(1), int64(1), int64(2)}}},
+
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []int64{}}, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []int64{}, "b": []interface{}{int64(1), int64(2)}}},
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []int64{1}}, RunOutput: []interface{}{int64(1), int64(2), int64(1)}, Output: map[string]interface{}{"a": []int64{1}, "b": []interface{}{int64(1), int64(2), int64(1)}}},
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []int64{1, 2}}, RunOutput: []interface{}{int64(1), int64(2), int64(1), int64(2)}, Output: map[string]interface{}{"a": []int64{1, 2}, "b": []interface{}{int64(1), int64(2), int64(1), int64(2)}}},
+
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []int64{}}, RunOutput: []interface{}{1.1}, Output: map[string]interface{}{"a": []int64{}, "b": []interface{}{1.1}}},
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []int64{1}}, RunOutput: []interface{}{1.1, int64(1)}, Output: map[string]interface{}{"a": []int64{1}, "b": []interface{}{1.1, int64(1)}}},
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []int64{1, 2}}, RunOutput: []interface{}{1.1, int64(1), int64(2)}, Output: map[string]interface{}{"a": []int64{1, 2}, "b": []interface{}{1.1, int64(1), int64(2)}}},
+
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []int64{}}, RunOutput: []interface{}{1.1, 2.2}, Output: map[string]interface{}{"a": []int64{}, "b": []interface{}{1.1, 2.2}}},
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []int64{1}}, RunOutput: []interface{}{1.1, 2.2, int64(1)}, Output: map[string]interface{}{"a": []int64{1}, "b": []interface{}{1.1, 2.2, int64(1)}}},
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []int64{1, 2}}, RunOutput: []interface{}{1.1, 2.2, int64(1), int64(2)}, Output: map[string]interface{}{"a": []int64{1, 2}, "b": []interface{}{1.1, 2.2, int64(1), int64(2)}}},
+
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []int64{}}, RunOutput: []interface{}{int64(1), 2.2}, Output: map[string]interface{}{"a": []int64{}, "b": []interface{}{int64(1), 2.2}}},
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []int64{1}}, RunOutput: []interface{}{int64(1), 2.2, int64(1)}, Output: map[string]interface{}{"a": []int64{1}, "b": []interface{}{int64(1), 2.2, int64(1)}}},
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []int64{1, 2}}, RunOutput: []interface{}{int64(1), 2.2, int64(1), int64(2)}, Output: map[string]interface{}{"a": []int64{1, 2}, "b": []interface{}{int64(1), 2.2, int64(1), int64(2)}}},
+
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []int64{}}, RunOutput: []interface{}{1.1, int64(2)}, Output: map[string]interface{}{"a": []int64{}, "b": []interface{}{1.1, int64(2)}}},
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []int64{1}}, RunOutput: []interface{}{1.1, int64(2), int64(1)}, Output: map[string]interface{}{"a": []int64{1}, "b": []interface{}{1.1, int64(2), int64(1)}}},
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []int64{1, 2}}, RunOutput: []interface{}{1.1, int64(2), int64(1), int64(2)}, Output: map[string]interface{}{"a": []int64{1, 2}, "b": []interface{}{1.1, int64(2), int64(1), int64(2)}}},
+
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []float32{}}, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []float32{}, "b": []interface{}{}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []float32{1}}, RunOutput: []interface{}{float32(1)}, Output: map[string]interface{}{"a": []float32{1}, "b": []interface{}{float32(1)}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []float32{1, 2}}, RunOutput: []interface{}{float32(1), float32(2)}, Output: map[string]interface{}{"a": []float32{1, 2}, "b": []interface{}{float32(1), float32(2)}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []float32{1.1}}, RunOutput: []interface{}{float32(1.1)}, Output: map[string]interface{}{"a": []float32{1.1}, "b": []interface{}{float32(1.1)}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []float32{1.1, 2.2}}, RunOutput: []interface{}{float32(1.1), float32(2.2)}, Output: map[string]interface{}{"a": []float32{1.1, 2.2}, "b": []interface{}{float32(1.1), float32(2.2)}}},
+
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []float32{}}, RunOutput: []interface{}{int64(1)}, Output: map[string]interface{}{"a": []float32{}, "b": []interface{}{int64(1)}}},
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []float32{1}}, RunOutput: []interface{}{int64(1), float32(1)}, Output: map[string]interface{}{"a": []float32{1}, "b": []interface{}{int64(1), float32(1)}}},
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []float32{1, 2}}, RunOutput: []interface{}{int64(1), float32(1), float32(2)}, Output: map[string]interface{}{"a": []float32{1, 2}, "b": []interface{}{int64(1), float32(1), float32(2)}}},
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []float32{1.1}}, RunOutput: []interface{}{int64(1), float32(1.1)}, Output: map[string]interface{}{"a": []float32{1.1}, "b": []interface{}{int64(1), float32(1.1)}}},
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []float32{1.1, 2.2}}, RunOutput: []interface{}{int64(1), float32(1.1), float32(2.2)}, Output: map[string]interface{}{"a": []float32{1.1, 2.2}, "b": []interface{}{int64(1), float32(1.1), float32(2.2)}}},
+
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []float32{}}, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []float32{}, "b": []interface{}{int64(1), int64(2)}}},
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []float32{1}}, RunOutput: []interface{}{int64(1), int64(2), float32(1)}, Output: map[string]interface{}{"a": []float32{1}, "b": []interface{}{int64(1), int64(2), float32(1)}}},
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []float32{1, 2}}, RunOutput: []interface{}{int64(1), int64(2), float32(1), float32(2)}, Output: map[string]interface{}{"a": []float32{1, 2}, "b": []interface{}{int64(1), int64(2), float32(1), float32(2)}}},
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []float32{1.1}}, RunOutput: []interface{}{int64(1), int64(2), float32(1.1)}, Output: map[string]interface{}{"a": []float32{1.1}, "b": []interface{}{int64(1), int64(2), float32(1.1)}}},
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []float32{1.1, 2.2}}, RunOutput: []interface{}{int64(1), int64(2), float32(1.1), float32(2.2)}, Output: map[string]interface{}{"a": []float32{1.1, 2.2}, "b": []interface{}{int64(1), int64(2), float32(1.1), float32(2.2)}}},
+
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []float32{}}, RunOutput: []interface{}{1.1}, Output: map[string]interface{}{"a": []float32{}, "b": []interface{}{1.1}}},
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []float32{1}}, RunOutput: []interface{}{1.1, float32(1)}, Output: map[string]interface{}{"a": []float32{1}, "b": []interface{}{1.1, float32(1)}}},
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []float32{1, 2}}, RunOutput: []interface{}{1.1, float32(1), float32(2)}, Output: map[string]interface{}{"a": []float32{1, 2}, "b": []interface{}{1.1, float32(1), float32(2)}}},
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []float32{1.1}}, RunOutput: []interface{}{1.1, float32(1.1)}, Output: map[string]interface{}{"a": []float32{1.1}, "b": []interface{}{1.1, float32(1.1)}}},
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []float32{1.1, 2.2}}, RunOutput: []interface{}{1.1, float32(1.1), float32(2.2)}, Output: map[string]interface{}{"a": []float32{1.1, 2.2}, "b": []interface{}{1.1, float32(1.1), float32(2.2)}}},
+
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float32{}}, RunOutput: []interface{}{1.1, 2.2}, Output: map[string]interface{}{"a": []float32{}, "b": []interface{}{1.1, 2.2}}},
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float32{1}}, RunOutput: []interface{}{1.1, 2.2, float32(1)}, Output: map[string]interface{}{"a": []float32{1}, "b": []interface{}{1.1, 2.2, float32(1)}}},
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float32{1, 2}}, RunOutput: []interface{}{1.1, 2.2, float32(1), float32(2)}, Output: map[string]interface{}{"a": []float32{1, 2}, "b": []interface{}{1.1, 2.2, float32(1), float32(2)}}},
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float32{1.1}}, RunOutput: []interface{}{1.1, 2.2, float32(1.1)}, Output: map[string]interface{}{"a": []float32{1.1}, "b": []interface{}{1.1, 2.2, float32(1.1)}}},
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float32{1.1, 2.2}}, RunOutput: []interface{}{1.1, 2.2, float32(1.1), float32(2.2)}, Output: map[string]interface{}{"a": []float32{1.1, 2.2}, "b": []interface{}{1.1, 2.2, float32(1.1), float32(2.2)}}},
+
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float32{}}, RunOutput: []interface{}{int64(1), 2.2}, Output: map[string]interface{}{"a": []float32{}, "b": []interface{}{int64(1), 2.2}}},
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float32{1}}, RunOutput: []interface{}{int64(1), 2.2, float32(1)}, Output: map[string]interface{}{"a": []float32{1}, "b": []interface{}{int64(1), 2.2, float32(1)}}},
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float32{1, 2}}, RunOutput: []interface{}{int64(1), 2.2, float32(1), float32(2)}, Output: map[string]interface{}{"a": []float32{1, 2}, "b": []interface{}{int64(1), 2.2, float32(1), float32(2)}}},
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float32{1.1}}, RunOutput: []interface{}{int64(1), 2.2, float32(1.1)}, Output: map[string]interface{}{"a": []float32{1.1}, "b": []interface{}{int64(1), 2.2, float32(1.1)}}},
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float32{1.1, 2.2}}, RunOutput: []interface{}{int64(1), 2.2, float32(1.1), float32(2.2)}, Output: map[string]interface{}{"a": []float32{1.1, 2.2}, "b": []interface{}{int64(1), 2.2, float32(1.1), float32(2.2)}}},
+
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []float32{}}, RunOutput: []interface{}{1.1, int64(2)}, Output: map[string]interface{}{"a": []float32{}, "b": []interface{}{1.1, int64(2)}}},
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []float32{1}}, RunOutput: []interface{}{1.1, int64(2), float32(1)}, Output: map[string]interface{}{"a": []float32{1}, "b": []interface{}{1.1, int64(2), float32(1)}}},
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []float32{1, 2}}, RunOutput: []interface{}{1.1, int64(2), float32(1), float32(2)}, Output: map[string]interface{}{"a": []float32{1, 2}, "b": []interface{}{1.1, int64(2), float32(1), float32(2)}}},
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []float32{1.1}}, RunOutput: []interface{}{1.1, int64(2), float32(1.1)}, Output: map[string]interface{}{"a": []float32{1.1}, "b": []interface{}{1.1, int64(2), float32(1.1)}}},
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []float32{1.1, 2.2}}, RunOutput: []interface{}{1.1, int64(2), float32(1.1), float32(2.2)}, Output: map[string]interface{}{"a": []float32{1.1, 2.2}, "b": []interface{}{1.1, int64(2), float32(1.1), float32(2.2)}}},
+
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []float64{}}, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []float64{}, "b": []interface{}{}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []float64{1}}, RunOutput: []interface{}{float64(1)}, Output: map[string]interface{}{"a": []float64{1}, "b": []interface{}{float64(1)}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []float64{1, 2}}, RunOutput: []interface{}{float64(1), float64(2)}, Output: map[string]interface{}{"a": []float64{1, 2}, "b": []interface{}{float64(1), float64(2)}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []float64{1.1}}, RunOutput: []interface{}{1.1}, Output: map[string]interface{}{"a": []float64{1.1}, "b": []interface{}{1.1}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []float64{1.1, 2.2}}, RunOutput: []interface{}{1.1, 2.2}, Output: map[string]interface{}{"a": []float64{1.1, 2.2}, "b": []interface{}{1.1, 2.2}}},
+
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []float64{}}, RunOutput: []interface{}{int64(1)}, Output: map[string]interface{}{"a": []float64{}, "b": []interface{}{int64(1)}}},
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []float64{1}}, RunOutput: []interface{}{int64(1), float64(1)}, Output: map[string]interface{}{"a": []float64{1}, "b": []interface{}{int64(1), float64(1)}}},
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []float64{1, 2}}, RunOutput: []interface{}{int64(1), float64(1), float64(2)}, Output: map[string]interface{}{"a": []float64{1, 2}, "b": []interface{}{int64(1), float64(1), float64(2)}}},
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []float64{1.1}}, RunOutput: []interface{}{int64(1), 1.1}, Output: map[string]interface{}{"a": []float64{1.1}, "b": []interface{}{int64(1), 1.1}}},
+		{Script: `b = [1]; b += a`, Input: map[string]interface{}{"a": []float64{1.1, 2.2}}, RunOutput: []interface{}{int64(1), 1.1, 2.2}, Output: map[string]interface{}{"a": []float64{1.1, 2.2}, "b": []interface{}{int64(1), 1.1, 2.2}}},
+
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []float64{}}, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []float64{}, "b": []interface{}{int64(1), int64(2)}}},
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []float64{1}}, RunOutput: []interface{}{int64(1), int64(2), float64(1)}, Output: map[string]interface{}{"a": []float64{1}, "b": []interface{}{int64(1), int64(2), float64(1)}}},
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []float64{1, 2}}, RunOutput: []interface{}{int64(1), int64(2), float64(1), float64(2)}, Output: map[string]interface{}{"a": []float64{1, 2}, "b": []interface{}{int64(1), int64(2), float64(1), float64(2)}}},
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []float64{1.1}}, RunOutput: []interface{}{int64(1), int64(2), 1.1}, Output: map[string]interface{}{"a": []float64{1.1}, "b": []interface{}{int64(1), int64(2), 1.1}}},
+		{Script: `b = [1, 2]; b += a`, Input: map[string]interface{}{"a": []float64{1.1, 2.2}}, RunOutput: []interface{}{int64(1), int64(2), 1.1, 2.2}, Output: map[string]interface{}{"a": []float64{1.1, 2.2}, "b": []interface{}{int64(1), int64(2), 1.1, 2.2}}},
+
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []float64{}}, RunOutput: []interface{}{1.1}, Output: map[string]interface{}{"a": []float64{}, "b": []interface{}{1.1}}},
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []float64{1}}, RunOutput: []interface{}{1.1, float64(1)}, Output: map[string]interface{}{"a": []float64{1}, "b": []interface{}{1.1, float64(1)}}},
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []float64{1, 2}}, RunOutput: []interface{}{1.1, float64(1), float64(2)}, Output: map[string]interface{}{"a": []float64{1, 2}, "b": []interface{}{1.1, float64(1), float64(2)}}},
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []float64{1.1}}, RunOutput: []interface{}{1.1, 1.1}, Output: map[string]interface{}{"a": []float64{1.1}, "b": []interface{}{1.1, 1.1}}},
+		{Script: `b = [1.1]; b += a`, Input: map[string]interface{}{"a": []float64{1.1, 2.2}}, RunOutput: []interface{}{1.1, 1.1, 2.2}, Output: map[string]interface{}{"a": []float64{1.1, 2.2}, "b": []interface{}{1.1, 1.1, 2.2}}},
+
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float64{}}, RunOutput: []interface{}{1.1, 2.2}, Output: map[string]interface{}{"a": []float64{}, "b": []interface{}{1.1, 2.2}}},
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float64{1}}, RunOutput: []interface{}{1.1, 2.2, float64(1)}, Output: map[string]interface{}{"a": []float64{1}, "b": []interface{}{1.1, 2.2, float64(1)}}},
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float64{1, 2}}, RunOutput: []interface{}{1.1, 2.2, float64(1), float64(2)}, Output: map[string]interface{}{"a": []float64{1, 2}, "b": []interface{}{1.1, 2.2, float64(1), float64(2)}}},
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float64{1.1}}, RunOutput: []interface{}{1.1, 2.2, 1.1}, Output: map[string]interface{}{"a": []float64{1.1}, "b": []interface{}{1.1, 2.2, 1.1}}},
+		{Script: `b = [1.1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float64{1.1, 2.2}}, RunOutput: []interface{}{1.1, 2.2, 1.1, 2.2}, Output: map[string]interface{}{"a": []float64{1.1, 2.2}, "b": []interface{}{1.1, 2.2, 1.1, 2.2}}},
+
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float64{}}, RunOutput: []interface{}{int64(1), 2.2}, Output: map[string]interface{}{"a": []float64{}, "b": []interface{}{int64(1), 2.2}}},
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float64{1}}, RunOutput: []interface{}{int64(1), 2.2, float64(1)}, Output: map[string]interface{}{"a": []float64{1}, "b": []interface{}{int64(1), 2.2, float64(1)}}},
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float64{1, 2}}, RunOutput: []interface{}{int64(1), 2.2, float64(1), float64(2)}, Output: map[string]interface{}{"a": []float64{1, 2}, "b": []interface{}{int64(1), 2.2, float64(1), float64(2)}}},
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float64{1.1}}, RunOutput: []interface{}{int64(1), 2.2, 1.1}, Output: map[string]interface{}{"a": []float64{1.1}, "b": []interface{}{int64(1), 2.2, 1.1}}},
+		{Script: `b = [1, 2.2]; b += a`, Input: map[string]interface{}{"a": []float64{1.1, 2.2}}, RunOutput: []interface{}{int64(1), 2.2, 1.1, 2.2}, Output: map[string]interface{}{"a": []float64{1.1, 2.2}, "b": []interface{}{int64(1), 2.2, 1.1, 2.2}}},
+
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []float64{}}, RunOutput: []interface{}{1.1, int64(2)}, Output: map[string]interface{}{"a": []float64{}, "b": []interface{}{1.1, int64(2)}}},
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []float64{1}}, RunOutput: []interface{}{1.1, int64(2), float64(1)}, Output: map[string]interface{}{"a": []float64{1}, "b": []interface{}{1.1, int64(2), float64(1)}}},
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []float64{1, 2}}, RunOutput: []interface{}{1.1, int64(2), float64(1), float64(2)}, Output: map[string]interface{}{"a": []float64{1, 2}, "b": []interface{}{1.1, int64(2), float64(1), float64(2)}}},
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []float64{1.1}}, RunOutput: []interface{}{1.1, int64(2), 1.1}, Output: map[string]interface{}{"a": []float64{1.1}, "b": []interface{}{1.1, int64(2), 1.1}}},
+		{Script: `b = [1.1, 2]; b += a`, Input: map[string]interface{}{"a": []float64{1.1, 2.2}}, RunOutput: []interface{}{1.1, int64(2), 1.1, 2.2}, Output: map[string]interface{}{"a": []float64{1.1, 2.2}, "b": []interface{}{1.1, int64(2), 1.1, 2.2}}},
+
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []string{}}, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []string{}, "b": []interface{}{}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []string{"a"}}, RunOutput: []interface{}{"a"}, Output: map[string]interface{}{"a": []string{"a"}, "b": []interface{}{"a"}}},
+		{Script: `b = []; b += a`, Input: map[string]interface{}{"a": []string{"a", "b"}}, RunOutput: []interface{}{"a", "b"}, Output: map[string]interface{}{"a": []string{"a", "b"}, "b": []interface{}{"a", "b"}}},
+
+		{Script: `b = ["a"]; b += a`, Input: map[string]interface{}{"a": []string{}}, RunOutput: []interface{}{"a"}, Output: map[string]interface{}{"a": []string{}, "b": []interface{}{"a"}}},
+		{Script: `b = ["a"]; b += a`, Input: map[string]interface{}{"a": []string{"a"}}, RunOutput: []interface{}{"a", "a"}, Output: map[string]interface{}{"a": []string{"a"}, "b": []interface{}{"a", "a"}}},
+		{Script: `b = ["a"]; b += a`, Input: map[string]interface{}{"a": []string{"a", "b"}}, RunOutput: []interface{}{"a", "a", "b"}, Output: map[string]interface{}{"a": []string{"a", "b"}, "b": []interface{}{"a", "a", "b"}}},
+
+		{Script: `b = ["a", "b"]; b += a`, Input: map[string]interface{}{"a": []string{}}, RunOutput: []interface{}{"a", "b"}, Output: map[string]interface{}{"a": []string{}, "b": []interface{}{"a", "b"}}},
+		{Script: `b = ["a", "b"]; b += a`, Input: map[string]interface{}{"a": []string{"a"}}, RunOutput: []interface{}{"a", "b", "a"}, Output: map[string]interface{}{"a": []string{"a"}, "b": []interface{}{"a", "b", "a"}}},
+		{Script: `b = ["a", "b"]; b += a`, Input: map[string]interface{}{"a": []string{"a", "b"}}, RunOutput: []interface{}{"a", "b", "a", "b"}, Output: map[string]interface{}{"a": []string{"a", "b"}, "b": []interface{}{"a", "b", "a", "b"}}},
+
+		{Script: `b = [1, "a"]; b += a`, Input: map[string]interface{}{"a": []string{}}, RunOutput: []interface{}{int64(1), "a"}, Output: map[string]interface{}{"a": []string{}, "b": []interface{}{int64(1), "a"}}},
+		{Script: `b = [1, "a"]; b += a`, Input: map[string]interface{}{"a": []string{"a"}}, RunOutput: []interface{}{int64(1), "a", "a"}, Output: map[string]interface{}{"a": []string{"a"}, "b": []interface{}{int64(1), "a", "a"}}},
+		{Script: `b = [1, "a"]; b += a`, Input: map[string]interface{}{"a": []string{"a", "b"}}, RunOutput: []interface{}{int64(1), "a", "a", "b"}, Output: map[string]interface{}{"a": []string{"a", "b"}, "b": []interface{}{int64(1), "a", "a", "b"}}},
+
+		{Script: `a = []; a += [nil, nil]; a += [nil, nil]`, RunOutput: []interface{}{interface{}(nil), interface{}(nil), interface{}(nil), interface{}(nil)}, Output: map[string]interface{}{"a": []interface{}{interface{}(nil), interface{}(nil), interface{}(nil), interface{}(nil)}}},
+		{Script: `a = []; a += [true, false]; a += [false, true]`, RunOutput: []interface{}{interface{}(true), interface{}(false), interface{}(false), interface{}(true)}, Output: map[string]interface{}{"a": []interface{}{interface{}(true), interface{}(false), interface{}(false), interface{}(true)}}},
+		{Script: `a = []; a += [1, 2]; a += [3, 4]`, RunOutput: []interface{}{interface{}(int64(1)), interface{}(int64(2)), interface{}(int64(3)), interface{}(int64(4))}, Output: map[string]interface{}{"a": []interface{}{interface{}(int64(1)), interface{}(int64(2)), interface{}(int64(3)), interface{}(int64(4))}}},
+		{Script: `a = []; a += [1.1, 2.2]; a += [3.3, 4.4]`, RunOutput: []interface{}{interface{}(1.1), interface{}(2.2), interface{}(3.3), interface{}(4.4)}, Output: map[string]interface{}{"a": []interface{}{interface{}(1.1), interface{}(2.2), interface{}(3.3), interface{}(4.4)}}},
+		{Script: `a = []; a += ["a", "b"]; a += ["c", "d"]`, RunOutput: []interface{}{interface{}("a"), interface{}("b"), interface{}("c"), interface{}("d")}, Output: map[string]interface{}{"a": []interface{}{interface{}("a"), interface{}("b"), interface{}("c"), interface{}("d")}}},
+
+		{Script: `a = []; a += [[nil, nil]]; a += [[nil, nil]]`, RunOutput: []interface{}{[]interface{}{nil, nil}, []interface{}{nil, nil}}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{nil, nil}, []interface{}{nil, nil}}}},
+		{Script: `a = []; a += [[true, false]]; a += [[false, true]]`, RunOutput: []interface{}{[]interface{}{true, false}, []interface{}{false, true}}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{true, false}, []interface{}{false, true}}}},
+		{Script: `a = []; a += [[1, 2]]; a += [[3, 4]]`, RunOutput: []interface{}{[]interface{}{int64(1), int64(2)}, []interface{}{int64(3), int64(4)}}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2)}, []interface{}{int64(3), int64(4)}}}},
+		{Script: `a = []; a += [[1.1, 2.2]]; a += [[3.3, 4.4]]`, RunOutput: []interface{}{[]interface{}{1.1, 2.2}, []interface{}{3.3, 4.4}}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{1.1, 2.2}, []interface{}{3.3, 4.4}}}},
+		{Script: `a = []; a += [["a", "b"]]; a += [["c", "d"]]`, RunOutput: []interface{}{[]interface{}{"a", "b"}, []interface{}{"c", "d"}}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{"a", "b"}, []interface{}{"c", "d"}}}},
+
+		{Script: `a = make([]bool); a += 1`, RunError: fmt.Errorf("invalid type conversion"), Output: map[string]interface{}{"a": []bool{}}},
+		{Script: `a = make([]bool); a += true; a += 1`, RunError: fmt.Errorf("invalid type conversion"), Output: map[string]interface{}{"a": []bool{true}}},
+		{Script: `a = make([]bool); a += [1]`, RunError: fmt.Errorf("invalid type conversion"), Output: map[string]interface{}{"a": []bool{}}},
+		{Script: `a = make([]bool); a += [true, 1]`, RunError: fmt.Errorf("invalid type conversion"), Output: map[string]interface{}{"a": []bool{}}},
+
+		{Script: `a = make([]bool); a += true; a += false`, RunOutput: []bool{true, false}, Output: map[string]interface{}{"a": []bool{true, false}}},
+		{Script: `a = make([]bool); a += [true]; a += [false]`, RunOutput: []bool{true, false}, Output: map[string]interface{}{"a": []bool{true, false}}},
+		{Script: `a = make([]bool); a += [true, false]`, RunOutput: []bool{true, false}, Output: map[string]interface{}{"a": []bool{true, false}}},
+
+		{Script: `a = make([]bool); a += true; a += b`, Input: map[string]interface{}{"b": int64(1)}, RunError: fmt.Errorf("invalid type conversion"), Output: map[string]interface{}{"a": []bool{true}, "b": int64(1)}},
+		{Script: `a = make([]bool); a += [true]; a += [b]`, Input: map[string]interface{}{"b": int64(1)}, RunError: fmt.Errorf("invalid type conversion"), Output: map[string]interface{}{"a": []bool{true}, "b": int64(1)}},
+		{Script: `a = make([]bool); a += [true, b]`, Input: map[string]interface{}{"b": int64(1)}, RunError: fmt.Errorf("invalid type conversion"), Output: map[string]interface{}{"a": []bool{}, "b": int64(1)}},
+
+		{Script: `a = make([]bool); a += b; a += b`, Input: map[string]interface{}{"b": true}, RunOutput: []bool{true, true}, Output: map[string]interface{}{"a": []bool{true, true}, "b": true}},
+		{Script: `a = make([]bool); a += [b]; a += [b]`, Input: map[string]interface{}{"b": true}, RunOutput: []bool{true, true}, Output: map[string]interface{}{"a": []bool{true, true}, "b": true}},
+		{Script: `a = make([]bool); a += [b, b]`, Input: map[string]interface{}{"b": true}, RunOutput: []bool{true, true}, Output: map[string]interface{}{"a": []bool{true, true}, "b": true}},
+
+		{Script: `a = make([]bool); a += [true, false]; b = make([]int64); b += [1, 2]; a += b`, RunError: fmt.Errorf("invalid type conversion"), Output: map[string]interface{}{"a": []bool{true, false}, "b": []int64{int64(1), int64(2)}}},
+
+		{Script: `a = []; b = []; b += true; b += false; a += b`, RunOutput: []interface{}{true, false}, Output: map[string]interface{}{"a": []interface{}{true, false}, "b": []interface{}{true, false}}},
+		{Script: `a = []; b = make([]bool); b += true; b += false; a += b`, RunOutput: []interface{}{true, false}, Output: map[string]interface{}{"a": []interface{}{true, false}, "b": []bool{true, false}}},
+		{Script: `a = []; b = []; b += [true]; b += [false]; a += [b]`, RunOutput: []interface{}{[]interface{}{true, false}}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{true, false}}, "b": []interface{}{true, false}}},
+		{Script: `a = []; b = make([]bool); b += [true]; b += [false]; a += [b]`, RunOutput: []interface{}{[]bool{true, false}}, Output: map[string]interface{}{"a": []interface{}{[]bool{true, false}}, "b": []bool{true, false}}},
+
+		{Script: `a = [true, false]; b = [true, false]; a += b`, RunOutput: []interface{}{true, false, true, false}, Output: map[string]interface{}{"a": []interface{}{true, false, true, false}, "b": []interface{}{true, false}}},
+		{Script: `a = make([]bool); a += [true, false]; b = make([]bool); b += [true, false]; a += b`, RunOutput: []bool{true, false, true, false}, Output: map[string]interface{}{"a": []bool{true, false, true, false}, "b": []bool{true, false}}},
+		{Script: `a = make([]bool); a += [true, false]; b = [true, false]; a += b`, RunOutput: []bool{true, false, true, false}, Output: map[string]interface{}{"a": []bool{true, false, true, false}, "b": []interface{}{true, false}}},
+		{Script: `a = [true, false]; b = make([]bool); b += [true, false]; a += b`, RunOutput: []interface{}{true, false, true, false}, Output: map[string]interface{}{"a": []interface{}{true, false, true, false}, "b": []bool{true, false}}},
+
+		{Script: `a = make([][]bool); b = make([][]bool);  a += b`, RunOutput: [][]bool{}, Output: map[string]interface{}{"a": [][]bool{}, "b": [][]bool{}}},
+		{Script: `a = make([][]bool); b = make([][]bool); b += [[]]; a += b`, RunOutput: [][]bool{{}}, Output: map[string]interface{}{"a": [][]bool{{}}, "b": [][]bool{{}}}},
+		{Script: `a = make([][]bool); a += [[]]; b = make([][]bool); a += b`, RunOutput: [][]bool{{}}, Output: map[string]interface{}{"a": [][]bool{{}}, "b": [][]bool{}}},
+		{Script: `a = make([][]bool); a += [[]]; b = make([][]bool); b += [[]]; a += b`, RunOutput: [][]bool{{}, {}}, Output: map[string]interface{}{"a": [][]bool{{}, {}}, "b": [][]bool{{}}}},
+
+		{Script: `a = make([]bool); a += []; b = make([]bool); b += []; a += b`, RunOutput: []bool{}, Output: map[string]interface{}{"a": []bool{}, "b": []bool{}}},
+		{Script: `a = make([]bool); a += [true]; b = make([]bool); b += []; a += b`, RunOutput: []bool{true}, Output: map[string]interface{}{"a": []bool{true}, "b": []bool{}}},
+		{Script: `a = make([]bool); a += []; b = make([]bool); b += [true]; a += b`, RunOutput: []bool{true}, Output: map[string]interface{}{"a": []bool{true}, "b": []bool{true}}},
+		{Script: `a = make([]bool); a += [true]; b = make([]bool); b += [true]; a += b`, RunOutput: []bool{true, true}, Output: map[string]interface{}{"a": []bool{true, true}, "b": []bool{true}}},
+
+		{Script: `a = make([][]bool); a += [true, false];`, RunError: fmt.Errorf("invalid type conversion"), Output: map[string]interface{}{"a": [][]bool{}}},
+		{Script: `a = make([][]bool); a += [[true, false]]; b = make([]bool); b += [true, false]; a += b`, RunError: fmt.Errorf("invalid type conversion"), Output: map[string]interface{}{"a": [][]bool{{true, false}}, "b": []bool{true, false}}},
+		{Script: `a = make([][]bool); a += [[true, false]]; b = [[1.1]]; a += b`, RunError: fmt.Errorf("invalid type conversion"), Output: map[string]interface{}{"a": [][]bool{{true, false}}, "b": []interface{}{[]interface{}{1.1}}}},
+		{Script: `a = make([]bool); a += [true, false]; b = make([][]bool); b += [[true, false]]; a += b`, RunError: fmt.Errorf("invalid type conversion"), Output: map[string]interface{}{"a": []bool{true, false}, "b": [][]bool{{true, false}}}},
+
+		{Script: `a = make([][]interface); a += [[1, 2]]`, RunOutput: [][]interface{}{{int64(1), int64(2)}}, Output: map[string]interface{}{"a": [][]interface{}{{int64(1), int64(2)}}}},
+		{Script: `a = make([][]interface); b = [1, 2]; a += [b]`, RunOutput: [][]interface{}{{int64(1), int64(2)}}, Output: map[string]interface{}{"a": [][]interface{}{{int64(1), int64(2)}}, "b": []interface{}{int64(1), int64(2)}}},
+		{Script: `a = make([][]interface); a += [[1, 2],[3, 4]]`, RunOutput: [][]interface{}{{int64(1), int64(2)}, {int64(3), int64(4)}}, Output: map[string]interface{}{"a": [][]interface{}{{int64(1), int64(2)}, {int64(3), int64(4)}}}},
+		{Script: `a = make([][]interface); b = [1, 2]; a += [b]; b = [3, 4]; a += [b]`, RunOutput: [][]interface{}{{int64(1), int64(2)}, {int64(3), int64(4)}}, Output: map[string]interface{}{"a": [][]interface{}{{int64(1), int64(2)}, {int64(3), int64(4)}}, "b": []interface{}{int64(3), int64(4)}}},
+
+		{Script: `a = [["a", "b"], ["c", "d"]]; b = [["w", "x"], ["y", "z"]]; a += b`, RunOutput: []interface{}{[]interface{}{"a", "b"}, []interface{}{"c", "d"}, []interface{}{"w", "x"}, []interface{}{"y", "z"}}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{"a", "b"}, []interface{}{"c", "d"}, []interface{}{"w", "x"}, []interface{}{"y", "z"}}, "b": []interface{}{[]interface{}{"w", "x"}, []interface{}{"y", "z"}}}},
+		{Script: `a = make([][]string); a += [["a", "b"], ["c", "d"]]; b = make([][]string); b += [["w", "x"], ["y", "z"]]; a += b`, RunOutput: [][]string{{"a", "b"}, {"c", "d"}, {"w", "x"}, {"y", "z"}}, Output: map[string]interface{}{"a": [][]string{{"a", "b"}, {"c", "d"}, {"w", "x"}, {"y", "z"}}, "b": [][]string{{"w", "x"}, {"y", "z"}}}},
+		{Script: `a = make([][]string); a += [["a", "b"], ["c", "d"]]; b = [["w", "x"], ["y", "z"]]; a += b`, RunOutput: [][]string{{"a", "b"}, {"c", "d"}, {"w", "x"}, {"y", "z"}}, Output: map[string]interface{}{"a": [][]string{{"a", "b"}, {"c", "d"}, {"w", "x"}, {"y", "z"}}, "b": []interface{}{[]interface{}{"w", "x"}, []interface{}{"y", "z"}}}},
+		{Script: `a = [["a", "b"], ["c", "d"]]; b = make([][]string); b += [["w", "x"], ["y", "z"]]; a += b`, RunOutput: []interface{}{[]interface{}{"a", "b"}, []interface{}{"c", "d"}, []string{"w", "x"}, []string{"y", "z"}}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{"a", "b"}, []interface{}{"c", "d"}, []string{"w", "x"}, []string{"y", "z"}}, "b": [][]string{{"w", "x"}, {"y", "z"}}}},
+
+		{Script: `a = make([][]int64); a += [[1, 2], [3, 4]]; b = make([][]int32); b += [[5, 6], [7, 8]]; a += b`, RunOutput: [][]int64{{int64(1), int64(2)}, {int64(3), int64(4)}, {int64(5), int64(6)}, {int64(7), int64(8)}}, Output: map[string]interface{}{"a": [][]int64{{int64(1), int64(2)}, {int64(3), int64(4)}, {int64(5), int64(6)}, {int64(7), int64(8)}}, "b": [][]int32{{int32(5), int32(6)}, {int32(7), int32(8)}}}},
+		{Script: `a = make([][]int32); a += [[1, 2], [3, 4]]; b = make([][]int64); b += [[5, 6], [7, 8]]; a += b`, RunOutput: [][]int32{{int32(1), int32(2)}, {int32(3), int32(4)}, {int32(5), int32(6)}, {int32(7), int32(8)}}, Output: map[string]interface{}{"a": [][]int32{{int32(1), int32(2)}, {int32(3), int32(4)}, {int32(5), int32(6)}, {int32(7), int32(8)}}, "b": [][]int64{{int64(5), int64(6)}, {int64(7), int64(8)}}}},
+		{Script: `a = make([][]int64); a += [[1, 2], [3, 4]]; b = make([][]float64); b += [[5, 6], [7, 8]]; a += b`, RunOutput: [][]int64{{int64(1), int64(2)}, {int64(3), int64(4)}, {int64(5), int64(6)}, {int64(7), int64(8)}}, Output: map[string]interface{}{"a": [][]int64{{int64(1), int64(2)}, {int64(3), int64(4)}, {int64(5), int64(6)}, {int64(7), int64(8)}}, "b": [][]float64{{float64(5), float64(6)}, {float64(7), float64(8)}}}},
+		{Script: `a = make([][]float64); a += [[1, 2], [3, 4]]; b = make([][]int64); b += [[5, 6], [7, 8]]; a += b`, RunOutput: [][]float64{{float64(1), float64(2)}, {float64(3), float64(4)}, {float64(5), float64(6)}, {float64(7), float64(8)}}, Output: map[string]interface{}{"a": [][]float64{{float64(1), float64(2)}, {float64(3), float64(4)}, {float64(5), float64(6)}, {float64(7), float64(8)}}, "b": [][]int64{{int64(5), int64(6)}, {int64(7), int64(8)}}}},
+
+		{Script: `a = make([][][]interface); a += [[[1, 2]]]`, RunOutput: [][][]interface{}{{{int64(1), int64(2)}}}, Output: map[string]interface{}{"a": [][][]interface{}{{{int64(1), int64(2)}}}}},
+		{Script: `a = make([][][]interface); b = [[1, 2]]; a += [b]`, RunOutput: [][][]interface{}{{{int64(1), int64(2)}}}, Output: map[string]interface{}{"a": [][][]interface{}{{{int64(1), int64(2)}}}, "b": []interface{}{[]interface{}{int64(1), int64(2)}}}},
+		{Script: `a = make([][][]interface); b = [1, 2]; a += [[b]]`, RunOutput: [][][]interface{}{{{int64(1), int64(2)}}}, Output: map[string]interface{}{"a": [][][]interface{}{{{int64(1), int64(2)}}}, "b": []interface{}{int64(1), int64(2)}}},
+
+		{Script: `a = make([][][]interface); a += [[[1, 2],[3, 4]]]`, RunOutput: [][][]interface{}{{{int64(1), int64(2)}, {int64(3), int64(4)}}}, Output: map[string]interface{}{"a": [][][]interface{}{{{int64(1), int64(2)}, {int64(3), int64(4)}}}}},
+		{Script: `a = make([][][]interface); b = [[1, 2],[3, 4]]; a += [b]`, RunOutput: [][][]interface{}{{{int64(1), int64(2)}, {int64(3), int64(4)}}}, Output: map[string]interface{}{"a": [][][]interface{}{{{int64(1), int64(2)}, {int64(3), int64(4)}}}, "b": []interface{}{[]interface{}{int64(1), int64(2)}, []interface{}{int64(3), int64(4)}}}},
+		{Script: `a = make([][][]interface); b = [1, 2]; c = [b]; b = [3, 4]; c += [b]; a += [c]`, RunOutput: [][][]interface{}{{{int64(1), int64(2)}, {int64(3), int64(4)}}}, Output: map[string]interface{}{"a": [][][]interface{}{{{int64(1), int64(2)}, {int64(3), int64(4)}}}, "b": []interface{}{int64(3), int64(4)}, "c": []interface{}{[]interface{}{int64(1), int64(2)}, []interface{}{int64(3), int64(4)}}}},
+		{Script: `a = make([][][]interface); b = [1, 2]; c = []; c += [b]; b = [3, 4]; c += [b]; a += [c]`, RunOutput: [][][]interface{}{{{int64(1), int64(2)}, {int64(3), int64(4)}}}, Output: map[string]interface{}{"a": [][][]interface{}{{{int64(1), int64(2)}, {int64(3), int64(4)}}}, "b": []interface{}{int64(3), int64(4)}, "c": []interface{}{[]interface{}{int64(1), int64(2)}, []interface{}{int64(3), int64(4)}}}},
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
