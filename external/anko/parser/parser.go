@@ -1711,7 +1711,7 @@ yydefault:
 //line parser.go.y:450
 		{
 			if len(yyDollar[1].exprs) == 0 {
-				yylex.Error("syntax error: unexpected ','")
+				yylex.Error("syntax error: unexpected \",\"")
 			}
 			yyVAL.exprs = append(yyDollar[1].exprs, yyDollar[4].expr)
 		}
@@ -1720,7 +1720,7 @@ yydefault:
 //line parser.go.y:457
 		{
 			if len(yyDollar[1].exprs) == 0 {
-				yylex.Error("syntax error: unexpected ','")
+				yylex.Error("syntax error: unexpected \",\"")
 			}
 			yyVAL.exprs = append(yyDollar[1].exprs, yyDollar[4].expr_ident)
 		}
@@ -1971,7 +1971,7 @@ yydefault:
 //line parser.go.y:638
 		{
 			if len(yyDollar[1].expr_idents) == 0 {
-				yylex.Error("syntax error: unexpected ','")
+				yylex.Error("syntax error: unexpected \",\"")
 			}
 			yyVAL.expr_idents = append(yyDollar[1].expr_idents, yyDollar[4].tok.Lit)
 		}
@@ -2049,7 +2049,7 @@ yydefault:
 //line parser.go.y:702
 		{
 			if yyDollar[1].type_data_struct == nil {
-				yylex.Error("syntax error: unexpected ','")
+				yylex.Error("syntax error: unexpected \",\"")
 			}
 			yyVAL.type_data_struct.StructNames = append(yyVAL.type_data_struct.StructNames, yyDollar[4].tok.Lit)
 			yyVAL.type_data_struct.StructTypes = append(yyVAL.type_data_struct.StructTypes, yyDollar[5].type_data)
@@ -2159,7 +2159,7 @@ yydefault:
 //line parser.go.y:794
 		{
 			if yyDollar[1].expr_map.Keys == nil {
-				yylex.Error("syntax error: unexpected ','")
+				yylex.Error("syntax error: unexpected \",\"")
 			}
 			yyVAL.expr_map.Keys = append(yyVAL.expr_map.Keys, yyDollar[4].expr)
 			yyVAL.expr_map.Values = append(yyVAL.expr_map.Values, yyDollar[6].expr)

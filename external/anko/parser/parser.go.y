@@ -449,14 +449,14 @@ exprs :
 	| exprs ',' opt_newlines expr
 	{
 		if len($1) == 0 {
-			yylex.Error("syntax error: unexpected ','")
+			yylex.Error("syntax error: unexpected \",\"")
 		}
 		$$ = append($1, $4)
 	}
 	| exprs ',' opt_newlines expr_ident
 	{
 		if len($1) == 0 {
-			yylex.Error("syntax error: unexpected ','")
+			yylex.Error("syntax error: unexpected \",\"")
 		}
 		$$ = append($1, $4)
 	}
@@ -637,7 +637,7 @@ expr_idents :
 	| expr_idents ',' opt_newlines IDENT
 	{
 		if len($1) == 0 {
-			yylex.Error("syntax error: unexpected ','")
+			yylex.Error("syntax error: unexpected \",\"")
 		}
 		$$ = append($1, $4.Lit)
 	}
@@ -701,7 +701,7 @@ type_data_struct :
 	| type_data_struct ',' opt_newlines IDENT type_data
 	{
 		if $1 == nil {
-			yylex.Error("syntax error: unexpected ','")
+			yylex.Error("syntax error: unexpected \",\"")
 		}
 		$$.StructNames = append($$.StructNames, $4.Lit)
 		$$.StructTypes = append($$.StructTypes, $5)
@@ -793,7 +793,7 @@ expr_map :
 	| expr_map ',' opt_newlines expr ':' expr
 	{
 		if $1.Keys == nil {
-			yylex.Error("syntax error: unexpected ','")
+			yylex.Error("syntax error: unexpected \",\"")
 		}
 		$$.Keys = append($$.Keys, $4)
 		$$.Values = append($$.Values, $6)
