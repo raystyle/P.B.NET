@@ -1119,3 +1119,62 @@ func TestMaps(t *testing.T) {
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
+
+func TestExistenceOfKeyInMaps(t *testing.T) {
+	tests := []Test{
+		{Script: `a = {"b":"b"}; v, ok = a[1++]`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `a = {"b":"b"}; b.c, ok = a["b"]`, RunError: fmt.Errorf("undefined symbol 'b'")},
+		{Script: `a = {"b":"b"}; v, b.c = a["b"]`, RunError: fmt.Errorf("undefined symbol 'b'")},
+
+		{Script: `a = {"b":"b"}; v, ok = a["a"]`, RunOutput: nil, Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": "b"}, "v": nil, "ok": false}},
+		{Script: `a = {"b":"b"}; v, ok = a["b"]`, RunOutput: "b", Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": "b"}, "v": "b", "ok": true}},
+		{Script: `a = {"b":"b", "c":"c"}; v, ok = a["a"]`, RunOutput: nil, Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": "b", "c": "c"}, "v": nil, "ok": false}},
+		{Script: `a = {"b":"b", "c":"c"}; v, ok = a["b"]`, RunOutput: "b", Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": "b", "c": "c"}, "v": "b", "ok": true}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestDeleteMaps(t *testing.T) {
+	tests := []Test{
+		{Script: `delete(1++, "b")`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `delete({}, 1++)`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `delete(nil, "b")`, RunError: fmt.Errorf("first argument to delete cannot be type interface")},
+		{Script: `delete(1, "b")`, RunError: fmt.Errorf("first argument to delete cannot be type int64")},
+
+		{Script: `delete(a, "")`, Input: map[string]interface{}{"a": testMapEmpty}, Output: map[string]interface{}{"a": testMapEmpty}},
+		{Script: `delete(a, "")`, Input: map[string]interface{}{"a": map[string]interface{}{"b": "b"}}, Output: map[string]interface{}{"a": map[string]interface{}{"b": "b"}}},
+		{Script: `delete(a, "a")`, Input: map[string]interface{}{"a": map[string]interface{}{"b": "b"}}, Output: map[string]interface{}{"a": map[string]interface{}{"b": "b"}}},
+		{Script: `delete(a, "b")`, Input: map[string]interface{}{"a": map[string]interface{}{"b": "b"}}, Output: map[string]interface{}{"a": map[string]interface{}{}}},
+		{Script: `delete(a, "a")`, Input: map[string]interface{}{"a": map[string]interface{}{"b": "b", "c": "c"}}, Output: map[string]interface{}{"a": map[string]interface{}{"b": "b", "c": "c"}}},
+		{Script: `delete(a, "b")`, Input: map[string]interface{}{"a": map[string]interface{}{"b": "b", "c": "c"}}, Output: map[string]interface{}{"a": map[string]interface{}{"c": "c"}}},
+
+		{Script: `delete(a, 0)`, Input: map[string]interface{}{"a": map[int64]interface{}{1: 1}}, Output: map[string]interface{}{"a": map[int64]interface{}{1: 1}}},
+		{Script: `delete(a, 1)`, Input: map[string]interface{}{"a": map[int64]interface{}{1: 1}}, Output: map[string]interface{}{"a": map[int64]interface{}{}}},
+		{Script: `delete(a, 0)`, Input: map[string]interface{}{"a": map[int64]interface{}{1: 1, 2: 2}}, Output: map[string]interface{}{"a": map[int64]interface{}{1: 1, 2: 2}}},
+		{Script: `delete(a, 1)`, Input: map[string]interface{}{"a": map[int64]interface{}{1: 1, 2: 2}}, Output: map[string]interface{}{"a": map[int64]interface{}{2: 2}}},
+
+		{Script: `delete({}, "")`},
+		{Script: `delete({}, 1)`},
+		{Script: `delete({}, "a")`},
+		{Script: `delete({"b":"b"}, "")`},
+		{Script: `delete({"b":"b"}, 1)`},
+		{Script: `delete({"b":"b"}, "a")`},
+		{Script: `delete({"b":"b"}, "b")`},
+
+		{Script: `a = {"b": "b"}; delete(a, "a")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": "b"}}},
+		{Script: `a = {"b": "b"}; delete(a, "b")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{}}},
+		{Script: `a = {"b": "b", "c":"c"}; delete(a, "a")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": "b", "c": "c"}}},
+		{Script: `a = {"b": "b", "c":"c"}; delete(a, "b")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"c": "c"}}},
+
+		{Script: `a = {"b": ["b"]}; delete(a, "a")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": []interface{}{"b"}}}},
+		{Script: `a = {"b": ["b"]}; delete(a, "b")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{}}},
+		{Script: `a = {"b": ["b"], "c": ["c"]}; delete(a, "a")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": []interface{}{"b"}, "c": []interface{}{"c"}}}},
+		{Script: `a = {"b": ["b"], "c": ["c"]}; delete(a, "b")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"c": []interface{}{"c"}}}},
+
+		{Script: `a = {"b": ["b"]}; b = &a; delete(*b, "a")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": []interface{}{"b"}}}},
+		{Script: `a = {"b": ["b"]}; b = &a; delete(*b, "b")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{}}},
+		{Script: `a = {"b": ["b"], "c": ["c"]}; b = &a; delete(*b, "a")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": []interface{}{"b"}, "c": []interface{}{"c"}}}},
+		{Script: `a = {"b": ["b"], "c": ["c"]}; b = &a; delete(*b, "b")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"c": []interface{}{"c"}}}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
