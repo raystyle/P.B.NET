@@ -315,14 +315,14 @@ func TestMakeSlices(t *testing.T) {
 		{Script: `a = make([]int32, 0); a += 1; a += 2`, RunOutput: []int32{int32(1), int32(2)}, Output: map[string]interface{}{"a": []int32{int32(1), int32(2)}}},
 		{Script: `a = make([]int64, 0); a += 1; a += 2`, RunOutput: []int64{int64(1), int64(2)}, Output: map[string]interface{}{"a": []int64{int64(1), int64(2)}}},
 		{Script: `a = make([]float32, 0); a += 1.1; a += 2.2`, RunOutput: []float32{float32(1.1), float32(2.2)}, Output: map[string]interface{}{"a": []float32{float32(1.1), float32(2.2)}}},
-		{Script: `a = make([]float64, 0); a += 1.1; a += 2.2`, RunOutput: []float64{float64(1.1), float64(2.2)}, Output: map[string]interface{}{"a": []float64{float64(1.1), float64(2.2)}}},
+		{Script: `a = make([]float64, 0); a += 1.1; a += 2.2`, RunOutput: []float64{1.1, 2.2}, Output: map[string]interface{}{"a": []float64{1.1, 2.2}}},
 		{Script: `a = make([]string, 0); a += "a"; a += "b"`, RunOutput: []string{"a", "b"}, Output: map[string]interface{}{"a": []string{"a", "b"}}},
 
 		{Script: `a = make([]bool, 2); a[0] = true; a[1] = false`, RunOutput: false, Output: map[string]interface{}{"a": []bool{true, false}}},
 		{Script: `a = make([]int32, 2); a[0] = 1; a[1] = 2`, RunOutput: int64(2), Output: map[string]interface{}{"a": []int32{int32(1), int32(2)}}},
 		{Script: `a = make([]int64, 2); a[0] = 1; a[1] = 2`, RunOutput: int64(2), Output: map[string]interface{}{"a": []int64{int64(1), int64(2)}}},
-		{Script: `a = make([]float32, 2); a[0] = 1.1; a[1] = 2.2`, RunOutput: float64(2.2), Output: map[string]interface{}{"a": []float32{float32(1.1), float32(2.2)}}},
-		{Script: `a = make([]float64, 2); a[0] = 1.1; a[1] = 2.2`, RunOutput: float64(2.2), Output: map[string]interface{}{"a": []float64{float64(1.1), float64(2.2)}}},
+		{Script: `a = make([]float32, 2); a[0] = 1.1; a[1] = 2.2`, RunOutput: 2.2, Output: map[string]interface{}{"a": []float32{float32(1.1), float32(2.2)}}},
+		{Script: `a = make([]float64, 2); a[0] = 1.1; a[1] = 2.2`, RunOutput: 2.2, Output: map[string]interface{}{"a": []float64{1.1, 2.2}}},
 		{Script: `a = make([]string, 2); a[0] = "a"; a[1] = "b"`, RunOutput: "b", Output: map[string]interface{}{"a": []string{"a", "b"}}},
 
 		{Script: `make([]boolA)`, Types: map[string]interface{}{"boolA": []bool{}}, RunOutput: [][]bool{}},
@@ -367,8 +367,211 @@ func TestMakeSlices(t *testing.T) {
 		{Script: `[]int32{1}`, RunOutput: []int32{int32(1)}},
 		{Script: `[]int64{2}`, RunOutput: []int64{int64(2)}},
 		{Script: `[]float32{3.5}`, RunOutput: []float32{float32(3.5)}},
-		{Script: `[]float64{4.5}`, RunOutput: []float64{float64(4.5)}},
+		{Script: `[]float64{4.5}`, RunOutput: []float64{4.5}},
 		{Script: `[]string{"a"}`, RunOutput: []string{"a"}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestSliceOfSlices(t *testing.T) {
+	tests := []Test{
+		{Script: `a = [1, 2]; a[:]`, ParseError: fmt.Errorf("syntax error")},
+		{Script: `(1++)[0:0]`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `a = [1, 2]; a[1++:0]`, RunError: fmt.Errorf("invalid operation"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2)}}},
+		{Script: `a = [1, 2]; a[0:1++]`, RunError: fmt.Errorf("invalid operation"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2)}}},
+		{Script: `a = [1, 2]; a[:0]++`, RunError: fmt.Errorf("slice cannot be assigned"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2)}}},
+		{Script: `a = [1, 2]; a[:0]--`, RunError: fmt.Errorf("slice cannot be assigned"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2)}}},
+
+		{Script: `a = [1, 2, 3]; a[nil:2]`, RunError: fmt.Errorf("index must be a number"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[1:nil]`, RunError: fmt.Errorf("index must be a number"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+
+		{Script: `a = [1, 2, 3]; a[-1:0]`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[0:0]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[0:1]`, RunOutput: []interface{}{int64(1)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[0:2]`, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[0:3]`, RunOutput: []interface{}{int64(1), int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[0:4]`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+
+		{Script: `a = [1, 2, 3]; a[1:0]`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[1:1]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[1:2]`, RunOutput: []interface{}{int64(2)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[1:3]`, RunOutput: []interface{}{int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[1:4]`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+
+		{Script: `a = [1, 2, 3]; a[2:1]`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[2:2]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[2:3]`, RunOutput: []interface{}{int64(3)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[2:4]`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+
+		{Script: `a = [1, 2, 3]; a[3:2]`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[3:3]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[3:4]`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+
+		{Script: `a = [1, 2, 3]; a[4:4]`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+
+		{Script: `a = [1, 2, 3]; a[-1:]`, RunError: fmt.Errorf("index out of range"), RunOutput: nil, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[0:]`, RunOutput: []interface{}{int64(1), int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[1:]`, RunOutput: []interface{}{int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[2:]`, RunOutput: []interface{}{int64(3)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[3:]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[4:]`, RunError: fmt.Errorf("index out of range"), RunOutput: nil, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+
+		{Script: `a = [1, 2, 3]; a[:-1]`, RunError: fmt.Errorf("index out of range"), RunOutput: nil, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[:0]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[:1]`, RunOutput: []interface{}{int64(1)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[:2]`, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[:3]`, RunOutput: []interface{}{int64(1), int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[:4]`, RunError: fmt.Errorf("index out of range"), RunOutput: nil, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+
+		{Script: `b[1:2] = 4`, RunError: fmt.Errorf("undefined symbol 'b'")},
+		{Script: `a = [1, 2, 3]; a[1++:2] = 4`, RunError: fmt.Errorf("invalid operation"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[1:2++] = 4`, RunError: fmt.Errorf("invalid operation"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[nil:2] = 4`, RunError: fmt.Errorf("index must be a number"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[1:nil] = 4`, RunError: fmt.Errorf("index must be a number"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+
+		{Script: `a = [1, 2, 3]; a[0:0] = 4`, RunError: fmt.Errorf("slice cannot be assigned"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[0:1] = 4`, RunError: fmt.Errorf("slice cannot be assigned"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[0:4] = 4`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[1:0] = 4`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[1:4] = 4`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+
+		{Script: `a = [1, 2, 3]; a[-1:] = 4`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[0:] = 4`, RunError: fmt.Errorf("slice cannot be assigned"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[1:] = 4`, RunError: fmt.Errorf("slice cannot be assigned"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[4:] = 4`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+
+		{Script: `a = [1, 2, 3]; a[:-1] = 4`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[:0] = 4`, RunError: fmt.Errorf("slice cannot be assigned"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[:1] = 4`, RunError: fmt.Errorf("slice cannot be assigned"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+		{Script: `a = [1, 2, 3]; a[:4] = 4`, RunError: fmt.Errorf("index out of range"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3)}}},
+
+		// slice assigned elem
+		{Script: `a[0][0:0] = 4`, Input: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}}}, RunError: fmt.Errorf("slice cannot be assigned"), Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}}}},
+
+		{Script: `a = [{"b": "b"}, {"c": "c"}, {"d": "d"}]; a[0:2].a`, RunError: fmt.Errorf("type slice does not support member operation"), Output: map[string]interface{}{"a": []interface{}{map[interface{}]interface{}{"b": "b"}, map[interface{}]interface{}{"c": "c"}, map[interface{}]interface{}{"d": "d"}}}},
+
+		{Script: `a = [{"b": "b"}, {"c": "c"}, {"d": "d"}]; a[0:2]`, RunOutput: []interface{}{map[interface{}]interface{}{"b": "b"}, map[interface{}]interface{}{"c": "c"}}, Output: map[string]interface{}{"a": []interface{}{map[interface{}]interface{}{"b": "b"}, map[interface{}]interface{}{"c": "c"}, map[interface{}]interface{}{"d": "d"}}}},
+		{Script: `a = [{"b": "b"}, {"c": "c"}, {"d": "d"}]; a[0:2][0].b`, RunOutput: "b", Output: map[string]interface{}{"a": []interface{}{map[interface{}]interface{}{"b": "b"}, map[interface{}]interface{}{"c": "c"}, map[interface{}]interface{}{"d": "d"}}}},
+
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][0:3]`, RunOutput: []interface{}{int64(1), int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][1:3]`, RunOutput: []interface{}{int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][2:3]`, RunOutput: []interface{}{int64(3)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][3:3]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][0:]`, RunOutput: []interface{}{int64(1), int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][1:]`, RunOutput: []interface{}{int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][2:]`, RunOutput: []interface{}{int64(3)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][3:]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][0:0]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][0:1]`, RunOutput: []interface{}{int64(1)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][0:2]`, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][0:3]`, RunOutput: []interface{}{int64(1), int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][:0]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][:1]`, RunOutput: []interface{}{int64(1)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][:2]`, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[0][:3]`, RunOutput: []interface{}{int64(1), int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][0:3]`, RunOutput: []interface{}{int64(4), int64(5), int64(6)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][1:3]`, RunOutput: []interface{}{int64(5), int64(6)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][2:3]`, RunOutput: []interface{}{int64(6)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][3:3]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][0:]`, RunOutput: []interface{}{int64(4), int64(5), int64(6)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][1:]`, RunOutput: []interface{}{int64(5), int64(6)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][2:]`, RunOutput: []interface{}{int64(6)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][3:]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][0:0]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][0:1]`, RunOutput: []interface{}{int64(4)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][0:2]`, RunOutput: []interface{}{int64(4), int64(5)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][0:3]`, RunOutput: []interface{}{int64(4), int64(5), int64(6)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][:0]`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][:1]`, RunOutput: []interface{}{int64(4)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][:2]`, RunOutput: []interface{}{int64(4), int64(5)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+		{Script: `a = [[1, 2, 3], [4, 5, 6]]; a[1][:3]`, RunOutput: []interface{}{int64(4), int64(5), int64(6)}, Output: map[string]interface{}{"a": []interface{}{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(4), int64(5), int64(6)}}}},
+
+		{Script: `a = [["123"], ["456"]]; a[0][0][0:3]`, RunOutput: "123", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[0][0][1:3]`, RunOutput: "23", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[0][0][2:3]`, RunOutput: "3", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[0][0][3:3]`, RunOutput: "", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+
+		{Script: `a = [["123"], ["456"]]; a[0][0][0:]`, RunOutput: "123", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[0][0][1:]`, RunOutput: "23", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[0][0][2:]`, RunOutput: "3", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[0][0][3:]`, RunOutput: "", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+
+		{Script: `a = [["123"], ["456"]]; a[0][0][0:0]`, RunOutput: "", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[0][0][0:1]`, RunOutput: "1", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[0][0][0:2]`, RunOutput: "12", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[0][0][0:3]`, RunOutput: "123", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+
+		{Script: `a = [["123"], ["456"]]; a[0][0][:0]`, RunOutput: "", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[0][0][:1]`, RunOutput: "1", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[0][0][:2]`, RunOutput: "12", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[0][0][:3]`, RunOutput: "123", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+
+		{Script: `a = [["123"], ["456"]]; a[1][0][0:3]`, RunOutput: "456", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[1][0][1:3]`, RunOutput: "56", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[1][0][2:3]`, RunOutput: "6", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[1][0][3:3]`, RunOutput: "", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+
+		{Script: `a = [["123"], ["456"]]; a[1][0][0:]`, RunOutput: "456", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[1][0][1:]`, RunOutput: "56", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[1][0][2:]`, RunOutput: "6", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[1][0][3:]`, RunOutput: "", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+
+		{Script: `a = [["123"], ["456"]]; a[1][0][0:0]`, RunOutput: "", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[1][0][0:1]`, RunOutput: "4", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[1][0][0:2]`, RunOutput: "45", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[1][0][0:3]`, RunOutput: "456", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+
+		{Script: `a = [["123"], ["456"]]; a[1][0][:0]`, RunOutput: "", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[1][0][:1]`, RunOutput: "4", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[1][0][:2]`, RunOutput: "45", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+		{Script: `a = [["123"], ["456"]]; a[1][0][:3]`, RunOutput: "456", Output: map[string]interface{}{"a": []interface{}{[]interface{}{"123"}, []interface{}{"456"}}}},
+
+		// cap errors
+		{Script: `a = "a"; a[0:1:1]`, RunError: fmt.Errorf("type string does not support cap")},
+		{Script: `a = [1,2,3,4]; a[1:3:-1]`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; a[1:3:0]`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; a[1:3:2]`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; a[1:3:5]`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; a[:2:-1]`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; a[:2:0]`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; a[:2:1]`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; a[:2:5]`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; a[1:3:"a"]`, RunError: fmt.Errorf("cap must be a number")},
+		{Script: `a = [1,2,3,4]; a[1:3:1++]`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `a = "a"; b = a[0:1:1]`, RunError: fmt.Errorf("type string does not support cap")},
+		{Script: `a = [1,2,3,4]; b = a[1:3:-1]`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; b = a[1:3:0]`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; b = a[1:3:2]`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; b = a[1:3:5]`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; b = a[1:3:"a"]`, RunError: fmt.Errorf("cap must be a number")},
+		{Script: `a = [1,2,3,4]; b = a[1:3:1++]`, RunError: fmt.Errorf("invalid operation")},
+
+		// cap assigned errors
+		{Script: `a = [1,2,3,4]; a[1:1:-1] = 3`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; a[1:1:0] = 3`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; a[1:1:5] = 3`, RunError: fmt.Errorf("cap out of range")},
+		{Script: `a = [1,2,3,4]; a[1:1:"a"] = 3`, RunError: fmt.Errorf("cap must be a number")},
+		{Script: `a = [1,2,3,4]; a[1:3:1++] = 3`, RunError: fmt.Errorf("invalid operation")},
+
+		// cap
+		{Script: `a = [1,2,3,4]; a[1:3:3]`, RunOutput: []interface{}{int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3), int64(4)}}},
+		{Script: `a = [1,2,3,4]; a[1:3:4]`, RunOutput: []interface{}{int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3), int64(4)}}},
+		{Script: `a = [1,2,3,4]; a[:2:3]`, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3), int64(4)}}},
+		{Script: `a = [1,2,3,4]; a[:2:4]`, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3), int64(4)}}},
+		{Script: `a = [1,2,3,4]; b = a[1:3:3]`, RunOutput: []interface{}{int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3), int64(4)}, "b": []interface{}{int64(2), int64(3)}}},
+		{Script: `a = [1,2,3,4]; b = a[1:3:4]`, RunOutput: []interface{}{int64(2), int64(3)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3), int64(4)}, "b": []interface{}{int64(2), int64(3)}}},
+		{Script: `a = [1,2,3,4]; b = a[:2:3]`, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3), int64(4)}, "b": []interface{}{int64(1), int64(2)}}},
+		{Script: `a = [1,2,3,4]; b = a[:2:4]`, RunOutput: []interface{}{int64(1), int64(2)}, Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3), int64(4)}, "b": []interface{}{int64(1), int64(2)}}},
+
+		// cap assigned
+		{Script: `a = [1,2,3,4]; a[1:1:1] = 3`, RunError: fmt.Errorf("slice cannot be assigned"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3), int64(4)}}},
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
