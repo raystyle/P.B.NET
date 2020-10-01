@@ -1454,8 +1454,6 @@ func TestMakeMapsData(t *testing.T) {
 }
 
 func TestStructs(t *testing.T) {
-	t.Parallel()
-
 	tests := []Test{
 		{Script: `a["B"]`, Input: map[string]interface{}{"a": struct {
 			A interface{}
@@ -1470,7 +1468,7 @@ func TestStructs(t *testing.T) {
 			A interface{}
 			B interface{}
 		}{}},
-			RunError: fmt.Errorf("no member named 'C' for struct"),
+			RunError: fmt.Errorf("no member named \"C\" for struct"),
 			Output: map[string]interface{}{"a": struct {
 				A interface{}
 				B interface{}
@@ -1656,7 +1654,7 @@ func TestStructs(t *testing.T) {
 				B interface{}
 			}{A: int64(1), B: int64(2)},
 		},
-			RunError: fmt.Errorf("no member named 'C' for struct"),
+			RunError: fmt.Errorf("no member named \"C\" for struct"),
 			Output: map[string]interface{}{"a": struct {
 				A interface{}
 				B interface{}
@@ -1746,6 +1744,165 @@ func TestStructs(t *testing.T) {
 			Output: map[string]interface{}{"a": &struct {
 				A *struct{ AA *int64 }
 			}{A: nil}}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestMakeStructs(t *testing.T) {
+	tests := []Test{
+		{Script: `a = make(struct1)`,
+			Types:     map[string]interface{}{"struct1": &testStruct1{}},
+			RunOutput: &testStruct1{},
+			Output:    map[string]interface{}{"a": &testStruct1{}}},
+		{Script: `a = make(struct2)`,
+			Types:     map[string]interface{}{"struct2": &testStruct2{}},
+			RunOutput: &testStruct2{},
+			Output:    map[string]interface{}{"a": &testStruct2{}}},
+		{Script: `make(struct1)`,
+			Types: map[string]interface{}{"struct1": &struct {
+				A interface{}
+				B interface{}
+			}{}},
+			RunOutput: &struct {
+				A interface{}
+				B interface{}
+			}{}},
+
+		{Script: `a = make(struct1)`,
+			Types: map[string]interface{}{"struct1": &struct {
+				A interface{}
+				B interface{}
+			}{}},
+			RunOutput: &struct {
+				A interface{}
+				B interface{}
+			}{},
+			Output: map[string]interface{}{"a": &struct {
+				A interface{}
+				B interface{}
+			}{}}},
+
+		{Script: `a = make(struct1); a.A = 3; a.B = 4`,
+			Types: map[string]interface{}{"struct1": &struct {
+				A interface{}
+				B interface{}
+			}{}},
+			RunOutput: int64(4),
+			Output: map[string]interface{}{"a": &struct {
+				A interface{}
+				B interface{}
+			}{A: interface{}(int64(3)), B: interface{}(int64(4))}}},
+
+		{Script: `a = make(struct1); a = *a; a.A = 3; a.B = 4`,
+			Types: map[string]interface{}{"struct1": &struct {
+				A interface{}
+				B interface{}
+			}{}},
+			RunOutput: int64(4),
+			Output: map[string]interface{}{"a": struct {
+				A interface{}
+				B interface{}
+			}{A: interface{}(int64(3)), B: interface{}(int64(4))}}},
+
+		{Script: `a = make(struct1); a.A = func () { return 1 }; a.A()`,
+			Types: map[string]interface{}{"struct1": &struct {
+				A interface{}
+				B interface{}
+			}{}},
+			RunOutput: int64(1)},
+		{Script: `a = make(struct1); a.A = func () { return 1 }; a = *a; a.A()`,
+			Types: map[string]interface{}{"struct1": &struct {
+				A interface{}
+				B interface{}
+			}{}},
+			RunOutput: int64(1)},
+
+		// make struct - new lines
+		{Script: `make(struct { A int64, B float64 })`, RunOutput: struct {
+			A int64
+			B float64
+		}{}},
+		{Script: `make(struct {
+A int64, B float64 })`, RunOutput: struct {
+			A int64
+			B float64
+		}{}},
+		{Script: `make(struct { A int64,
+B float64 })`, RunOutput: struct {
+			A int64
+			B float64
+		}{}},
+		{Script: `make(struct { A int64, B float64
+})`, RunOutput: struct {
+			A int64
+			B float64
+		}{}},
+		{Script: `
+make(struct {
+	A int64,
+	B float64
+})`, RunOutput: struct {
+			A int64
+			B float64
+		}{}},
+
+		// make struct - with basic types
+		{Script: `
+make(struct {
+	A bool,
+	B int32,
+	C int64,
+	D float32,
+	E float64,
+	F string
+})`, RunOutput: struct {
+			A bool
+			B int32
+			C int64
+			D float32
+			E float64
+			F string
+		}{}},
+
+		// make struct - with other types
+		{Script: `
+make(struct {
+	A *int64,
+	B []int64,
+	C map[string]int64
+})`, RunOutput: struct {
+			A *int64
+			B []int64
+			C map[string]int64
+		}{A: (*int64)(nil), B: nil, C: nil}},
+
+		// make struct within structs
+		{Script: `
+make(struct {
+	A struct {
+		AA int64,
+		AB float64
+	},
+	B struct {
+		BA []int64,
+		BB map[string]int64
+	}
+})`, RunOutput: struct {
+			A struct {
+				AA int64
+				AB float64
+			}
+			B struct {
+				BA []int64
+				BB map[string]int64
+			}
+		}{A: struct {
+			AA int64
+			AB float64
+		}{AA: 0, AB: 0}, B: struct {
+			BA []int64
+			BB map[string]int64
+		}{BA: nil, BB: nil}}},
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
