@@ -2,8 +2,12 @@ package vm
 
 import (
 	"fmt"
+	"net/url"
 	"reflect"
 	"testing"
+
+	"project/external/anko/env"
+	"project/external/anko/parser"
 )
 
 func TestSlices(t *testing.T) {
@@ -1334,4 +1338,121 @@ func TestMakeSlicesAndMaps(t *testing.T) {
 		{Script: `a = make(mapSlice2x); a.b = b`, Types: map[string]interface{}{"mapSlice2x": map[string][][]interface{}{}}, Input: map[string]interface{}{"b": [][]interface{}{}}, RunOutput: [][]interface{}{}, Output: map[string]interface{}{"a": map[string][][]interface{}{"b": {}}, "b": [][]interface{}{}}},
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestMakeSlicesData(t *testing.T) {
+	t.Parallel()
+
+	stmts, err := parser.ParseSrc("make(slice)")
+	if err != nil {
+		t.Errorf("ParseSrc error - received %v - expected: %v", err, nil)
+	}
+
+	e := env.NewEnv()
+	err = e.DefineType("slice", []string{})
+	if err != nil {
+		t.Errorf("DefineType error - received %v - expected: %v", err, nil)
+	}
+
+	value, err := Run(e, nil, stmts)
+	if err != nil {
+		t.Errorf("Run error - received %v - expected: %v", err, nil)
+	}
+	if !reflect.DeepEqual(value, []string{}) {
+		t.Errorf("Run value - received %#v - expected: %#v", value, []string{})
+	}
+
+	a := value.([]string)
+	if len(a) != 0 {
+		t.Errorf("len value - received %#v - expected: %#v", len(a), 0)
+	}
+	a = append(a, "a")
+	if a[0] != "a" {
+		t.Errorf("Get value - received %#v - expected: %#v", a[0], "a")
+	}
+	if len(a) != 1 {
+		t.Errorf("len value - received %#v - expected: %#v", len(a), 1)
+	}
+
+	stmts, err = parser.ParseSrc("make([]string)")
+	if err != nil {
+		t.Errorf("ParseSrc error - received %v - expected: %v", err, nil)
+	}
+
+	e = env.NewEnv()
+	err = e.DefineType("string", "a")
+	if err != nil {
+		t.Errorf("DefineType error - received %v - expected: %v", err, nil)
+	}
+
+	value, err = Run(e, nil, stmts)
+	if err != nil {
+		t.Errorf("Run error - received %v - expected: %v", err, nil)
+	}
+	if !reflect.DeepEqual(value, []string{}) {
+		t.Errorf("Run value - received %#v - expected: %#v", value, []string{})
+	}
+
+	b := value.([]string)
+	if len(b) != 0 {
+		t.Errorf("len value - received %#v - expected: %#v", len(b), 0)
+	}
+	b = append(b, "b")
+	if b[0] != "b" {
+		t.Errorf("Get value - received %#v - expected: %#v", b[0], "b")
+	}
+	if len(b) != 1 {
+		t.Errorf("len value - received %#v - expected: %#v", len(b), 1)
+	}
+}
+
+func TestMakeMapsData(t *testing.T) {
+	t.Parallel()
+
+	stmts, err := parser.ParseSrc("make(aMap)")
+	if err != nil {
+		t.Errorf("ParseSrc error - received %v - expected: %v", err, nil)
+	}
+
+	// test normal map
+	e := env.NewEnv()
+	err = e.DefineType("aMap", map[string]string{})
+	if err != nil {
+		t.Errorf("DefineType error - received %v - expected: %v", err, nil)
+	}
+
+	value, err := Run(e, nil, stmts)
+	if err != nil {
+		t.Errorf("Run error - received %v - expected: %v", err, nil)
+	}
+	if !reflect.DeepEqual(value, map[string]string{}) {
+		t.Errorf("Run value - received %#v - expected: %#v", value, map[string]string{})
+	}
+
+	a := value.(map[string]string)
+	a["a"] = "a"
+	if a["a"] != "a" {
+		t.Errorf("Get value - received %#v - expected: %#v", a["a"], "a")
+	}
+
+	// test url Values map
+	e = env.NewEnv()
+	err = e.DefineType("aMap", url.Values{})
+	if err != nil {
+		t.Errorf("DefineType error - received %v - expected: %v", err, nil)
+	}
+
+	value, err = Run(e, nil, stmts)
+	if err != nil {
+		t.Errorf("Run error - received %v - expected: %v", err, nil)
+	}
+	if !reflect.DeepEqual(value, url.Values{}) {
+		t.Errorf("Run value - received %#v - expected: %#v", value, url.Values{})
+	}
+
+	b := value.(url.Values)
+	b.Set("b", "b")
+	if b.Get("b") != "b" {
+		t.Errorf("Get value - received %#v - expected: %#v", b.Get("b"), "b")
+	}
 }
