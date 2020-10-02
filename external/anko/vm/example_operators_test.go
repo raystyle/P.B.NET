@@ -174,3 +174,141 @@ println(a)
 	// true
 
 }
+
+func Example_vmIfOperators() {
+	e := env.NewEnv()
+
+	err := e.Define("println", fmt.Println)
+	if err != nil {
+		log.Fatalf("define error: %v\n", err)
+	}
+
+	script := `
+a = 1
+b = 2
+
+if a == 1 {
+	println(a)
+}
+
+if b == 1 {
+	println(a)
+} else {
+	println(b)
+}
+
+if a == 3 {
+	println(a)
+} else if b == 3 {
+	println(b)
+} else {
+	println(a + b)
+}
+
+println("")
+
+if a == 2 || b == 2 {
+	println(4)
+}
+
+if a == 1 && b == 2 {
+	println(5)
+}
+`
+
+	_, err = vm.Execute(e, nil, script)
+	if err != nil {
+		log.Fatalf("execute error: %v\n", err)
+	}
+
+	// output:
+	// 1
+	// 2
+	// 3
+	//
+	// 4
+	// 5
+
+}
+
+func Example_vmForLoops() {
+	e := env.NewEnv()
+
+	err := e.Define("println", fmt.Println)
+	if err != nil {
+		log.Fatalf("define error: %v\n", err)
+	}
+
+	script := `
+i = 0
+for {
+	println(i)
+	i++
+	if i > 1 {
+		break
+	}
+}
+
+println("")
+
+for i in [0, 1] {
+	println(i)
+}
+
+println("")
+
+for key, value in {"a": "b"} {
+	println(key, value)
+}
+
+println("")
+
+i = 0
+for i < 2 {
+	println(i)
+	i++
+}
+
+println("")
+
+for i = 0; i < 2; i++ {
+	println(i)
+}
+
+println("")
+
+
+for i = 0; i < 10; i++ {
+	println(i)
+	if i < 1 {
+		continue
+	}
+	break
+}
+
+`
+
+	_, err = vm.Execute(e, nil, script)
+	if err != nil {
+		log.Fatalf("execute error: %v\n", err)
+	}
+
+	// output:
+	// 0
+	// 1
+	//
+	// 0
+	// 1
+	//
+	// a b
+	//
+	// 0
+	// 1
+	//
+	// 0
+	// 1
+	//
+	// 0
+	// 1
+
+}
