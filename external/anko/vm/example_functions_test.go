@@ -126,3 +126,59 @@ println(a)
 	// 1
 
 }
+
+func testFunc1(a interface{}) int {
+	b, ok := a.([]interface{})
+	if ok {
+		return len(b)
+	}
+	return 0
+}
+
+func Example_vmFunctionsOutside() {
+
+	/*
+	   // the following function would be uncommented
+	   func testFunc1(a interface{}) int {
+	   	b, ok := a.([]interface{})
+	   	if ok {
+	   		return len(b)
+	   	}
+	   	return 0
+	   }
+	*/
+
+	e := env.NewEnv()
+
+	err := e.Define("println", fmt.Println)
+	if err != nil {
+		log.Fatalf("define error: %v\n", err)
+	}
+	err = e.Define("addString", func(a string, b string) string { return a + b })
+	if err != nil {
+		log.Fatalf("define error: %v\n", err)
+	}
+	// uses the function that would be declared above
+	err = e.Define("aFunc", testFunc1)
+	if err != nil {
+		log.Fatalf("define error: %v\n", err)
+	}
+
+	script := `
+a = addString("a", "b")
+println(a)
+
+a = aFunc([1, 2, 3])
+println(a)
+`
+
+	_, err = vm.Execute(e, nil, script)
+	if err != nil {
+		log.Fatalf("execute error: %v\n", err)
+	}
+
+	// output:
+	// ab
+	// 3
+
+}
