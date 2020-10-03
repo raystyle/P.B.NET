@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"project/external/anko/env"
+
+	_ "project/external/anko/packages"
 )
 
 func TestImport(t *testing.T) {
@@ -21,14 +23,14 @@ func TestImport(t *testing.T) {
 
 	env.Packages = map[string]map[string]reflect.Value{"testPackage": {"a.b": reflect.ValueOf(1)}}
 	tests = []Test{
-		{Script: `a = import("testPackage")`, RunError: fmt.Errorf("import DefineValue error: symbol contains '.'")},
+		{Script: `a = import("testPackage")`, RunError: fmt.Errorf("import DefineValue error: symbol contains \".\"")},
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 
 	env.Packages = map[string]map[string]reflect.Value{"testPackage": {"a": reflect.ValueOf(1)}}
 	env.PackageTypes = map[string]map[string]reflect.Type{"testPackage": {"a.b": reflect.TypeOf(1)}}
 	tests = []Test{
-		{Script: `a = import("testPackage")`, RunError: fmt.Errorf("import DefineReflectType error: symbol contains '.'")},
+		{Script: `a = import("testPackage")`, RunError: fmt.Errorf("import DefineReflectType error: symbol contains \".\"")},
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 
@@ -94,7 +96,7 @@ sortFuncs.SwapFunc = func(i, j) { temp = a[i]; a[i] = a[j]; a[j] = temp }
 sort.Sort(sortFuncs)
 a
 `,
-			RunOutput: []interface{}{"f", float64(1.1), "2", int64(3), "4.4", int64(5)}, Output: map[string]interface{}{"a": []interface{}{"f", float64(1.1), "2", int64(3), "4.4", int64(5)}}},
+			RunOutput: []interface{}{"f", 1.1, "2", int64(3), "4.4", int64(5)}, Output: map[string]interface{}{"a": []interface{}{"f", 1.1, "2", int64(3), "4.4", int64(5)}}},
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
@@ -114,13 +116,13 @@ func TestPackagesStrconv(t *testing.T) {
 	}
 	tests := []Test{
 		{Script: `strconv = import("strconv"); a = true; b = strconv.FormatBool(a)`, RunOutput: "true", Output: map[string]interface{}{"a": true, "b": "true"}},
-		{Script: `strconv = import("strconv"); a = 1.1; b = strconv.FormatFloat(a, toRune("f"), -1, 64)`, Input: map[string]interface{}{"toRune": toRune}, RunOutput: "1.1", Output: map[string]interface{}{"a": float64(1.1), "b": "1.1"}},
+		{Script: `strconv = import("strconv"); a = 1.1; b = strconv.FormatFloat(a, toRune("f"), -1, 64)`, Input: map[string]interface{}{"toRune": toRune}, RunOutput: "1.1", Output: map[string]interface{}{"a": 1.1, "b": "1.1"}},
 		{Script: `strconv = import("strconv"); a = 1; b = strconv.FormatInt(a, 10)`, RunOutput: "1", Output: map[string]interface{}{"a": int64(1), "b": "1"}},
 		{Script: `strconv = import("strconv"); b = strconv.FormatInt(a, 10)`, Input: map[string]interface{}{"a": uint64(1)}, RunOutput: "1", Output: map[string]interface{}{"a": uint64(1), "b": "1"}},
 
 		{Script: `strconv = import("strconv"); a = "true"; b, err = strconv.ParseBool(a); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: "<nil>", Output: map[string]interface{}{"a": "true", "b": true, "err": "<nil>"}},
 		{Script: `strconv = import("strconv"); a = "2"; b, err = strconv.ParseBool(a); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: `strconv.ParseBool: parsing "2": invalid syntax`, Output: map[string]interface{}{"a": "2", "b": false, "err": `strconv.ParseBool: parsing "2": invalid syntax`}},
-		{Script: `strconv = import("strconv"); a = "1.1"; b, err = strconv.ParseFloat(a, 64); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: "<nil>", Output: map[string]interface{}{"a": "1.1", "b": float64(1.1), "err": "<nil>"}},
+		{Script: `strconv = import("strconv"); a = "1.1"; b, err = strconv.ParseFloat(a, 64); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: "<nil>", Output: map[string]interface{}{"a": "1.1", "b": 1.1, "err": "<nil>"}},
 		{Script: `strconv = import("strconv"); a = "a"; b, err = strconv.ParseFloat(a, 64); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: `strconv.ParseFloat: parsing "a": invalid syntax`, Output: map[string]interface{}{"a": "a", "b": float64(0), "err": `strconv.ParseFloat: parsing "a": invalid syntax`}},
 		{Script: `strconv = import("strconv"); a = "1"; b, err = strconv.ParseInt(a, 10, 64); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: "<nil>", Output: map[string]interface{}{"a": "1", "b": int64(1), "err": "<nil>"}},
 		{Script: `strconv = import("strconv"); a = "1.1"; b, err = strconv.ParseInt(a, 10, 64); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: `strconv.ParseInt: parsing "1.1": invalid syntax`, Output: map[string]interface{}{"a": "1.1", "b": int64(0), "err": `strconv.ParseInt: parsing "1.1": invalid syntax`}},
@@ -130,7 +132,7 @@ func TestPackagesStrconv(t *testing.T) {
 
 		{Script: `strconv = import("strconv"); a = "true"; var b, err = strconv.ParseBool(a); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: "<nil>", Output: map[string]interface{}{"a": "true", "b": true, "err": "<nil>"}},
 		{Script: `strconv = import("strconv"); a = "2"; var b, err = strconv.ParseBool(a); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: `strconv.ParseBool: parsing "2": invalid syntax`, Output: map[string]interface{}{"a": "2", "b": false, "err": `strconv.ParseBool: parsing "2": invalid syntax`}},
-		{Script: `strconv = import("strconv"); a = "1.1"; var b, err = strconv.ParseFloat(a, 64); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: "<nil>", Output: map[string]interface{}{"a": "1.1", "b": float64(1.1), "err": "<nil>"}},
+		{Script: `strconv = import("strconv"); a = "1.1"; var b, err = strconv.ParseFloat(a, 64); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: "<nil>", Output: map[string]interface{}{"a": "1.1", "b": 1.1, "err": "<nil>"}},
 		{Script: `strconv = import("strconv"); a = "a"; var b, err = strconv.ParseFloat(a, 64); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: `strconv.ParseFloat: parsing "a": invalid syntax`, Output: map[string]interface{}{"a": "a", "b": float64(0), "err": `strconv.ParseFloat: parsing "a": invalid syntax`}},
 		{Script: `strconv = import("strconv"); a = "1"; var b, err = strconv.ParseInt(a, 10, 64); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: "<nil>", Output: map[string]interface{}{"a": "1", "b": int64(1), "err": "<nil>"}},
 		{Script: `strconv = import("strconv"); a = "1.1"; var b, err = strconv.ParseInt(a, 10, 64); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: `strconv.ParseInt: parsing "1.1": invalid syntax`, Output: map[string]interface{}{"a": "1.1", "b": int64(0), "err": `strconv.ParseInt: parsing "1.1": invalid syntax`}},
@@ -150,10 +152,11 @@ func TestPackagesStrings(t *testing.T) {
 	runTests(t, tests, nil, &Options{Debug: true})
 }
 
+// <fix bug> use "new" to replace "make"
 func TestPackagesSync(t *testing.T) {
 	tests := []Test{
-		{Script: `sync = import("sync"); once = make(sync.Once); a = []; func add() { a += "a" }; once.Do(add); once.Do(add); a`, RunOutput: []interface{}{"a"}, Output: map[string]interface{}{"a": []interface{}{"a"}}},
-		{Script: `sync = import("sync"); waitGroup = make(sync.WaitGroup); waitGroup.Add(2);  func done() { waitGroup.Done() }; go done(); go done(); waitGroup.Wait(); "a"`, RunOutput: "a"},
+		{Script: `sync = import("sync"); once = new(sync.Once); a = []; func add() { a += "a" }; once.Do(add); once.Do(add); a`, RunOutput: []interface{}{"a"}, Output: map[string]interface{}{"a": []interface{}{"a"}}},
+		{Script: `sync = import("sync"); waitGroup = new(sync.WaitGroup); waitGroup.Add(2);  func done() { waitGroup.Done() }; go done(); go done(); waitGroup.Wait(); "a"`, RunOutput: "a"},
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
