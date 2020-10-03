@@ -312,3 +312,74 @@ for i = 0; i < 10; i++ {
 	// 1
 
 }
+
+func Example_vmSlices() {
+	e := env.NewEnv()
+
+	err := e.Define("println", fmt.Println)
+	if err != nil {
+		log.Fatalf("define error: %v\n", err)
+	}
+
+	script := `
+a = "abc"
+println(a[1:])
+println(a[:2])
+println(a[1:2])
+
+println("")
+
+a = [1, 2, 3]
+println(a[1:])
+println(a[:2])
+println(a[1:2])
+`
+
+	_, err = vm.Execute(e, nil, script)
+	if err != nil {
+		log.Fatalf("execute error: %v\n", err)
+	}
+
+	// output:
+	// bc
+	// ab
+	// b
+	//
+	// [2 3]
+	// [1 2]
+	// [2]
+
+}
+
+func Example_vmChannels() {
+	e := env.NewEnv()
+
+	err := e.Define("println", fmt.Println)
+	if err != nil {
+		log.Fatalf("define error: %v\n", err)
+	}
+
+	script := `
+a = make(chan string, 1)
+a <- "a"
+println(<- a)
+
+a = make(chan string)
+go func() {
+	a <- "a"
+}()
+println(<- a)
+
+
+`
+
+	_, err = vm.Execute(e, nil, script)
+	if err != nil {
+		log.Fatalf("execute error: %v\n", err)
+	}
+
+	// output:
+	// a
+	// a
+
+}
