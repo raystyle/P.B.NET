@@ -108,3 +108,116 @@ println(f)
 	// [true 1 1.1 d]
 	// map[a:true]
 }
+
+func Example_vmEnv() {
+	e := env.NewEnv()
+
+	err := e.Define("a", "a")
+	if err != nil {
+		log.Fatalf("define error: %v\n", err)
+	}
+
+	_, err = e.Get("a")
+	if err != nil {
+		log.Fatalf("get error: %v\n", err)
+	}
+
+	fmt.Println(e)
+
+	// output:
+	// No parent
+	// a = "a"
+}
+
+func Example_vmHelloWorld() {
+	e := env.NewEnv()
+
+	err := e.Define("println", fmt.Println)
+	if err != nil {
+		log.Fatalf("define error: %v\n", err)
+	}
+
+	script := `
+println("Hello World :)")
+`
+
+	_, err = vm.Execute(e, nil, script)
+	if err != nil {
+		log.Fatalf("execute error: %v\n", err)
+	}
+
+	// output: Hello World :)
+}
+
+func Example_vmQuickStart() {
+	e := env.NewEnv()
+
+	err := e.Define("println", fmt.Println)
+	if err != nil {
+		log.Fatalf("define error: %v\n", err)
+	}
+
+	script := `
+// declare variables
+x = 1
+y = x + 1
+
+// print using outside the script defined println function
+println(x + y) // 3
+
+// if else statement
+if x < 1 || y < 1 {
+	println(x)
+} else if x < 1 && y < 1 {
+	println(y)
+} else {
+	println(x + y)
+}
+
+// slice
+a = []interface{1, 2, 3}
+println(a) // [1 2 3]
+println(a[0]) // 1
+
+// map
+a = map[interface]interface{"x": 1}
+println(a) // map[x:1]
+a.b = 2
+a["c"] = 3
+println(a["b"]) // 2
+println(a.c) // 3
+
+// struct
+a = make(struct {
+	A int64,
+	B float64
+})
+a.A = 4
+a.B = 5.5
+println(a.A) // 4
+println(a.B) // 5.5
+
+// function
+func a (x) {
+	println(x + 1)
+}
+a(5) // 6
+`
+
+	_, err = vm.Execute(e, nil, script)
+	if err != nil {
+		log.Fatalf("execute error: %v\n", err)
+	}
+
+	// output:
+	// 3
+	// 3
+	// [1 2 3]
+	// 1
+	// map[x:1]
+	// 2
+	// 3
+	// 4
+	// 5.5
+	// 6
+}
