@@ -1,1 +1,171 @@
 package vm
+
+import (
+	"fmt"
+	"testing"
+)
+
+func TestBasicOperators(t *testing.T) {
+	tests := []Test{
+		{Script: `]`, ParseError: fmt.Errorf("syntax error")},
+
+		{Script: `2 + 1`, RunOutput: int64(3)},
+		{Script: `2 - 1`, RunOutput: int64(1)},
+		{Script: `2 * 1`, RunOutput: int64(2)},
+		{Script: `2 / 1`, RunOutput: float64(2)},
+		{Script: `2.1 + 1.1`, RunOutput: 3.2},
+		{Script: `2.1 - 1.1`, RunOutput: float64(1)},
+		{Script: `2 + 1.1`, RunOutput: 3.1},
+		{Script: `2.1 + 1`, RunOutput: 3.1},
+		{Script: `3 - 1.5`, RunOutput: 1.5},
+		{Script: `2.1 - 1`, RunOutput: 1.1},
+		{Script: `2.1 * 2.0`, RunOutput: 4.2},
+		{Script: `6.5 / 2.0`, RunOutput: 3.25},
+
+		{Script: `2-1`, RunOutput: int64(1)},
+		{Script: `2 -1`, RunOutput: int64(1)},
+		{Script: `2- 1`, RunOutput: int64(1)},
+		{Script: `2 - -1`, RunOutput: int64(3)},
+		{Script: `2- -1`, RunOutput: int64(3)},
+		{Script: `2 - - 1`, RunOutput: int64(3)},
+		{Script: `2- - 1`, RunOutput: int64(3)},
+
+		{Script: `a + b`, Input: map[string]interface{}{"a": int64(2), "b": int64(1)}, RunOutput: int64(3)},
+		{Script: `a - b`, Input: map[string]interface{}{"a": int64(2), "b": int64(1)}, RunOutput: int64(1)},
+		{Script: `a * b`, Input: map[string]interface{}{"a": int64(2), "b": int64(1)}, RunOutput: int64(2)},
+		{Script: `a / b`, Input: map[string]interface{}{"a": int64(2), "b": int64(1)}, RunOutput: float64(2)},
+		{Script: `a + b`, Input: map[string]interface{}{"a": 2.1, "b": 1.1}, RunOutput: 3.2},
+		{Script: `a - b`, Input: map[string]interface{}{"a": 2.1, "b": 1.1}, RunOutput: float64(1)},
+		{Script: `a * b`, Input: map[string]interface{}{"a": 2.1, "b": float64(2)}, RunOutput: 4.2},
+		{Script: `a / b`, Input: map[string]interface{}{"a": 6.5, "b": float64(2)}, RunOutput: 3.25},
+
+		{Script: `a + b`, Input: map[string]interface{}{"a": "a", "b": "b"}, RunOutput: "ab"},
+		{Script: `a + b`, Input: map[string]interface{}{"a": "a", "b": int64(1)}, RunOutput: "a1"},
+		{Script: `a + b`, Input: map[string]interface{}{"a": "a", "b": 1.1}, RunOutput: "a1.1"},
+		{Script: `a + b`, Input: map[string]interface{}{"a": int64(2), "b": "b"}, RunOutput: "2b"},
+		{Script: `a + b`, Input: map[string]interface{}{"a": 2.5, "b": "b"}, RunOutput: "2.5b"},
+
+		{Script: `a + z`, Input: map[string]interface{}{"a": "a"}, RunError: fmt.Errorf("undefined symbol 'z'"), RunOutput: nil},
+		{Script: `z + b`, Input: map[string]interface{}{"a": "a"}, RunError: fmt.Errorf("undefined symbol 'z'"), RunOutput: nil},
+
+		{Script: `c = a + b`, Input: map[string]interface{}{"a": int64(2), "b": int64(1)}, RunOutput: int64(3), Output: map[string]interface{}{"c": int64(3)}},
+		{Script: `c = a - b`, Input: map[string]interface{}{"a": int64(2), "b": int64(1)}, RunOutput: int64(1), Output: map[string]interface{}{"c": int64(1)}},
+		{Script: `c = a * b`, Input: map[string]interface{}{"a": int64(2), "b": int64(1)}, RunOutput: int64(2), Output: map[string]interface{}{"c": int64(2)}},
+		{Script: `c = a / b`, Input: map[string]interface{}{"a": int64(2), "b": int64(1)}, RunOutput: float64(2), Output: map[string]interface{}{"c": float64(2)}},
+		{Script: `c = a + b`, Input: map[string]interface{}{"a": 2.1, "b": 1.1}, RunOutput: 3.2, Output: map[string]interface{}{"c": 3.2}},
+		{Script: `c = a - b`, Input: map[string]interface{}{"a": 2.1, "b": 1.1}, RunOutput: float64(1), Output: map[string]interface{}{"c": float64(1)}},
+		{Script: `c = a * b`, Input: map[string]interface{}{"a": 2.1, "b": float64(2)}, RunOutput: 4.2, Output: map[string]interface{}{"c": 4.2}},
+		{Script: `c = a / b`, Input: map[string]interface{}{"a": 6.5, "b": float64(2)}, RunOutput: 3.25, Output: map[string]interface{}{"c": 3.25}},
+
+		{Script: `a = nil; a++`, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = false; a++`, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = true; a++`, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 1; a++`, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 1.5; a++`, RunOutput: 2.5, Output: map[string]interface{}{"a": 2.5}},
+		{Script: `a = "1"; a++`, RunOutput: "11", Output: map[string]interface{}{"a": "11"}},
+		{Script: `a = "a"; a++`, RunOutput: "a1", Output: map[string]interface{}{"a": "a1"}},
+
+		{Script: `a = nil; a--`, RunOutput: int64(-1), Output: map[string]interface{}{"a": int64(-1)}},
+		{Script: `a = false; a--`, RunOutput: int64(-1), Output: map[string]interface{}{"a": int64(-1)}},
+		{Script: `a = true; a--`, RunOutput: int64(0), Output: map[string]interface{}{"a": int64(0)}},
+		{Script: `a = 2; a--`, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2.5; a--`, RunOutput: 1.5, Output: map[string]interface{}{"a": 1.5}},
+
+		{Script: `a++`, Input: map[string]interface{}{"a": nil}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a++`, Input: map[string]interface{}{"a": false}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a++`, Input: map[string]interface{}{"a": true}, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a++`, Input: map[string]interface{}{"a": int32(1)}, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a++`, Input: map[string]interface{}{"a": int64(1)}, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a++`, Input: map[string]interface{}{"a": float32(3.5)}, RunOutput: 4.5, Output: map[string]interface{}{"a": 4.5}},
+		{Script: `a++`, Input: map[string]interface{}{"a": 4.5}, RunOutput: 5.5, Output: map[string]interface{}{"a": 5.5}},
+		{Script: `a++`, Input: map[string]interface{}{"a": "2"}, RunOutput: "21", Output: map[string]interface{}{"a": "21"}},
+		{Script: `a++`, Input: map[string]interface{}{"a": "a"}, RunOutput: "a1", Output: map[string]interface{}{"a": "a1"}},
+
+		{Script: `a--`, Input: map[string]interface{}{"a": nil}, RunOutput: int64(-1), Output: map[string]interface{}{"a": int64(-1)}},
+		{Script: `a--`, Input: map[string]interface{}{"a": false}, RunOutput: int64(-1), Output: map[string]interface{}{"a": int64(-1)}},
+		{Script: `a--`, Input: map[string]interface{}{"a": true}, RunOutput: int64(0), Output: map[string]interface{}{"a": int64(0)}},
+		{Script: `a--`, Input: map[string]interface{}{"a": int32(2)}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a--`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a--`, Input: map[string]interface{}{"a": float32(2.5)}, RunOutput: 1.5, Output: map[string]interface{}{"a": 1.5}},
+		{Script: `a--`, Input: map[string]interface{}{"a": 2.5}, RunOutput: 1.5, Output: map[string]interface{}{"a": 1.5}},
+		{Script: `a--`, Input: map[string]interface{}{"a": "2"}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a--`, Input: map[string]interface{}{"a": "a"}, RunOutput: int64(-1), Output: map[string]interface{}{"a": int64(-1)}},
+
+		{Script: `1++`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
+		{Script: `1--`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
+		{Script: `z++`, RunError: fmt.Errorf("undefined symbol 'z'"), RunOutput: nil},
+		{Script: `z--`, RunError: fmt.Errorf("undefined symbol 'z'"), RunOutput: nil},
+		{Script: `!(1++)`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
+		{Script: `1 + 1++`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
+		{Script: `1 - 1++`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
+		{Script: `1 * 1++`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
+		{Script: `1 / 1++`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
+		{Script: `1++ + 1`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
+		{Script: `1++ - 1`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
+		{Script: `1++ * 1`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
+		{Script: `1++ / 1`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
+
+		{Script: `a = 1; b = 2; a + b`, RunOutput: int64(3)},
+		{Script: `a = [1]; b = 2; a[0] + b`, RunOutput: int64(3)},
+		{Script: `a = 1; b = [2]; a + b[0]`, RunOutput: int64(3)},
+		{Script: `a = 2; b = 1; a - b`, RunOutput: int64(1)},
+		{Script: `a = [2]; b = 1; a[0] - b`, RunOutput: int64(1)},
+		{Script: `a = 2; b = [1]; a - b[0]`, RunOutput: int64(1)},
+		{Script: `a = 1; b = 2; a * b`, RunOutput: int64(2)},
+		{Script: `a = [1]; b = 2; a[0] * b`, RunOutput: int64(2)},
+		{Script: `a = 1; b = [2]; a * b[0]`, RunOutput: int64(2)},
+		{Script: `a = 4; b = 2; a / b`, RunOutput: float64(2)},
+		{Script: `a = [4]; b = 2; a[0] / b`, RunOutput: float64(2)},
+		{Script: `a = 4; b = [2]; a / b[0]`, RunOutput: float64(2)},
+
+		{Script: `a += 1`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a -= 1`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a *= 2`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(4), Output: map[string]interface{}{"a": int64(4)}},
+		{Script: `a /= 2`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: float64(1), Output: map[string]interface{}{"a": float64(1)}},
+		{Script: `a += 1`, Input: map[string]interface{}{"a": 2.1}, RunOutput: 3.1, Output: map[string]interface{}{"a": 3.1}},
+		{Script: `a -= 1`, Input: map[string]interface{}{"a": 2.1}, RunOutput: 1.1, Output: map[string]interface{}{"a": 1.1}},
+		{Script: `a *= 2`, Input: map[string]interface{}{"a": 2.1}, RunOutput: 4.2, Output: map[string]interface{}{"a": 4.2}},
+		{Script: `a /= 2`, Input: map[string]interface{}{"a": 6.5}, RunOutput: 3.25, Output: map[string]interface{}{"a": 3.25}},
+
+		{Script: `a &= 1`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(0), Output: map[string]interface{}{"a": int64(0)}},
+		{Script: `a &= 2`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a &= 1`, Input: map[string]interface{}{"a": 2.1}, RunOutput: int64(0), Output: map[string]interface{}{"a": int64(0)}},
+		{Script: `a &= 2`, Input: map[string]interface{}{"a": 2.1}, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
+
+		{Script: `a |= 1`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a |= 2`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a |= 1`, Input: map[string]interface{}{"a": 2.1}, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a |= 2`, Input: map[string]interface{}{"a": 2.1}, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
+
+		{Script: `a << 2`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(8), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a >> 2`, Input: map[string]interface{}{"a": int64(8)}, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(8)}},
+		{Script: `a << 2`, Input: map[string]interface{}{"a": float64(2)}, RunOutput: int64(8), Output: map[string]interface{}{"a": float64(2)}},
+		{Script: `a >> 2`, Input: map[string]interface{}{"a": float64(8)}, RunOutput: int64(2), Output: map[string]interface{}{"a": float64(8)}},
+
+		{Script: `a % 2`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(0), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a % 3`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a % 2`, Input: map[string]interface{}{"a": 2.1}, RunOutput: int64(0), Output: map[string]interface{}{"a": 2.1}},
+		{Script: `a % 3`, Input: map[string]interface{}{"a": 2.1}, RunOutput: int64(2), Output: map[string]interface{}{"a": 2.1}},
+
+		{Script: `a * 4`, Input: map[string]interface{}{"a": "a"}, RunOutput: "aaaa", Output: map[string]interface{}{"a": "a"}},
+		{Script: `a * 4.0`, Input: map[string]interface{}{"a": "a"}, RunOutput: float64(0), Output: map[string]interface{}{"a": "a"}},
+
+		{Script: `-a`, Input: map[string]interface{}{"a": nil}, RunOutput: float64(-0), Output: map[string]interface{}{"a": nil}},
+		{Script: `-a`, Input: map[string]interface{}{"a": int32(1)}, RunOutput: int64(-1), Output: map[string]interface{}{"a": int32(1)}},
+		{Script: `-a`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(-2), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `-a`, Input: map[string]interface{}{"a": float32(3.5)}, RunOutput: -3.5, Output: map[string]interface{}{"a": float32(3.5)}},
+		{Script: `-a`, Input: map[string]interface{}{"a": 4.5}, RunOutput: -4.5, Output: map[string]interface{}{"a": 4.5}},
+		{Script: `-a`, Input: map[string]interface{}{"a": "a"}, RunOutput: float64(-0), Output: map[string]interface{}{"a": "a"}},
+		{Script: `-a`, Input: map[string]interface{}{"a": "1"}, RunOutput: float64(-1), Output: map[string]interface{}{"a": "1"}},
+
+		{Script: `^a`, Input: map[string]interface{}{"a": nil}, RunOutput: int64(-1), Output: map[string]interface{}{"a": nil}},
+		{Script: `^a`, Input: map[string]interface{}{"a": "a"}, RunOutput: int64(-1), Output: map[string]interface{}{"a": "a"}},
+		{Script: `^a`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(-3), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `^a`, Input: map[string]interface{}{"a": 2.1}, RunOutput: int64(-3), Output: map[string]interface{}{"a": 2.1}},
+
+		{Script: `!true`, RunOutput: false},
+		{Script: `!false`, RunOutput: true},
+		{Script: `!1`, RunOutput: false},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
