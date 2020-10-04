@@ -171,7 +171,7 @@ func TestFunctions(t *testing.T) {
 		{Script: `a = [true]; a()`, RunError: fmt.Errorf("cannot call type slice")},
 		{Script: `a = [true]; func b(c) { return c() }; b(a)`, RunError: fmt.Errorf("cannot call type slice")},
 		{Script: `a = {}; a.missing()`, RunError: fmt.Errorf("cannot call type interface"), Output: map[string]interface{}{"a": map[interface{}]interface{}{}}},
-		{Script: `a = 1; b = func(,a){}; a`, ParseError: fmt.Errorf("syntax error: unexpected ','"), RunOutput: int64(1)},
+		{Script: `a = 1; b = func(,a){}; a`, ParseError: fmt.Errorf("syntax error: unexpected \",\""), RunOutput: int64(1)},
 
 		{Script: `func a(b) { }; a()`, RunError: fmt.Errorf("function wants 1 arguments but received 0")},
 		{Script: `func a(b) { }; a(true, true)`, RunError: fmt.Errorf("function wants 1 arguments but received 2")},
@@ -181,7 +181,7 @@ func TestFunctions(t *testing.T) {
 
 		{Script: `func a() { return "a" }; a.b()`, RunError: fmt.Errorf("type func does not support member operation")},
 		{Script: `a = [func () { return nil}]; func b(c) { return c() }; b(a[1])`, RunError: fmt.Errorf("index out of range")},
-		{Script: `func a() { return "a" }; b()`, RunError: fmt.Errorf("undefined symbol 'b'")},
+		{Script: `func a() { return "a" }; b()`, RunError: fmt.Errorf("undefined symbol \"b\"")},
 		{Script: ` func a() { return "a" }; 1++()`, RunError: fmt.Errorf("invalid operation")},
 		{Script: ` func a(b) { return b }; a(1++)`, RunError: fmt.Errorf("invalid operation")},
 
@@ -198,7 +198,7 @@ func TestFunctions(t *testing.T) {
 		{Script: `module a { func b() { return 1.1} }; a.b()`, RunOutput: 1.1},
 		{Script: `module a { func b() { return "a"} }; a.b()`, RunOutput: "a"},
 
-		{Script: `if true { module a { func b() { return } } }; a.b()`, RunError: fmt.Errorf("undefined symbol 'a'")},
+		{Script: `if true { module a { func b() { return } } }; a.b()`, RunError: fmt.Errorf("undefined symbol \"a\"")},
 
 		{Script: `a = 1; func b() { a = 2 }; b()`, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
 		{Script: `b(a); a`, Input: map[string]interface{}{"a": int64(1), "b": func(c interface{}) { c = int64(2); _ = c }}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
@@ -264,7 +264,7 @@ func TestFunctions(t *testing.T) {
 		{Script: `b(a[0])`, Input: map[string]interface{}{"a": []interface{}{1.1}, "b": func(c interface{}) bool { return c == 1.1 }}, RunOutput: true, Output: map[string]interface{}{"a": []interface{}{1.1}}},
 		{Script: `b(a[0])`, Input: map[string]interface{}{"a": []interface{}{"a"}, "b": func(c interface{}) bool { return c == "a" }}, RunOutput: true, Output: map[string]interface{}{"a": []interface{}{"a"}}},
 
-		// TOFIX:
+		// TO FIX:
 		//		{Script: `b(a)`,
 		//			Input:     map[string]interface{}{"a": []bool{true, false, true}, "b": func(c ...bool) bool { return c[len(c)-1] }},
 		//			RunOutput: true, Output: map[string]interface{}{"a": true}},
@@ -371,6 +371,101 @@ func TestFunctions(t *testing.T) {
 			}
 			return false
 		}}, RunOutput: true},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestPointerFunctions(t *testing.T) {
+	testFunctionPointer := func(b interface{}) string {
+		rv := reflect.ValueOf(b)
+		if !rv.IsValid() {
+			return "invalid"
+		}
+		if rv.Kind() != reflect.Ptr {
+			return fmt.Sprintf("not ptr: " + rv.Kind().String())
+		}
+		if rv.IsNil() {
+			return "IsNil"
+		}
+		if !rv.Elem().CanInterface() {
+			return "cannot interface"
+		}
+		if rv.Elem().Interface() != int64(1) {
+			return fmt.Sprintf("not 1: %v", rv.Elem().Interface())
+		}
+		if !rv.Elem().CanSet() {
+			return "cannot set"
+		}
+		slice := reflect.MakeSlice(interfaceSliceType, 0, 1)
+		value, _ := makeValue(stringType)
+		value.SetString("b")
+		slice = reflect.Append(slice, value)
+		rv.Elem().Set(slice)
+		return "good"
+	}
+	tests := []Test{
+		{Script: `b = 1; a(&b)`, Input: map[string]interface{}{"a": testFunctionPointer}, RunOutput: "good", Output: map[string]interface{}{"b": []interface{}{"b"}}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestVariadicFunctions(t *testing.T) {
+	tests := []Test{
+		// params Variadic arg !Variadic
+		{Script: `func a(b...) { return b }; a()`, RunOutput: []interface{}{}},
+		{Script: `func a(b...) { return b }; a(true)`, RunOutput: []interface{}{true}},
+		{Script: `func a(b...) { return b }; a(true, true)`, RunOutput: []interface{}{true, true}},
+		{Script: `func a(b...) { return b }; a([true])`, RunOutput: []interface{}{[]interface{}{true}}},
+		{Script: `func a(b...) { return b }; a([true, true])`, RunOutput: []interface{}{[]interface{}{true, true}}},
+		{Script: `func a(b...) { return b }; a([true, true], [true, true])`, RunOutput: []interface{}{[]interface{}{true, true}, []interface{}{true, true}}},
+
+		// params Variadic arg !Variadic
+		{Script: `func a(b, c...) { return c }; a()`, RunError: fmt.Errorf("function wants 2 arguments but received 0")},
+		{Script: `func a(b, c...) { return c }; a(true)`, RunOutput: []interface{}{}},
+		{Script: `func a(b, c...) { return c }; a(true, true)`, RunOutput: []interface{}{true}},
+		{Script: `func a(b, c...) { return c }; a(true, true, true)`, RunOutput: []interface{}{true, true}},
+		{Script: `func a(b, c...) { return c }; a([true])`, RunOutput: []interface{}{}},
+		{Script: `func a(b, c...) { return c }; a([true], [true])`, RunOutput: []interface{}{[]interface{}{true}}},
+		{Script: `func a(b, c...) { return c }; a([true], [true], [true])`, RunOutput: []interface{}{[]interface{}{true}, []interface{}{true}}},
+		{Script: `func a(b, c...) { return c }; a([true], [true, true], [true, true])`, RunOutput: []interface{}{[]interface{}{true, true}, []interface{}{true, true}}},
+
+		// params Variadic arg Variadic
+		{Script: `func a(b...) { return b }; a([true]...)`, RunOutput: []interface{}{true}},
+		{Script: `func a(b...) { return b }; a([true, true]...)`, RunOutput: []interface{}{true, true}},
+		{Script: `func a(b...) { return b }; a(true, [true]...)`, RunError: fmt.Errorf("function wants 1 arguments but received 2")},
+
+		// params Variadic arg Variadic
+		{Script: `func a(b, c...) { return c }; a([true]...)`, RunOutput: []interface{}{}},
+		{Script: `func a(b, c...) { return c }; a([true, true]...)`, RunOutput: []interface{}{}},
+		{Script: `func a(b, c...) { return c }; a(true, [true]...)`, RunOutput: []interface{}{true}},
+		{Script: `func a(b, c...) { return c }; a(true, [true, true]...)`, RunOutput: []interface{}{true, true}},
+
+		// params !Variadic arg Variadic
+		{Script: `func a() { return "a" }; a([true]...)`, RunOutput: "a"},
+		{Script: `func a() { return "a" }; a(true, [true]...)`, RunOutput: "a"},
+		{Script: `func a() { return "a" }; a(true, [true, true]...)`, RunOutput: "a"},
+
+		// params !Variadic arg Variadic
+		{Script: `func a(b) { return b }; a(true...)`, RunError: fmt.Errorf("call is variadic but last parameter is of type bool")},
+		{Script: `func a(b) { return b }; a([true]...)`, RunOutput: true},
+		{Script: `func a(b) { return b }; a(true, false...)`, RunError: fmt.Errorf("function wants 1 arguments but received 2")},
+		{Script: `func a(b) { return b }; a(true, [1]...)`, RunError: fmt.Errorf("function wants 1 arguments but received 2")},
+		{Script: `func a(b) { return b }; a(true, [1, 2]...)`, RunError: fmt.Errorf("function wants 1 arguments but received 2")},
+		{Script: `func a(b) { return b }; a([true, 1]...)`, RunOutput: true},
+		{Script: `func a(b) { return b }; a([true, 1, 2]...)`, RunOutput: true},
+
+		// params !Variadic arg Variadic
+		{Script: `func a(b, c) { return c }; a(false...)`, RunError: fmt.Errorf("call is variadic but last parameter is of type bool")},
+		{Script: `func a(b, c) { return c }; a([1]...)`, RunError: fmt.Errorf("function wants 2 arguments but received 1")},
+		{Script: `func a(b, c) { return c }; a(1, true...)`, RunError: fmt.Errorf("call is variadic but last parameter is of type bool")},
+		{Script: `func a(b, c) { return c }; a(1, [true]...)`, RunOutput: true},
+		{Script: `func a(b, c) { return c }; a([1, true]...)`, RunOutput: true},
+		{Script: `func a(b, c) { return c }; a(1, true...)`, RunError: fmt.Errorf("call is variadic but last parameter is of type bool")},
+		{Script: `func a(b, c) { return c }; a(1, [true]...)`, RunOutput: true},
+		{Script: `func a(b, c) { return c }; a(1, true, false...)`, RunError: fmt.Errorf("function wants 2 arguments but received 3")},
+		{Script: `func a(b, c) { return c }; a(1, true, [2]...)`, RunError: fmt.Errorf("function wants 2 arguments but received 3")},
+		{Script: `func a(b, c) { return c }; a(1, [true, 2]...)`, RunOutput: true},
+		{Script: `func a(b, c) { return c }; a([1, true, 2]...)`, RunOutput: true},
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }

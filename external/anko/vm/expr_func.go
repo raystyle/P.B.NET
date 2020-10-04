@@ -176,7 +176,7 @@ func (ri *runInfo) callExpr() {
 		rvs = f.Call(args)
 	}
 
-	// TOFIX: how VM pointers/addressing work
+	// TO FIX: how VM pointers/addressing work
 	// Until then, this is a work around to set pointers back to VM variables
 	// This will probably panic for some functions and/or calls that are variadic
 	if !isRunVMFunction {
