@@ -469,3 +469,44 @@ func TestVariadicFunctions(t *testing.T) {
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
+
+func TestFunctionsInArraysAndMaps(t *testing.T) {
+	tests := []Test{
+		{Script: `a = [func () { return nil }]; a[0]()`, RunOutput: nil},
+		{Script: `a = [func () { return true }]; a[0]()`, RunOutput: true},
+		{Script: `a = [func () { return 1 }]; a[0]()`, RunOutput: int64(1)},
+		{Script: `a = [func () { return 1.1 }]; a[0]()`, RunOutput: 1.1},
+		{Script: `a = [func () { return "a" }]; a[0]()`, RunOutput: "a"},
+
+		{Script: `a = [func () { return nil }]; b = a[0]; b()`, RunOutput: nil},
+		{Script: `a = [func () { return true }]; b = a[0]; b()`, RunOutput: true},
+		{Script: `a = [func () { return 1 }]; b = a[0]; b()`, RunOutput: int64(1)},
+		{Script: `a = [func () { return 1.1 }]; b = a[0]; b()`, RunOutput: 1.1},
+		{Script: `a = [func () { return "a" }]; b = a[0]; b()`, RunOutput: "a"},
+
+		{Script: `a = [func () { return nil}]; func b(c) { return c() }; b(a[0])`, RunOutput: nil},
+		{Script: `a = [func () { return true}]; func b(c) { return c() }; b(a[0])`, RunOutput: true},
+		{Script: `a = [func () { return 1}]; func b(c) { return c() }; b(a[0])`, RunOutput: int64(1)},
+		{Script: `a = [func () { return 1.1}]; func b(c) { return c() }; b(a[0])`, RunOutput: 1.1},
+		{Script: `a = [func () { return "a"}]; func b(c) { return c() }; b(a[0])`, RunOutput: "a"},
+
+		{Script: `a = {"b": func () { return nil }}; a["b"]()`, RunOutput: nil},
+		{Script: `a = {"b": func () { return true }}; a["b"]()`, RunOutput: true},
+		{Script: `a = {"b": func () { return 1 }}; a["b"]()`, RunOutput: int64(1)},
+		{Script: `a = {"b": func () { return 1.1 }}; a["b"]()`, RunOutput: 1.1},
+		{Script: `a = {"b": func () { return "a" }}; a["b"]()`, RunOutput: "a"},
+
+		{Script: `a = {"b": func () { return nil }}; a.b()`, RunOutput: nil},
+		{Script: `a = {"b": func () { return true }}; a.b()`, RunOutput: true},
+		{Script: `a = {"b": func () { return 1 }}; a.b()`, RunOutput: int64(1)},
+		{Script: `a = {"b": func () { return 1.1 }}; a.b()`, RunOutput: 1.1},
+		{Script: `a = {"b": func () { return "a" }}; a.b()`, RunOutput: "a"},
+
+		{Script: `a = {"b": func () { return nil }}; func c(d) { return d() }; c(a.b)`, RunOutput: nil},
+		{Script: `a = {"b": func () { return true }}; func c(d) { return d() }; c(a.b)`, RunOutput: true},
+		{Script: `a = {"b": func () { return 1 }}; func c(d) { return d() }; c(a.b)`, RunOutput: int64(1)},
+		{Script: `a = {"b": func () { return 1.1 }}; func c(d) { return d() }; c(a.b)`, RunOutput: 1.1},
+		{Script: `a = {"b": func () { return "a" }}; func c(d) { return d() }; c(a.b)`, RunOutput: "a"},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
