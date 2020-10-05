@@ -506,13 +506,13 @@ func TestIf(t *testing.T) {
 		{Script: `if true {}`, Input: map[string]interface{}{"a": nil}, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
 		{Script: `if true {}`, Input: map[string]interface{}{"a": true}, RunOutput: nil, Output: map[string]interface{}{"a": true}},
 		{Script: `if true {}`, Input: map[string]interface{}{"a": int64(1)}, RunOutput: nil, Output: map[string]interface{}{"a": int64(1)}},
-		{Script: `if true {}`, Input: map[string]interface{}{"a": float64(1.1)}, RunOutput: nil, Output: map[string]interface{}{"a": float64(1.1)}},
+		{Script: `if true {}`, Input: map[string]interface{}{"a": 1.1}, RunOutput: nil, Output: map[string]interface{}{"a": 1.1}},
 		{Script: `if true {}`, Input: map[string]interface{}{"a": "a"}, RunOutput: nil, Output: map[string]interface{}{"a": "a"}},
 
 		{Script: `if true {a = nil}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
 		{Script: `if true {a = true}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: true, Output: map[string]interface{}{"a": true}},
 		{Script: `if true {a = 1}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
-		{Script: `if true {a = 1.1}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: float64(1.1), Output: map[string]interface{}{"a": float64(1.1)}},
+		{Script: `if true {a = 1.1}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: 1.1, Output: map[string]interface{}{"a": 1.1}},
 		{Script: `if true {a = "a"}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: "a", Output: map[string]interface{}{"a": "a"}},
 
 		{Script: `if a == 1 {a = 1}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: false, Output: map[string]interface{}{"a": int64(2)}},
@@ -543,6 +543,103 @@ func TestIf(t *testing.T) {
 		{Script: `a = 1; if a == 2 { b = 3 } else if a == 1 { b = 4 }; b`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
 		{Script: `a = 1; if a == 2 { b = 4 } else if a == 5 { b = 6 } else if a == 1 { c = b }`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
 		{Script: `a = 1; if a == 2 { b = 4 } else if a == 5 { b = 6 } else if a == 1 { b = 7 }; b`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestSwitch(t *testing.T) {
+	t.Parallel()
+
+	tests := []Test{
+		// test parse errors
+		{Script: `switch {}`, ParseError: fmt.Errorf("syntax error")},
+		{Script: `a = 1; switch a; {}`, ParseError: fmt.Errorf("syntax error")},
+		{Script: `a = 1; switch a = 2 {}`, ParseError: fmt.Errorf("syntax error")},
+		{Script: `a = 1; switch a {default: return 6; default: return 7}`, ParseError: fmt.Errorf("multiple default statement"), RunOutput: int64(7)},
+		{Script: `a = 1; switch a {case 1: return 5; default: return 6; default: return 7}`, ParseError: fmt.Errorf("multiple default statement"), RunOutput: int64(5)},
+
+		// test run errors
+		{Script: `a = 1; switch 1++ {}`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `a = 1; switch a {case 1++: return 2}`, RunError: fmt.Errorf("invalid operation")},
+
+		// test no or empty cases
+		{Script: `a = 1; switch a {}`, Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; switch a {case: return 2}`, Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; switch a {case: return 2; case: return 3}`, Output: map[string]interface{}{"a": int64(1)}},
+
+		// test 1 case
+		{Script: `a = 1; switch a {case 1: return 5}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1: return 5}`, Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 1; switch a {case 1,2: return 5}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1,2: return 5}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 3; switch a {case 1,2: return 5}`, Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 1; switch a {case 1,2,3: return 5}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1,2,3: return 5}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 3; switch a {case 1,2,3: return 5}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 4; switch a {case 1,2,3: return 5}`, Output: map[string]interface{}{"a": int64(4)}},
+		{Script: `a = func() { return 1 }; switch a() {case 1: return 5}`, RunOutput: int64(5)},
+		{Script: `a = func() { return 2 }; switch a() {case 1: return 5}`},
+		{Script: `a = func() { return 5 }; b = 1; switch b {case 1: return a() }`, RunOutput: int64(5), Output: map[string]interface{}{"b": int64(1)}},
+		{Script: `a = func() { return 6 }; b = 2; switch b {case 1: return a() }`, Output: map[string]interface{}{"b": int64(2)}},
+
+		// test 2 cases
+		{Script: `a = 1; switch a {case 1: return 5; case 2: return 6}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1: return 5; case 2: return 6}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 3; switch a {case 1: return 5; case 2: return 6}`, Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 1; switch a {case 1: return 5; case 2,3: return 6}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1: return 5; case 2,3: return 6}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 3; switch a {case 1: return 5; case 2,3: return 6}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 4; switch a {case 1: return 5; case 2,3: return 6}`, Output: map[string]interface{}{"a": int64(4)}},
+
+		// test 3 cases
+		{Script: `a = 1; switch a {case 1,2: return 5; case 3: return 6}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1,2: return 5; case 3: return 6}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 3; switch a {case 1,2: return 5; case 3: return 6}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 4; switch a {case 1,2: return 5; case 3: return 6}`, Output: map[string]interface{}{"a": int64(4)}},
+		{Script: `a = 1; switch a {case 1,2: return 5; case 2,3: return 6}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1,2: return 5; case 2,3: return 6}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 3; switch a {case 1,2: return 5; case 2,3: return 6}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 4; switch a {case 1,2: return 5; case 2,3: return 6}`, Output: map[string]interface{}{"a": int64(4)}},
+
+		// test default
+		{Script: `a = 1; switch a {default: return 5}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; switch a {case 1: return 5; case 2: return 6; default: return 7}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1: return 5; case 2: return 6; default: return 7}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 3; switch a {case 1: return 5; case 2: return 6; default: return 7}`, RunOutput: int64(7), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 1; switch a {case 1: return 5; case 2,3: return 6; default: return 7}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1: return 5; case 2,3: return 6; default: return 7}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 3; switch a {case 1: return 5; case 2,3: return 6; default: return 7}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 4; switch a {case 1: return 5; case 2,3: return 6; default: return 7}`, RunOutput: int64(7), Output: map[string]interface{}{"a": int64(4)}},
+		{Script: `a = 1; switch a {case 1,2: return 5; case 3: return 6; default: return 7}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1,2: return 5; case 3: return 6; default: return 7}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 3; switch a {case 1,2: return 5; case 3: return 6; default: return 7}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 4; switch a {case 1,2: return 5; case 3: return 6; default: return 7}`, RunOutput: int64(7), Output: map[string]interface{}{"a": int64(4)}},
+
+		// test scope
+		{Script: `a = 1; switch a {case 1: a = 5}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(5)}},
+		{Script: `a = 2; switch a {case 1: a = 5}`, Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 1; b = 5; switch a {case 1: b = 6}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(1), "b": int64(6)}},
+		{Script: `a = 2; b = 5; switch a {case 1: b = 6}`, Output: map[string]interface{}{"a": int64(2), "b": int64(5)}},
+		{Script: `a = 1; b = 5; switch a {case 1: b = 6; default: b = 7}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(1), "b": int64(6)}},
+		{Script: `a = 2; b = 5; switch a {case 1: b = 6; default: b = 7}`, RunOutput: int64(7), Output: map[string]interface{}{"a": int64(2), "b": int64(7)}},
+
+		// test scope without define b
+		{Script: `a = 1; switch a {case 1: b = 5}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1: b = 5}`, Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 1; switch a {case 1: b = 5}; b`, RunError: fmt.Errorf("undefined symbol 'b'"), RunOutput: nil, Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1: b = 5}; b`, RunError: fmt.Errorf("undefined symbol 'b'"), RunOutput: nil, Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 1; switch a {case 1: b = 5; default: b = 6}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1: b = 5; default: b = 6}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 1; switch a {case 1: b = 5; default: b = 6}; b`, RunError: fmt.Errorf("undefined symbol 'b'"), RunOutput: nil, Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1: b = 5; default: b = 6}; b`, RunError: fmt.Errorf("undefined symbol 'b'"), RunOutput: nil, Output: map[string]interface{}{"a": int64(2)}},
+
+		// test new lines
+		{Script: `
+a = 1;
+switch a {
+	case 1:
+		return 1
+}`, RunOutput: int64(1)},
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
