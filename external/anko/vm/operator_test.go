@@ -467,3 +467,82 @@ func TestTernaryOperator(t *testing.T) {
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
+
+func TestNilCoalescingOperator(t *testing.T) {
+	tests := []Test{
+		{Script: `nil ?? nil`, RunOutput: nil},
+		{Script: `false ?? nil`, RunOutput: false},
+		{Script: `true ?? nil`, RunOutput: true},
+		{Script: `nil ?? false`, RunOutput: false},
+		{Script: `nil ?? true`, RunOutput: true},
+		{Script: `1 ?? nil`, RunOutput: int64(1)},
+		{Script: `1 ?? 2`, RunOutput: int64(1)},
+		{Script: `nil ?? 1`, RunOutput: int64(1)},
+
+		{Script: `a ?? 1`, RunOutput: int64(1)},
+		{Script: `a ?? b`, RunError: fmt.Errorf("undefined symbol 'b'")},
+
+		{Script: `a ?? 2`, Input: map[string]interface{}{"a": int64(1)}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a ?? b`, Input: map[string]interface{}{"a": int64(1)}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a ?? b`, Input: map[string]interface{}{"a": int64(1), "b": int64(2)}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1), "b": int64(2)}},
+		{Script: `a ?? b`, Input: map[string]interface{}{"a": nil, "b": int64(2)}, RunOutput: int64(2), Output: map[string]interface{}{"a": nil, "b": int64(2)}},
+
+		{Script: `[] ?? 1`, RunOutput: []interface{}{}},
+		{Script: `{} ?? 1`, RunOutput: map[interface{}]interface{}{}},
+
+		// test nil array and map
+		{Script: `a ?? 5`, Input: map[string]interface{}{"a": testSliceEmpty}, RunOutput: int64(5), Output: map[string]interface{}{"a": testSliceEmpty}},
+		{Script: `a ?? 6`, Input: map[string]interface{}{"a": testMapEmpty}, RunOutput: int64(6), Output: map[string]interface{}{"a": testMapEmpty}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestIf(t *testing.T) {
+	tests := []Test{
+		{Script: `if 1++ {}`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `if false {} else if 1++ {}`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `if false {} else if true { 1++ }`, RunError: fmt.Errorf("invalid operation")},
+
+		{Script: `if true {}`, Input: map[string]interface{}{"a": nil}, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
+		{Script: `if true {}`, Input: map[string]interface{}{"a": true}, RunOutput: nil, Output: map[string]interface{}{"a": true}},
+		{Script: `if true {}`, Input: map[string]interface{}{"a": int64(1)}, RunOutput: nil, Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `if true {}`, Input: map[string]interface{}{"a": float64(1.1)}, RunOutput: nil, Output: map[string]interface{}{"a": float64(1.1)}},
+		{Script: `if true {}`, Input: map[string]interface{}{"a": "a"}, RunOutput: nil, Output: map[string]interface{}{"a": "a"}},
+
+		{Script: `if true {a = nil}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
+		{Script: `if true {a = true}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: true, Output: map[string]interface{}{"a": true}},
+		{Script: `if true {a = 1}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `if true {a = 1.1}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: float64(1.1), Output: map[string]interface{}{"a": float64(1.1)}},
+		{Script: `if true {a = "a"}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: "a", Output: map[string]interface{}{"a": "a"}},
+
+		{Script: `if a == 1 {a = 1}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: false, Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `if a == 2 {a = 1}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `if a == 1 {a = nil}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: false, Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `if a == 2 {a = nil}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
+
+		{Script: `if a == 1 {a = 1} else {a = 3}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `if a == 2 {a = 1} else {a = 3}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `if a == 1 {a = 1} else if a == 3 {a = 3}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: false, Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `if a == 1 {a = 1} else if a == 2 {a = 3}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `if a == 1 {a = 1} else if a == 3 {a = 3} else {a = 4}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(4), Output: map[string]interface{}{"a": int64(4)}},
+
+		{Script: `if a == 1 {a = 1} else {a = nil}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
+		{Script: `if a == 2 {a = nil} else {a = 3}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
+		{Script: `if a == 1 {a = nil} else if a == 3 {a = nil}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: false, Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `if a == 1 {a = 1} else if a == 2 {a = nil}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
+		{Script: `if a == 1 {a = 1} else if a == 3 {a = 3} else {a = nil}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
+
+		{Script: `if a == 1 {a = 1} else if a == 3 {a = 3} else if a == 4 {a = 4} else {a = 5}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(5)}},
+		{Script: `if a == 1 {a = 1} else if a == 3 {a = 3} else if a == 4 {a = 4} else {a = nil}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
+		{Script: `if a == 1 {a = 1} else if a == 3 {a = 3} else if a == 2 {a = 4} else {a = 5}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: int64(4), Output: map[string]interface{}{"a": int64(4)}},
+		{Script: `if a == 1 {a = 1} else if a == 3 {a = 3} else if a == 2 {a = nil} else {a = 5}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
+
+		// check scope
+		{Script: `a = 1; if a == 1 { b = 2 }; b`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; if a == 2 { b = 3 } else { b = 4 }; b`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; if a == 2 { b = 3 } else if a == 1 { b = 4 }; b`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; if a == 2 { b = 4 } else if a == 5 { b = 6 } else if a == 1 { c = b }`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; if a == 2 { b = 4 } else if a == 5 { b = 6 } else if a == 1 { b = 7 }; b`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
