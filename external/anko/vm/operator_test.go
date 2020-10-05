@@ -975,3 +975,78 @@ func TestItemInList(t *testing.T) {
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
+
+func TestOperatorPrecedence(t *testing.T) {
+	tests := []Test{
+		// test && > ||
+		{Script: `true || true && false`, RunOutput: true},
+		{Script: `(true || true) && false`, RunOutput: false},
+		{Script: `false && true || true`, RunOutput: true},
+		{Script: `false && (true || true)`, RunOutput: false},
+
+		// test == > ||
+		{Script: `0 == 1 || 1 == 1`, RunOutput: true},
+		{Script: `0 == (1 || 1) == 1`, RunOutput: false},
+
+		// test + > ==
+		{Script: `1 + 2 == 2 + 1`, RunOutput: true},
+		{Script: `1 + (2 == 2) + 1`, RunOutput: int64(3)},
+
+		// test * > +
+		{Script: `2 * 3 + 4 * 5`, RunOutput: int64(26)},
+		{Script: `2 * (3 + 4) * 5`, RunOutput: int64(70)},
+
+		// test * > &&
+		{Script: `2 * 0 && 3 * 4`, RunOutput: false},
+		{Script: `2 * (0 && 3) * 4`, RunOutput: int64(0)},
+
+		// test ++ > *
+		{Script: `a = 1; b = 2; a++ * b++`, RunOutput: int64(6)},
+
+		// test ++ > *
+		{Script: `a = 1; b = 2; a++ * b++`, RunOutput: int64(6)},
+
+		// test unary - > +
+		{Script: `a = 1; b = 2; -a + b`, RunOutput: int64(1)},
+		{Script: `a = 1; b = 2; -(a + b)`, RunOutput: int64(-3)},
+		{Script: `a = 1; b = 2; a + -b`, RunOutput: int64(-1)},
+
+		// test ! > ||
+		{Script: `!true || true`, RunOutput: true},
+		{Script: `!(true || true)`, RunOutput: false},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestTry(t *testing.T) {
+	tests := []Test{
+		{Script: `try { 1++ } catch { 1++ }`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `try { 1++ } catch a { return a }`, RunOutput: fmt.Errorf("invalid operation")},
+		{Script: `try { 1++ } catch a { a = 2 }; return a`, RunError: fmt.Errorf("undefined symbol 'a'")},
+
+		// test finally
+		{Script: `try { 1++ } catch { 1++ } finally { return 1 }`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `try { } catch { } finally { 1++ }`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `try { } catch { 1 } finally { 1++ }`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `try { 1++ } catch { } finally { 1++ }`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `try { 1++ } catch a { } finally { return a }`, RunOutput: fmt.Errorf("invalid operation")},
+		{Script: `try { 1++ } catch a { } finally { a = 2 }; return a`, RunError: fmt.Errorf("undefined symbol 'a'")},
+
+		{Script: `try { } catch { }`, RunOutput: nil},
+		{Script: `try { 1++ } catch { }`, RunOutput: nil},
+		{Script: `try { } catch { 1++ }`, RunOutput: nil},
+		{Script: `try { return 1 } catch { }`, RunOutput: int64(1)},
+		{Script: `try { return 1 } catch { return 2 }`, RunOutput: int64(2)},
+		{Script: `try { 1++ } catch { return 1 }`, RunOutput: int64(1)},
+
+		// test finally
+		{Script: `try { } catch { } finally { return 1 }`, RunOutput: int64(1)},
+		{Script: `try { 1++ } catch { } finally { return 1 }`, RunOutput: int64(1)},
+		{Script: `try { 1++ } catch { return 1 } finally { 1++ }`, RunOutput: int64(1)},
+
+		// test variable scope
+		{Script: `try { 1++ } catch a { if a.Error() == "invalid operation" { return 1 } else { return 2 } }`, RunOutput: int64(1)},
+		{Script: `try { 1++ } catch a { } finally { if a.Error() == "invalid operation" { return 1 } else { return 2 } }`, RunOutput: int64(1)},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
