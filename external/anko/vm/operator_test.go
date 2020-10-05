@@ -480,7 +480,7 @@ func TestNilCoalescingOperator(t *testing.T) {
 		{Script: `nil ?? 1`, RunOutput: int64(1)},
 
 		{Script: `a ?? 1`, RunOutput: int64(1)},
-		{Script: `a ?? b`, RunError: fmt.Errorf("undefined symbol 'b'")},
+		{Script: `a ?? b`, RunError: fmt.Errorf("undefined symbol \"b\"")},
 
 		{Script: `a ?? 2`, Input: map[string]interface{}{"a": int64(1)}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
 		{Script: `a ?? b`, Input: map[string]interface{}{"a": int64(1)}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
@@ -538,11 +538,11 @@ func TestIf(t *testing.T) {
 		{Script: `if a == 1 {a = 1} else if a == 3 {a = 3} else if a == 2 {a = nil} else {a = 5}`, Input: map[string]interface{}{"a": int64(2)}, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
 
 		// check scope
-		{Script: `a = 1; if a == 1 { b = 2 }; b`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
-		{Script: `a = 1; if a == 2 { b = 3 } else { b = 4 }; b`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
-		{Script: `a = 1; if a == 2 { b = 3 } else if a == 1 { b = 4 }; b`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
-		{Script: `a = 1; if a == 2 { b = 4 } else if a == 5 { b = 6 } else if a == 1 { c = b }`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
-		{Script: `a = 1; if a == 2 { b = 4 } else if a == 5 { b = 6 } else if a == 1 { b = 7 }; b`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; if a == 1 { b = 2 }; b`, RunError: fmt.Errorf("undefined symbol \"b\""), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; if a == 2 { b = 3 } else { b = 4 }; b`, RunError: fmt.Errorf("undefined symbol \"b\""), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; if a == 2 { b = 3 } else if a == 1 { b = 4 }; b`, RunError: fmt.Errorf("undefined symbol \"b\""), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; if a == 2 { b = 4 } else if a == 5 { b = 6 } else if a == 1 { c = b }`, RunError: fmt.Errorf("undefined symbol \"b\""), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; if a == 2 { b = 4 } else if a == 5 { b = 6 } else if a == 1 { b = 7 }; b`, RunError: fmt.Errorf("undefined symbol \"b\""), Output: map[string]interface{}{"a": int64(1)}},
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
@@ -626,12 +626,12 @@ func TestSwitch(t *testing.T) {
 		// test scope without define b
 		{Script: `a = 1; switch a {case 1: b = 5}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
 		{Script: `a = 2; switch a {case 1: b = 5}`, Output: map[string]interface{}{"a": int64(2)}},
-		{Script: `a = 1; switch a {case 1: b = 5}; b`, RunError: fmt.Errorf("undefined symbol 'b'"), RunOutput: nil, Output: map[string]interface{}{"a": int64(1)}},
-		{Script: `a = 2; switch a {case 1: b = 5}; b`, RunError: fmt.Errorf("undefined symbol 'b'"), RunOutput: nil, Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 1; switch a {case 1: b = 5}; b`, RunError: fmt.Errorf("undefined symbol \"b\""), RunOutput: nil, Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1: b = 5}; b`, RunError: fmt.Errorf("undefined symbol \"b\""), RunOutput: nil, Output: map[string]interface{}{"a": int64(2)}},
 		{Script: `a = 1; switch a {case 1: b = 5; default: b = 6}`, RunOutput: int64(5), Output: map[string]interface{}{"a": int64(1)}},
 		{Script: `a = 2; switch a {case 1: b = 5; default: b = 6}`, RunOutput: int64(6), Output: map[string]interface{}{"a": int64(2)}},
-		{Script: `a = 1; switch a {case 1: b = 5; default: b = 6}; b`, RunError: fmt.Errorf("undefined symbol 'b'"), RunOutput: nil, Output: map[string]interface{}{"a": int64(1)}},
-		{Script: `a = 2; switch a {case 1: b = 5; default: b = 6}; b`, RunError: fmt.Errorf("undefined symbol 'b'"), RunOutput: nil, Output: map[string]interface{}{"a": int64(2)}},
+		{Script: `a = 1; switch a {case 1: b = 5; default: b = 6}; b`, RunError: fmt.Errorf("undefined symbol \"b\""), RunOutput: nil, Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 2; switch a {case 1: b = 5; default: b = 6}; b`, RunError: fmt.Errorf("undefined symbol \"b\""), RunOutput: nil, Output: map[string]interface{}{"a": int64(2)}},
 
 		// test new lines
 		{Script: `
@@ -731,7 +731,7 @@ func TestForLoop(t *testing.T) {
 		{Script: `for var a, b = 1; nil; nil { return }`},
 		{Script: `for var a, b = 1, 2; nil; nil { return }`},
 
-		{Script: `for a.b = 1; nil; nil { return }`, RunError: fmt.Errorf("undefined symbol 'a'")},
+		{Script: `for a.b = 1; nil; nil { return }`, RunError: fmt.Errorf("undefined symbol \"a\"")},
 
 		{Script: `for a = 1; nil; nil { if a == 1 { break } }`, RunOutput: nil},
 		{Script: `for a = 1; nil; nil { if a == 2 { break }; a++ }`, RunOutput: nil},
@@ -802,11 +802,11 @@ func TestForLoop(t *testing.T) {
 		{Script: `for i in a { }`, Input: map[string]interface{}{"a": reflect.Value{}}, RunError: fmt.Errorf("for cannot loop over type struct"), Output: map[string]interface{}{"a": reflect.Value{}}},
 		{Script: `for i in a { }`, Input: map[string]interface{}{"a": interface{}(nil)}, RunError: fmt.Errorf("for cannot loop over type interface"), Output: map[string]interface{}{"a": interface{}(nil)}},
 		{Script: `for i in a { }`, Input: map[string]interface{}{"a": interface{}(true)}, RunError: fmt.Errorf("for cannot loop over type bool"), Output: map[string]interface{}{"a": interface{}(true)}},
-		{Script: `for i in [1, 2, 3] { b++ }`, RunError: fmt.Errorf("undefined symbol 'b'")},
-		{Script: `for a = 1; a < 3; a++ { b++ }`, RunError: fmt.Errorf("undefined symbol 'b'")},
-		{Script: `for a = b; a < 3; a++ { }`, RunError: fmt.Errorf("undefined symbol 'b'")},
-		{Script: `for a = 1; b < 3; a++ { }`, RunError: fmt.Errorf("undefined symbol 'b'")},
-		{Script: `for a = 1; a < 3; b++ { }`, RunError: fmt.Errorf("undefined symbol 'b'")},
+		{Script: `for i in [1, 2, 3] { b++ }`, RunError: fmt.Errorf("undefined symbol \"b\"")},
+		{Script: `for a = 1; a < 3; a++ { b++ }`, RunError: fmt.Errorf("undefined symbol \"b\"")},
+		{Script: `for a = b; a < 3; a++ { }`, RunError: fmt.Errorf("undefined symbol \"b\"")},
+		{Script: `for a = 1; b < 3; a++ { }`, RunError: fmt.Errorf("undefined symbol \"b\"")},
+		{Script: `for a = 1; a < 3; b++ { }`, RunError: fmt.Errorf("undefined symbol \"b\"")},
 
 		{Script: `a = 1; b = [{"c": "c"}]; for i in b { a = i }`, RunOutput: nil, Output: map[string]interface{}{"a": map[interface{}]interface{}{"c": "c"}, "b": []interface{}{map[interface{}]interface{}{"c": "c"}}}},
 		{Script: `a = 1; b = {"x": [{"y": "y"}]};  for i in b.x { a = i }`, RunOutput: nil, Output: map[string]interface{}{"a": map[interface{}]interface{}{"y": "y"}, "b": map[interface{}]interface{}{"x": []interface{}{map[interface{}]interface{}{"y": "y"}}}}},
@@ -814,7 +814,7 @@ func TestForLoop(t *testing.T) {
 		{Script: `a = {}; b = 1; for i in a { b = i }; b`, RunOutput: int64(1), Output: map[string]interface{}{"a": map[interface{}]interface{}{}, "b": int64(1)}},
 		{Script: `a = {"x": 2}; b = 1; for i in a { b = i }; b`, RunOutput: "x", Output: map[string]interface{}{"a": map[interface{}]interface{}{"x": int64(2)}, "b": "x"}},
 		{Script: `a = {"x": 2, "y": 3}; b = 0; for i in a { b++ }; b`, RunOutput: int64(2), Output: map[string]interface{}{"a": map[interface{}]interface{}{"x": int64(2), "y": int64(3)}, "b": int64(2)}},
-		{Script: `a = {"x": 2, "y": 3}; for i in a { b++ }`, RunError: fmt.Errorf("undefined symbol 'b'"), Output: map[string]interface{}{"a": map[interface{}]interface{}{"x": int64(2), "y": int64(3)}}},
+		{Script: `a = {"x": 2, "y": 3}; for i in a { b++ }`, RunError: fmt.Errorf("undefined symbol \"b\""), Output: map[string]interface{}{"a": map[interface{}]interface{}{"x": int64(2), "y": int64(3)}}},
 
 		{Script: `a = {"x": 2, "y": 3}; b = 0; for i in a { if i ==  "x" { continue }; b = i }; b`, RunOutput: "y", Output: map[string]interface{}{"a": map[interface{}]interface{}{"x": int64(2), "y": int64(3)}, "b": "y"}},
 		{Script: `a = {"x": 2, "y": 3}; b = 0; for i in a { if i ==  "y" { continue }; b = i }; b`, RunOutput: "x", Output: map[string]interface{}{"a": map[interface{}]interface{}{"x": int64(2), "y": int64(3)}, "b": "x"}},
@@ -1022,7 +1022,7 @@ func TestTry(t *testing.T) {
 	tests := []Test{
 		{Script: `try { 1++ } catch { 1++ }`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `try { 1++ } catch a { return a }`, RunOutput: fmt.Errorf("invalid operation")},
-		{Script: `try { 1++ } catch a { a = 2 }; return a`, RunError: fmt.Errorf("undefined symbol 'a'")},
+		{Script: `try { 1++ } catch a { a = 2 }; return a`, RunError: fmt.Errorf("undefined symbol \"a\"")},
 
 		// test finally
 		{Script: `try { 1++ } catch { 1++ } finally { return 1 }`, RunError: fmt.Errorf("invalid operation")},
@@ -1030,7 +1030,7 @@ func TestTry(t *testing.T) {
 		{Script: `try { } catch { 1 } finally { 1++ }`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `try { 1++ } catch { } finally { 1++ }`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `try { 1++ } catch a { } finally { return a }`, RunOutput: fmt.Errorf("invalid operation")},
-		{Script: `try { 1++ } catch a { } finally { a = 2 }; return a`, RunError: fmt.Errorf("undefined symbol 'a'")},
+		{Script: `try { 1++ } catch a { } finally { a = 2 }; return a`, RunError: fmt.Errorf("undefined symbol \"a\"")},
 
 		{Script: `try { } catch { }`, RunOutput: nil},
 		{Script: `try { 1++ } catch { }`, RunOutput: nil},
