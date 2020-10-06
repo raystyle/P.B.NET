@@ -833,18 +833,14 @@ func TestMakeType(t *testing.T) {
 }
 
 func TestReferencingAndDereference(t *testing.T) {
-	t.Parallel()
-
-	tests := []Test{
-		// TOFIX:
-		// {Script: `a = 1; b = &a; *b = 2; *b`, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
-	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	// tests := []Test{
+	// 	// TO FIX:
+	// 	// {Script: `a = 1; b = &a; *b = 2; *b`, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
+	// }
+	// runTests(t, tests, nil, &Options{Debug: true})
 }
 
 func TestChan(t *testing.T) {
-	t.Parallel()
-
 	tests := []Test{
 		// send on closed channel
 		{Script: `a = make(chan int64, 2); close(a); a <- 1`, RunError: fmt.Errorf("send on closed channel")},
@@ -898,7 +894,7 @@ func TestChan(t *testing.T) {
 		{Script: `a <- 1; <- a`, Input: map[string]interface{}{"a": make(chan int32, 2)}, RunOutput: int32(1)},
 		{Script: `a <- 2; <- a`, Input: map[string]interface{}{"a": make(chan int64, 2)}, RunOutput: int64(2)},
 		{Script: `a <- 1.5; <- a`, Input: map[string]interface{}{"a": make(chan float32, 2)}, RunOutput: float32(1.5)},
-		{Script: `a <- 2.5; <- a`, Input: map[string]interface{}{"a": make(chan float64, 2)}, RunOutput: float64(2.5)},
+		{Script: `a <- 2.5; <- a`, Input: map[string]interface{}{"a": make(chan float64, 2)}, RunOutput: 2.5},
 		{Script: `a <- "b"; <- a`, Input: map[string]interface{}{"a": make(chan string, 2)}, RunOutput: "b"},
 
 		{Script: `a = make(chan interface, 2); a <- nil; <- a`, RunOutput: nil},
@@ -906,7 +902,7 @@ func TestChan(t *testing.T) {
 		{Script: `a = make(chan int32, 2); a <- 1; <- a`, RunOutput: int32(1)},
 		{Script: `a = make(chan int64, 2); a <- 2; <- a`, RunOutput: int64(2)},
 		{Script: `a = make(chan float32, 2); a <- 1.5; <- a`, RunOutput: float32(1.5)},
-		{Script: `a = make(chan float64, 2); a <- 2.5; <- a`, RunOutput: float64(2.5)},
+		{Script: `a = make(chan float64, 2); a <- 2.5; <- a`, RunOutput: 2.5},
 		{Script: `a = make(chan string, 2); a <- "b"; <- a`, RunOutput: "b"},
 
 		// send to channel, receive from channel, then assign to variable
@@ -915,7 +911,8 @@ func TestChan(t *testing.T) {
 		{Script: `a <- 1; b = <- a`, Input: map[string]interface{}{"a": make(chan int32, 2)}, RunOutput: int32(1), Output: map[string]interface{}{"b": int32(1)}},
 		{Script: `a <- 2; b = <- a`, Input: map[string]interface{}{"a": make(chan int64, 2)}, RunOutput: int64(2), Output: map[string]interface{}{"b": int64(2)}},
 		{Script: `a <- 1.5; b = <- a`, Input: map[string]interface{}{"a": make(chan float32, 2)}, RunOutput: float32(1.5), Output: map[string]interface{}{"b": float32(1.5)}},
-		{Script: `a <- 2.5; b = <- a`, Input: map[string]interface{}{"a": make(chan float64, 2)}, RunOutput: float64(2.5), Output: map[string]interface{}{"b": float64(2.5)}},
+		{Script: `a <- 2.5; b = <- a`, Input: map[string]interface{}{"a": make(chan float64, 2)}, RunOutput: 2.5, Output: map[string]interface{}{"b": 2.5}},
+
 		{Script: `a <- "b"; b = <- a`, Input: map[string]interface{}{"a": make(chan string, 2)}, RunOutput: "b", Output: map[string]interface{}{"b": "b"}},
 
 		{Script: `a = make(chan interface, 2); a <- nil; b = <- a`, RunOutput: nil, Output: map[string]interface{}{"b": nil}},
@@ -923,7 +920,7 @@ func TestChan(t *testing.T) {
 		{Script: `a = make(chan int32, 2); a <- 1; b = <- a`, RunOutput: int32(1), Output: map[string]interface{}{"b": int32(1)}},
 		{Script: `a = make(chan int64, 2); a <- 2; b = <- a`, RunOutput: int64(2), Output: map[string]interface{}{"b": int64(2)}},
 		{Script: `a = make(chan float32, 2); a <- 1.5; b = <- a`, RunOutput: float32(1.5), Output: map[string]interface{}{"b": float32(1.5)}},
-		{Script: `a = make(chan float64, 2); a <- 2.5; b = <- a`, RunOutput: float64(2.5), Output: map[string]interface{}{"b": float64(2.5)}},
+		{Script: `a = make(chan float64, 2); a <- 2.5; b = <- a`, RunOutput: 2.5, Output: map[string]interface{}{"b": 2.5}},
 		{Script: `a = make(chan string, 2); a <- "b"; b = <- a`, RunOutput: "b", Output: map[string]interface{}{"b": "b"}},
 
 		// receive from closed channel
@@ -964,6 +961,166 @@ func TestChan(t *testing.T) {
 
 		// test let ++
 		{Script: `a = make(chan int64, 2); b = [1, 2, 3, 4]; c = 0; a <- 11; b[c++] = <- a; b[1]`, RunOutput: int64(11)},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestVMDelete(t *testing.T) {
+	tests := []Test{
+		{Script: `delete(1++)`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `delete(1)`, RunError: fmt.Errorf("first argument to delete cannot be type int64")},
+		{Script: `a = 1; delete("a"); a`, RunError: fmt.Errorf("undefined symbol 'a'")},
+		{Script: `a = {"b": "b"}; delete(a)`, RunError: fmt.Errorf("second argument to delete cannot be nil for map")},
+
+		{Script: `delete("a", 1++)`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `b = []; delete(a, b)`, Input: map[string]interface{}{"a": map[int32]interface{}{2: int32(2)}}, RunError: fmt.Errorf("cannot use type int32 as type []interface {} in delete"), Output: map[string]interface{}{"a": map[int32]interface{}{2: int32(2)}}},
+
+		// test no variable
+		{Script: `delete("a")`},
+		{Script: `delete("a", false)`},
+		{Script: `delete("a", true)`},
+		{Script: `delete("a", nil)`},
+
+		// test DeleteGlobal
+		{Script: `a = 1; func b() { delete("a") }; b()`, Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; func b() { delete("a", false) }; b()`, Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `a = 1; func b() { delete("a", true) }; b(); a`, RunError: fmt.Errorf("undefined symbol 'a'")},
+		{Script: `a = 2; func b() { a = 3; delete("a"); return a }; b()`, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 2; func b() { a = 3; delete("a", false); return a }; b()`, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 2; func b() { a = 3; delete("a", true); return a }; b()`, RunError: fmt.Errorf("undefined symbol 'a'")},
+		{Script: `a = 2; func b() { a = 3; delete("a") }; b(); a`, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 2; func b() { a = 3; delete("a", false) }; b(); a`, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
+		{Script: `a = 2; func b() { a = 3; delete("a", true) }; b(); a`, RunError: fmt.Errorf("undefined symbol 'a'")},
+
+		// test empty map
+		{Script: `delete(a, "a")`, Input: map[string]interface{}{"a": testMapEmpty}, Output: map[string]interface{}{"a": testMapEmpty}},
+
+		// test map
+		{Script: `a = {"b": "b"}; delete(a, "b")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{}}},
+		{Script: `a = {"b": "b"}; delete(a, "b"); a.b`, Output: map[string]interface{}{"a": map[interface{}]interface{}{}}},
+		{Script: `a = {"b": "b", "c":"c"}; delete(a, "b")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"c": "c"}}},
+		{Script: `a = {"b": "b", "c":"c"}; delete(a, "b"); a.b`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"c": "c"}}},
+
+		// test key convert
+		{Script: `delete(a, 2)`, Input: map[string]interface{}{"a": map[int32]interface{}{2: int32(2)}}, Output: map[string]interface{}{"a": map[int32]interface{}{}}},
+		{Script: `delete(a, 2); a[2]`, Input: map[string]interface{}{"a": map[int32]interface{}{2: int32(2)}}, Output: map[string]interface{}{"a": map[int32]interface{}{}}},
+		{Script: `delete(a, 2)`, Input: map[string]interface{}{"a": map[int32]interface{}{2: int32(2), 3: int32(3)}}, Output: map[string]interface{}{"a": map[int32]interface{}{3: int32(3)}}},
+		{Script: `delete(a, 2); a[2]`, Input: map[string]interface{}{"a": map[int32]interface{}{2: int32(2), 3: int32(3)}}, Output: map[string]interface{}{"a": map[int32]interface{}{3: int32(3)}}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestComment(t *testing.T) {
+	tests := []Test{
+		{Script: `# 1`},
+		{Script: `# 1;`},
+		{Script: `# 1 // 2`},
+		{Script: `# 1 \n 2`},
+		{Script: `# 1 # 2`},
+
+		{Script: `1# 1`, RunOutput: int64(1)},
+		{Script: `1# 1;`, RunOutput: int64(1)},
+		{Script: `1# 1 // 2`, RunOutput: int64(1)},
+		{Script: `1# 1 \n 2`, RunOutput: int64(1)},
+		{Script: `1# 1 # 2`, RunOutput: int64(1)},
+
+		{Script: `1
+# 1`, RunOutput: int64(1)},
+		{Script: `1
+# 1;`, RunOutput: int64(1)},
+		{Script: `1
+# 1 // 2`, RunOutput: int64(1)},
+		{Script: `1
+# 1 \n 2`, RunOutput: int64(1)},
+		{Script: `1
+# 1 # 2`, RunOutput: int64(1)},
+
+		{Script: `// 1`},
+		{Script: `// 1;`},
+		{Script: `// 1 // 2`},
+		{Script: `// 1 \n 2`},
+		{Script: `// 1 # 2`},
+
+		{Script: `1// 1`, RunOutput: int64(1)},
+		{Script: `1// 1;`, RunOutput: int64(1)},
+		{Script: `1// 1 // 2`, RunOutput: int64(1)},
+		{Script: `1// 1 \n 2`, RunOutput: int64(1)},
+		{Script: `1// 1 # 2`, RunOutput: int64(1)},
+
+		{Script: `1
+// 1`, RunOutput: int64(1)},
+		{Script: `1
+// 1;`, RunOutput: int64(1)},
+		{Script: `1
+// 1 // 2`, RunOutput: int64(1)},
+		{Script: `1
+// 1 \n 2`, RunOutput: int64(1)},
+		{Script: `1
+// 1 # 2`, RunOutput: int64(1)},
+
+		{Script: `/* 1 */`},
+		{Script: `/* * 1 */`},
+		{Script: `/* 1 * */`},
+		{Script: `/** 1 */`},
+		{Script: `/*** 1 */`},
+		{Script: `/**** 1 */`},
+		{Script: `/* 1 **/`},
+		{Script: `/* 1 ***/`},
+		{Script: `/* 1 ****/`},
+		{Script: `/** 1 ****/`},
+		{Script: `/*** 1 ****/`},
+		{Script: `/**** 1 ****/`},
+
+		{Script: `1/* 1 */`, RunOutput: int64(1)},
+		{Script: `1/* * 1 */`, RunOutput: int64(1)},
+		{Script: `1/* 1 * */`, RunOutput: int64(1)},
+		{Script: `1/** 1 */`, RunOutput: int64(1)},
+		{Script: `1/*** 1 */`, RunOutput: int64(1)},
+		{Script: `1/**** 1 */`, RunOutput: int64(1)},
+		{Script: `1/* 1 **/`, RunOutput: int64(1)},
+		{Script: `1/* 1 ***/`, RunOutput: int64(1)},
+		{Script: `1/* 1 ****/`, RunOutput: int64(1)},
+		{Script: `1/** 1 ****/`, RunOutput: int64(1)},
+		{Script: `1/*** 1 ****/`, RunOutput: int64(1)},
+		{Script: `1/**** 1 ****/`, RunOutput: int64(1)},
+
+		{Script: `/* 1 */1`, RunOutput: int64(1)},
+		{Script: `/* * 1 */1`, RunOutput: int64(1)},
+		{Script: `/* 1 * */1`, RunOutput: int64(1)},
+		{Script: `/** 1 */1`, RunOutput: int64(1)},
+		{Script: `/*** 1 */1`, RunOutput: int64(1)},
+		{Script: `/**** 1 */1`, RunOutput: int64(1)},
+		{Script: `/* 1 **/1`, RunOutput: int64(1)},
+		{Script: `/* 1 ***/1`, RunOutput: int64(1)},
+		{Script: `/* 1 ****/1`, RunOutput: int64(1)},
+		{Script: `/** 1 ****/1`, RunOutput: int64(1)},
+		{Script: `/*** 1 ****/1`, RunOutput: int64(1)},
+		{Script: `/**** 1 ****/1`, RunOutput: int64(1)},
+
+		{Script: `1
+/* 1 */`, RunOutput: int64(1)},
+		{Script: `1
+/* * 1 */`, RunOutput: int64(1)},
+		{Script: `1
+/* 1 * */`, RunOutput: int64(1)},
+		{Script: `1
+/** 1 */`, RunOutput: int64(1)},
+		{Script: `1
+/*** 1 */`, RunOutput: int64(1)},
+		{Script: `1
+/**** 1 */`, RunOutput: int64(1)},
+		{Script: `1
+/* 1 **/`, RunOutput: int64(1)},
+		{Script: `1
+/* 1 ***/`, RunOutput: int64(1)},
+		{Script: `1
+/* 1 ****/`, RunOutput: int64(1)},
+		{Script: `1
+/** 1 ****/`, RunOutput: int64(1)},
+		{Script: `1
+/*** 1 ****/`, RunOutput: int64(1)},
+		{Script: `1
+/**** 1 ****/`, RunOutput: int64(1)},
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
