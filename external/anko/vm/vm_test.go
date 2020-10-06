@@ -648,3 +648,87 @@ a  =  1;
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
+
+func TestModule(t *testing.T) {
+	tests := []Test{
+		{Script: `module a.b { }`, ParseError: fmt.Errorf("syntax error")},
+		{Script: `module a { 1++ }`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `module a { }; a.b`, RunError: fmt.Errorf("undefined symbol 'b'")},
+
+		{Script: `module a { b = 1 }`, RunOutput: nil},
+
+		{Script: `module a { b = nil }; a.b`, RunOutput: nil},
+		{Script: `module a { b = true }; a.b`, RunOutput: true},
+		{Script: `module a { b = 1 }; a.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1.5 }; a.b`, RunOutput: 1.5},
+		{Script: `module a { b = "a" }; a.b`, RunOutput: "a"},
+		{Script: `module a { func b() { return "b"} }; a.b()`, RunOutput: "b"},
+
+		{Script: `module a { _b = "b"; func c() { return _b} }`, RunOutput: nil},
+		{Script: `module a { _b = "b"; func c() { return _b} }; a.c()`, RunOutput: "b"},
+
+		{Script: `module a { b = 1 }; var c = a; c.b = 2; c.b`, RunOutput: int64(2)},
+
+		// test module copy
+		{Script: `module a { b = 1 }; c = a; d = a; a.b = 2; a.b`, RunOutput: int64(2)},
+		{Script: `module a { b = 1 }; c = a; d = a; a.b = 2; c.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1 }; c = a; d = a; a.b = 2; d.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1 }; c = a; d = a; c.b = 2; a.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1 }; c = a; d = a; c.b = 2; c.b`, RunOutput: int64(2)},
+		{Script: `module a { b = 1 }; c = a; d = a; c.b = 2; d.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1 }; c = a; d = a; d.b = 2; a.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1 }; c = a; d = a; d.b = 2; c.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1 }; c = a; d = a; d.b = 2; d.b`, RunOutput: int64(2)},
+
+		{Script: `module a { b = 1 }; var c = a; var d = a; a.b = 2; a.b`, RunOutput: int64(2)},
+		{Script: `module a { b = 1 }; var c = a; var d = a; a.b = 2; c.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1 }; var c = a; var d = a; a.b = 2; d.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1 }; var c = a; var d = a; c.b = 2; a.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1 }; var c = a; var d = a; c.b = 2; c.b`, RunOutput: int64(2)},
+		{Script: `module a { b = 1 }; var c = a; var d = a; c.b = 2; d.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1 }; var c = a; var d = a; d.b = 2; a.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1 }; var c = a; var d = a; d.b = 2; c.b`, RunOutput: int64(1)},
+		{Script: `module a { b = 1 }; var c = a; var d = a; d.b = 2; d.b`, RunOutput: int64(2)},
+
+		// test type scope
+		{Script: `module b { make(type Duration, a) }; func c() { d = new(time.Duration); return *d }; c()`, Input: map[string]interface{}{"a": time.Duration(0)}, RunError: fmt.Errorf("no namespace called: time")},
+		{Script: `module time { make(type Duration, a) }; func c() { d = new(time.Duration); return *d }; c()`, Input: map[string]interface{}{"a": time.Duration(0)}, RunOutput: time.Duration(0)},
+		{Script: `module x { module time { make(type Duration, a) } }; func c() { d = new(x.time.Duration); return *d }; c()`, Input: map[string]interface{}{"a": time.Duration(0)}, RunOutput: time.Duration(0)},
+		{Script: `module x { module time { make(type Duration, a) } }; func c() { d = new(y.time.Duration); return *d }; c()`, Input: map[string]interface{}{"a": time.Duration(0)}, RunError: fmt.Errorf("no namespace called: y")},
+		{Script: `module x { module time { make(type Duration, a) } }; func c() { d = new(x.y.Duration); return *d }; c()`, Input: map[string]interface{}{"a": time.Duration(0)}, RunError: fmt.Errorf("no namespace called: y")},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestNew(t *testing.T) {
+	tests := []Test{
+		{Script: `new(foo)`, RunError: fmt.Errorf("undefined type 'foo'")},
+		{Script: `new(nilT)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
+
+		// default
+		{Script: `a = new(bool); *a`, RunOutput: false},
+		{Script: `a = new(int32); *a`, RunOutput: int32(0)},
+		{Script: `a = new(int64); *a`, RunOutput: int64(0)},
+		{Script: `a = new(float32); *a`, RunOutput: float32(0)},
+		{Script: `a = new(float64); *a`, RunOutput: float64(0)},
+		{Script: `a = new(string); *a`, RunOutput: ""},
+
+		// ptr
+		{Script: `a = new(*string); b = *a; *b`, RunOutput: ""},
+		{Script: `a = new(*string); **a`, RunOutput: ""},
+
+		// slice
+		{Script: `a = new([]int64); *a`, RunOutput: []int64{}},
+
+		// map
+		{Script: `a = new(map[string]int64); *a`, RunOutput: map[string]int64{}},
+
+		// chan
+		{Script: `a = new(chan int64); go func(){ (*a) <- 1 }(); <- *a`, RunOutput: int64(1)},
+		{Script: `a = new(chan int64); go func(){ *a <- 1 }(); <- *a`, RunOutput: int64(1)},
+
+		// struct
+		{Script: `a = new(struct{ A int64 }); *a`, RunOutput: struct{ A int64 }{}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
