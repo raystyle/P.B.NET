@@ -732,3 +732,102 @@ func TestNew(t *testing.T) {
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
+
+func TestMake(t *testing.T) {
+	tests := []Test{
+		{Script: `make(map[[]string]int64)`, RunError: fmt.Errorf("reflect.MapOf: invalid key type []string")},
+	}
+	runTests(t, tests, nil, &Options{Debug: false})
+
+	tests = []Test{
+		{Script: `make(struct {})`, ParseError: fmt.Errorf("syntax error")},
+		{Script: `make(struct { , })`, ParseError: fmt.Errorf("syntax error")},
+		{Script: `make(struct { A map })`, ParseError: fmt.Errorf("syntax error")},
+		{Script: `make(struct { , A int64})`, ParseError: fmt.Errorf("syntax error")},
+		{Script: `make(struct { A int64, })`, ParseError: fmt.Errorf("syntax error")},
+
+		{Script: `make(foo)`, RunError: fmt.Errorf("undefined type 'foo'")},
+		{Script: `make(a.b)`, Types: map[string]interface{}{"a": true}, RunError: fmt.Errorf("no namespace called: a")},
+		{Script: `make(a.b)`, Types: map[string]interface{}{"b": true}, RunError: fmt.Errorf("no namespace called: a")},
+		{Script: `make([]int64, 1++)`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `make([]int64, 1, 1++)`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `make([]int64, 2, 1)`, RunError: fmt.Errorf("make slice len > cap")},
+		{Script: `make(map[foo]int64)`, RunError: fmt.Errorf("undefined type 'foo'")},
+		{Script: `make(map[int64]foo)`, RunError: fmt.Errorf("undefined type 'foo'")},
+		{Script: `make(chan foo)`, RunError: fmt.Errorf("undefined type 'foo'")},
+		{Script: `make(chan int64, 1++)`, RunError: fmt.Errorf("invalid operation")},
+		{Script: `make(struct { A foo })`, RunError: fmt.Errorf("undefined type 'foo'")},
+
+		// nil type
+		{Script: `make(nilT)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
+		{Script: `make(*nilT)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
+		{Script: `make([]nilT)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
+		{Script: `make(map[nilT]string)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
+		{Script: `make(map[string]nilT)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
+		{Script: `make(chan nilT)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
+		{Script: `make(struct { A nilT })`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
+
+		// default
+		{Script: `make(bool)`, RunOutput: false},
+		{Script: `make(int32)`, RunOutput: int32(0)},
+		{Script: `make(int64)`, RunOutput: int64(0)},
+		{Script: `make(float32)`, RunOutput: float32(0)},
+		{Script: `make(float64)`, RunOutput: float64(0)},
+		{Script: `make(string)`, RunOutput: ""},
+
+		// ptr
+		{Script: `a = make(*int64); *a`, RunOutput: int64(0)},
+		{Script: `a = make(**int64); **a`, RunOutput: int64(0)},
+		{Script: `a = make(***int64); ***a`, RunOutput: int64(0)},
+		{Script: `a = make(*[]int64); *a`, RunOutput: []int64{}},
+		{Script: `a = make(*map[string]int64); *a`, RunOutput: map[string]int64{}},
+		{Script: `a = make(*chan int64); go func(){ (*a) <- 1 }(); <- *a`, RunOutput: int64(1)},
+		{Script: `a = make(*chan int64); go func(){ *a <- 1 }(); <- *a`, RunOutput: int64(1)},
+
+		// slice
+		{Script: `make([]int64)`, RunOutput: []int64{}},
+		{Script: `a = make([]int64, 1); a[0]`, RunOutput: int64(0)},
+		{Script: `a = make([]int64, 1, 2); a[0]`, RunOutput: int64(0)},
+		{Script: `make([]*int64)`, RunOutput: []*int64{}},
+		{Script: `make([][]int64)`, RunOutput: [][]int64{}},
+		{Script: `make([]map[string]int64)`, RunOutput: []map[string]int64{}},
+
+		// map
+		{Script: `make(map[string]int64)`, RunOutput: map[string]int64{}},
+		{Script: `make(map[string]*int64)`, RunOutput: map[string]*int64{}},
+		{Script: `make(map[*string]int64)`, RunOutput: map[*string]int64{}},
+		{Script: `make(map[*string]*int64)`, RunOutput: map[*string]*int64{}},
+		{Script: `make(map[string][]int64)`, RunOutput: map[string][]int64{}},
+		{Script: `make(map[string]chan int64)`, RunOutput: map[string]chan int64{}},
+		{Script: `make(map[chan string]int64)`, RunOutput: map[chan string]int64{}},
+
+		// chan
+		{Script: `a = make(chan int64); go func(){ a <- 1 }(); <- a`, RunOutput: int64(1)},
+		{Script: `a = make(chan int64, 1); a <- 1; <- a`, RunOutput: int64(1)},
+		{Script: `a = make(chan *int64, 1); b = 1; a <- &b; c = <- a; *c`, RunOutput: int64(1)},
+		{Script: `a = make(chan []int64, 1); a <- [1]; <- a`, RunOutput: []int64{1}},
+		{Script: `a = make(chan map[string]int64, 1); b = make(map[string]int64); a <- b; <- a`, RunOutput: map[string]int64{}},
+		{Script: `a = make(chan int64, 1); b = &a; *b <- 1; <- *b`, RunOutput: int64(1)},
+
+		// struct
+		{Script: `make(struct { A int64 })`, RunOutput: struct{ A int64 }{}},
+		{Script: `make(struct { A *int64 })`, RunOutput: struct{ A *int64 }{}},
+		{Script: `make(struct { A []int64 })`, RunOutput: struct{ A []int64 }{A: nil}},
+		{Script: `make(struct { A map[string]int64 })`, RunOutput: struct{ A map[string]int64 }{A: nil}},
+		{Script: `make(struct { A chan int64 })`, RunOutput: struct{ A chan int64 }{A: nil}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
+
+func TestMakeType(t *testing.T) {
+	tests := []Test{
+		{Script: `make(type a, 1++)`, RunError: fmt.Errorf("invalid operation")},
+
+		{Script: `make(type a, true)`, RunOutput: reflect.TypeOf(true)},
+		{Script: `a = make(type a, true)`, RunOutput: reflect.TypeOf(true), Output: map[string]interface{}{"a": reflect.TypeOf(true)}},
+		{Script: `make(type a, true); a = make([]a)`, RunOutput: []bool{}, Output: map[string]interface{}{"a": []bool{}}},
+		{Script: `make(type a, make([]bool))`, RunOutput: reflect.TypeOf([]bool{})},
+		{Script: `make(type a, make([]bool)); a = make(a)`, RunOutput: []bool{}, Output: map[string]interface{}{"a": []bool{}}},
+	}
+	runTests(t, tests, nil, &Options{Debug: true})
+}
