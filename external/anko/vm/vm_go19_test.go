@@ -8,8 +8,6 @@ import (
 )
 
 func TestMakeGo19(t *testing.T) {
-	t.Parallel()
-
 	tests := []Test{
 		{Script: `make(struct { a int64 })`, RunError: fmt.Errorf("reflect.StructOf: field \"a\" is unexported but missing PkgPath")},
 	}

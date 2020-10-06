@@ -548,8 +548,6 @@ func TestIf(t *testing.T) {
 }
 
 func TestSwitch(t *testing.T) {
-	t.Parallel()
-
 	tests := []Test{
 		// test parse errors
 		{Script: `switch {}`, ParseError: fmt.Errorf("syntax error")},
