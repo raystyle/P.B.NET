@@ -479,7 +479,7 @@ func TestVar(t *testing.T) {
 		{Script: `var a = 1++`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `a := 1`, ParseError: fmt.Errorf("syntax error")},
 		{Script: `var a := 1`, ParseError: fmt.Errorf("syntax error")},
-		{Script: `y = z`, RunError: fmt.Errorf("undefined symbol 'z'")},
+		{Script: `y = z`, RunError: fmt.Errorf("undefined symbol \"z\"")},
 
 		{Script: `a = nil`, RunOutput: nil, Output: map[string]interface{}{"a": nil}},
 		{Script: `a = true`, RunOutput: true, Output: map[string]interface{}{"a": true}},
@@ -589,8 +589,8 @@ a  =  1;
 `, RunOutput: int64(1)},
 
 		// one variable many values
-		{Script: `, b = 1, 2`, ParseError: fmt.Errorf("syntax error: unexpected ','"), RunOutput: int64(2), Output: map[string]interface{}{"b": int64(1)}},
-		{Script: `var , b = 1, 2`, ParseError: fmt.Errorf("syntax error: unexpected ','"), RunOutput: int64(2), Output: map[string]interface{}{"b": int64(1)}},
+		{Script: `, b = 1, 2`, ParseError: fmt.Errorf("syntax error: unexpected \",\""), RunOutput: int64(2), Output: map[string]interface{}{"b": int64(1)}},
+		{Script: `var , b = 1, 2`, ParseError: fmt.Errorf("syntax error: unexpected \",\""), RunOutput: int64(2), Output: map[string]interface{}{"b": int64(1)}},
 		{Script: `a,  = 1, 2`, ParseError: fmt.Errorf("syntax error")},
 		{Script: `var a,  = 1, 2`, ParseError: fmt.Errorf("syntax error")},
 
@@ -604,8 +604,8 @@ a  =  1;
 		// two variables many values
 		{Script: `a, b  = 1,`, ParseError: fmt.Errorf("syntax error")},
 		{Script: `var a, b  = 1,`, ParseError: fmt.Errorf("syntax error")},
-		{Script: `a, b  = ,1`, ParseError: fmt.Errorf("syntax error: unexpected ','"), RunOutput: int64(1)},
-		{Script: `var a, b  = ,1`, ParseError: fmt.Errorf("syntax error: unexpected ','"), RunOutput: int64(1)},
+		{Script: `a, b  = ,1`, ParseError: fmt.Errorf("syntax error: unexpected \",\""), RunOutput: int64(1)},
+		{Script: `var a, b  = ,1`, ParseError: fmt.Errorf("syntax error: unexpected \",\""), RunOutput: int64(1)},
 		{Script: `a, b  = 1,,`, ParseError: fmt.Errorf("syntax error")},
 		{Script: `var a, b  = 1,,`, ParseError: fmt.Errorf("syntax error")},
 		{Script: `a, b  = ,1,`, ParseError: fmt.Errorf("syntax error")},
@@ -613,8 +613,8 @@ a  =  1;
 		{Script: `a, b  = ,,1`, ParseError: fmt.Errorf("syntax error")},
 		{Script: `var a, b  = ,,1`, ParseError: fmt.Errorf("syntax error")},
 
-		{Script: `a.c, b = 1, 2`, RunError: fmt.Errorf("undefined symbol 'a'")},
-		{Script: `a, b.c = 1, 2`, RunError: fmt.Errorf("undefined symbol 'b'")},
+		{Script: `a.c, b = 1, 2`, RunError: fmt.Errorf("undefined symbol \"a\"")},
+		{Script: `a, b.c = 1, 2`, RunError: fmt.Errorf("undefined symbol \"b\"")},
 
 		{Script: `a, b = 1`, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
 		{Script: `var a, b = 1`, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
@@ -634,8 +634,8 @@ a  =  1;
 		{Script: `var a, b, c = 1, 2, 3, 4`, RunOutput: int64(4), Output: map[string]interface{}{"a": int64(1), "b": int64(2), "c": int64(3)}},
 
 		// scope
-		{Script: `func(){ a = 1 }(); a`, RunError: fmt.Errorf("undefined symbol 'a'")},
-		{Script: `func(){ var a = 1 }(); a`, RunError: fmt.Errorf("undefined symbol 'a'")},
+		{Script: `func(){ a = 1 }(); a`, RunError: fmt.Errorf("undefined symbol \"a\"")},
+		{Script: `func(){ var a = 1 }(); a`, RunError: fmt.Errorf("undefined symbol \"a\"")},
 
 		{Script: `a = 1; func(){ a = 2 }()`, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
 		{Script: `var a = 1; func(){ a = 2 }()`, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
@@ -657,7 +657,7 @@ func TestModule(t *testing.T) {
 	tests := []Test{
 		{Script: `module a.b { }`, ParseError: fmt.Errorf("syntax error")},
 		{Script: `module a { 1++ }`, RunError: fmt.Errorf("invalid operation")},
-		{Script: `module a { }; a.b`, RunError: fmt.Errorf("undefined symbol 'b'")},
+		{Script: `module a { }; a.b`, RunError: fmt.Errorf("undefined symbol \"b\"")},
 
 		{Script: `module a { b = 1 }`, RunOutput: nil},
 
@@ -706,7 +706,7 @@ func TestModule(t *testing.T) {
 
 func TestNew(t *testing.T) {
 	tests := []Test{
-		{Script: `new(foo)`, RunError: fmt.Errorf("undefined type 'foo'")},
+		{Script: `new(foo)`, RunError: fmt.Errorf("undefined type \"foo\"")},
 		{Script: `new(nilT)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
 
 		// default
@@ -750,17 +750,17 @@ func TestMake(t *testing.T) {
 		{Script: `make(struct { , A int64})`, ParseError: fmt.Errorf("syntax error")},
 		{Script: `make(struct { A int64, })`, ParseError: fmt.Errorf("syntax error")},
 
-		{Script: `make(foo)`, RunError: fmt.Errorf("undefined type 'foo'")},
+		{Script: `make(foo)`, RunError: fmt.Errorf("undefined type \"foo\"")},
 		{Script: `make(a.b)`, Types: map[string]interface{}{"a": true}, RunError: fmt.Errorf("no namespace called: a")},
 		{Script: `make(a.b)`, Types: map[string]interface{}{"b": true}, RunError: fmt.Errorf("no namespace called: a")},
 		{Script: `make([]int64, 1++)`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `make([]int64, 1, 1++)`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `make([]int64, 2, 1)`, RunError: fmt.Errorf("make slice len > cap")},
-		{Script: `make(map[foo]int64)`, RunError: fmt.Errorf("undefined type 'foo'")},
-		{Script: `make(map[int64]foo)`, RunError: fmt.Errorf("undefined type 'foo'")},
-		{Script: `make(chan foo)`, RunError: fmt.Errorf("undefined type 'foo'")},
+		{Script: `make(map[foo]int64)`, RunError: fmt.Errorf("undefined type \"foo\"")},
+		{Script: `make(map[int64]foo)`, RunError: fmt.Errorf("undefined type \"foo\"")},
+		{Script: `make(chan foo)`, RunError: fmt.Errorf("undefined type \"foo\"")},
 		{Script: `make(chan int64, 1++)`, RunError: fmt.Errorf("invalid operation")},
-		{Script: `make(struct { A foo })`, RunError: fmt.Errorf("undefined type 'foo'")},
+		{Script: `make(struct { A foo })`, RunError: fmt.Errorf("undefined type \"foo\"")},
 
 		// nil type
 		{Script: `make(nilT)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
@@ -866,8 +866,8 @@ func TestChan(t *testing.T) {
 		{Script: `close(1)`, RunError: fmt.Errorf("type cannot be int64 for close")},
 
 		// let channel errors
-		{Script: `a = <- c`, RunError: fmt.Errorf("undefined symbol 'c'")},
-		{Script: `a, b = <- c`, RunError: fmt.Errorf("undefined symbol 'c'")},
+		{Script: `a = <- c`, RunError: fmt.Errorf("undefined symbol \"c\"")},
+		{Script: `a, b = <- c`, RunError: fmt.Errorf("undefined symbol \"c\"")},
 		{Script: `a = <- 1++`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `a, b = <- 1++`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `c = 1; a = <- c`, RunError: fmt.Errorf("receive from non-chan type int64")},
@@ -973,7 +973,7 @@ func TestVMDelete(t *testing.T) {
 	tests := []Test{
 		{Script: `delete(1++)`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `delete(1)`, RunError: fmt.Errorf("first argument to delete cannot be type int64")},
-		{Script: `a = 1; delete("a"); a`, RunError: fmt.Errorf("undefined symbol 'a'")},
+		{Script: `a = 1; delete("a"); a`, RunError: fmt.Errorf("undefined symbol \"a\"")},
 		{Script: `a = {"b": "b"}; delete(a)`, RunError: fmt.Errorf("second argument to delete cannot be nil for map")},
 
 		{Script: `delete("a", 1++)`, RunError: fmt.Errorf("invalid operation")},
@@ -988,13 +988,13 @@ func TestVMDelete(t *testing.T) {
 		// test DeleteGlobal
 		{Script: `a = 1; func b() { delete("a") }; b()`, Output: map[string]interface{}{"a": int64(1)}},
 		{Script: `a = 1; func b() { delete("a", false) }; b()`, Output: map[string]interface{}{"a": int64(1)}},
-		{Script: `a = 1; func b() { delete("a", true) }; b(); a`, RunError: fmt.Errorf("undefined symbol 'a'")},
+		{Script: `a = 1; func b() { delete("a", true) }; b(); a`, RunError: fmt.Errorf("undefined symbol \"a\"")},
 		{Script: `a = 2; func b() { a = 3; delete("a"); return a }; b()`, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
 		{Script: `a = 2; func b() { a = 3; delete("a", false); return a }; b()`, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
-		{Script: `a = 2; func b() { a = 3; delete("a", true); return a }; b()`, RunError: fmt.Errorf("undefined symbol 'a'")},
+		{Script: `a = 2; func b() { a = 3; delete("a", true); return a }; b()`, RunError: fmt.Errorf("undefined symbol \"a\"")},
 		{Script: `a = 2; func b() { a = 3; delete("a") }; b(); a`, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
 		{Script: `a = 2; func b() { a = 3; delete("a", false) }; b(); a`, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
-		{Script: `a = 2; func b() { a = 3; delete("a", true) }; b(); a`, RunError: fmt.Errorf("undefined symbol 'a'")},
+		{Script: `a = 2; func b() { a = 3; delete("a", true) }; b(); a`, RunError: fmt.Errorf("undefined symbol \"a\"")},
 
 		// test empty map
 		{Script: `delete(a, "a")`, Input: map[string]interface{}{"a": testMapEmpty}, Output: map[string]interface{}{"a": testMapEmpty}},
