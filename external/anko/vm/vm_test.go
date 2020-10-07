@@ -1124,3 +1124,159 @@ func TestComment(t *testing.T) {
 	}
 	runTests(t, tests, nil, &Options{Debug: true})
 }
+
+func TestCancelWithContext(t *testing.T) {
+	scripts := []string{
+		`
+b = 0
+close(waitChan)
+for {
+	b = 1
+}
+`,
+		`
+b = 0
+close(waitChan)
+for {
+	for {
+		b = 1
+	}
+}
+`,
+		`
+a = []
+for i = 0; i < 20000; i++ {
+	a += 1
+}
+b = 0
+close(waitChan)
+for {
+	for i in a {
+		b = i
+	}
+}
+`,
+		`
+a = []
+for i = 0; i < 20000; i++ {
+	a += 1
+}
+b = 0
+close(waitChan)
+for i in a {
+	for j in a {
+		b = j
+	}
+}
+`,
+		`
+close(waitChan)
+b = 0
+for i = 0; true; nil {
+}
+`,
+		`
+b = 0
+close(waitChan)
+for i = 0; true; nil {
+	for j = 0; true; nil {
+		b = 1
+	}
+}
+`,
+		`
+a = {}
+for i = 0; i < 20000; i++ {
+	a[toString(i)] = 1
+}
+b = 0
+close(waitChan)
+for {
+	for i in a {
+		b = 1
+	}
+}
+`,
+		`
+a = {}
+for i = 0; i < 20000; i++ {
+	a[toString(i)] = 1
+}
+b = 0
+close(waitChan)
+for i in a {
+	for j in a {
+		b = 1
+	}
+}
+`,
+		`
+close(waitChan)
+<- make(chan string)
+`,
+		`
+a = ""
+close(waitChan)
+a = <- make(chan string)
+`,
+		`
+for {
+	a = ""
+	close(waitChan)
+	a = <- make(chan string)
+}
+`,
+		`
+a = make(chan int)
+close(waitChan)
+a <- 1
+`,
+		`
+a = make(chan interface)
+close(waitChan)
+a <- nil
+`,
+		`
+a = make(chan int64, 1)
+close(waitChan)
+for v in a { }
+`,
+		`
+close(waitChan)
+try {
+	for { }
+} catch { }
+`,
+	}
+	for _, script := range scripts {
+		runCancelTestWithContext(t, script)
+	}
+}
+
+func runCancelTestWithContext(t *testing.T, script string) {
+	waitChan := make(chan struct{}, 1)
+	toString := func(value interface{}) string {
+		return fmt.Sprintf("%v", value)
+	}
+	e := env.NewEnv()
+	err := e.Define("waitChan", waitChan)
+	if err != nil {
+		t.Errorf("Define error: %v", err)
+	}
+	err = e.Define("toString", toString)
+	if err != nil {
+		t.Errorf("Define error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-waitChan
+		time.Sleep(time.Millisecond)
+		cancel()
+	}()
+
+	_, err = ExecuteContext(ctx, e, nil, script)
+	if err == nil || err.Error() != ErrInterrupt.Error() {
+		t.Errorf("execute error - received %#v - expected: %#v - script: %v", err, ErrInterrupt, script)
+	}
+}
