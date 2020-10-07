@@ -3,11 +3,14 @@ package vm
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
 
+	"project/external/anko/ast"
 	"project/external/anko/env"
 	"project/external/anko/parser"
 )
@@ -1376,4 +1379,76 @@ func TestContextFunction(t *testing.T) {
 		t.Errorf("execute error - received %#v - expected: %#v", err, nil)
 	}
 	cancel()
+}
+
+func TestAssignToInterface(t *testing.T) {
+	e := env.NewEnv()
+	X := new(struct {
+		Stdout io.Writer
+	})
+	err := e.Define("X", X)
+	if err != nil {
+		t.Errorf("Define error: %v", err)
+	}
+	err = e.Define("a", new(os.File))
+	if err != nil {
+		t.Errorf("Define error: %v", err)
+	}
+	_, err = Execute(e, nil, "X.Stdout = a")
+	if err != nil {
+		t.Errorf("execute error - received %#v - expected: %#v", err, ErrInterrupt)
+	}
+}
+
+// TestValueEqual do some basic ValueEqual tests for coverage
+func TestValueEqual(t *testing.T) {
+	result := valueEqual(true, true)
+	if result != true {
+		t.Fatal("ValueEqual")
+	}
+	result = valueEqual(true, false)
+	if result != false {
+		t.Fatal("ValueEqual")
+	}
+	result = valueEqual(false, true)
+	if result != false {
+		t.Fatal("ValueEqual")
+	}
+}
+
+// TestUnknownCases tests switch cases that are the unknown cases
+func TestUnknownCases(t *testing.T) {
+	oneLiteral := &ast.LiteralExpr{Literal: reflect.ValueOf(int64(1))}
+	type (
+		BadStmt struct {
+			ast.StmtImpl
+		}
+		BadExpr struct {
+			ast.ExprImpl
+		}
+		BadOperator struct {
+			ast.OperatorImpl
+		}
+	)
+
+	stmts := []ast.Stmt{
+		&BadStmt{},
+		&ast.ExprStmt{Expr: &BadExpr{}},
+		&ast.ExprStmt{Expr: &ast.OpExpr{Op: &BadOperator{}}},
+		&ast.ExprStmt{Expr: &ast.UnaryExpr{Expr: oneLiteral}},
+		&ast.ExprStmt{Expr: &ast.OpExpr{Op: &ast.BinaryOperator{LHS: oneLiteral}}},
+		&ast.ExprStmt{Expr: &ast.OpExpr{Op: &ast.ComparisonOperator{LHS: oneLiteral, RHS: oneLiteral}}},
+		&ast.ExprStmt{Expr: &ast.OpExpr{Op: &ast.AddOperator{LHS: oneLiteral, RHS: oneLiteral}}},
+		&ast.ExprStmt{Expr: &ast.OpExpr{Op: &ast.MultiplyOperator{LHS: oneLiteral, RHS: oneLiteral}}},
+	}
+
+	for _, stmt := range stmts {
+		e := env.NewEnv()
+		_, err := Run(e, nil, stmt)
+		if err == nil {
+			t.Errorf("no error - stmt: %#v", stmt)
+		} else if len(err.Error()) < 9 || err.Error()[:8] != "unknown " {
+			t.Errorf("err: %v - stmt: %#v", err, stmt)
+		}
+	}
 }
