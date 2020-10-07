@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -1279,4 +1280,100 @@ func runCancelTestWithContext(t *testing.T, script string) {
 	if err == nil || err.Error() != ErrInterrupt.Error() {
 		t.Errorf("execute error - received %#v - expected: %#v - script: %v", err, ErrInterrupt, script)
 	}
+}
+
+func TestContextConcurrency(t *testing.T) {
+	var waitGroup sync.WaitGroup
+	e := env.NewEnv()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	waitGroup.Add(100)
+	for i := 0; i < 100; i++ {
+		go func() {
+			_, err := ExecuteContext(ctx, e, nil, "for { }")
+			if err == nil || err.Error() != ErrInterrupt.Error() {
+				t.Errorf("execute error - received %#v - expected: %#v", err, ErrInterrupt)
+			}
+			waitGroup.Done()
+		}()
+	}
+	cancel()
+	waitGroup.Wait()
+	cancel()
+
+	_, err := ExecuteContext(ctx, e, nil, "for { }")
+	if err == nil || err.Error() != ErrInterrupt.Error() {
+		t.Errorf("execute error - received %#v - expected: %#v", err, ErrInterrupt)
+	}
+
+	ctx, cancel = context.WithCancel(context.Background())
+	_, err = ExecuteContext(ctx, e, nil, "for i = 0; i < 1000; i++ {}")
+	if err != nil {
+		t.Errorf("execute error - received: %v - expected: %v", err, nil)
+	}
+	waitGroup.Add(100)
+	for i := 0; i < 100; i++ {
+		go func() {
+			_, err := ExecuteContext(ctx, e, nil, "for i = 0; i < 1000; i++ { }")
+			if err != nil {
+				t.Errorf("execute error - received: %v - expected: %v", err, nil)
+			}
+			waitGroup.Done()
+		}()
+	}
+	waitGroup.Wait()
+
+	waitGroup.Add(100)
+	for i := 0; i < 100; i++ {
+		go func() {
+			_, err := ExecuteContext(ctx, e, nil, "for { }")
+			if err == nil || err.Error() != ErrInterrupt.Error() {
+				t.Errorf("execute error - received %#v - expected: %#v", err, ErrInterrupt)
+			}
+			waitGroup.Done()
+		}()
+	}
+	time.Sleep(time.Millisecond)
+	cancel()
+	waitGroup.Wait()
+
+	waitGroup.Add(100)
+	for i := 0; i < 100; i++ {
+		go func() {
+			_, err := Execute(e, nil, "for i = 0; i < 1000; i++ { }")
+			if err != nil {
+				t.Errorf("execute error - received: %v - expected: %v", err, nil)
+			}
+			waitGroup.Done()
+		}()
+	}
+	waitGroup.Wait()
+}
+
+func TestContextFunction(t *testing.T) {
+	e := env.NewEnv()
+	script := `
+		func myFunc(myVar) {
+			myVar = 3
+		}`
+	envModule, err := e.NewModule("a")
+	if err != nil {
+		t.Fatal("NewModule error:", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	_, err = ExecuteContext(ctx, envModule, nil, script)
+	if err != nil {
+		t.Errorf("execute error - received %#v - expected: %#v", err, nil)
+	}
+	cancel()
+
+	script = "a.myFunc(2)"
+
+	ctx, cancel = context.WithCancel(context.Background())
+	_, err = ExecuteContext(ctx, e, nil, script)
+	if err != nil {
+		t.Errorf("execute error - received %#v - expected: %#v", err, nil)
+	}
+	cancel()
 }
