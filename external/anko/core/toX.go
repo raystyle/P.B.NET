@@ -12,19 +12,29 @@ import (
 
 // ImportToX adds all the toX to the env given.
 func ImportToX(e *env.Env) {
-	_ = e.Define("toBool", toBool)
-	_ = e.Define("toString", toString)
-	_ = e.Define("toInt", toInt)
-	_ = e.Define("toFloat", toFloat)
-	_ = e.Define("toChar", toChar)
-	_ = e.Define("toRune", toRune)
-	_ = e.Define("toBoolSlice", toBoolSlice)
-	_ = e.Define("toStringSlice", toStringSlice)
-	_ = e.Define("toIntSlice", toIntSlice)
-	_ = e.Define("toFloatSlice", toFloatSlice)
-	_ = e.Define("toByteSlice", toByteSlice)
-	_ = e.Define("toRuneSlice", toRuneSlice)
-	_ = e.Define("toDuration", toDuration)
+	for _, item := range [...]*struct {
+		symbol string
+		fn     interface{}
+	}{
+		{"toBool", toBool},
+		{"toString", toString},
+		{"toInt", toInt},
+		{"toFloat", toFloat},
+		{"toChar", toChar},
+		{"toRune", toRune},
+		{"toBoolSlice", toBoolSlice},
+		{"toStringSlice", toStringSlice},
+		{"toIntSlice", toIntSlice},
+		{"toFloatSlice", toFloatSlice},
+		{"toByteSlice", toByteSlice},
+		{"toRuneSlice", toRuneSlice},
+		{"toDuration", toDuration},
+	} {
+		err := e.Define(item.symbol, item.fn)
+		if err != nil {
+			panic(fmt.Sprintf("anko: internal error: %s", err))
+		}
+	}
 }
 
 func toBool(v interface{}) bool {
