@@ -1452,3 +1452,49 @@ func TestUnknownCases(t *testing.T) {
 		}
 	}
 }
+
+func fib(x int) int {
+	if x < 2 {
+		return x
+	}
+	return fib(x-1) + fib(x-2)
+}
+
+func BenchmarkFibGo(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		fib(29)
+	}
+}
+
+func BenchmarkFibVM(b *testing.B) {
+	b.StopTimer()
+
+	e := env.NewEnv()
+	a, err := e.NewModule("a")
+	if err != nil {
+		b.Fatal("NewModule error:", err)
+	}
+
+	script := `
+fib = func(x) {
+	if x < 2 {
+		return x
+	}
+	return fib(x-1) + fib(x-2)
+}`
+
+	_, err = Execute(a, nil, script)
+	if err != nil {
+		b.Fatal("Execute error:", err)
+	}
+
+	b.ResetTimer()
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, err = Execute(e, nil, "a.fib(29)")
+		if err != nil {
+			b.Fatal("Execute error:", err)
+		}
+	}
+}
