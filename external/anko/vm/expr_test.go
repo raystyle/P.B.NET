@@ -12,7 +12,7 @@ import (
 )
 
 func TestReturns(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `return 1++`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `return 1, 1++`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `return 1, 2, 1++`, RunError: fmt.Errorf("invalid operation")},
@@ -166,7 +166,7 @@ func TestReturns(t *testing.T) {
 }
 
 func TestFunctions(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `a()`, Input: map[string]interface{}{"a": reflect.Value{}}, RunError: fmt.Errorf("cannot call type struct")},
 		{Script: `a = nil; a()`, RunError: fmt.Errorf("cannot call type interface"), Output: map[string]interface{}{"a": nil}},
 		{Script: `a = true; a()`, RunError: fmt.Errorf("cannot call type bool"), Output: map[string]interface{}{"a": true}},
@@ -406,14 +406,14 @@ func TestPointerFunctions(t *testing.T) {
 		rv.Elem().Set(slice)
 		return "good"
 	}
-	tests := []Test{
+	tests := []*Test{
 		{Script: `b = 1; a(&b)`, Input: map[string]interface{}{"a": testFunctionPointer}, RunOutput: "good", Output: map[string]interface{}{"b": []interface{}{"b"}}},
 	}
 	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestVariadicFunctions(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		// params Variadic arg !Variadic
 		{Script: `func a(b...) { return b }; a()`, RunOutput: []interface{}{}},
 		{Script: `func a(b...) { return b }; a(true)`, RunOutput: []interface{}{true}},
@@ -474,7 +474,7 @@ func TestVariadicFunctions(t *testing.T) {
 }
 
 func TestFunctionsInArraysAndMaps(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `a = [func () { return nil }]; a[0]()`, RunOutput: nil},
 		{Script: `a = [func () { return true }]; a[0]()`, RunOutput: true},
 		{Script: `a = [func () { return 1 }]; a[0]()`, RunOutput: int64(1)},
@@ -515,7 +515,7 @@ func TestFunctionsInArraysAndMaps(t *testing.T) {
 }
 
 func TestFunctionConversions(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `b = func(c){ return c }; a("x", b)`, Input: map[string]interface{}{"a": func(b string, c func(string) string) string { return c(b) }}, RunOutput: "x"},
 		{Script: `b = make(struct1); b.A = func (c, d) { return c == d }; b.A(2, 2)`, Types: map[string]interface{}{"struct1": &struct {
 			A func(int, int) bool
@@ -638,7 +638,7 @@ func TestFunctionConversions(t *testing.T) {
 	}
 	runTests(t, tests, &Options{Debug: true})
 
-	tests = []Test{
+	tests = []*Test{
 		{Script: `c = a(b)`,
 			Input: map[string]interface{}{"a": func(b func() bool) bool {
 				return b()
@@ -675,7 +675,7 @@ func TestVariadicFunctionConversions(t *testing.T) {
 		}
 		return total
 	}
-	tests := []Test{
+	tests := []*Test{
 		// params Variadic arg !Variadic
 		{Script: `a(true)`, Input: map[string]interface{}{"a": func(b ...interface{}) []interface{} { return b }}, RunOutput: []interface{}{true}},
 
@@ -688,7 +688,7 @@ func TestVariadicFunctionConversions(t *testing.T) {
 }
 
 func TestLen(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `len(1++)`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `len(true)`, RunError: fmt.Errorf("type bool does not support len operation")},
 
@@ -778,7 +778,7 @@ func TestCallFunctionWithVararg(t *testing.T) {
 }
 
 func TestGoFunctionConcurrency(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `
 waitGroup.Add(5);
 a = []; b = []; c = []; d = []; e = []

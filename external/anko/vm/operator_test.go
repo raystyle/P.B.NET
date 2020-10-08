@@ -7,7 +7,7 @@ import (
 )
 
 func TestBasicOperators(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `]`, ParseError: fmt.Errorf("syntax error")},
 
 		{Script: `2 + 1`, RunOutput: int64(3)},
@@ -172,7 +172,7 @@ func TestBasicOperators(t *testing.T) {
 }
 
 func TestComparisonOperators(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `1++ == 2`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
 		{Script: `2 == 1++`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
 		{Script: `1++ || true`, RunError: fmt.Errorf("invalid operation"), RunOutput: nil},
@@ -385,7 +385,7 @@ func TestComparisonOperators(t *testing.T) {
 }
 
 func TestThrows(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `throw(1++)`, RunError: fmt.Errorf("invalid operation")},
 		// {Script: `throw(a)`, Input: map[string]interface{}{"a": reflect.Value{}}, RunError: fmt.Errorf("invalid operation")},
 
@@ -426,7 +426,7 @@ func TestThrows(t *testing.T) {
 }
 
 func TestTernaryOperator(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `a = a ? 1 : 2`, RunError: fmt.Errorf("undefined symbol \"a\"")},
 		{Script: `a = z ? 1 : 2`, RunError: fmt.Errorf("undefined symbol \"z\"")},
 		{Script: `a = 0; a = a ? 1 : z`, RunError: fmt.Errorf("undefined symbol \"z\"")},
@@ -469,7 +469,7 @@ func TestTernaryOperator(t *testing.T) {
 }
 
 func TestNilCoalescingOperator(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `nil ?? nil`, RunOutput: nil},
 		{Script: `false ?? nil`, RunOutput: false},
 		{Script: `true ?? nil`, RunOutput: true},
@@ -498,7 +498,7 @@ func TestNilCoalescingOperator(t *testing.T) {
 }
 
 func TestIf(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `if 1++ {}`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `if false {} else if 1++ {}`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `if false {} else if true { 1++ }`, RunError: fmt.Errorf("invalid operation")},
@@ -548,7 +548,7 @@ func TestIf(t *testing.T) {
 }
 
 func TestSwitch(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		// test parse errors
 		{Script: `switch {}`, ParseError: fmt.Errorf("syntax error")},
 		{Script: `a = 1; switch a; {}`, ParseError: fmt.Errorf("syntax error")},
@@ -643,7 +643,7 @@ switch a {
 }
 
 func TestForLoop(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `for in [1] { }`, ParseError: fmt.Errorf("missing identifier")},
 		{Script: `for a, b, c in [1] { }`, ParseError: fmt.Errorf("too many identifiers")},
 
@@ -841,7 +841,7 @@ func TestForLoop(t *testing.T) {
 }
 
 func TestItemInList(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `"a" in ["a"]`, RunOutput: true},
 		{Script: `"a" in ["b"]`, RunOutput: false},
 		{Script: `"a" in ["c", "b", "a"]`, RunOutput: true},
@@ -975,7 +975,7 @@ func TestItemInList(t *testing.T) {
 }
 
 func TestOperatorPrecedence(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		// test && > ||
 		{Script: `true || true && false`, RunOutput: true},
 		{Script: `(true || true) && false`, RunOutput: false},
@@ -1017,7 +1017,7 @@ func TestOperatorPrecedence(t *testing.T) {
 }
 
 func TestTry(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `try { 1++ } catch { 1++ }`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `try { 1++ } catch a { return a }`, RunOutput: fmt.Errorf("invalid operation")},
 		{Script: `try { 1++ } catch a { a = 2 }; return a`, RunError: fmt.Errorf("undefined symbol \"a\"")},

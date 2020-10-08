@@ -134,15 +134,15 @@ type Test struct {
 	Output     map[string]interface{}
 }
 
-func runTests(t *testing.T, tests []Test, options *Options) {
+func runTests(t *testing.T, tests []*Test, opts *Options) {
 	for _, test := range tests {
-		runTest(t, test, options)
+		runTest(t, test, opts)
 	}
 }
 
 // nolint: gocyclo
 //gocyclo:ignore
-func runTest(t *testing.T, test Test, options *Options) {
+func runTest(t *testing.T, test *Test, opts *Options) {
 	timeout := 60 * time.Second
 
 	// parser.EnableErrorVerbose()
@@ -180,7 +180,7 @@ func runTest(t *testing.T, test Test, options *Options) {
 
 	var value interface{}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	value, err = RunContext(ctx, envTest, options, stmt)
+	value, err = RunContext(ctx, envTest, opts, stmt)
 	cancel()
 	if err != nil && test.RunError != nil {
 		if err.Error() != test.RunError.Error() {
@@ -250,7 +250,7 @@ func valueEqual(v1 interface{}, v2 interface{}) bool {
 }
 
 func TestNumbers(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: ``},
 		{Script: `;`},
 		{Script: `
@@ -306,7 +306,7 @@ func TestNumbers(t *testing.T) {
 }
 
 func TestStrings(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `a`, Input: map[string]interface{}{"a": 'a'}, RunOutput: 'a', Output: map[string]interface{}{"a": 'a'}},
 		{Script: `a.b`, Input: map[string]interface{}{"a": 'a'}, RunError: fmt.Errorf("type int32 does not support member operation"), Output: map[string]interface{}{"a": 'a'}},
 		{Script: `a[0]`, Input: map[string]interface{}{"a": 'a'}, RunError: fmt.Errorf("type int32 does not support index operation"), RunOutput: nil, Output: map[string]interface{}{"a": 'a'}},
@@ -445,7 +445,7 @@ func TestStrings(t *testing.T) {
 
 func TestVar(t *testing.T) {
 	testInput1 := map[string]interface{}{"b": func() {}}
-	tests := []Test{
+	tests := []*Test{
 		// simple one variable
 		{Script: `1 = 2`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `var 1 = 2`, ParseError: fmt.Errorf("syntax error")},
@@ -628,7 +628,7 @@ a  =  1;
 }
 
 func TestModule(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `module a.b { }`, ParseError: fmt.Errorf("syntax error")},
 		{Script: `module a { 1++ }`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `module a { }; a.b`, RunError: fmt.Errorf("undefined symbol \"b\"")},
@@ -679,7 +679,7 @@ func TestModule(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `new(foo)`, RunError: fmt.Errorf("undefined type \"foo\"")},
 		{Script: `new(nilT)`, Types: map[string]interface{}{"nilT": nil}, RunError: fmt.Errorf("cannot make type nil")},
 
@@ -712,12 +712,12 @@ func TestNew(t *testing.T) {
 }
 
 func TestMake(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `make(map[[]string]int64)`, RunError: fmt.Errorf("reflect.MapOf: invalid key type []string")},
 	}
 	runTests(t, tests, &Options{Debug: false})
 
-	tests = []Test{
+	tests = []*Test{
 		{Script: `make(struct {})`, ParseError: fmt.Errorf("syntax error")},
 		{Script: `make(struct { , })`, ParseError: fmt.Errorf("syntax error")},
 		{Script: `make(struct { A map })`, ParseError: fmt.Errorf("syntax error")},
@@ -798,7 +798,7 @@ func TestMake(t *testing.T) {
 }
 
 func TestMakeType(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `make(type a, 1++)`, RunError: fmt.Errorf("invalid operation")},
 
 		{Script: `make(type a, true)`, RunOutput: reflect.TypeOf(true)},
@@ -811,7 +811,7 @@ func TestMakeType(t *testing.T) {
 }
 
 func TestReferencingAndDereference(t *testing.T) {
-	// tests := []Test{
+	// tests := []*Test{
 	// 	// TO FIX:
 	// 	// {Script: `a = 1; b = &a; *b = 2; *b`, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
 	// }
@@ -819,13 +819,13 @@ func TestReferencingAndDereference(t *testing.T) {
 }
 
 func TestChan(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		// send on closed channel
 		{Script: `a = make(chan int64, 2); close(a); a <- 1`, RunError: fmt.Errorf("send on closed channel")},
 	}
 	runTests(t, tests, &Options{Debug: false})
 
-	tests = []Test{
+	tests = []*Test{
 		{Script: `a = make(chan int64, 2); a <- 1; = <- a`, ParseError: fmt.Errorf("missing expressions on left side of channel operator"), RunError: fmt.Errorf("invalid operation")},
 
 		{Script: `<- 1++`, RunError: fmt.Errorf("invalid operation")},
@@ -944,7 +944,7 @@ func TestChan(t *testing.T) {
 }
 
 func TestVMDelete(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `delete(1++)`, RunError: fmt.Errorf("invalid operation")},
 		{Script: `delete(1)`, RunError: fmt.Errorf("first argument to delete cannot be type int64")},
 		{Script: `a = 1; delete("a"); a`, RunError: fmt.Errorf("undefined symbol \"a\"")},
@@ -989,7 +989,7 @@ func TestVMDelete(t *testing.T) {
 }
 
 func TestComment(t *testing.T) {
-	tests := []Test{
+	tests := []*Test{
 		{Script: `# 1`},
 		{Script: `# 1;`},
 		{Script: `# 1 // 2`},
