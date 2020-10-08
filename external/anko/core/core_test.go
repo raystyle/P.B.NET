@@ -224,9 +224,59 @@ func TestCoreRange(t *testing.T) {
 }
 
 func TestCoreTypeOf(t *testing.T) {
+	tests := []*Test{
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": reflect.Value{}}, RunOutput: "reflect.Value", Output: map[string]interface{}{"a": reflect.Value{}}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": true}, RunOutput: "bool", Output: map[string]interface{}{"a": true}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": int32(1)}, RunOutput: "int32", Output: map[string]interface{}{"a": int32(1)}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": int64(1)}, RunOutput: "int64", Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": float32(1.1)}, RunOutput: "float32", Output: map[string]interface{}{"a": float32(1.1)}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": 1.1}, RunOutput: "float64", Output: map[string]interface{}{"a": 1.1}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": "a"}, RunOutput: "string", Output: map[string]interface{}{"a": "a"}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": 'a'}, RunOutput: "int32", Output: map[string]interface{}{"a": 'a'}},
 
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": interface{}(true)}, RunOutput: "bool", Output: map[string]interface{}{"a": interface{}(true)}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": interface{}(int32(1))}, RunOutput: "int32", Output: map[string]interface{}{"a": interface{}(int32(1))}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": interface{}(int64(1))}, RunOutput: "int64", Output: map[string]interface{}{"a": interface{}(int64(1))}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": interface{}(float32(1))}, RunOutput: "float32", Output: map[string]interface{}{"a": interface{}(float32(1))}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": interface{}(float64(1))}, RunOutput: "float64", Output: map[string]interface{}{"a": interface{}(float64(1))}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": interface{}("a")}, RunOutput: "string", Output: map[string]interface{}{"a": interface{}("a")}},
+
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": []interface{}{}}, RunOutput: "[]interface {}", Output: map[string]interface{}{"a": []interface{}{}}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": []interface{}{nil}}, RunOutput: "[]interface {}", Output: map[string]interface{}{"a": []interface{}{nil}}},
+
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": map[string]interface{}{}}, RunOutput: "map[string]interface {}", Output: map[string]interface{}{"a": map[string]interface{}{}}},
+		{Script: `typeOf(a)`, Input: map[string]interface{}{"a": map[string]interface{}{"b": "b"}}, RunOutput: "map[string]interface {}", Output: map[string]interface{}{"a": map[string]interface{}{"b": "b"}}},
+	}
+	runTests(t, tests, &TestOptions{EnvSetupFunc: Import}, &vm.Options{Debug: true})
 }
 
 func TestCoreKindOf(t *testing.T) {
+	tests := []*Test{
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": reflect.Value{}}, RunOutput: "struct", Output: map[string]interface{}{"a": reflect.Value{}}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": nil}, RunOutput: "nil kind", Output: map[string]interface{}{"a": nil}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": true}, RunOutput: "bool", Output: map[string]interface{}{"a": true}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": int32(1)}, RunOutput: "int32", Output: map[string]interface{}{"a": int32(1)}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": int64(1)}, RunOutput: "int64", Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": float32(1.1)}, RunOutput: "float32", Output: map[string]interface{}{"a": float32(1.1)}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": 1.1}, RunOutput: "float64", Output: map[string]interface{}{"a": 1.1}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": "a"}, RunOutput: "string", Output: map[string]interface{}{"a": "a"}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": 'a'}, RunOutput: "int32", Output: map[string]interface{}{"a": 'a'}},
 
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": interface{}(nil)}, RunOutput: "nil kind", Output: map[string]interface{}{"a": interface{}(nil)}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": interface{}(true)}, RunOutput: "bool", Output: map[string]interface{}{"a": interface{}(true)}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": interface{}(int32(1))}, RunOutput: "int32", Output: map[string]interface{}{"a": interface{}(int32(1))}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": interface{}(int64(1))}, RunOutput: "int64", Output: map[string]interface{}{"a": interface{}(int64(1))}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": interface{}(float32(1))}, RunOutput: "float32", Output: map[string]interface{}{"a": interface{}(float32(1))}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": interface{}(float64(1))}, RunOutput: "float64", Output: map[string]interface{}{"a": interface{}(float64(1))}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": interface{}("a")}, RunOutput: "string", Output: map[string]interface{}{"a": interface{}("a")}},
+
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": []interface{}{}}, RunOutput: "slice", Output: map[string]interface{}{"a": []interface{}{}}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": []interface{}{nil}}, RunOutput: "slice", Output: map[string]interface{}{"a": []interface{}{nil}}},
+
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": map[string]interface{}{}}, RunOutput: "map", Output: map[string]interface{}{"a": map[string]interface{}{}}},
+		{Script: `kindOf(a)`, Input: map[string]interface{}{"a": map[string]interface{}{"b": "b"}}, RunOutput: "map", Output: map[string]interface{}{"a": map[string]interface{}{"b": "b"}}},
+
+		{Script: `a = make(interface); kindOf(a)`, RunOutput: "nil kind", Output: map[string]interface{}{"a": interface{}(nil)}},
+	}
+	runTests(t, tests, &TestOptions{EnvSetupFunc: Import}, &vm.Options{Debug: true})
 }
