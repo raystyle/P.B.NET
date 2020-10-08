@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -9,46 +10,44 @@ import (
 	"project/external/anko/env"
 	"project/external/anko/parser"
 	"project/external/anko/vm"
+
+	"project/internal/patch/monkey"
+	"project/internal/testsuite"
 )
 
 // Test is utility struct to make tests easy.
 type Test struct {
-	Script         string
-	ParseError     error
-	ParseErrorFunc *func(*testing.T, error)
-	EnvSetupFunc   *func(*testing.T, *env.Env)
-	Types          map[string]interface{}
-	Input          map[string]interface{}
-	RunError       error
-	RunErrorFunc   *func(*testing.T, error)
-	RunOutput      interface{}
-	Output         map[string]interface{}
+	Script     string
+	ParseError error
+	Types      map[string]interface{}
+	Input      map[string]interface{}
+	RunError   error
+	RunOutput  interface{}
+	Output     map[string]interface{}
 }
 
 // TestOptions is utility struct to pass options to the test.
 type TestOptions struct {
-	EnvSetupFunc *func(*testing.T, *env.Env)
+	EnvSetupFunc func(*env.Env)
 	Timeout      time.Duration
 }
 
-func runTests(t *testing.T, tests []Test, testOptions *TestOptions, options *vm.Options) {
+func runTests(t *testing.T, tests []*Test, testOpts *TestOptions, opts *vm.Options) {
 	for _, test := range tests {
-		runTest(t, test, testOptions, options)
+		runTest(t, test, testOpts, opts)
 	}
 }
 
 // nolint: gocyclo
 //gocyclo:ignore
-func runTest(t *testing.T, test Test, testOptions *TestOptions, options *vm.Options) {
+func runTest(t *testing.T, test *Test, testOpts *TestOptions, opts *vm.Options) {
 	timeout := 60 * time.Second
 
 	// parser.EnableErrorVerbose()
 	// parser.EnableDebug(8)
 
 	stmt, err := parser.ParseSrc(test.Script)
-	if test.ParseErrorFunc != nil {
-		(*test.ParseErrorFunc)(t, err)
-	} else if err != nil && test.ParseError != nil {
+	if err != nil && test.ParseError != nil {
 		if err.Error() != test.ParseError.Error() {
 			const format = "ParseSrc error - received: %v - expected: %v - script: %v"
 			t.Errorf(format, err, test.ParseError, test.Script)
@@ -62,16 +61,13 @@ func runTest(t *testing.T, test Test, testOptions *TestOptions, options *vm.Opti
 	// Note: Still want to run the code even after a parse error to see what happens
 
 	envTest := env.NewEnv()
-	if testOptions != nil {
-		if testOptions.EnvSetupFunc != nil {
-			(*testOptions.EnvSetupFunc)(t, envTest)
+	if testOpts != nil {
+		if testOpts.EnvSetupFunc != nil {
+			testOpts.EnvSetupFunc(envTest)
 		}
-		if testOptions.Timeout != 0 {
-			timeout = testOptions.Timeout
+		if testOpts.Timeout != 0 {
+			timeout = testOpts.Timeout
 		}
-	}
-	if test.EnvSetupFunc != nil {
-		(*test.EnvSetupFunc)(t, envTest)
 	}
 
 	for typeName, typeValue := range test.Types {
@@ -92,11 +88,9 @@ func runTest(t *testing.T, test Test, testOptions *TestOptions, options *vm.Opti
 
 	var value interface{}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	value, err = vm.RunContext(ctx, envTest, options, stmt)
+	value, err = vm.RunContext(ctx, envTest, opts, stmt)
 	cancel()
-	if test.RunErrorFunc != nil {
-		(*test.RunErrorFunc)(t, err)
-	} else if err != nil && test.RunError != nil {
+	if err != nil && test.RunError != nil {
 		if err.Error() != test.RunError.Error() {
 			t.Errorf("Run error - received: %v - expected: %v - script: %v", err, test.RunError, test.Script)
 			return
@@ -161,4 +155,78 @@ func valueEqual(v1 interface{}, v2 interface{}) bool {
 	}
 
 	return reflect.DeepEqual(v1, v2)
+}
+
+func TestImport(t *testing.T) {
+	t.Run("common", func(t *testing.T) {
+		e := env.NewEnv()
+		Import(e)
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		e := env.NewEnv()
+		patch := func(interface{}, string, interface{}) error {
+			return monkey.Error
+		}
+		pg := monkey.PatchInstanceMethod(e, "Define", patch)
+		defer pg.Unpatch()
+
+		defer testsuite.DeferForPanic(t)
+		Import(e)
+	})
+}
+
+func TestCoreKeys(t *testing.T) {
+	tests := []*Test{
+		{Script: `a = {}; b = keys(a)`, RunOutput: []interface{}{}, Output: map[string]interface{}{"a": map[interface{}]interface{}{}}},
+		{Script: `a = {"a": nil}; b = keys(a)`, RunOutput: []interface{}{"a"}, Output: map[string]interface{}{"a": map[interface{}]interface{}{"a": nil}}},
+		{Script: `a = {"a": 1}; b = keys(a)`, RunOutput: []interface{}{"a"}, Output: map[string]interface{}{"a": map[interface{}]interface{}{"a": int64(1)}}},
+	}
+	runTests(t, tests, &TestOptions{EnvSetupFunc: Import}, &vm.Options{Debug: true})
+}
+
+func TestCoreRange(t *testing.T) {
+	tests := []*Test{
+		// 0 arguments
+		{Script: `range()`, RunError: fmt.Errorf("range expected at least 1 argument, got 0")},
+		// 1 arguments(step == 1, start == 0)
+		{Script: `range(-1)`, RunOutput: []int64(nil)},
+		{Script: `range(0)`, RunOutput: []int64(nil)},
+		{Script: `range(1)`, RunOutput: []int64{0}},
+		{Script: `range(2)`, RunOutput: []int64{0, 1}},
+		{Script: `range(10)`, RunOutput: []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}},
+		// 2 arguments(step == 1)
+		{Script: `range(-5,-1)`, RunOutput: []int64{-5, -4, -3, -2}},
+		{Script: `range(-1,1)`, RunOutput: []int64{-1, 0}},
+		{Script: `range(1,5)`, RunOutput: []int64{1, 2, 3, 4}},
+		// 3 arguments
+		// step == 2
+		{Script: `range(-5,-1,2)`, RunOutput: []int64{-5, -3}},
+		{Script: `range(1,5,2)`, RunOutput: []int64{1, 3}},
+		{Script: `range(-1,5,2)`, RunOutput: []int64{-1, 1, 3}},
+		// step < 0 and from small to large
+		{Script: `range(-5,-1,-1)`, RunOutput: []int64(nil)},
+		{Script: `range(1,5,-1)`, RunOutput: []int64(nil)},
+		{Script: `range(-1,5,-1)`, RunOutput: []int64(nil)},
+		// step < 0 and from large to small
+		{Script: `range(-1,-5,-1)`, RunOutput: []int64{-1, -2, -3, -4}},
+		{Script: `range(5,1,-1)`, RunOutput: []int64{5, 4, 3, 2}},
+		{Script: `range(5,-1,-1)`, RunOutput: []int64{5, 4, 3, 2, 1, 0}},
+		// 4,5 arguments
+		{Script: `range(1,5,1,1)`, RunError: fmt.Errorf("range expected at most 3 arguments, got 4")},
+		{Script: `range(1,5,1,1,1)`, RunError: fmt.Errorf("range expected at most 3 arguments, got 5")},
+		// more 0 test
+		{Script: `range(0,1,2)`, RunOutput: []int64{0}},
+		{Script: `range(1,0,2)`, RunOutput: []int64(nil)},
+		{Script: `range(1,2,0)`, RunError: fmt.Errorf("range argument 3 must not be zero")},
+	}
+	runTests(t, tests, &TestOptions{EnvSetupFunc: Import}, &vm.Options{Debug: false})
+}
+
+func TestCoreTypeOf(t *testing.T) {
+
+}
+
+func TestCoreKindOf(t *testing.T) {
+
 }

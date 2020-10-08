@@ -8,7 +8,7 @@ import (
 )
 
 // Import defines core language builtins - keys, range, println,  etc.
-func Import(e *env.Env) *env.Env {
+func Import(e *env.Env) {
 	for _, item := range [...]*struct {
 		symbol string
 		fn     interface{}
@@ -27,7 +27,6 @@ func Import(e *env.Env) *env.Env {
 		}
 	}
 	ImportToX(e)
-	return e
 }
 
 func coreKeys(v interface{}) []interface{} {
