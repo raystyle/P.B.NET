@@ -5,7 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"project/external/anko/env"
 	"project/external/anko/vm"
+
+	"project/internal/patch/monkey"
+	"project/internal/testsuite"
 )
 
 func TestImportToX(t *testing.T) {
@@ -146,4 +150,16 @@ func TestImportToX(t *testing.T) {
 		{Script: `toDuration(a)`, Input: map[string]interface{}{"a": 123 * time.Minute}, RunOutput: 123 * time.Minute},
 	}
 	runTests(t, tests, &TestOptions{EnvSetupFunc: Import}, &vm.Options{Debug: true})
+}
+
+func TestImportToXPanic(t *testing.T) {
+	e := env.NewEnv()
+	patch := func(interface{}, string, interface{}) error {
+		return monkey.Error
+	}
+	pg := monkey.PatchInstanceMethod(e, "Define", patch)
+	defer pg.Unpatch()
+
+	defer testsuite.DeferForPanic(t)
+	ImportToX(e)
 }
