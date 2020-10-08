@@ -16,7 +16,7 @@ func TestImport(t *testing.T) {
 		{Script: `a = import(true)`, RunError: fmt.Errorf("invalid type conversion")},
 		{Script: `a = import("foo")`, RunError: fmt.Errorf("package not found: foo")},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 
 	envPackages := env.Packages
 	envPackageTypes := env.PackageTypes
@@ -25,14 +25,14 @@ func TestImport(t *testing.T) {
 	tests = []Test{
 		{Script: `a = import("testPackage")`, RunError: fmt.Errorf("import DefineValue error: symbol contains \".\"")},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 
 	env.Packages = map[string]map[string]reflect.Value{"testPackage": {"a": reflect.ValueOf(1)}}
 	env.PackageTypes = map[string]map[string]reflect.Type{"testPackage": {"a.b": reflect.TypeOf(1)}}
 	tests = []Test{
 		{Script: `a = import("testPackage")`, RunError: fmt.Errorf("import DefineReflectType error: symbol contains \".\"")},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 
 	env.PackageTypes = envPackageTypes
 	env.Packages = envPackages
@@ -43,7 +43,7 @@ func TestPackagesBytes(t *testing.T) {
 		{Script: `bytes = import("bytes"); a = make(bytes.Buffer); n, err = a.WriteString("a"); if err != nil { return err }; n`, RunOutput: 1},
 		{Script: `bytes = import("bytes"); a = make(bytes.Buffer); n, err = a.WriteString("a"); if err != nil { return err }; a.String()`, RunOutput: "a"},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestPackagesJson(t *testing.T) {
@@ -53,7 +53,7 @@ func TestPackagesJson(t *testing.T) {
 		{Script: `json = import("encoding/json"); b = 1; err = json.Unmarshal(a, &b); err`, Input: map[string]interface{}{"a": `{"b": "b"}`}, Output: map[string]interface{}{"a": `{"b": "b"}`, "b": map[string]interface{}{"b": "b"}}},
 		{Script: `json = import("encoding/json"); b = 1; err = json.Unmarshal(a, &b); err`, Input: map[string]interface{}{"a": `[["1", "2"],["3", "4"]]`}, Output: map[string]interface{}{"a": `[["1", "2"],["3", "4"]]`, "b": []interface{}{[]interface{}{"1", "2"}, []interface{}{"3", "4"}}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestPackagesRegexp(t *testing.T) {
@@ -78,7 +78,7 @@ func TestPackagesRegexp(t *testing.T) {
 		{Script: `regexp = import("regexp"); re = regexp.MustCompile(a); re.MatchString(b)`, Input: map[string]interface{}{"a": "^a\\.\\d+\\.b$", "b": "no match"}, RunOutput: false, Output: map[string]interface{}{"a": "^a\\.\\d+\\.b$", "b": "no match"}},
 		{Script: `regexp = import("regexp"); re = regexp.MustCompile(a); re.MatchString(b)`, Input: map[string]interface{}{"a": "^a\\.\\d+\\.b$", "b": "a+1+b"}, RunOutput: false, Output: map[string]interface{}{"a": "^a\\.\\d+\\.b$", "b": "a+1+b"}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestPackagesSort(t *testing.T) {
@@ -98,7 +98,7 @@ a
 `,
 			RunOutput: []interface{}{"f", 1.1, "2", int64(3), "4.4", int64(5)}, Output: map[string]interface{}{"a": []interface{}{"f", 1.1, "2", int64(3), "4.4", int64(5)}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestPackagesStrconv(t *testing.T) {
@@ -140,7 +140,7 @@ func TestPackagesStrconv(t *testing.T) {
 		{Script: `strconv = import("strconv"); a = "1"; var b, err = strconv.ParseUint(a, 10, 64); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: "<nil>", Output: map[string]interface{}{"a": "1", "b": uint64(1), "err": "<nil>"}},
 		{Script: `strconv = import("strconv"); a = "a"; var b, err = strconv.ParseUint(a, 10, 64); err = toString(err)`, Input: map[string]interface{}{"toString": toString}, RunOutput: `strconv.ParseUint: parsing "a": invalid syntax`, Output: map[string]interface{}{"a": "a", "b": uint64(0), "err": `strconv.ParseUint: parsing "a": invalid syntax`}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestPackagesStrings(t *testing.T) {
@@ -149,7 +149,7 @@ func TestPackagesStrings(t *testing.T) {
 		{Script: `strings = import("strings"); a = "a b c d"; b = strings.Split(a, " ")`, RunOutput: []string{"a", "b", "c", "d"}, Output: map[string]interface{}{"a": "a b c d", "b": []string{"a", "b", "c", "d"}}},
 		{Script: `strings = import("strings"); a = "a b c d"; b = strings.SplitN(a, " ", 3)`, RunOutput: []string{"a", "b", "c d"}, Output: map[string]interface{}{"a": "a b c d", "b": []string{"a", "b", "c d"}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 // <fix bug> use "new" to replace "make"
@@ -158,14 +158,14 @@ func TestPackagesSync(t *testing.T) {
 		{Script: `sync = import("sync"); once = new(sync.Once); a = []; func add() { a += "a" }; once.Do(add); once.Do(add); a`, RunOutput: []interface{}{"a"}, Output: map[string]interface{}{"a": []interface{}{"a"}}},
 		{Script: `sync = import("sync"); waitGroup = new(sync.WaitGroup); waitGroup.Add(2);  func done() { waitGroup.Done() }; go done(); go done(); waitGroup.Wait(); "a"`, RunOutput: "a"},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestPackagesTime(t *testing.T) {
 	tests := []Test{
 		{Script: `time = import("time"); a = make(time.Time); a.IsZero()`, RunOutput: true},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestPackagesURL(t *testing.T) {

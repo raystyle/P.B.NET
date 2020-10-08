@@ -125,42 +125,31 @@ var (
 
 // Test is utility struct to make tests easy.
 type Test struct {
-	Script         string
-	ParseError     error
-	ParseErrorFunc *func(*testing.T, error)
-	EnvSetupFunc   *func(*testing.T, *env.Env)
-	Types          map[string]interface{}
-	Input          map[string]interface{}
-	RunError       error
-	RunErrorFunc   *func(*testing.T, error)
-	RunOutput      interface{}
-	Output         map[string]interface{}
+	Script     string
+	ParseError error
+	Types      map[string]interface{}
+	Input      map[string]interface{}
+	RunError   error
+	RunOutput  interface{}
+	Output     map[string]interface{}
 }
 
-// TestOptions is utility struct to pass options to the test.
-type TestOptions struct {
-	EnvSetupFunc *func(*testing.T, *env.Env)
-	Timeout      time.Duration
-}
-
-func runTests(t *testing.T, tests []Test, testOptions *TestOptions, options *Options) {
+func runTests(t *testing.T, tests []Test, options *Options) {
 	for _, test := range tests {
-		runTest(t, test, testOptions, options)
+		runTest(t, test, options)
 	}
 }
 
 // nolint: gocyclo
 //gocyclo:ignore
-func runTest(t *testing.T, test Test, testOptions *TestOptions, options *Options) {
+func runTest(t *testing.T, test Test, options *Options) {
 	timeout := 60 * time.Second
 
 	// parser.EnableErrorVerbose()
 	// parser.EnableDebug(8)
 
 	stmt, err := parser.ParseSrc(test.Script)
-	if test.ParseErrorFunc != nil {
-		(*test.ParseErrorFunc)(t, err)
-	} else if err != nil && test.ParseError != nil {
+	if err != nil && test.ParseError != nil {
 		if err.Error() != test.ParseError.Error() {
 			const format = "ParseSrc error - received: %v - expected: %v - script: %v"
 			t.Errorf(format, err, test.ParseError, test.Script)
@@ -171,21 +160,8 @@ func runTest(t *testing.T, test Test, testOptions *TestOptions, options *Options
 		t.Errorf(format, err, test.ParseError, test.Script)
 		return
 	}
-	// Note: Still want to run the code even after a parse error to see what happens
 
 	envTest := env.NewEnv()
-	if testOptions != nil {
-		if testOptions.EnvSetupFunc != nil {
-			(*testOptions.EnvSetupFunc)(t, envTest)
-		}
-		if testOptions.Timeout != 0 {
-			timeout = testOptions.Timeout
-		}
-	}
-	if test.EnvSetupFunc != nil {
-		(*test.EnvSetupFunc)(t, envTest)
-	}
-
 	for typeName, typeValue := range test.Types {
 		err = envTest.DefineType(typeName, typeValue)
 		if err != nil {
@@ -206,9 +182,7 @@ func runTest(t *testing.T, test Test, testOptions *TestOptions, options *Options
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	value, err = RunContext(ctx, envTest, options, stmt)
 	cancel()
-	if test.RunErrorFunc != nil {
-		(*test.RunErrorFunc)(t, err)
-	} else if err != nil && test.RunError != nil {
+	if err != nil && test.RunError != nil {
 		if err.Error() != test.RunError.Error() {
 			t.Errorf("Run error - received: %v - expected: %v - script: %v", err, test.RunError, test.Script)
 			return
@@ -328,7 +302,7 @@ func TestNumbers(t *testing.T) {
 		{Script: `-0Xf`, RunOutput: int64(-15)},
 		{Script: `-0x7FFFFFFFFFFFFFFF`, RunOutput: int64(-9223372036854775807)},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestStrings(t *testing.T) {
@@ -466,7 +440,7 @@ func TestStrings(t *testing.T) {
 		{Script: `a = "abc"; a[1] = b`, Input: map[string]interface{}{"b": 'x'}, RunOutput: 'x', Output: map[string]interface{}{"a": "axc"}},
 		{Script: `a = "abc"; a[1] = b`, Input: map[string]interface{}{"b": struct{}{}}, RunError: fmt.Errorf("type struct {} cannot be assigned to type string"), Output: map[string]interface{}{"a": "abc"}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestVar(t *testing.T) {
@@ -650,7 +624,7 @@ a  =  1;
 		{Script: `a, b = func(){ return 1, 2 }()`, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(1), "b": int64(2)}},
 		{Script: `var a, b = func(){ return 1, 2 }()`, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(1), "b": int64(2)}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestModule(t *testing.T) {
@@ -701,7 +675,7 @@ func TestModule(t *testing.T) {
 		{Script: `module x { module time { make(type Duration, a) } }; func c() { d = new(y.time.Duration); return *d }; c()`, Input: map[string]interface{}{"a": time.Duration(0)}, RunError: fmt.Errorf("no namespace called: y")},
 		{Script: `module x { module time { make(type Duration, a) } }; func c() { d = new(x.y.Duration); return *d }; c()`, Input: map[string]interface{}{"a": time.Duration(0)}, RunError: fmt.Errorf("no namespace called: y")},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestNew(t *testing.T) {
@@ -734,14 +708,14 @@ func TestNew(t *testing.T) {
 		// struct
 		{Script: `a = new(struct{ A int64 }); *a`, RunOutput: struct{ A int64 }{}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestMake(t *testing.T) {
 	tests := []Test{
 		{Script: `make(map[[]string]int64)`, RunError: fmt.Errorf("reflect.MapOf: invalid key type []string")},
 	}
-	runTests(t, tests, nil, &Options{Debug: false})
+	runTests(t, tests, &Options{Debug: false})
 
 	tests = []Test{
 		{Script: `make(struct {})`, ParseError: fmt.Errorf("syntax error")},
@@ -820,7 +794,7 @@ func TestMake(t *testing.T) {
 		{Script: `make(struct { A map[string]int64 })`, RunOutput: struct{ A map[string]int64 }{A: nil}},
 		{Script: `make(struct { A chan int64 })`, RunOutput: struct{ A chan int64 }{A: nil}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestMakeType(t *testing.T) {
@@ -833,7 +807,7 @@ func TestMakeType(t *testing.T) {
 		{Script: `make(type a, make([]bool))`, RunOutput: reflect.TypeOf([]bool{})},
 		{Script: `make(type a, make([]bool)); a = make(a)`, RunOutput: []bool{}, Output: map[string]interface{}{"a": []bool{}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestReferencingAndDereference(t *testing.T) {
@@ -849,7 +823,7 @@ func TestChan(t *testing.T) {
 		// send on closed channel
 		{Script: `a = make(chan int64, 2); close(a); a <- 1`, RunError: fmt.Errorf("send on closed channel")},
 	}
-	runTests(t, tests, nil, &Options{Debug: false})
+	runTests(t, tests, &Options{Debug: false})
 
 	tests = []Test{
 		{Script: `a = make(chan int64, 2); a <- 1; = <- a`, ParseError: fmt.Errorf("missing expressions on left side of channel operator"), RunError: fmt.Errorf("invalid operation")},
@@ -966,7 +940,7 @@ func TestChan(t *testing.T) {
 		// test let ++
 		{Script: `a = make(chan int64, 2); b = [1, 2, 3, 4]; c = 0; a <- 11; b[c++] = <- a; b[1]`, RunOutput: int64(11)},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestVMDelete(t *testing.T) {
@@ -1011,7 +985,7 @@ func TestVMDelete(t *testing.T) {
 		{Script: `delete(a, 2)`, Input: map[string]interface{}{"a": map[int32]interface{}{2: int32(2), 3: int32(3)}}, Output: map[string]interface{}{"a": map[int32]interface{}{3: int32(3)}}},
 		{Script: `delete(a, 2); a[2]`, Input: map[string]interface{}{"a": map[int32]interface{}{2: int32(2), 3: int32(3)}}, Output: map[string]interface{}{"a": map[int32]interface{}{3: int32(3)}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestComment(t *testing.T) {
@@ -1126,7 +1100,7 @@ func TestComment(t *testing.T) {
 		{Script: `1
 /**** 1 ****/`, RunOutput: int64(1)},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestCancelWithContext(t *testing.T) {

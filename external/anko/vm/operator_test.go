@@ -168,7 +168,7 @@ func TestBasicOperators(t *testing.T) {
 		{Script: `!false`, RunOutput: true},
 		{Script: `!1`, RunOutput: false},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestComparisonOperators(t *testing.T) {
@@ -381,7 +381,7 @@ func TestComparisonOperators(t *testing.T) {
 		{Script: `a = "test"; a[1] != 'e'`, RunOutput: false},
 		{Script: `a = "test"; a[3] != 't'`, RunOutput: false},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestThrows(t *testing.T) {
@@ -422,7 +422,7 @@ func TestThrows(t *testing.T) {
 		{Script: `(true && func(){throw('abcde')}()) && (true && func(){throw('hello')}())`, RunError: fmt.Errorf("abcde")},
 		{Script: `(true || func(){throw('abcde')}()) && (false || func(){throw('hello')}())`, RunError: fmt.Errorf("hello")},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestTernaryOperator(t *testing.T) {
@@ -465,7 +465,7 @@ func TestTernaryOperator(t *testing.T) {
 		{Script: `b = "0.0"; a = false ? 2 : b ? 3 : 1`, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
 		{Script: `b = "true"; a = false ? 2 : b ? 3 : 1`, RunOutput: int64(3), Output: map[string]interface{}{"a": int64(3)}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestNilCoalescingOperator(t *testing.T) {
@@ -494,7 +494,7 @@ func TestNilCoalescingOperator(t *testing.T) {
 		{Script: `a ?? 5`, Input: map[string]interface{}{"a": testSliceEmpty}, RunOutput: int64(5), Output: map[string]interface{}{"a": testSliceEmpty}},
 		{Script: `a ?? 6`, Input: map[string]interface{}{"a": testMapEmpty}, RunOutput: int64(6), Output: map[string]interface{}{"a": testMapEmpty}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestIf(t *testing.T) {
@@ -544,7 +544,7 @@ func TestIf(t *testing.T) {
 		{Script: `a = 1; if a == 2 { b = 4 } else if a == 5 { b = 6 } else if a == 1 { c = b }`, RunError: fmt.Errorf("undefined symbol \"b\""), Output: map[string]interface{}{"a": int64(1)}},
 		{Script: `a = 1; if a == 2 { b = 4 } else if a == 5 { b = 6 } else if a == 1 { b = 7 }; b`, RunError: fmt.Errorf("undefined symbol \"b\""), Output: map[string]interface{}{"a": int64(1)}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestSwitch(t *testing.T) {
@@ -639,7 +639,7 @@ switch a {
 		return 1
 }`, RunOutput: int64(1)},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestForLoop(t *testing.T) {
@@ -837,7 +837,7 @@ func TestForLoop(t *testing.T) {
 		{Script: `a = make(chan int64); go func() { a <- 1; a <- 2; a <- 3 }(); b = []; for i in a { b += i; if i > 2 { break } }`, RunOutput: nil, Output: map[string]interface{}{"b": []interface{}{int64(1), int64(2), int64(3)}}},
 		{Script: `a = make(chan int64); go func() { a <- 1; a <- 2; a <- 3; close(a) }(); b = []; for i in a { b += i }`, RunOutput: nil, Output: map[string]interface{}{"b": []interface{}{int64(1), int64(2), int64(3)}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestItemInList(t *testing.T) {
@@ -971,7 +971,7 @@ func TestItemInList(t *testing.T) {
 		{Script: `[[1]] in [[1]]`, Input: map[string]interface{}{"l": []interface{}{[]interface{}{1}}}, RunOutput: false},
 		{Script: `[[1]] in [[[1]]]`, Input: map[string]interface{}{"l": []interface{}{[]interface{}{[]interface{}{1}}}}, RunOutput: true},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestOperatorPrecedence(t *testing.T) {
@@ -1013,7 +1013,7 @@ func TestOperatorPrecedence(t *testing.T) {
 		{Script: `!true || true`, RunOutput: true},
 		{Script: `!(true || true)`, RunOutput: false},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestTry(t *testing.T) {
@@ -1046,5 +1046,5 @@ func TestTry(t *testing.T) {
 		{Script: `try { 1++ } catch a { if a.Error() == "invalid operation" { return 1 } else { return 2 } }`, RunOutput: int64(1)},
 		{Script: `try { 1++ } catch a { } finally { if a.Error() == "invalid operation" { return 1 } else { return 2 } }`, RunOutput: int64(1)},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }

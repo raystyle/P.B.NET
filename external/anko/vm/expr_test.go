@@ -162,7 +162,7 @@ func TestReturns(t *testing.T) {
 		{Script: `func aFunc() {return 1.1, 2.2}; a, b = aFunc()`, RunOutput: 2.2, Output: map[string]interface{}{"a": 1.1, "b": 2.2}},
 		{Script: `func aFunc() {return "a", "b"}; a, b = aFunc()`, RunOutput: "b", Output: map[string]interface{}{"a": "a", "b": "b"}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestFunctions(t *testing.T) {
@@ -375,7 +375,7 @@ func TestFunctions(t *testing.T) {
 			return false
 		}}, RunOutput: true},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestPointerFunctions(t *testing.T) {
@@ -409,7 +409,7 @@ func TestPointerFunctions(t *testing.T) {
 	tests := []Test{
 		{Script: `b = 1; a(&b)`, Input: map[string]interface{}{"a": testFunctionPointer}, RunOutput: "good", Output: map[string]interface{}{"b": []interface{}{"b"}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestVariadicFunctions(t *testing.T) {
@@ -470,7 +470,7 @@ func TestVariadicFunctions(t *testing.T) {
 		{Script: `func a(b, c) { return c }; a(1, [true, 2]...)`, RunOutput: true},
 		{Script: `func a(b, c) { return c }; a([1, true, 2]...)`, RunOutput: true},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestFunctionsInArraysAndMaps(t *testing.T) {
@@ -511,7 +511,7 @@ func TestFunctionsInArraysAndMaps(t *testing.T) {
 		{Script: `a = {"b": func () { return 1.1 }}; func c(d) { return d() }; c(a.b)`, RunOutput: 1.1},
 		{Script: `a = {"b": func () { return "a" }}; func c(d) { return d() }; c(a.b)`, RunOutput: "a"},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestFunctionConversions(t *testing.T) {
@@ -636,7 +636,7 @@ func TestFunctionConversions(t *testing.T) {
 		{Script: `b = {"a":1.1}; c = "a"; d = a(b, c)`, Input: map[string]interface{}{"a": func(b map[string]float64, c string) float64 { return b[c] }}, RunOutput: 1.1, Output: map[string]interface{}{"b": map[interface{}]interface{}{"a": 1.1}, "c": "a"}},
 		{Script: `b = {"a":"b"}; c = "a"; d = a(b, c)`, Input: map[string]interface{}{"a": func(b map[string]string, c string) string { return b[c] }}, RunOutput: "b", Output: map[string]interface{}{"b": map[interface{}]interface{}{"a": "b"}, "c": "a"}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 
 	tests = []Test{
 		{Script: `c = a(b)`,
@@ -664,7 +664,7 @@ func TestFunctionConversions(t *testing.T) {
 				return b()
 			}}, RunError: fmt.Errorf("function wants return type bool but received type string")},
 	}
-	runTests(t, tests, nil, &Options{Debug: false})
+	runTests(t, tests, &Options{Debug: false})
 }
 
 func TestVariadicFunctionConversions(t *testing.T) {
@@ -684,7 +684,7 @@ func TestVariadicFunctionConversions(t *testing.T) {
 		{Script: `a(1, 2)`, Input: map[string]interface{}{"a": testSumFunc}, RunOutput: int64(3)},
 		{Script: `a(1, 2, 3)`, Input: map[string]interface{}{"a": testSumFunc}, RunOutput: int64(6)},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestLen(t *testing.T) {
@@ -752,7 +752,7 @@ func TestLen(t *testing.T) {
 
 		{Script: `len(a[0][0])`, Input: map[string]interface{}{"a": [][]interface{}{{"test"}}}, RunOutput: int64(4), Output: map[string]interface{}{"a": [][]interface{}{{"test"}}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestCallFunctionWithVararg(t *testing.T) {
@@ -837,5 +837,5 @@ waitGroup.Wait()`,
 			}},
 	}
 
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }

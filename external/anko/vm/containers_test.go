@@ -190,7 +190,7 @@ func TestSlices(t *testing.T) {
 		{Script: `a = make([][][]bool); a[0] = make([][]bool); a[0][0] = make([]bool); a[0] = [[true, 1]]`, RunError: fmt.Errorf("type []interface {} cannot be assigned to type [][]bool for slice index"), Output: map[string]interface{}{"a": [][][]bool{{{}}}}},
 		{Script: `a = make([][][]bool); a[0] = make([][]bool); a[0][0] = make([]bool); a[0] = [[true, false]]`, RunOutput: []interface{}{[]interface{}{true, false}}, Output: map[string]interface{}{"a": [][][]bool{{{true, false}}}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestSlicesAutoAppend(t *testing.T) {
@@ -257,7 +257,7 @@ func TestSlicesAutoAppend(t *testing.T) {
 		{Script: `a = make([][][]bool); a[0] = [[true, 1]]`, RunError: fmt.Errorf("type []interface {} cannot be assigned to type [][]bool for slice index"), Output: map[string]interface{}{"a": [][][]bool{}}},
 		{Script: `a = make([][][]bool); a[0] = [[true, false]]`, RunOutput: []interface{}{[]interface{}{true, false}}, Output: map[string]interface{}{"a": [][][]bool{{{true, false}}}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestMakeSlices(t *testing.T) {
@@ -375,7 +375,7 @@ func TestMakeSlices(t *testing.T) {
 		{Script: `[]float64{4.5}`, RunOutput: []float64{4.5}},
 		{Script: `[]string{"a"}`, RunOutput: []string{"a"}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestSliceOfSlices(t *testing.T) {
@@ -578,7 +578,7 @@ func TestSliceOfSlices(t *testing.T) {
 		// cap assigned
 		{Script: `a = [1,2,3,4]; a[1:1:1] = 3`, RunError: fmt.Errorf("slice cannot be assigned"), Output: map[string]interface{}{"a": []interface{}{int64(1), int64(2), int64(3), int64(4)}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestSliceAppendSlices(t *testing.T) {
@@ -841,7 +841,7 @@ func TestSliceAppendSlices(t *testing.T) {
 		{Script: `a = make([][][]interface); b = [1, 2]; c = [b]; b = [3, 4]; c += [b]; a += [c]`, RunOutput: [][][]interface{}{{{int64(1), int64(2)}, {int64(3), int64(4)}}}, Output: map[string]interface{}{"a": [][][]interface{}{{{int64(1), int64(2)}, {int64(3), int64(4)}}}, "b": []interface{}{int64(3), int64(4)}, "c": []interface{}{[]interface{}{int64(1), int64(2)}, []interface{}{int64(3), int64(4)}}}},
 		{Script: `a = make([][][]interface); b = [1, 2]; c = []; c += [b]; b = [3, 4]; c += [b]; a += [c]`, RunOutput: [][][]interface{}{{{int64(1), int64(2)}, {int64(3), int64(4)}}}, Output: map[string]interface{}{"a": [][][]interface{}{{{int64(1), int64(2)}, {int64(3), int64(4)}}}, "b": []interface{}{int64(3), int64(4)}, "c": []interface{}{[]interface{}{int64(1), int64(2)}, []interface{}{int64(3), int64(4)}}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestMaps(t *testing.T) {
@@ -1121,7 +1121,7 @@ func TestMaps(t *testing.T) {
 "c": "c",
 }`, RunOutput: map[interface{}]interface{}{"b": "b", "c": "c"}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestExistenceOfKeyInMaps(t *testing.T) {
@@ -1135,7 +1135,7 @@ func TestExistenceOfKeyInMaps(t *testing.T) {
 		{Script: `a = {"b":"b", "c":"c"}; v, ok = a["a"]`, RunOutput: nil, Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": "b", "c": "c"}, "v": nil, "ok": false}},
 		{Script: `a = {"b":"b", "c":"c"}; v, ok = a["b"]`, RunOutput: "b", Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": "b", "c": "c"}, "v": "b", "ok": true}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestDeleteMaps(t *testing.T) {
@@ -1180,14 +1180,14 @@ func TestDeleteMaps(t *testing.T) {
 		{Script: `a = {"b": ["b"], "c": ["c"]}; b = &a; delete(*b, "a")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": []interface{}{"b"}, "c": []interface{}{"c"}}}},
 		{Script: `a = {"b": ["b"], "c": ["c"]}; b = &a; delete(*b, "b")`, Output: map[string]interface{}{"a": map[interface{}]interface{}{"c": []interface{}{"c"}}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestMakeMaps(t *testing.T) {
 	tests := []Test{
 		{Script: `map[[]string]string {"a":"a"}`, RunError: fmt.Errorf("reflect.MapOf: invalid key type []string")},
 	}
-	runTests(t, tests, nil, &Options{Debug: false})
+	runTests(t, tests, &Options{Debug: false})
 
 	tests = []Test{
 		{Script: `make(mapStringBool)`, Types: map[string]interface{}{"mapStringBool": map[string]bool{}}, RunOutput: map[string]bool{}},
@@ -1244,7 +1244,7 @@ func TestMakeMaps(t *testing.T) {
 		{Script: `map[string]float64 {"a":4.5}`, RunOutput: map[string]float64{"a": 4.5}},
 		{Script: `map[string]string {"a":"a"}`, RunOutput: map[string]string{"a": "a"}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestSlicesAndMaps(t *testing.T) {
@@ -1324,7 +1324,7 @@ func TestSlicesAndMaps(t *testing.T) {
 		{Script: `a = {}; a.b = b; a.b[0] = [1.1]; a.b[0][1] = 2.2`, Input: map[string]interface{}{"b": [][]interface{}{}}, RunOutput: 2.2, Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": [][]interface{}{{1.1, 2.2}}}, "b": [][]interface{}{}}},
 		{Script: `a = {}; a.b = b; a.b[0] = ["c"]; a.b[0][1] = "d"`, Input: map[string]interface{}{"b": [][]interface{}{}}, RunOutput: "d", Output: map[string]interface{}{"a": map[interface{}]interface{}{"b": [][]interface{}{{"c", "d"}}}, "b": [][]interface{}{}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestMakeSlicesAndMaps(t *testing.T) {
@@ -1337,7 +1337,7 @@ func TestMakeSlicesAndMaps(t *testing.T) {
 		{Script: `a = make(mapSlice2x); a`, Types: map[string]interface{}{"mapSlice2x": map[string][][]interface{}{}}, RunOutput: map[string][][]interface{}{}, Output: map[string]interface{}{"a": map[string][][]interface{}{}}},
 		{Script: `a = make(mapSlice2x); a.b = b`, Types: map[string]interface{}{"mapSlice2x": map[string][][]interface{}{}}, Input: map[string]interface{}{"b": [][]interface{}{}}, RunOutput: [][]interface{}{}, Output: map[string]interface{}{"a": map[string][][]interface{}{"b": {}}, "b": [][]interface{}{}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestMakeSlicesData(t *testing.T) {
@@ -1745,7 +1745,7 @@ func TestStructs(t *testing.T) {
 				A *struct{ AA *int64 }
 			}{A: nil}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
 
 func TestMakeStructs(t *testing.T) {
@@ -1904,5 +1904,5 @@ make(struct {
 			BB map[string]int64
 		}{BA: nil, BB: nil}}},
 	}
-	runTests(t, tests, nil, &Options{Debug: true})
+	runTests(t, tests, &Options{Debug: true})
 }
