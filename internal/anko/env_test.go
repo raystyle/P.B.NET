@@ -52,6 +52,46 @@ return true
 	testRun(t, src, false, true)
 }
 
+func TestEnv_defined(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("defined", func(t *testing.T) {
+		const src = `
+a = "out"
+return defined("a")
+`
+		testRun(t, src, false, true)
+	})
+
+	t.Run("not defined", func(t *testing.T) {
+		const src = `
+return defined("a")
+`
+		testRun(t, src, false, false)
+	})
+}
+
+func TestEnv_definedType(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("defined", func(t *testing.T) {
+		const src = `
+make(type a, int8(0))
+return definedType("a")
+`
+		testRun(t, src, false, true)
+	})
+
+	t.Run("not defined", func(t *testing.T) {
+		const src = `
+return definedType("a")
+`
+		testRun(t, src, false, false)
+	})
+}
+
 func TestEnv_eval(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -221,7 +261,7 @@ return true
 	t.Run("is not exist", func(t *testing.T) {
 		inner, err := env.GetValue("foo")
 		require.Error(t, err)
-		require.Nil(t, inner.Interface())
+		require.Equal(t, NilValue.Interface(), inner.Interface())
 	})
 
 	env.Close()
@@ -292,6 +332,36 @@ return true
 	testsuite.IsDestroyed(t, env)
 	testsuite.IsDestroyed(t, ne)
 	testsuite.IsDestroyed(t, stmt)
+}
+
+func TestEnv_Type(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	type out struct {
+		A string
+		B string
+		c string
+	}
+
+	env := NewEnv()
+
+	o := out{
+		c: "out",
+	}
+
+	err := env.DefineType("out", o)
+	require.NoError(t, err)
+
+	// ok
+	typ, err := env.Type("out")
+	require.NoError(t, err)
+	require.Equal(t, "anko.out", typ.String())
+
+	// not exist
+	typ, err = env.Type("foo")
+	require.Error(t, err)
+	require.Equal(t, NilType, typ)
 }
 
 func TestEnv_SetOutput(t *testing.T) {

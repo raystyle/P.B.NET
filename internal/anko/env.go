@@ -12,6 +12,14 @@ import (
 	"project/external/anko/env"
 )
 
+var (
+	// NilType is the reflect.type of nil.
+	NilType = reflect.TypeOf(nil)
+
+	// NilValue is the reflect.value of nil.
+	NilValue = reflect.New(reflect.TypeOf((*interface{})(nil)).Elem()).Elem()
+)
+
 // runtime is used to prevent loop reference and easy clean reference.
 type runtime struct {
 	// store values
@@ -36,6 +44,8 @@ func newRuntime(e *Env) *runtime {
 		{"printf", e.printf},
 		{"print", e.print},
 		{"println", e.println},
+		{"defined", e.defined},
+		{"definedType", e.definedType},
 		{"eval", e.eval},
 	} {
 		err := rt.DefineValue(item.symbol, item.fn)
@@ -164,6 +174,16 @@ func (e *Env) println(v ...interface{}) {
 	_, _ = fmt.Fprintln(e.output, v...)
 }
 
+func (e *Env) defined(symbol string) bool {
+	_, err := e.Get(symbol)
+	return err == nil
+}
+
+func (e *Env) definedType(symbol string) bool {
+	_, err := e.Type(symbol)
+	return err == nil
+}
+
 func (e *Env) eval(src string) (interface{}, error) {
 	stmt, err := ParseSrc(src)
 	if err != nil {
@@ -195,9 +215,15 @@ func (e *Env) GetValue(symbol string) (reflect.Value, error) {
 	return e.env.GetValue(symbol)
 }
 
-// DefineType will redirect to runtime.
+// DefineType is used to define out type to environment.
+// it will redirect to runtime.
 func (e *Env) DefineType(symbol string, value interface{}) error {
 	return e.runtime.DefineType(symbol, value)
+}
+
+// Type is used to get type from environment.
+func (e *Env) Type(symbol string) (reflect.Type, error) {
+	return e.env.Type(symbol)
 }
 
 // SetOutput is used to set output for printf, print and println.
