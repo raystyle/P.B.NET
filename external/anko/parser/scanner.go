@@ -36,6 +36,7 @@ var opName = map[string]int{
 	"catch":    CATCH,
 	"finally":  FINALLY,
 	"switch":   SWITCH,
+	"select":   SELECT,
 	"case":     CASE,
 	"default":  DEFAULT,
 	"go":       GO,
