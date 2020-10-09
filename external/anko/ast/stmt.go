@@ -142,10 +142,24 @@ type DeleteStmt struct {
 	Key  Expr
 }
 
-// CloseStmt provides statement of close.
-type CloseStmt struct {
+// SelectStmt provide switch statement.
+type SelectStmt struct {
 	StmtImpl
-	Expr Expr
+	Body Stmt
+}
+
+// SelectBodyStmt provide switch case statements and default statement.
+type SelectBodyStmt struct {
+	StmtImpl
+	Cases   []Stmt
+	Default Stmt
+}
+
+// SelectCaseStmt provide switch case statement.
+type SelectCaseStmt struct {
+	StmtImpl
+	Expr Stmt
+	Stmt Stmt
 }
 
 // ChanStmt provide chan lets statement.
@@ -154,4 +168,10 @@ type ChanStmt struct {
 	LHS    Expr
 	OkExpr Expr
 	RHS    Expr
+}
+
+// CloseStmt provides statement of close.
+type CloseStmt struct {
+	StmtImpl
+	Expr Expr
 }
