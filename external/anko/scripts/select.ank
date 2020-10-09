@@ -1,0 +1,18 @@
+a = make(chan int64, 1)
+select {
+    case <-a:
+        println("value received on a")
+    default:
+        println("default")
+}
+
+a = make(chan int64, 1)
+b = make(chan int64, 1)
+b <- 2
+val = 0
+select {
+    case val = <-a:
+        println("value " + val + " received on a")
+    case val = <-b:
+        println("value " + val + " received on b")
+}
