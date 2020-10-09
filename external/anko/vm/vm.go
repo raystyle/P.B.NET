@@ -22,6 +22,7 @@ var (
 	contextType        = reflect.TypeOf((*context.Context)(nil)).Elem()
 
 	nilValue                  = reflect.New(reflect.TypeOf((*interface{})(nil)).Elem()).Elem()
+	zeroValue                 = reflect.Value{}
 	trueValue                 = reflect.ValueOf(true)
 	falseValue                = reflect.ValueOf(false)
 	reflectValueNilValue      = reflect.ValueOf(nilValue)
