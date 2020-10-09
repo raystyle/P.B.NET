@@ -15,83 +15,84 @@ import (
 	"project/external/anko/parser"
 )
 
-type (
-	testStruct1 struct {
-		aInterface interface{}
-		aBool      bool
-		aInt32     int32
-		aInt64     int64
-		aFloat32   float32
-		aFloat64   float32
-		aString    string
-		aFunc      func()
+// nolint:structcheck, unused
+type testStruct1 struct {
+	aInterface interface{}
+	aBool      bool
+	aInt32     int32
+	aInt64     int64
+	aFloat32   float32
+	aFloat64   float32
+	aString    string
+	aFunc      func()
 
-		aPtrInterface      *interface{}
-		aPtrBool           *bool
-		aPtrInt32          *int32
-		aPtrInt64          *int64
-		aPtrFloat32        *float32
-		aPtrFloat64        *float32
-		aPtrString         *string
-		aPtrSliceInterface *[]interface{}
-		aPtrSliceBool      *[]bool
-		aPtrSliceInt32     *[]int32
-		aPtrSliceInt64     *[]int64
-		aPtrSliceFloat32   *[]float32
-		aPtrSliceFloat64   *[]float32
-		aPtrSliceString    *[]string
+	aPtrInterface      *interface{}
+	aPtrBool           *bool
+	aPtrInt32          *int32
+	aPtrInt64          *int64
+	aPtrFloat32        *float32
+	aPtrFloat64        *float32
+	aPtrString         *string
+	aPtrSliceInterface *[]interface{}
+	aPtrSliceBool      *[]bool
+	aPtrSliceInt32     *[]int32
+	aPtrSliceInt64     *[]int64
+	aPtrSliceFloat32   *[]float32
+	aPtrSliceFloat64   *[]float32
+	aPtrSliceString    *[]string
 
-		aSliceInterface    []interface{}
-		aSliceBool         []bool
-		aSliceInt32        []int32
-		aSliceInt64        []int64
-		aSliceFloat32      []float32
-		aSliceFloat64      []float32
-		aSliceString       []string
-		aSlicePtrInterface []*interface{}
-		aSlicePtrBool      []*bool
-		aSlicePtrInt32     []*int32
-		aSlicePtrInt64     []*int64
-		aSlicePtrFloat32   []*float32
-		aSlicePtrFloat64   []*float32
-		aSlicePtrString    []*string
+	aSliceInterface    []interface{}
+	aSliceBool         []bool
+	aSliceInt32        []int32
+	aSliceInt64        []int64
+	aSliceFloat32      []float32
+	aSliceFloat64      []float32
+	aSliceString       []string
+	aSlicePtrInterface []*interface{}
+	aSlicePtrBool      []*bool
+	aSlicePtrInt32     []*int32
+	aSlicePtrInt64     []*int64
+	aSlicePtrFloat32   []*float32
+	aSlicePtrFloat64   []*float32
+	aSlicePtrString    []*string
 
-		aMapInterface    map[string]interface{}
-		aMapBool         map[string]bool
-		aMapInt32        map[string]int32
-		aMapInt64        map[string]int64
-		aMapFloat32      map[string]float32
-		aMapFloat64      map[string]float32
-		aMapString       map[string]string
-		aMapPtrInterface map[string]*interface{}
-		aMapPtrBool      map[string]*bool
-		aMapPtrInt32     map[string]*int32
-		aMapPtrInt64     map[string]*int64
-		aMapPtrFloat32   map[string]*float32
-		aMapPtrFloat64   map[string]*float32
-		aMapPtrString    map[string]*string
+	aMapInterface    map[string]interface{}
+	aMapBool         map[string]bool
+	aMapInt32        map[string]int32
+	aMapInt64        map[string]int64
+	aMapFloat32      map[string]float32
+	aMapFloat64      map[string]float32
+	aMapString       map[string]string
+	aMapPtrInterface map[string]*interface{}
+	aMapPtrBool      map[string]*bool
+	aMapPtrInt32     map[string]*int32
+	aMapPtrInt64     map[string]*int64
+	aMapPtrFloat32   map[string]*float32
+	aMapPtrFloat64   map[string]*float32
+	aMapPtrString    map[string]*string
 
-		aChanInterface    chan interface{}
-		aChanBool         chan bool
-		aChanInt32        chan int32
-		aChanInt64        chan int64
-		aChanFloat32      chan float32
-		aChanFloat64      chan float32
-		aChanString       chan string
-		aChanPtrInterface chan *interface{}
-		aChanPtrBool      chan *bool
-		aChanPtrInt32     chan *int32
-		aChanPtrInt64     chan *int64
-		aChanPtrFloat32   chan *float32
-		aChanPtrFloat64   chan *float32
-		aChanPtrString    chan *string
+	aChanInterface    chan interface{}
+	aChanBool         chan bool
+	aChanInt32        chan int32
+	aChanInt64        chan int64
+	aChanFloat32      chan float32
+	aChanFloat64      chan float32
+	aChanString       chan string
+	aChanPtrInterface chan *interface{}
+	aChanPtrBool      chan *bool
+	aChanPtrInt32     chan *int32
+	aChanPtrInt64     chan *int64
+	aChanPtrFloat32   chan *float32
+	aChanPtrFloat64   chan *float32
+	aChanPtrString    chan *string
 
-		aPtrStruct *testStruct1
-	}
-	testStruct2 struct {
-		aStruct testStruct1
-	}
-)
+	aPtrStruct *testStruct1
+}
+
+// nolint:structcheck, unused
+type testStruct2 struct {
+	aStruct testStruct1
+}
 
 var (
 	testVarValue    = reflect.Value{}
@@ -223,10 +224,7 @@ func valueEqual(v1 interface{}, v2 interface{}) bool {
 		// This is best effort to check if functions match, but it could be wrong
 		v2RV := reflect.ValueOf(v2)
 		if !v1RV.IsValid() || !v2RV.IsValid() {
-			if v1RV.IsValid() != !v2RV.IsValid() {
-				return false
-			}
-			return true
+			return v1RV.IsValid() == !v2RV.IsValid()
 		} else if v1RV.Kind() != v2RV.Kind() {
 			return false
 		} else if v1RV.Type() != v2RV.Type() {

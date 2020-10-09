@@ -131,10 +131,7 @@ func valueEqual(v1 interface{}, v2 interface{}) bool {
 		// This is best effort to check if functions match, but it could be wrong
 		v2RV := reflect.ValueOf(v2)
 		if !v1RV.IsValid() || !v2RV.IsValid() {
-			if v1RV.IsValid() != !v2RV.IsValid() {
-				return false
-			}
-			return true
+			return v1RV.IsValid() == !v2RV.IsValid()
 		} else if v1RV.Kind() != v2RV.Kind() {
 			return false
 		} else if v1RV.Type() != v2RV.Type() {

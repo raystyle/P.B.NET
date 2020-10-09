@@ -17,7 +17,6 @@ func init() {
 		"Ext":          reflect.ValueOf(filepath.Ext),
 		"FromSlash":    reflect.ValueOf(filepath.FromSlash),
 		"Glob":         reflect.ValueOf(filepath.Glob),
-		"HasPrefix":    reflect.ValueOf(filepath.HasPrefix),
 		"IsAbs":        reflect.ValueOf(filepath.IsAbs),
 		"Join":         reflect.ValueOf(filepath.Join),
 		"Match":        reflect.ValueOf(filepath.Match),

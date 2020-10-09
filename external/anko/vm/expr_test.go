@@ -204,7 +204,7 @@ func TestFunctions(t *testing.T) {
 		{Script: `if true { module a { func b() { return } } }; a.b()`, RunError: fmt.Errorf("undefined symbol \"a\"")},
 
 		{Script: `a = 1; func b() { a = 2 }; b()`, RunOutput: int64(2), Output: map[string]interface{}{"a": int64(2)}},
-		{Script: `b(a); a`, Input: map[string]interface{}{"a": int64(1), "b": func(c interface{}) { c = int64(2); _ = c }}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
+		{Script: `b(a); a`, Input: map[string]interface{}{"a": int64(1), "b": func(c interface{}) { _ = c; c = int64(2); _ = c }}, RunOutput: int64(1), Output: map[string]interface{}{"a": int64(1)}},
 		{Script: `func b() { }; go b()`, RunOutput: nil},
 
 		{Script: `b(a)`, Input: map[string]interface{}{"a": nil, "b": func(c interface{}) bool { return c == nil }}, RunOutput: true, Output: map[string]interface{}{"a": nil}},
@@ -369,10 +369,7 @@ func TestFunctions(t *testing.T) {
 		{Script: `a = make(Buffer); n, err = a.WriteString("a"); if err != nil { return err }; a.String()`, Types: map[string]interface{}{"Buffer": bytes.Buffer{}}, RunOutput: "a"},
 
 		{Script: `b = {}; c = a(b.c); c`, Input: map[string]interface{}{"a": func(b string) bool {
-			if b == "" {
-				return true
-			}
-			return false
+			return b == ""
 		}}, RunOutput: true},
 	}
 	runTests(t, tests, &Options{Debug: true})
