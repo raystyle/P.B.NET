@@ -613,7 +613,6 @@ func (ri *runInfo) runSingleStmt() {
 	case *ast.SelectStmt:
 		e := ri.env
 		ri.env = e.NewEnv()
-
 		body := stmt.Body.(*ast.SelectBodyStmt)
 		letsExprs := []ast.Expr{nil}
 		bodies := []ast.Stmt{nil}
@@ -627,16 +626,16 @@ func (ri *runInfo) runSingleStmt() {
 			var letExpr ast.Expr
 			var che *ast.ChanExpr
 			var ok bool
-			var pos ast.Pos = caseStmt.Expr
+			pos := caseStmt.Expr
 			switch e := caseStmt.Expr.(type) {
 			case *ast.LetsStmt:
 				letExpr = e.LHSS[0]
 				pos = e.RHSS[0]
 				che, ok = e.RHSS[0].(*ast.ChanExpr)
-			case *ast.ExprStmt:
+			case *ast.ExprStmt: // "case <-a:", "case a <- 1:"(first)
 				pos = e.Expr
 				che, ok = e.Expr.(*ast.ChanExpr)
-			case *ast.ChanStmt:
+			case *ast.ChanStmt: // "case v = <-a:", "case v, ok = <-a:"
 				letExpr = e.LHS
 				pos = e.RHS
 				che = &ast.ChanExpr{RHS: e.RHS}
@@ -647,35 +646,54 @@ func (ri *runInfo) runSingleStmt() {
 				ri.rv = nilValue
 				return
 			}
-
-			fmt.Println(reflect.TypeOf(che.LHS))
-
-			fmt.Println(reflect.TypeOf(che.RHS))
-
-			//
-			// *ast.CallExpr
-			// *ast.ItemExpr
-			// *ast.IdentExpr
-
-			ident, ok := che.RHS.(*ast.IdentExpr)
-			if !ok {
-				ri.err = newStringError(pos, "invalid operation")
-				ri.rv = nilValue
-				return
+			// send operation
+			if che.LHS != nil {
+				// get channel in left
+				ri.expr = che.LHS
+				ri.invokeExpr()
+				if ri.err != nil {
+					return
+				}
+				kind := ri.rv.Kind()
+				if kind != reflect.Chan {
+					ri.err = newStringError(pos, "can't send to "+kind.String())
+					ri.rv = nilValue
+					return
+				}
+				ch := ri.rv
+				// get value in right that will be send
+				ri.expr = che.RHS
+				ri.invokeExpr()
+				if ri.err != nil {
+					return
+				}
+				letsExprs = append(letsExprs, nil)
+				bodies = append(bodies, caseStmt.Stmt)
+				cases = append(cases, reflect.SelectCase{
+					Dir:  reflect.SelectSend,
+					Chan: ch,
+					Send: ri.rv,
+				})
+			} else {
+				ri.expr = che.RHS
+				ri.invokeExpr()
+				if ri.err != nil {
+					return
+				}
+				kind := ri.rv.Kind()
+				if kind != reflect.Chan {
+					ri.err = newStringError(pos, "can't receive from "+kind.String())
+					ri.rv = nilValue
+					return
+				}
+				letsExprs = append(letsExprs, letExpr)
+				bodies = append(bodies, caseStmt.Stmt)
+				cases = append(cases, reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: ri.rv,
+					Send: zeroValue,
+				})
 			}
-			v, err := e.GetValue(ident.Lit)
-			if err != nil {
-				ri.err = newError(ident, err)
-				ri.rv = nilValue
-				return
-			}
-			letsExprs = append(letsExprs, letExpr)
-			bodies = append(bodies, caseStmt.Stmt)
-			cases = append(cases, reflect.SelectCase{
-				Dir:  reflect.SelectRecv,
-				Chan: v,
-				Send: zeroValue,
-			})
 		}
 		if body.Default != nil {
 			letsExprs = append(letsExprs, nil)
@@ -685,6 +703,10 @@ func (ri *runInfo) runSingleStmt() {
 				Chan: zeroValue,
 				Send: zeroValue,
 			})
+		}
+		if !ri.opts.Debug {
+			// captures panic
+			defer recoverFunc(ri)
 		}
 		chosen, rv, _ := reflect.Select(cases)
 		if chosen == 0 {

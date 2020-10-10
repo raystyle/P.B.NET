@@ -79,7 +79,7 @@ func (ri *runInfo) invokeExpr() {
 		}
 		ri.rv = slice
 
-		// MapExpr
+	// MapExpr
 	case *ast.MapExpr:
 		if expr.TypeData == nil {
 			var i int

@@ -162,7 +162,7 @@ type SelectCaseStmt struct {
 	Stmt Stmt
 }
 
-// ChanStmt provide chan lets statement.
+// ChanStmt provide chan lets statement. "v = <-a"
 type ChanStmt struct {
 	ExprImpl
 	LHS    Expr
