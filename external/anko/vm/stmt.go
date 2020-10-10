@@ -614,6 +614,7 @@ func (ri *runInfo) runSingleStmt() {
 		e := ri.env
 		ri.env = e.NewEnv()
 		body := stmt.Body.(*ast.SelectBodyStmt)
+		chanStmts := []*ast.ChanStmt{nil}
 		letsExprs := []ast.Expr{nil}
 		bodies := []ast.Stmt{nil}
 		cases := []reflect.SelectCase{{
@@ -632,13 +633,16 @@ func (ri *runInfo) runSingleStmt() {
 				letExpr = e.LHSS[0]
 				pos = e.RHSS[0]
 				che, ok = e.RHSS[0].(*ast.ChanExpr)
+				chanStmts = append(chanStmts, nil)
 			case *ast.ExprStmt: // "case <-a:", "case a <- 1:"(first)
 				pos = e.Expr
 				che, ok = e.Expr.(*ast.ChanExpr)
+				chanStmts = append(chanStmts, nil)
 			case *ast.ChanStmt: // "case v = <-a:", "case v, ok = <-a:"
 				letExpr = e.LHS
 				pos = e.RHS
 				che = &ast.ChanExpr{RHS: e.RHS}
+				chanStmts = append(chanStmts, e)
 				ok = true
 			}
 			if !ok {
@@ -674,7 +678,7 @@ func (ri *runInfo) runSingleStmt() {
 					Chan: ch,
 					Send: ri.rv,
 				})
-			} else {
+			} else { // receive operation
 				ri.expr = che.RHS
 				ri.invokeExpr()
 				if ri.err != nil {
@@ -696,6 +700,7 @@ func (ri *runInfo) runSingleStmt() {
 			}
 		}
 		if body.Default != nil {
+			chanStmts = append(chanStmts, nil)
 			letsExprs = append(letsExprs, nil)
 			bodies = append(bodies, body.Default)
 			cases = append(cases, reflect.SelectCase{
@@ -708,27 +713,40 @@ func (ri *runInfo) runSingleStmt() {
 			// captures panic
 			defer recoverFunc(ri)
 		}
-		chosen, rv, _ := reflect.Select(cases)
+		chosen, rv, ok := reflect.Select(cases)
 		if chosen == 0 {
 			ri.err = ErrInterrupt
 			ri.rv = nilValue
 			ri.env = e
 			return
 		}
+
+		if chanStmt := chanStmts[chosen]; chanStmt != nil && chanStmt.OkExpr != nil {
+			// set ok to OkExpr
+			if ok {
+				ri.rv = trueValue
+			} else {
+				ri.rv = falseValue
+			}
+			ri.expr = chanStmt.OkExpr
+			ri.invokeLetExpr()
+		}
+
 		if letExpr := letsExprs[chosen]; letExpr != nil {
-			ri.expr = letExpr
 			ri.rv = rv
+			ri.expr = letExpr
 			ri.invokeLetExpr()
 			if ri.err != nil {
 				return
 			}
 		}
-		if statement := bodies[chosen]; statement != nil {
-			if tmp, ok := statement.(*ast.SelectCaseStmt); ok && tmp.Stmt == nil {
+
+		if stmt := bodies[chosen]; stmt != nil {
+			if tmp, ok := stmt.(*ast.SelectCaseStmt); ok && tmp.Stmt == nil {
 				ri.env = e
 				return
 			}
-			ri.stmt = statement
+			ri.stmt = stmt
 			ri.runSingleStmt()
 		}
 		ri.env = e

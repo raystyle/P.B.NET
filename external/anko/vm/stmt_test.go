@@ -302,6 +302,13 @@ func TestSelect(t *testing.T) {
 		{Script: `a = make(chan int64); b = make(chan int64); select {case a <- 1: return 1; case b <- 1: return 2; default: return 3}`, RunOutput: int64(3)},
 
 		// test ok
+		{Script: `a = make(chan int64, 1); a <- 1; select {case v, ok = <-a: return ok}`, RunOutput: true},
+		{Script: `a = make(chan int64, 1); a <- 1; select {case v, ok = <-a: return v}`, RunOutput: int64(1)},
+
+		{Script: `a = make(chan int64, 1); close(a); select {case v, ok = <-a: return ok}`, RunOutput: false},
+		{Script: `a = make(chan int64, 1); close(a); select {case v, ok = <-a: return v}`, RunOutput: int64(0)},
+
+		{Script: `a = make(chan interface, 1); close(a); select {case v, ok = <-a: return v}`, RunOutput: nil},
 
 		// test assignment
 		{Script: `a = make(chan int64, 1); b = make(chan int64, 1); a <- 1; v = 0; select {case v = <-a:; case v = <-b:}; v`, RunOutput: int64(1), Output: map[string]interface{}{"v": int64(1)}},
