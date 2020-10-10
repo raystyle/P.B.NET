@@ -1425,6 +1425,19 @@ func TestUnknownCases(t *testing.T) {
 	}
 }
 
+func TestPrintStackTrack(t *testing.T) {
+	stmt, err := parser.ParseSrc(`make(map[[]string]int64)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := env.NewEnv()
+	_, err = Run(e, &Options{Debug: false, StackTrace: true}, stmt)
+	if err == nil {
+		t.Fatal("err is nil")
+	}
+	fmt.Println(err)
+}
+
 func fib(x int) int {
 	if x < 2 {
 		return x

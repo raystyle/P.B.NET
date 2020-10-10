@@ -547,6 +547,41 @@ func TestIf(t *testing.T) {
 	runTests(t, tests, &Options{Debug: true})
 }
 
+func TestSelectSend(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println(r)
+		}
+	}()
+	// left channel is first
+	a := make(chan int64, 1)
+	// b := make(chan int64, 1)
+	csd := func() chan int64 {
+		return a
+	}
+	select {
+	case csd() <- 1: // invalid b type
+	}
+
+	tests := []*Test{
+		// {Script: `a = make(chan int64, 1); a <- 123 ; vv = 1; ok = false; select {case  vv, ok = <- a: return vv, ok}`, RunOutput: int64(1)},
+
+		// test send 1 channel
+		{Script: `a = make(chan int64, 1); b = map[int64]int64{1:1  } ; vv = 1; select {case <- b[1]: return 1}`, RunOutput: int64(1)},
+		// {Script: `a = make(chan int64, 1); b = make(chan int64, 1);  b<- 1 ; a <- <- b; <-a`, RunOutput: int64(1)},
+		// {Script: `a = func(){return make(chan int64, 1)}; a() <- 1; return 1`, RunOutput: int64(1)},
+
+		// {Script: `a = make(chan int64, 1); vv = 1; select {case a <- 1: return 1}`, RunOutput: int64(1)},
+
+		// test send 2 channels
+		// {Script: `a = make(chan int64, 1); vv = 1; select {case a <- vv: return 1}`, RunOutput: int64(1)},
+		// {Script: `a = make(chan int64, 1); vv = 1; select {case a <- vv: return 1}`, RunOutput: int64(1)},
+
+		// default
+	}
+	runTests(t, tests, &Options{Debug: false})
+}
+
 func TestSelect(t *testing.T) {
 	tests := []*Test{
 		// test parse errors
@@ -565,10 +600,10 @@ func TestSelect(t *testing.T) {
 		{Script: `a = make(chan int64, 1); a <- 1; select {case b.c = <-a: return 1}`, RunError: fmt.Errorf("undefined symbol \"b\""), RunOutput: nil},
 		{Script: `a = make(chan int64, 1); a <- 1; select {case v = <-a:}; v`, RunError: fmt.Errorf("undefined symbol \"v\""), RunOutput: nil},
 
-		// test 1 channel
+		// test receive 1 channel
 		{Script: `a = make(chan int64, 1); a <- 1; select {case <-a: return 1}`, RunOutput: int64(1)},
 
-		// test 2 channels
+		// test receive 2 channels
 		{Script: `a = make(chan int64, 1); b = make(chan int64, 1); a <- 1; select {case <-a: return 1; case <-b: return 2}`, RunOutput: int64(1)},
 		{Script: `a = make(chan int64, 1); b = make(chan int64, 1); b <- 1; select {case <-a: return 1; case <-b: return 2}`, RunOutput: int64(2)},
 

@@ -647,6 +647,16 @@ func (ri *runInfo) runSingleStmt() {
 				ri.rv = nilValue
 				return
 			}
+
+			fmt.Println(reflect.TypeOf(che.LHS))
+
+			fmt.Println(reflect.TypeOf(che.RHS))
+
+			//
+			// *ast.CallExpr
+			// *ast.ItemExpr
+			// *ast.IdentExpr
+
 			ident, ok := che.RHS.(*ast.IdentExpr)
 			if !ok {
 				ri.err = newStringError(pos, "invalid operation")

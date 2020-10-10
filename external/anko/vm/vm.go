@@ -8,6 +8,7 @@ import (
 	"project/external/anko/ast"
 	"project/external/anko/env"
 	"project/external/anko/parser"
+	"project/internal/xpanic"
 )
 
 var (
@@ -31,7 +32,8 @@ var (
 
 // Options provides options to run VM with.
 type Options struct {
-	Debug bool // run in Debug mode
+	Debug      bool // run in Debug mode
+	StackTrace bool // print stack trace if appear panic
 }
 
 // Execute parses script and executes in the specified environment.
@@ -71,18 +73,22 @@ func RunContext(ctx context.Context, env *env.Env, opts *Options, stmt ast.Stmt)
 }
 
 // recoverFunc generic recover function.
-func recoverFunc(runInfo *runInfo) {
-	recoverInterface := recover()
-	if recoverInterface == nil {
+func recoverFunc(ri *runInfo) {
+	r := recover()
+	if r == nil {
 		return
 	}
-	switch value := recoverInterface.(type) {
+	switch value := r.(type) {
 	case *Error:
-		runInfo.err = value
+		ri.err = value
 	case error:
-		runInfo.err = value
+		ri.err = value
 	default:
-		runInfo.err = fmt.Errorf("%v", recoverInterface)
+		ri.err = fmt.Errorf("%v", r)
+	}
+	if ri.opts.StackTrace {
+		b := xpanic.PrintPanic(r, "capture panic in anko vm", 3)
+		ri.err = fmt.Errorf("err: %s\n%s", ri.err, b)
 	}
 }
 
@@ -263,18 +269,18 @@ func appendSlice(expr ast.Expr, lhsV reflect.Value, rhsV reflect.Value) (reflect
 
 // nolint: gocyclo
 //gocyclo:ignore
-func makeType(runInfo *runInfo, typeStruct *ast.TypeStruct) reflect.Type {
+func makeType(ri *runInfo, typeStruct *ast.TypeStruct) reflect.Type {
 	switch typeStruct.Kind {
 	case ast.TypeDefault:
-		return getTypeFromEnv(runInfo, typeStruct)
+		return getTypeFromEnv(ri, typeStruct)
 	case ast.TypePtr:
 		var t reflect.Type
 		if typeStruct.SubType != nil {
-			t = makeType(runInfo, typeStruct.SubType)
+			t = makeType(ri, typeStruct.SubType)
 		} else {
-			t = getTypeFromEnv(runInfo, typeStruct)
+			t = getTypeFromEnv(ri, typeStruct)
 		}
-		if runInfo.err != nil {
+		if ri.err != nil {
 			return nil
 		}
 		if t == nil {
@@ -284,11 +290,11 @@ func makeType(runInfo *runInfo, typeStruct *ast.TypeStruct) reflect.Type {
 	case ast.TypeSlice:
 		var t reflect.Type
 		if typeStruct.SubType != nil {
-			t = makeType(runInfo, typeStruct.SubType)
+			t = makeType(ri, typeStruct.SubType)
 		} else {
-			t = getTypeFromEnv(runInfo, typeStruct)
+			t = getTypeFromEnv(ri, typeStruct)
 		}
-		if runInfo.err != nil {
+		if ri.err != nil {
 			return nil
 		}
 		if t == nil {
@@ -299,34 +305,34 @@ func makeType(runInfo *runInfo, typeStruct *ast.TypeStruct) reflect.Type {
 		}
 		return reflect.SliceOf(t)
 	case ast.TypeMap:
-		key := makeType(runInfo, typeStruct.Key)
-		if runInfo.err != nil {
+		key := makeType(ri, typeStruct.Key)
+		if ri.err != nil {
 			return nil
 		}
 		if key == nil {
 			return nil
 		}
-		t := makeType(runInfo, typeStruct.SubType)
-		if runInfo.err != nil {
+		t := makeType(ri, typeStruct.SubType)
+		if ri.err != nil {
 			return nil
 		}
 		if t == nil {
 			return nil
 		}
-		if !runInfo.opts.Debug {
+		if !ri.opts.Debug {
 			// captures panic
-			defer recoverFunc(runInfo)
+			defer recoverFunc(ri)
 		}
 		t = reflect.MapOf(key, t)
 		return t
 	case ast.TypeChan:
 		var t reflect.Type
 		if typeStruct.SubType != nil {
-			t = makeType(runInfo, typeStruct.SubType)
+			t = makeType(ri, typeStruct.SubType)
 		} else {
-			t = getTypeFromEnv(runInfo, typeStruct)
+			t = getTypeFromEnv(ri, typeStruct)
 		}
-		if runInfo.err != nil {
+		if ri.err != nil {
 			return nil
 		}
 		if t == nil {
@@ -337,8 +343,8 @@ func makeType(runInfo *runInfo, typeStruct *ast.TypeStruct) reflect.Type {
 		var t reflect.Type
 		fields := make([]reflect.StructField, 0, len(typeStruct.StructNames))
 		for i := 0; i < len(typeStruct.StructNames); i++ {
-			t = makeType(runInfo, typeStruct.StructTypes[i])
-			if runInfo.err != nil {
+			t = makeType(ri, typeStruct.StructTypes[i])
+			if ri.err != nil {
 				return nil
 			}
 			if t == nil {
@@ -346,27 +352,27 @@ func makeType(runInfo *runInfo, typeStruct *ast.TypeStruct) reflect.Type {
 			}
 			fields = append(fields, reflect.StructField{Name: typeStruct.StructNames[i], Type: t})
 		}
-		if !runInfo.opts.Debug {
+		if !ri.opts.Debug {
 			// captures panic
-			defer recoverFunc(runInfo)
+			defer recoverFunc(ri)
 		}
 		t = reflect.StructOf(fields)
 		return t
 	default:
-		runInfo.err = fmt.Errorf("unknown kind")
+		ri.err = fmt.Errorf("unknown kind")
 		return nil
 	}
 }
 
-func getTypeFromEnv(runInfo *runInfo, typeStruct *ast.TypeStruct) reflect.Type {
+func getTypeFromEnv(ri *runInfo, typeStruct *ast.TypeStruct) reflect.Type {
 	var e *env.Env
-	e, runInfo.err = runInfo.env.GetEnvFromPath(typeStruct.Env)
-	if runInfo.err != nil {
+	e, ri.err = ri.env.GetEnvFromPath(typeStruct.Env)
+	if ri.err != nil {
 		return nil
 	}
 
 	var t reflect.Type
-	t, runInfo.err = e.Type(typeStruct.Name)
+	t, ri.err = e.Type(typeStruct.Name)
 	return t
 }
 
