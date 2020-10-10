@@ -21,6 +21,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/stretchr/testify v1.6.1
+	github.com/traefik/yaegi v0.9.8
 	github.com/vmihailenco/msgpack/v5 v5.0.0
 
 	golang.org/x/crypto v0.0.0-20201117144127-c1f2f97bffc9
