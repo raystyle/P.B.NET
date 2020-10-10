@@ -164,13 +164,25 @@ func (ri *runInfo) callExpr() {
 	// useCallSlice lets us know to use CallSlice instead of Call because of the format of the args
 	if useCallSlice {
 		if callExpr.Go {
-			go f.CallSlice(args)
+			go func() {
+				if !ri.opts.Debug {
+					// captures panic
+					defer recoverFunc(ri)
+				}
+				f.CallSlice(args)
+			}()
 			return
 		}
 		rvs = f.CallSlice(args)
 	} else {
 		if callExpr.Go {
-			go f.Call(args)
+			go func() {
+				if !ri.opts.Debug {
+					// captures panic
+					defer recoverFunc(ri)
+				}
+				f.Call(args)
+			}()
 			return
 		}
 		rvs = f.Call(args)
