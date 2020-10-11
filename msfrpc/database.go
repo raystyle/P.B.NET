@@ -301,10 +301,7 @@ func (msf *MSFRPC) DBGetService(ctx context.Context, opts *DBGetServiceOptions) 
 }
 
 // DBDelService is used to delete service by filter.
-func (msf *MSFRPC) DBDelService(
-	ctx context.Context,
-	opts *DBDelServiceOptions,
-) ([]*DBDelService, error) {
+func (msf *MSFRPC) DBDelService(ctx context.Context, opts *DBDelServiceOptions) ([]*DBDelService, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
 		optsCp.Workspace = defaultWorkspace

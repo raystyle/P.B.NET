@@ -213,7 +213,7 @@ func (msf *MSFRPC) NewWebServer(
 	}
 	// set web server
 	httpServer.Handler = router
-	httpServer.ErrorLog = logger.Wrap(logger.Warning, "web", msf.logger)
+	httpServer.ErrorLog = logger.Wrap(logger.Warning, "msfrpc-web", msf.logger)
 	web := WebServer{
 		server:  httpServer,
 		handler: &wh,
@@ -275,11 +275,11 @@ func (wh *webHandler) Close() {
 }
 
 func (wh *webHandler) logf(lv logger.Level, format string, log ...interface{}) {
-	wh.ctx.logger.Printf(lv, "web", format, log...)
+	wh.ctx.logger.Printf(lv, "msfrpc-web", format, log...)
 }
 
 func (wh *webHandler) log(lv logger.Level, log ...interface{}) {
-	wh.ctx.logger.Println(lv, "web", log...)
+	wh.ctx.logger.Println(lv, "msfrpc-web", log...)
 }
 
 func (wh *webHandler) readRequest(r *hR, req interface{}) error {

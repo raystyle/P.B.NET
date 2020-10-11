@@ -35,10 +35,7 @@ func (msf *MSFRPC) CoreModuleStats(ctx context.Context) (*CoreModuleStatsResult,
 // modules that were deleted from the file system since previously loaded (to remove all
 // deleted modules, the core.reload_modules method should be used instead). This module may
 // raise an error response if the specified path does not exist.
-func (msf *MSFRPC) CoreAddModulePath(
-	ctx context.Context,
-	path string,
-) (*CoreAddModulePathResult, error) {
+func (msf *MSFRPC) CoreAddModulePath(ctx context.Context, path string) (*CoreAddModulePathResult, error) {
 	request := CoreAddModulePathRequest{
 		Method: MethodCoreAddModulePath,
 		Token:  msf.GetToken(),
