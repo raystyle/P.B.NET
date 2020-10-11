@@ -1050,6 +1050,10 @@ func aFunc() {
 	i++
 	defer add(i)
 	i++
+	defer func(){
+		add(i)
+	}()
+	i++
 	defer add(i)
 	i++
 	defer add(i)
@@ -1057,7 +1061,34 @@ func aFunc() {
 aFunc()
 return a
 `,
-			RunOutput: []interface{}{int64(4), int64(3), int64(2), int64(1), int64(0)},
+			RunOutput: []interface{}{int64(5), int64(4), int64(5), int64(2), int64(1), int64(0)},
+		},
+		{
+			Script: `
+a = []
+func add(n) { a += n }
+func aFunc() {
+	var i = 0
+	defer add(i)
+	i++
+	defer add(i)
+	i++
+	defer add(i)
+	if true {
+		i++
+		defer func(){
+			add(i)
+		}()
+	}
+	i++
+	defer add(i)
+	i++
+	defer add(i)
+}
+aFunc()
+return a
+`,
+			RunOutput: []interface{}{int64(5), int64(4), int64(5), int64(2), int64(1), int64(0)},
 		},
 	}
 	runTests(t, tests, &Options{Debug: true})
