@@ -11,14 +11,14 @@ import (
 )
 
 // DBConnect is used to connect database.
-func (msf *MSFRPC) DBConnect(ctx context.Context, opts *DBConnectOptions) error {
+func (client *Client) DBConnect(ctx context.Context, opts *DBConnectOptions) error {
 	request := DBConnectRequest{
 		Method:  MethodDBConnect,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: opts.toMap(),
 	}
 	var result DBConnectResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -31,23 +31,23 @@ func (msf *MSFRPC) DBConnect(ctx context.Context, opts *DBConnectOptions) error 
 	if result.Result != "success" {
 		return errors.Errorf("failed to connect database: %s", result.Result)
 	}
-	err = msf.DBAddWorkspace(ctx, defaultWorkspace)
+	err = client.DBAddWorkspace(ctx, defaultWorkspace)
 	if err != nil {
 		return err
 	}
 	const format = "connected database: %s %s:%d"
-	msf.logf(logger.Info, format, opts.Driver, opts.Host, opts.Port)
+	client.logf(logger.Info, format, opts.Driver, opts.Host, opts.Port)
 	return nil
 }
 
 // DBDisconnect is used to disconnect database.
-func (msf *MSFRPC) DBDisconnect(ctx context.Context) error {
+func (client *Client) DBDisconnect(ctx context.Context) error {
 	request := DBDisconnectRequest{
 		Method: MethodDBDisconnect,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result DBDisconnectResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -57,18 +57,18 @@ func (msf *MSFRPC) DBDisconnect(ctx context.Context) error {
 		}
 		return errors.WithStack(&result.MSFError)
 	}
-	msf.log(logger.Info, "disconnect database")
+	client.log(logger.Info, "disconnect database")
 	return nil
 }
 
 // DBStatus is used to get the database status.
-func (msf *MSFRPC) DBStatus(ctx context.Context) (*DBStatusResult, error) {
+func (client *Client) DBStatus(ctx context.Context) (*DBStatusResult, error) {
 	request := DBStatusRequest{
 		Method: MethodDBStatus,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result DBStatusResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -82,18 +82,18 @@ func (msf *MSFRPC) DBStatus(ctx context.Context) (*DBStatusResult, error) {
 }
 
 // DBReportHost is used to add host to database.
-func (msf *MSFRPC) DBReportHost(ctx context.Context, host *DBReportHost) error {
+func (client *Client) DBReportHost(ctx context.Context, host *DBReportHost) error {
 	hostCp := *host
 	if hostCp.Workspace == "" {
 		hostCp.Workspace = defaultWorkspace
 	}
 	request := DBReportHostRequest{
 		Method: MethodDBReportHost,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Host:   xreflect.StructureToMap(&hostCp, structTag),
 	}
 	var result DBReportHostResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -112,19 +112,19 @@ func (msf *MSFRPC) DBReportHost(ctx context.Context, host *DBReportHost) error {
 }
 
 // DBHosts is used to get all hosts information in the database.
-func (msf *MSFRPC) DBHosts(ctx context.Context, workspace string) ([]*DBHost, error) {
+func (client *Client) DBHosts(ctx context.Context, workspace string) ([]*DBHost, error) {
 	if workspace == "" {
 		workspace = defaultWorkspace
 	}
 	request := DBHostsRequest{
 		Method: MethodDBHosts,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Options: map[string]interface{}{
 			"workspace": workspace,
 		},
 	}
 	var result DBHostsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -143,18 +143,18 @@ func (msf *MSFRPC) DBHosts(ctx context.Context, workspace string) ([]*DBHost, er
 }
 
 // DBGetHost is used to get host with workspace or address.
-func (msf *MSFRPC) DBGetHost(ctx context.Context, opts *DBGetHostOptions) (*DBHost, error) {
+func (client *Client) DBGetHost(ctx context.Context, opts *DBGetHostOptions) (*DBHost, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
 		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBGetHostRequest{
 		Method:  MethodDBGetHost,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMap(&optsCp, structTag),
 	}
 	var result DBGetHostResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -176,18 +176,18 @@ func (msf *MSFRPC) DBGetHost(ctx context.Context, opts *DBGetHostOptions) (*DBHo
 }
 
 // DBDelHost is used to delete host by filters, it will return deleted host.
-func (msf *MSFRPC) DBDelHost(ctx context.Context, opts *DBDelHostOptions) ([]string, error) {
+func (client *Client) DBDelHost(ctx context.Context, opts *DBDelHostOptions) ([]string, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
 		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBDelHostRequest{
 		Method:  MethodDBDelHost,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMapWithoutZero(&optsCp, structTag),
 	}
 	var result DBDelHostResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -210,18 +210,18 @@ func (msf *MSFRPC) DBDelHost(ctx context.Context, opts *DBDelHostOptions) ([]str
 }
 
 // DBReportService is used to add service to database.
-func (msf *MSFRPC) DBReportService(ctx context.Context, service *DBReportService) error {
+func (client *Client) DBReportService(ctx context.Context, service *DBReportService) error {
 	serviceCp := *service
 	if serviceCp.Workspace == "" {
 		serviceCp.Workspace = defaultWorkspace
 	}
 	request := DBReportServiceRequest{
 		Method:  MethodDBReportService,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Service: xreflect.StructureToMap(&serviceCp, structTag),
 	}
 	var result DBReportServiceResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -241,18 +241,18 @@ func (msf *MSFRPC) DBReportService(ctx context.Context, service *DBReportService
 
 // DBServices is used to get services by filter options.
 // Must set Protocol in DBServicesOptions.
-func (msf *MSFRPC) DBServices(ctx context.Context, opts *DBServicesOptions) ([]*DBService, error) {
+func (client *Client) DBServices(ctx context.Context, opts *DBServicesOptions) ([]*DBService, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
 		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBServicesRequest{
 		Method:  MethodDBServices,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMap(&optsCp, structTag),
 	}
 	var result DBServicesResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -271,18 +271,18 @@ func (msf *MSFRPC) DBServices(ctx context.Context, opts *DBServicesOptions) ([]*
 }
 
 // DBGetService is used to get services by filter.
-func (msf *MSFRPC) DBGetService(ctx context.Context, opts *DBGetServiceOptions) ([]*DBService, error) {
+func (client *Client) DBGetService(ctx context.Context, opts *DBGetServiceOptions) ([]*DBService, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
 		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBGetServiceRequest{
 		Method:  MethodDBGetService,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMap(&optsCp, structTag),
 	}
 	var result DBGetServiceResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -301,18 +301,18 @@ func (msf *MSFRPC) DBGetService(ctx context.Context, opts *DBGetServiceOptions) 
 }
 
 // DBDelService is used to delete service by filter.
-func (msf *MSFRPC) DBDelService(ctx context.Context, opts *DBDelServiceOptions) ([]*DBDelService, error) {
+func (client *Client) DBDelService(ctx context.Context, opts *DBDelServiceOptions) ([]*DBDelService, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
 		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBDelServiceRequest{
 		Method:  MethodDBDelService,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMapWithoutZero(&optsCp, structTag),
 	}
 	var result DBDelServiceResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -334,18 +334,18 @@ func (msf *MSFRPC) DBDelService(ctx context.Context, opts *DBDelServiceOptions) 
 }
 
 // DBReportClient is used to add browser client to database.
-func (msf *MSFRPC) DBReportClient(ctx context.Context, client *DBReportClient) error {
+func (client *Client) DBReportClient(ctx context.Context, client *DBReportClient) error {
 	clientCp := *client
 	if clientCp.Workspace == "" {
 		clientCp.Workspace = defaultWorkspace
 	}
 	request := DBReportClientRequest{
 		Method:  MethodDBReportClient,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMap(&clientCp, structTag),
 	}
 	var result DBReportClientResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -364,18 +364,18 @@ func (msf *MSFRPC) DBReportClient(ctx context.Context, client *DBReportClient) e
 }
 
 // DBClients is used to get browser clients by filter.
-func (msf *MSFRPC) DBClients(ctx context.Context, opts *DBClientsOptions) ([]*DBClient, error) {
+func (client *Client) DBClients(ctx context.Context, opts *DBClientsOptions) ([]*DBClient, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
 		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBClientsRequest{
 		Method:  MethodDBClients,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMap(&optsCp, structTag),
 	}
 	var result DBClientsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -394,18 +394,18 @@ func (msf *MSFRPC) DBClients(ctx context.Context, opts *DBClientsOptions) ([]*DB
 }
 
 // DBGetClient is used to get browser client by filter.
-func (msf *MSFRPC) DBGetClient(ctx context.Context, opts *DBGetClientOptions) (*DBClient, error) {
+func (client *Client) DBGetClient(ctx context.Context, opts *DBGetClientOptions) (*DBClient, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
 		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBGetClientRequest{
 		Method:  MethodDBGetClient,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMap(&optsCp, structTag),
 	}
 	var result DBGetClientResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -427,18 +427,18 @@ func (msf *MSFRPC) DBGetClient(ctx context.Context, opts *DBGetClientOptions) (*
 }
 
 // DBDelClient is used to delete browser client by filter, it wil return deleted browser clients.
-func (msf *MSFRPC) DBDelClient(ctx context.Context, opts *DBDelClientOptions) ([]*DBDelClient, error) {
+func (client *Client) DBDelClient(ctx context.Context, opts *DBDelClientOptions) ([]*DBDelClient, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
 		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBDelClientRequest{
 		Method:  MethodDBDelClient,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMapWithoutZero(&optsCp, structTag),
 	}
 	var result DBDelClientResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -457,17 +457,17 @@ func (msf *MSFRPC) DBDelClient(ctx context.Context, opts *DBDelClientOptions) ([
 }
 
 // DBCreateCredential is used to create a credential.
-func (msf *MSFRPC) DBCreateCredential(
+func (client *Client) DBCreateCredential(
 	ctx context.Context,
 	opts *DBCreateCredentialOptions,
 ) (*DBCreateCredentialResult, error) {
 	request := DBCreateCredentialRequest{
 		Method:  MethodDBCreateCred,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMapWithoutZero(opts, structTag),
 	}
 	var result DBCreateCredentialResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -481,19 +481,19 @@ func (msf *MSFRPC) DBCreateCredential(
 }
 
 // DBCreds is used to get all credentials with workspace.
-func (msf *MSFRPC) DBCreds(ctx context.Context, workspace string) ([]*DBCred, error) {
+func (client *Client) DBCreds(ctx context.Context, workspace string) ([]*DBCred, error) {
 	if workspace == "" {
 		workspace = defaultWorkspace
 	}
 	request := DBCredsRequest{
 		Method: MethodDBCreds,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Options: map[string]interface{}{
 			"workspace": workspace,
 		},
 	}
 	var result DBCredsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -512,19 +512,19 @@ func (msf *MSFRPC) DBCreds(ctx context.Context, workspace string) ([]*DBCred, er
 }
 
 // DBDelCreds is used to delete credentials with workspace.
-func (msf *MSFRPC) DBDelCreds(ctx context.Context, workspace string) ([]*DBDelCred, error) {
+func (client *Client) DBDelCreds(ctx context.Context, workspace string) ([]*DBDelCred, error) {
 	if workspace == "" {
 		workspace = defaultWorkspace
 	}
 	request := DBDelCredsRequest{
 		Method: MethodDBDelCreds,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Options: map[string]interface{}{
 			"workspace": workspace,
 		},
 	}
 	var result DBDelCredsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -547,18 +547,18 @@ func (msf *MSFRPC) DBDelCreds(ctx context.Context, workspace string) ([]*DBDelCr
 }
 
 // DBReportLoot is used to add a loot to database.
-func (msf *MSFRPC) DBReportLoot(ctx context.Context, loot *DBReportLoot) error {
+func (client *Client) DBReportLoot(ctx context.Context, loot *DBReportLoot) error {
 	lootCp := *loot
 	if lootCp.Workspace == "" {
 		lootCp.Workspace = defaultWorkspace
 	}
 	request := DBReportLootRequest{
 		Method:  MethodDBReportLoot,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMapWithoutZero(&lootCp, structTag),
 	}
 	var result DBReportLootResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -577,18 +577,18 @@ func (msf *MSFRPC) DBReportLoot(ctx context.Context, loot *DBReportLoot) error {
 }
 
 // DBLoots is used to get loots by filter.
-func (msf *MSFRPC) DBLoots(ctx context.Context, opts *DBLootsOptions) ([]*DBLoot, error) {
+func (client *Client) DBLoots(ctx context.Context, opts *DBLootsOptions) ([]*DBLoot, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
 		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBLootsRequest{
 		Method:  MethodDBLoots,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMap(&optsCp, structTag),
 	}
 	var result DBLootsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -607,13 +607,13 @@ func (msf *MSFRPC) DBLoots(ctx context.Context, opts *DBLootsOptions) ([]*DBLoot
 }
 
 // DBWorkspaces is used to get information about workspaces.
-func (msf *MSFRPC) DBWorkspaces(ctx context.Context) ([]*DBWorkspace, error) {
+func (client *Client) DBWorkspaces(ctx context.Context) ([]*DBWorkspace, error) {
 	request := DBWorkspacesRequest{
 		Method: MethodDBWorkspaces,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result DBWorkspacesResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -630,14 +630,14 @@ func (msf *MSFRPC) DBWorkspaces(ctx context.Context) ([]*DBWorkspace, error) {
 }
 
 // DBGetWorkspace is used to get workspace information by name.
-func (msf *MSFRPC) DBGetWorkspace(ctx context.Context, name string) (*DBWorkspace, error) {
+func (client *Client) DBGetWorkspace(ctx context.Context, name string) (*DBWorkspace, error) {
 	request := DBGetWorkspaceRequest{
 		Method: MethodDBGetWorkspace,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 	}
 	var result DBGetWorkspaceResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -656,17 +656,17 @@ func (msf *MSFRPC) DBGetWorkspace(ctx context.Context, name string) (*DBWorkspac
 }
 
 // DBAddWorkspace is used to add workspace.
-func (msf *MSFRPC) DBAddWorkspace(ctx context.Context, name string) error {
+func (client *Client) DBAddWorkspace(ctx context.Context, name string) error {
 	if name == "" {
 		return nil
 	}
 	request := DBAddWorkspaceRequest{
 		Method: MethodDBAddWorkspace,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 	}
 	var result DBAddWorkspaceResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -683,17 +683,17 @@ func (msf *MSFRPC) DBAddWorkspace(ctx context.Context, name string) error {
 }
 
 // DBDelWorkspace is used to delete workspace by name.
-func (msf *MSFRPC) DBDelWorkspace(ctx context.Context, name string) error {
+func (client *Client) DBDelWorkspace(ctx context.Context, name string) error {
 	if name == "" {
 		return nil
 	}
 	request := DBDelWorkspaceRequest{
 		Method: MethodDBDelWorkspace,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 	}
 	var result DBDelWorkspaceResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -712,17 +712,17 @@ func (msf *MSFRPC) DBDelWorkspace(ctx context.Context, name string) error {
 }
 
 // DBSetWorkspace is used to set the current workspace.
-func (msf *MSFRPC) DBSetWorkspace(ctx context.Context, name string) error {
+func (client *Client) DBSetWorkspace(ctx context.Context, name string) error {
 	if name == "" {
 		return nil
 	}
 	request := DBSetWorkspaceRequest{
 		Method: MethodDBSetWorkspace,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 	}
 	var result DBSetWorkspaceResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -741,13 +741,13 @@ func (msf *MSFRPC) DBSetWorkspace(ctx context.Context, name string) error {
 }
 
 // DBCurrentWorkspace is used to get the current workspace.
-func (msf *MSFRPC) DBCurrentWorkspace(ctx context.Context) (*DBCurrentWorkspaceResult, error) {
+func (client *Client) DBCurrentWorkspace(ctx context.Context) (*DBCurrentWorkspaceResult, error) {
 	request := DBCurrentWorkspaceRequest{
 		Method: MethodDBCurrentWorkspace,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result DBCurrentWorkspaceResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -764,18 +764,18 @@ func (msf *MSFRPC) DBCurrentWorkspace(ctx context.Context) (*DBCurrentWorkspaceR
 }
 
 // DBEvent is used to get framework events.
-func (msf *MSFRPC) DBEvent(ctx context.Context, opts *DBEventOptions) ([]*DBEvent, error) {
+func (client *Client) DBEvent(ctx context.Context, opts *DBEventOptions) ([]*DBEvent, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
 		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBEventRequest{
 		Method:  MethodDBEvents,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMapWithoutZero(&optsCp, structTag),
 	}
 	var result DBEventResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -814,7 +814,7 @@ func (msf *MSFRPC) DBEvent(ctx context.Context, opts *DBEventOptions) ([]*DBEven
 }
 
 // DBImportData is used to import external data to the database.
-func (msf *MSFRPC) DBImportData(ctx context.Context, opts *DBImportDataOptions) error {
+func (client *Client) DBImportData(ctx context.Context, opts *DBImportDataOptions) error {
 	if len(opts.Data) == 0 {
 		return errors.New("no data")
 	}
@@ -824,11 +824,11 @@ func (msf *MSFRPC) DBImportData(ctx context.Context, opts *DBImportDataOptions) 
 	}
 	request := DBImportDataRequest{
 		Method:  MethodDBImportData,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: xreflect.StructureToMap(&optsCp, structTag),
 	}
 	var result DBImportDataResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}

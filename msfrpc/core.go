@@ -7,13 +7,13 @@ import (
 )
 
 // CoreModuleStats is used to return the number of modules loaded, broken down by type.
-func (msf *MSFRPC) CoreModuleStats(ctx context.Context) (*CoreModuleStatsResult, error) {
+func (client *Client) CoreModuleStats(ctx context.Context) (*CoreModuleStatsResult, error) {
 	request := CoreModuleStatsRequest{
 		Method: MethodCoreModuleStats,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result CoreModuleStatsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -35,14 +35,14 @@ func (msf *MSFRPC) CoreModuleStats(ctx context.Context) (*CoreModuleStatsResult,
 // modules that were deleted from the file system since previously loaded (to remove all
 // deleted modules, the core.reload_modules method should be used instead). This module may
 // raise an error response if the specified path does not exist.
-func (msf *MSFRPC) CoreAddModulePath(ctx context.Context, path string) (*CoreAddModulePathResult, error) {
+func (client *Client) CoreAddModulePath(ctx context.Context, path string) (*CoreAddModulePathResult, error) {
 	request := CoreAddModulePathRequest{
 		Method: MethodCoreAddModulePath,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Path:   path,
 	}
 	var result CoreAddModulePathResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -61,13 +61,13 @@ func (msf *MSFRPC) CoreAddModulePath(ctx context.Context, path string) (*CoreAdd
 // CoreReloadModules is used to dump and reload all modules from all configured module
 // paths. This is the only way to purge a previously loaded module that the caller
 // would like to remove.
-func (msf *MSFRPC) CoreReloadModules(ctx context.Context) (*CoreReloadModulesResult, error) {
+func (client *Client) CoreReloadModules(ctx context.Context) (*CoreReloadModulesResult, error) {
 	request := CoreReloadModulesRequest{
 		Method: MethodCoreReloadModules,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result CoreReloadModulesResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -82,16 +82,16 @@ func (msf *MSFRPC) CoreReloadModules(ctx context.Context) (*CoreReloadModulesRes
 
 // CoreThreadList is used to return a list the status of all background threads along
 // with an ID number that can be used to shut down the thread.
-func (msf *MSFRPC) CoreThreadList(ctx context.Context) (map[uint64]*CoreThreadInfo, error) {
+func (client *Client) CoreThreadList(ctx context.Context) (map[uint64]*CoreThreadInfo, error) {
 	request := CoreThreadListRequest{
 		Method: MethodCoreThreadList,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var (
 		result   map[uint64]*CoreThreadInfo
 		msfError MSFError
 	)
-	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	err := client.sendWithReplace(ctx, &request, &result, &msfError)
 	if err != nil {
 		return nil, err
 	}
@@ -106,14 +106,14 @@ func (msf *MSFRPC) CoreThreadList(ctx context.Context) (map[uint64]*CoreThreadIn
 
 // CoreThreadKill is used to kill an errant background thread. The ThreadID should
 // match what was returned by the core.thread_list method.
-func (msf *MSFRPC) CoreThreadKill(ctx context.Context, id uint64) error {
+func (client *Client) CoreThreadKill(ctx context.Context, id uint64) error {
 	request := CoreThreadKillRequest{
 		Method: MethodCoreThreadKill,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result CoreThreadKillResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -132,15 +132,15 @@ func (msf *MSFRPC) CoreThreadKill(ctx context.Context, id uint64) error {
 // Proxies global option can be set, which would indicate that all modules launched
 // from that point on should go through a specific chain of proxies, unless the Proxies
 // option is specifically overridden for that module.
-func (msf *MSFRPC) CoreSetG(ctx context.Context, name, value string) error {
+func (client *Client) CoreSetG(ctx context.Context, name, value string) error {
 	request := CoreSetGRequest{
 		Method: MethodCoreSetG,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 		Value:  value,
 	}
 	var result CoreSetGResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -154,14 +154,14 @@ func (msf *MSFRPC) CoreSetG(ctx context.Context, name, value string) error {
 }
 
 // CoreUnsetG is used to unset (delete) a previously configured global option.
-func (msf *MSFRPC) CoreUnsetG(ctx context.Context, name string) error {
+func (client *Client) CoreUnsetG(ctx context.Context, name string) error {
 	request := CoreUnsetGRequest{
 		Method: MethodCoreUnsetG,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 	}
 	var result CoreUnsetGResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -176,17 +176,17 @@ func (msf *MSFRPC) CoreUnsetG(ctx context.Context, name string) error {
 
 // CoreGetG is used to get global setting by name, If the option is not set,
 // then the value is empty.
-func (msf *MSFRPC) CoreGetG(ctx context.Context, name string) (string, error) {
+func (client *Client) CoreGetG(ctx context.Context, name string) (string, error) {
 	request := CoreGetGRequest{
 		Method: MethodCoreGetG,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 	}
 	var (
 		result   map[string]string
 		msfError MSFError
 	)
-	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	err := client.sendWithReplace(ctx, &request, &result, &msfError)
 	if err != nil {
 		return "", err
 	}
@@ -202,13 +202,13 @@ func (msf *MSFRPC) CoreGetG(ctx context.Context, name string) (string, error) {
 // CoreSave is used to save current global data store of the framework instance
 // to server's disk. This configuration will be loaded by default the next time
 // Metasploit is started by that user on that server.
-func (msf *MSFRPC) CoreSave(ctx context.Context) error {
+func (client *Client) CoreSave(ctx context.Context) error {
 	request := CoreSaveRequest{
 		Method: MethodCoreSave,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result CoreSaveResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -223,13 +223,13 @@ func (msf *MSFRPC) CoreSave(ctx context.Context) error {
 
 // CoreVersion is used to get basic version information about the running framework
 // instance, the Ruby interpreter, and the RPC protocol version being used.
-func (msf *MSFRPC) CoreVersion(ctx context.Context) (*CoreVersionResult, error) {
+func (client *Client) CoreVersion(ctx context.Context) (*CoreVersionResult, error) {
 	request := CoreVersionRequest{
 		Method: MethodCoreVersion,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result CoreVersionResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}

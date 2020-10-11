@@ -26,7 +26,7 @@ type IOStatus struct {
 // It can create IO instance that only one user can read or write, other user can
 // only destroy it(Console IO) or kill session(Shell or Meterpreter).
 type IOManager struct {
-	ctx *MSFRPC
+	ctx *Client
 
 	// key = console id
 	consoles map[string]*Console
@@ -39,9 +39,9 @@ type IOManager struct {
 }
 
 // NewIOManager is used to create a new IO manager.
-func (msf *MSFRPC) NewIOManager() *IOManager {
+func (client *Client) NewIOManager() *IOManager {
 	return &IOManager{
-		ctx:          msf,
+		ctx:          client,
 		consoles:     make(map[string]*Console),
 		shells:       make(map[uint64]*Shell),
 		meterpreters: make(map[uint64]*Meterpreter),

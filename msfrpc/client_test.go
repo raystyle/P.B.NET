@@ -23,10 +23,10 @@ func TestNewMSFRPC(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("invalid transport option", func(t *testing.T) {
-		opts := Options{}
+		opts := ClientOptions{}
 		opts.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
 
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, &opts)
+		msfrpc, err := NewClient(testAddress, testUsername, testPassword, logger.Test, &opts)
 		require.Error(t, err)
 		require.Nil(t, msfrpc)
 	})
@@ -42,9 +42,9 @@ func TestNewMSFRPC(t *testing.T) {
 	})
 
 	t.Run("disable TLS", func(t *testing.T) {
-		opts := Options{DisableTLS: true}
+		opts := ClientOptions{DisableTLS: true}
 
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, &opts)
+		msfrpc, err := NewClient(testAddress, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 		require.NotNil(t, msfrpc)
 
@@ -56,9 +56,9 @@ func TestNewMSFRPC(t *testing.T) {
 	})
 
 	t.Run("custom handler", func(t *testing.T) {
-		opts := Options{Handler: "hello"}
+		opts := ClientOptions{Handler: "hello"}
 
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, &opts)
+		msfrpc, err := NewClient(testAddress, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 		require.NotNil(t, msfrpc)
 
@@ -224,11 +224,11 @@ func TestMSFRPC_send(t *testing.T) {
 	address := "127.0.0.1:" + port
 
 	t.Run("internal server error_ok", func(t *testing.T) {
-		opts := Options{
+		opts := ClientOptions{
 			DisableTLS: true,
 			Handler:    "500_ok",
 		}
-		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Test, &opts)
+		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -242,11 +242,11 @@ func TestMSFRPC_send(t *testing.T) {
 	})
 
 	t.Run("internal server error_failed", func(t *testing.T) {
-		opts := Options{
+		opts := ClientOptions{
 			DisableTLS: true,
 			Handler:    "500_failed",
 		}
-		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Test, &opts)
+		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -260,11 +260,11 @@ func TestMSFRPC_send(t *testing.T) {
 	})
 
 	t.Run("unauthorized", func(t *testing.T) {
-		opts := Options{
+		opts := ClientOptions{
 			DisableTLS: true,
 			Handler:    "401",
 		}
-		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Test, &opts)
+		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -278,11 +278,11 @@ func TestMSFRPC_send(t *testing.T) {
 	})
 
 	t.Run("forbidden", func(t *testing.T) {
-		opts := Options{
+		opts := ClientOptions{
 			DisableTLS: true,
 			Handler:    "403",
 		}
-		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Test, &opts)
+		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -296,11 +296,11 @@ func TestMSFRPC_send(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		opts := Options{
+		opts := ClientOptions{
 			DisableTLS: true,
 			Handler:    "not_found",
 		}
-		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Test, &opts)
+		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -314,11 +314,11 @@ func TestMSFRPC_send(t *testing.T) {
 	})
 
 	t.Run("unexpected http status code", func(t *testing.T) {
-		opts := Options{
+		opts := ClientOptions{
 			DisableTLS: true,
 			Handler:    "unexpected",
 		}
-		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Test, &opts)
+		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -332,11 +332,11 @@ func TestMSFRPC_send(t *testing.T) {
 	})
 
 	t.Run("parallel", func(t *testing.T) {
-		opts := Options{
+		opts := ClientOptions{
 			DisableTLS: true,
 			Handler:    "200",
 		}
-		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Test, &opts)
+		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
 		send1 := func() {
@@ -486,7 +486,7 @@ func TestOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// check unnecessary field
-	opts := Options{}
+	opts := ClientOptions{}
 	err = toml.Unmarshal(data, &opts)
 	require.NoError(t, err)
 

@@ -47,7 +47,7 @@ type Callbacks struct {
 // Use time.Timer to replace time.Ticker for prevent not sleep if the
 // network latency is bigger than Monitor.internal.
 type Monitor struct {
-	ctx *MSFRPC
+	ctx *Client
 
 	callbacks *Callbacks
 	interval  time.Duration
@@ -93,7 +93,7 @@ type Monitor struct {
 }
 
 // NewMonitor is used to create a data monitor.
-func (msf *MSFRPC) NewMonitor(
+func (client *Client) NewMonitor(
 	callbacks *Callbacks,
 	interval time.Duration,
 	dbOpts *DBConnectOptions,
@@ -102,7 +102,7 @@ func (msf *MSFRPC) NewMonitor(
 		interval = minWatchInterval
 	}
 	monitor := &Monitor{
-		ctx:       msf,
+		ctx:       client,
 		callbacks: callbacks,
 		interval:  interval,
 		dbOptions: dbOpts,

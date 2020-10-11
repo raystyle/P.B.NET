@@ -26,14 +26,14 @@ const (
 func TestMain(m *testing.M) {
 	exitCode := m.Run()
 	// create msfrpc
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Discard, nil)
+	msfrpc, err := NewClient(testAddress, testUsername, testPassword, logger.Discard, nil)
 	testsuite.CheckErrorInTestMain(err)
 	err = msfrpc.AuthLogin()
 	testsuite.CheckErrorInTestMain(err)
 	// check leaks
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	for _, check := range []func(context.Context, *MSFRPC) bool{
+	for _, check := range []func(context.Context, *Client) bool{
 		testMainCheckSession,
 		testMainCheckJob,
 		testMainCheckConsole,
@@ -70,7 +70,7 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func testMainCheckSession(ctx context.Context, msfrpc *MSFRPC) bool {
+func testMainCheckSession(ctx context.Context, msfrpc *Client) bool {
 	var (
 		sessions map[uint64]*SessionInfo
 		err      error
@@ -91,7 +91,7 @@ func testMainCheckSession(ctx context.Context, msfrpc *MSFRPC) bool {
 	return false
 }
 
-func testMainCheckJob(ctx context.Context, msfrpc *MSFRPC) bool {
+func testMainCheckJob(ctx context.Context, msfrpc *Client) bool {
 	var (
 		list map[string]string
 		err  error
@@ -112,7 +112,7 @@ func testMainCheckJob(ctx context.Context, msfrpc *MSFRPC) bool {
 	return false
 }
 
-func testMainCheckConsole(ctx context.Context, msfrpc *MSFRPC) bool {
+func testMainCheckConsole(ctx context.Context, msfrpc *Client) bool {
 	var (
 		consoles []*ConsoleInfo
 		err      error
@@ -133,7 +133,7 @@ func testMainCheckConsole(ctx context.Context, msfrpc *MSFRPC) bool {
 	return false
 }
 
-func testMainCheckToken(ctx context.Context, msfrpc *MSFRPC) bool {
+func testMainCheckToken(ctx context.Context, msfrpc *Client) bool {
 	var (
 		tokens []string
 		err    error
@@ -154,7 +154,7 @@ func testMainCheckToken(ctx context.Context, msfrpc *MSFRPC) bool {
 	return false
 }
 
-func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
+func testMainCheckThread(ctx context.Context, msfrpc *Client) bool {
 	var (
 		threads map[uint64]*CoreThreadInfo
 		err     error
@@ -188,13 +188,13 @@ func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
 	return false
 }
 
-func testGenerateMSFRPC(t *testing.T) *MSFRPC {
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
+func testGenerateMSFRPC(t *testing.T) *Client {
+	msfrpc, err := NewClient(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	return msfrpc
 }
 
-func testGenerateMSFRPCAndLogin(t *testing.T) *MSFRPC {
+func testGenerateMSFRPCAndLogin(t *testing.T) *Client {
 	msfrpc := testGenerateMSFRPC(t)
 	err := msfrpc.AuthLogin()
 	require.NoError(t, err)

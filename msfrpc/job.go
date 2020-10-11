@@ -7,16 +7,16 @@ import (
 )
 
 // JobList is used to list current jobs, key = job id and value = job name.
-func (msf *MSFRPC) JobList(ctx context.Context) (map[string]string, error) {
+func (client *Client) JobList(ctx context.Context) (map[string]string, error) {
 	request := JobListRequest{
 		Method: MethodJobList,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var (
 		result   map[string]string
 		msfError MSFError
 	)
-	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	err := client.sendWithReplace(ctx, &request, &result, &msfError)
 	if err != nil {
 		return nil, err
 	}
@@ -31,14 +31,14 @@ func (msf *MSFRPC) JobList(ctx context.Context) (map[string]string, error) {
 
 // JobInfo is used to get additional data about a specific job. This includes the start
 // time and complete datastore of the module associated with the job.
-func (msf *MSFRPC) JobInfo(ctx context.Context, id string) (*JobInfoResult, error) {
+func (client *Client) JobInfo(ctx context.Context, id string) (*JobInfoResult, error) {
 	request := JobInfoRequest{
 		Method: MethodJobInfo,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result JobInfoResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -61,14 +61,14 @@ func (msf *MSFRPC) JobInfo(ctx context.Context, id string) (*JobInfoResult, erro
 }
 
 // JobStop is used to terminate the job specified by the Job ID.
-func (msf *MSFRPC) JobStop(ctx context.Context, id string) error {
+func (client *Client) JobStop(ctx context.Context, id string) error {
 	request := JobStopRequest{
 		Method: MethodJobStop,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result JobStopResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}

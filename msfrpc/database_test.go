@@ -21,7 +21,7 @@ var testDBOptions = &DBConnectOptions{
 	Options:  map[string]interface{}{"foo": "bar"},
 }
 
-func testGenerateMSFRPCAndConnectDB(t *testing.T) *MSFRPC {
+func testGenerateMSFRPCAndConnectDB(t *testing.T) *Client {
 	msfrpc := testGenerateMSFRPCAndLogin(t)
 	err := msfrpc.DBConnect(context.Background(), testDBOptions)
 	require.NoError(t, err)

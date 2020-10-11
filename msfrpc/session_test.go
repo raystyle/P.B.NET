@@ -25,15 +25,15 @@ import (
 	"project/internal/testsuite"
 )
 
-func testCreateShellSession(t *testing.T, msfrpc *MSFRPC, port string) uint64 {
+func testCreateShellSession(t *testing.T, msfrpc *Client, port string) uint64 {
 	return testCreateSession(t, msfrpc, "shell", port)
 }
 
-func testCreateMeterpreterSession(t *testing.T, msfrpc *MSFRPC, port string) uint64 {
+func testCreateMeterpreterSession(t *testing.T, msfrpc *Client, port string) uint64 {
 	return testCreateSession(t, msfrpc, "meterpreter", port)
 }
 
-func testCreateSession(t *testing.T, msfrpc *MSFRPC, typ, port string) uint64 {
+func testCreateSession(t *testing.T, msfrpc *Client, typ, port string) uint64 {
 	ctx := context.Background()
 
 	// select payload
@@ -305,7 +305,7 @@ func TestMSFRPC_SessionShellWrite(t *testing.T) {
 }
 
 // testCreateShellSessionWithProgram will return file path and session id.
-func testCreateShellSessionWithProgram(t *testing.T, msfrpc *MSFRPC, port string) (string, uint64) {
+func testCreateShellSessionWithProgram(t *testing.T, msfrpc *Client, port string) (string, uint64) {
 	ctx := context.Background()
 
 	// select payload

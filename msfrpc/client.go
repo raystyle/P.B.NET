@@ -20,8 +20,9 @@ import (
 	"project/internal/xsync"
 )
 
-// MSFRPC is used to connect metasploit RPC service.
-type MSFRPC struct {
+// Client is used to connect metasploit-framework RPC service.
+// It provide a lot of API for interactive msf.
+type Client struct {
 	username string
 	password string
 	logger   logger.Logger
@@ -29,10 +30,12 @@ type MSFRPC struct {
 	url    string
 	client *http.Client
 
-	encoderPool  sync.Pool
-	decoderPool  sync.Pool
-	rDecoderPool sync.Pool
+	// sync pool about send request
+	encoderPool   sync.Pool
+	decoderPool   sync.Pool
+	rdDecoderPool sync.Pool
 
+	// for authorization
 	token    string
 	tokenRWM sync.RWMutex
 
@@ -42,18 +45,20 @@ type MSFRPC struct {
 	shells map[uint64]*Shell
 	// key = meterpreter session id
 	meterpreters map[uint64]*Meterpreter
+	// client status
+	inShutdown int32
+	// protect above fields
+	rwm sync.RWMutex
+
 	// io resource counter
 	counter xsync.Counter
-
-	inShutdown int32
-	rwm        sync.RWMutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-// Options contains options about NewMSFRPC().
-type Options struct {
+// ClientOptions contains options about NewClient().
+type ClientOptions struct {
 	DisableTLS bool                 `toml:"disable_tls"`
 	TLSVerify  bool                 `toml:"tls_verify"`
 	Handler    string               `toml:"handler"` // custom URI
@@ -77,10 +82,10 @@ type readerDecoder struct {
 	decoder *msgpack.Decoder
 }
 
-// NewMSFRPC is used to create a new metasploit RPC connection.
-func NewMSFRPC(address, username, password string, lg logger.Logger, opts *Options) (*MSFRPC, error) {
+// NewClient is used to create a new metasploit-framework RPC client.
+func NewClient(address, username, password string, lg logger.Logger, opts *ClientOptions) (*Client, error) {
 	if opts == nil {
-		opts = new(Options)
+		opts = new(ClientOptions)
 	}
 	// make http client
 	tr, err := opts.Transport.Apply()
@@ -107,16 +112,16 @@ func NewMSFRPC(address, username, password string, lg logger.Logger, opts *Optio
 	if timeout < 1 {
 		timeout = 30 * time.Second
 	}
-	client := http.Client{
+	httpClient := http.Client{
 		Transport: tr,
 		Jar:       jar,
 		Timeout:   timeout,
 	}
-	msfrpc := MSFRPC{
+	client := Client{
 		username:     username,
 		password:     password,
 		logger:       lg,
-		client:       &client,
+		client:       &httpClient,
 		token:        opts.Token,
 		consoles:     make(map[string]*Console),
 		shells:       make(map[uint64]*Shell),
@@ -135,9 +140,9 @@ func NewMSFRPC(address, username, password string, lg logger.Logger, opts *Optio
 	} else {
 		handler = opts.Handler
 	}
-	msfrpc.url = fmt.Sprintf("%s://%s/%s", scheme, address, handler)
+	client.url = fmt.Sprintf("%s://%s/%s", scheme, address, handler)
 	// sync pool
-	msfrpc.encoderPool.New = func() interface{} {
+	client.encoderPool.New = func() interface{} {
 		buf := bytes.NewBuffer(make([]byte, 0, 64))
 		encoder := msgpack.NewEncoder(buf)
 		encoder.UseArrayEncodedStructs(true)
@@ -146,7 +151,7 @@ func NewMSFRPC(address, username, password string, lg logger.Logger, opts *Optio
 			encoder: encoder,
 		}
 	}
-	msfrpc.decoderPool.New = func() interface{} {
+	client.decoderPool.New = func() interface{} {
 		buf := bytes.NewBuffer(make([]byte, 0, 64))
 		decoder := msgpack.NewDecoder(buf)
 		return &bufDecoder{
@@ -154,7 +159,7 @@ func NewMSFRPC(address, username, password string, lg logger.Logger, opts *Optio
 			decoder: decoder,
 		}
 	}
-	msfrpc.rDecoderPool.New = func() interface{} {
+	client.rdDecoderPool.New = func() interface{} {
 		reader := bytes.NewReader(nil)
 		decoder := msgpack.NewDecoder(reader)
 		return &readerDecoder{
@@ -162,45 +167,45 @@ func NewMSFRPC(address, username, password string, lg logger.Logger, opts *Optio
 			decoder: decoder,
 		}
 	}
-	msfrpc.ctx, msfrpc.cancel = context.WithCancel(context.Background())
-	return &msfrpc, nil
+	client.ctx, client.cancel = context.WithCancel(context.Background())
+	return &client, nil
 }
 
 // HijackLogWriter is used to hijack all packages that use log.Print().
-func (msf *MSFRPC) HijackLogWriter() {
-	logger.HijackLogWriter(logger.Error, "pkg", msf.logger)
+func (client *Client) HijackLogWriter() {
+	logger.HijackLogWriter(logger.Error, "pkg", client.logger)
 }
 
 // SetToken is used to set token to current client.
-func (msf *MSFRPC) SetToken(token string) {
-	msf.tokenRWM.Lock()
-	defer msf.tokenRWM.Unlock()
-	msf.token = token
+func (client *Client) SetToken(token string) {
+	client.tokenRWM.Lock()
+	defer client.tokenRWM.Unlock()
+	client.token = token
 }
 
 // GetToken is used to get token from current client.
-func (msf *MSFRPC) GetToken() string {
-	msf.tokenRWM.RLock()
-	defer msf.tokenRWM.RUnlock()
-	return msf.token
+func (client *Client) GetToken() string {
+	client.tokenRWM.RLock()
+	defer client.tokenRWM.RUnlock()
+	return client.token
 }
 
-func (msf *MSFRPC) send(ctx context.Context, request, response interface{}) error {
-	return msf.sendWithReplace(ctx, request, response, nil)
+func (client *Client) send(ctx context.Context, request, response interface{}) error {
+	return client.sendWithReplace(ctx, request, response, nil)
 }
 
 // sendWithReplace is used to replace response to another response like CoreThreadList
 // and MSFError if decode failed(return a MSFError).
-func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, replace interface{}) error {
+func (client *Client) sendWithReplace(ctx context.Context, request, response, replace interface{}) error {
 	// pack request
-	be := msf.encoderPool.Get().(*bufEncoder)
-	defer msf.encoderPool.Put(be)
+	be := client.encoderPool.Get().(*bufEncoder)
+	defer client.encoderPool.Put(be)
 	be.buf.Reset()
 	err := be.encoder.Encode(request)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, msf.url, be.buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.url, be.buf)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -210,7 +215,7 @@ func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, repla
 	header.Set("Accept-Charset", "utf-8")
 	header.Set("Connection", "keep-alive")
 	// send request
-	resp, err := msf.client.Do(req)
+	resp, err := client.client.Do(req)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -221,8 +226,8 @@ func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, repla
 	// read response body
 	switch resp.StatusCode {
 	case http.StatusOK:
-		bd := msf.decoderPool.Get().(*bufDecoder)
-		defer msf.decoderPool.Put(bd)
+		bd := client.decoderPool.Get().(*bufDecoder)
+		defer client.decoderPool.Put(bd)
 		bd.buf.Reset()
 		_, err = bd.buf.ReadFrom(resp.Body)
 		if err != nil {
@@ -232,8 +237,8 @@ func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, repla
 			return bd.decoder.Decode(response)
 		}
 		// first try to decode to response
-		rd := msf.rDecoderPool.Get().(*readerDecoder)
-		defer msf.rDecoderPool.Put(rd)
+		rd := client.rdDecoderPool.Get().(*readerDecoder)
+		defer client.rdDecoderPool.Put(rd)
 		rd.reader.Reset(bd.buf.Bytes())
 		err = rd.decoder.Decode(response)
 		if err == nil {
@@ -242,8 +247,8 @@ func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, repla
 		// then try to decode to replace
 		return bd.decoder.Decode(replace)
 	case http.StatusInternalServerError:
-		bd := msf.decoderPool.Get().(*bufDecoder)
-		defer msf.decoderPool.Put(bd)
+		bd := client.decoderPool.Get().(*bufDecoder)
+		defer client.decoderPool.Put(bd)
 		bd.buf.Reset()
 		_, err = bd.buf.ReadFrom(resp.Body)
 		if err != nil {
@@ -267,137 +272,137 @@ func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, repla
 	return err
 }
 
-func (msf *MSFRPC) shuttingDown() bool {
-	return atomic.LoadInt32(&msf.inShutdown) != 0
+func (client *Client) shuttingDown() bool {
+	return atomic.LoadInt32(&client.inShutdown) != 0
 }
 
-func (msf *MSFRPC) logf(lv logger.Level, format string, log ...interface{}) {
-	if msf.shuttingDown() {
+func (client *Client) logf(lv logger.Level, format string, log ...interface{}) {
+	if client.shuttingDown() {
 		return
 	}
-	msf.logger.Printf(lv, "msfrpc-client", format, log...)
+	client.logger.Printf(lv, "msfrpc-client", format, log...)
 }
 
-func (msf *MSFRPC) log(lv logger.Level, log ...interface{}) {
-	if msf.shuttingDown() {
+func (client *Client) log(lv logger.Level, log ...interface{}) {
+	if client.shuttingDown() {
 		return
 	}
-	msf.logger.Println(lv, "msfrpc-client", log...)
+	client.logger.Println(lv, "msfrpc-client", log...)
 }
 
-func (msf *MSFRPC) addIOResourceCount(delta int) {
-	msf.counter.Add(delta)
+func (client *Client) addIOResourceCount(delta int) {
+	client.counter.Add(delta)
 }
 
-func (msf *MSFRPC) trackConsole(console *Console, add bool) bool {
-	msf.rwm.Lock()
-	defer msf.rwm.Unlock()
+func (client *Client) trackConsole(console *Console, add bool) bool {
+	client.rwm.Lock()
+	defer client.rwm.Unlock()
 	if add {
-		if msf.shuttingDown() {
+		if client.shuttingDown() {
 			return false
 		}
-		msf.consoles[console.id] = console
+		client.consoles[console.id] = console
 	} else {
-		delete(msf.consoles, console.id)
+		delete(client.consoles, console.id)
 	}
 	return true
 }
 
-func (msf *MSFRPC) trackShell(shell *Shell, add bool) bool {
-	msf.rwm.Lock()
-	defer msf.rwm.Unlock()
+func (client *Client) trackShell(shell *Shell, add bool) bool {
+	client.rwm.Lock()
+	defer client.rwm.Unlock()
 	if add {
-		if msf.shuttingDown() {
+		if client.shuttingDown() {
 			return false
 		}
-		msf.shells[shell.id] = shell
+		client.shells[shell.id] = shell
 	} else {
-		delete(msf.shells, shell.id)
+		delete(client.shells, shell.id)
 	}
 	return true
 }
 
-func (msf *MSFRPC) trackMeterpreter(mp *Meterpreter, add bool) bool {
-	msf.rwm.Lock()
-	defer msf.rwm.Unlock()
+func (client *Client) trackMeterpreter(mp *Meterpreter, add bool) bool {
+	client.rwm.Lock()
+	defer client.rwm.Unlock()
 	if add {
-		if msf.shuttingDown() {
+		if client.shuttingDown() {
 			return false
 		}
-		msf.meterpreters[mp.id] = mp
+		client.meterpreters[mp.id] = mp
 	} else {
-		delete(msf.meterpreters, mp.id)
+		delete(client.meterpreters, mp.id)
 	}
 	return true
 }
 
 // GetConsole is used to get console by id.
-func (msf *MSFRPC) GetConsole(id string) (*Console, error) {
-	msf.rwm.RLock()
-	defer msf.rwm.RUnlock()
-	if console, ok := msf.consoles[id]; ok {
+func (client *Client) GetConsole(id string) (*Console, error) {
+	client.rwm.RLock()
+	defer client.rwm.RUnlock()
+	if console, ok := client.consoles[id]; ok {
 		return console, nil
 	}
 	return nil, errors.Errorf("console \"%s\" doesn't exist", id)
 }
 
 // GetShell is used to get shell by id.
-func (msf *MSFRPC) GetShell(id uint64) (*Shell, error) {
-	msf.rwm.RLock()
-	defer msf.rwm.RUnlock()
-	if shell, ok := msf.shells[id]; ok {
+func (client *Client) GetShell(id uint64) (*Shell, error) {
+	client.rwm.RLock()
+	defer client.rwm.RUnlock()
+	if shell, ok := client.shells[id]; ok {
 		return shell, nil
 	}
 	return nil, errors.Errorf("shell \"%d\" doesn't exist", id)
 }
 
 // GetMeterpreter is used to get meterpreter by id.
-func (msf *MSFRPC) GetMeterpreter(id uint64) (*Meterpreter, error) {
-	msf.rwm.RLock()
-	defer msf.rwm.RUnlock()
-	if meterpreter, ok := msf.meterpreters[id]; ok {
+func (client *Client) GetMeterpreter(id uint64) (*Meterpreter, error) {
+	client.rwm.RLock()
+	defer client.rwm.RUnlock()
+	if meterpreter, ok := client.meterpreters[id]; ok {
 		return meterpreter, nil
 	}
 	return nil, errors.Errorf("meterpreter \"%d\" doesn't exist", id)
 }
 
 // Close is used to logout metasploit RPC and destroy all objects.
-func (msf *MSFRPC) Close() error {
-	err := msf.AuthLogout(msf.GetToken())
+func (client *Client) Close() error {
+	err := client.AuthLogout(client.GetToken())
 	if err != nil {
 		return err
 	}
-	msf.close()
-	msf.counter.Wait()
+	client.close()
+	client.counter.Wait()
 	return nil
 }
 
 // Kill is used to logout metasploit RPC when can't connect target.
-func (msf *MSFRPC) Kill() {
-	err := msf.AuthLogout(msf.GetToken())
+func (client *Client) Kill() {
+	err := client.AuthLogout(client.GetToken())
 	if err != nil {
-		msf.log(logger.Warning, "appear error when kill msfrpc:", err)
+		client.log(logger.Warning, "appear error when kill msfrpc:", err)
 	}
-	msf.close()
-	msf.counter.Wait()
+	client.close()
+	client.counter.Wait()
 }
 
-func (msf *MSFRPC) close() {
-	msf.rwm.Lock()
-	defer msf.rwm.Unlock()
-	atomic.StoreInt32(&msf.inShutdown, 1)
+func (client *Client) close() {
+	client.rwm.Lock()
+	defer client.rwm.Unlock()
+	atomic.StoreInt32(&client.inShutdown, 1)
 	// close all consoles
-	for _, console := range msf.consoles {
+	for _, console := range client.consoles {
 		_ = console.Close()
 	}
 	// close all shells
-	for _, shell := range msf.shells {
+	for _, shell := range client.shells {
 		_ = shell.Close()
 	}
 	// close all meterpreters
-	for _, meterpreter := range msf.meterpreters {
+	for _, meterpreter := range client.meterpreters {
 		_ = meterpreter.Close()
 	}
-	msf.cancel()
-	msf.client.CloseIdleConnections()
+	client.cancel()
+	client.client.CloseIdleConnections()
 }

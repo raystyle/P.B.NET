@@ -157,7 +157,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func testAddJob(ctx context.Context, t *testing.T, msfrpc *MSFRPC) string {
+func testAddJob(ctx context.Context, t *testing.T, msfrpc *Client) string {
 	name := "multi/handler"
 	opts := make(map[string]interface{})
 	opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
@@ -1127,7 +1127,7 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		m := &MSFRPC{}
+		m := &Client{}
 		patch := func(interface{}, context.Context) ([]*DBWorkspace, error) {
 			panic(monkey.Panic)
 		}
@@ -1165,7 +1165,7 @@ func TestMonitor_log(t *testing.T) {
 		interval = 25 * time.Millisecond
 	)
 
-	msfrpc, err := NewMSFRPC(testAddress, username, password, logger.Test, nil)
+	msfrpc, err := NewClient(testAddress, username, password, logger.Test, nil)
 	require.NoError(t, err)
 	msfrpc.token = "TEST"
 
@@ -1200,7 +1200,7 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 		interval = 25 * time.Millisecond
 	)
 
-	msfrpc, err := NewMSFRPC(testAddress, username, password, logger.Test, nil)
+	msfrpc, err := NewClient(testAddress, username, password, logger.Test, nil)
 	require.NoError(t, err)
 	msfrpc.token = "TEST"
 

@@ -9,15 +9,15 @@ import (
 // PluginLoad is used to load the specified plugin in the framework instance. The Options
 // parameter can be used to specify initialization options to the plugin. The individual
 // options are different for each plugin.
-func (msf *MSFRPC) PluginLoad(ctx context.Context, name string, opts map[string]string) error {
+func (client *Client) PluginLoad(ctx context.Context, name string, opts map[string]string) error {
 	request := PluginLoadRequest{
 		Method:  MethodPluginLoad,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Name:    name,
 		Options: opts,
 	}
 	var result PluginLoadResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -37,14 +37,14 @@ func (msf *MSFRPC) PluginLoad(ctx context.Context, name string, opts map[string]
 // PluginUnload is used to unload a previously loaded plugin by name. The name is not
 // always identical to the string used to load the plugin in the first place, so callers
 // should check the output of plugin.loaded when there is any confusion.
-func (msf *MSFRPC) PluginUnload(ctx context.Context, name string) error {
+func (client *Client) PluginUnload(ctx context.Context, name string) error {
 	request := PluginUnloadRequest{
 		Method: MethodPluginUnload,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 	}
 	var result PluginUnloadResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -62,13 +62,13 @@ func (msf *MSFRPC) PluginUnload(ctx context.Context, name string) error {
 }
 
 // PluginLoaded is used to enumerate all currently loaded plugins.
-func (msf *MSFRPC) PluginLoaded(ctx context.Context) ([]string, error) {
+func (client *Client) PluginLoaded(ctx context.Context) ([]string, error) {
 	request := PluginLoadedRequest{
 		Method: MethodPluginLoaded,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result PluginLoadedResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}

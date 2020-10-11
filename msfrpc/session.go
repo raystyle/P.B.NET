@@ -16,16 +16,16 @@ import (
 )
 
 // SessionList is used to list all active sessions in the framework instance.
-func (msf *MSFRPC) SessionList(ctx context.Context) (map[uint64]*SessionInfo, error) {
+func (client *Client) SessionList(ctx context.Context) (map[uint64]*SessionInfo, error) {
 	request := SessionListRequest{
 		Method: MethodSessionList,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var (
 		result   map[uint64]*SessionInfo
 		msfError MSFError
 	)
-	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	err := client.sendWithReplace(ctx, &request, &result, &msfError)
 	if err != nil {
 		return nil, err
 	}
@@ -39,14 +39,14 @@ func (msf *MSFRPC) SessionList(ctx context.Context) (map[uint64]*SessionInfo, er
 }
 
 // SessionStop is used to terminate the session specified in the SessionID parameter.
-func (msf *MSFRPC) SessionStop(ctx context.Context, id uint64) error {
+func (client *Client) SessionStop(ctx context.Context, id uint64) error {
 	request := SessionStopRequest{
 		Method: MethodSessionStop,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result SessionStopResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -72,14 +72,14 @@ func (msf *MSFRPC) SessionStop(ctx context.Context, id uint64) error {
 // to shell.read, only data since the previous read will be returned. By continuing
 // to track the ReadPointer returned by the last call and pass it into the next call,
 // multiple readers can all follow the output from a single session without conflict.
-func (msf *MSFRPC) SessionShellRead(ctx context.Context, id uint64) (*SessionShellReadResult, error) {
+func (client *Client) SessionShellRead(ctx context.Context, id uint64) (*SessionShellReadResult, error) {
 	request := SessionShellReadRequest{
 		Method: MethodSessionShellRead,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result SessionShellReadResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -98,18 +98,18 @@ func (msf *MSFRPC) SessionShellRead(ctx context.Context, id uint64) (*SessionShe
 
 // SessionShellWrite is used to provide the ability to write data into an active shell
 // session. Most sessions require a terminating newline before they will process a command.
-func (msf *MSFRPC) SessionShellWrite(ctx context.Context, id uint64, data string) (uint64, error) {
+func (client *Client) SessionShellWrite(ctx context.Context, id uint64, data string) (uint64, error) {
 	if len(data) == 0 {
 		return 0, nil
 	}
 	request := SessionShellWriteRequest{
 		Method: MethodSessionShellWrite,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 		Data:   data,
 	}
 	var result SessionShellWriteResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return 0, err
 	}
@@ -132,7 +132,7 @@ func (msf *MSFRPC) SessionShellWrite(ctx context.Context, id uint64, data string
 // and that the host and port of this handler is provided to this method.
 //
 // API from MSFRPC will leaks, so we do it self.
-func (msf *MSFRPC) SessionUpgrade(
+func (client *Client) SessionUpgrade(
 	ctx context.Context,
 	id uint64,
 	host string,
@@ -141,7 +141,7 @@ func (msf *MSFRPC) SessionUpgrade(
 	wait time.Duration,
 ) (*ModuleExecuteResult, error) {
 	// get operating system
-	sessions, err := msf.SessionList(ctx)
+	sessions, err := client.SessionList(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (msf *MSFRPC) SessionUpgrade(
 	opts["LHOST"] = host
 	opts["LPORT"] = port
 	opts["HANDLER"] = false
-	result, err := msf.ModuleExecute(ctx, "post", module, opts)
+	result, err := client.ModuleExecute(ctx, "post", module, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func (msf *MSFRPC) SessionUpgrade(
 	}
 	// must input some command, power shell will start work
 	if os == "windows" {
-		_, err = msf.SessionShellWrite(ctx, id, "\nwhoami\n")
+		_, err = client.SessionShellWrite(ctx, id, "\nwhoami\n")
 	}
 	// wait some time for powershell
 	timer.Reset(3 * time.Second)
@@ -194,14 +194,14 @@ func (msf *MSFRPC) SessionUpgrade(
 // Meterpreter session console. As noted in the session.meterpreter_write documentation,
 // this method is problematic when it comes to concurrent access by multiple callers and
 // Post modules or Scripts should be used instead.
-func (msf *MSFRPC) SessionMeterpreterRead(ctx context.Context, id uint64) (string, error) {
+func (client *Client) SessionMeterpreterRead(ctx context.Context, id uint64) (string, error) {
 	request := SessionMeterpreterReadRequest{
 		Method: MethodSessionMeterpreterRead,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result SessionMeterpreterReadResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return "", err
 	}
@@ -226,18 +226,18 @@ func (msf *MSFRPC) SessionMeterpreterRead(ctx context.Context, id uint64) (strin
 // Concurrent access to a Meterpreter session is best handled by running Post modules
 // or Scripts. A newline does not need to be specified unless the console is currently
 // tied to an interactive channel, such as a sub-shell.
-func (msf *MSFRPC) SessionMeterpreterWrite(ctx context.Context, id uint64, data string) error {
+func (client *Client) SessionMeterpreterWrite(ctx context.Context, id uint64, data string) error {
 	if len(data) == 0 {
 		return nil
 	}
 	request := SessionMeterpreterWriteRequest{
 		Method: MethodSessionMeterpreterWrite,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 		Data:   data,
 	}
 	var result SessionMeterpreterWriteResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -257,14 +257,14 @@ func (msf *MSFRPC) SessionMeterpreterWrite(ctx context.Context, id uint64, data 
 // SessionMeterpreterSessionDetach is used to stop any current channel or sub-shell
 // interaction taking place by the console associated with the specified Meterpreter
 // session. This simulates the console user pressing the Control+Z hotkey.
-func (msf *MSFRPC) SessionMeterpreterSessionDetach(ctx context.Context, id uint64) error {
+func (client *Client) SessionMeterpreterSessionDetach(ctx context.Context, id uint64) error {
 	request := SessionMeterpreterSessionDetachRequest{
 		Method: MethodSessionMeterpreterSessionDetach,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result SessionMeterpreterSessionDetachResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -284,14 +284,14 @@ func (msf *MSFRPC) SessionMeterpreterSessionDetach(ctx context.Context, id uint6
 // SessionMeterpreterSessionKill is used to terminate the current channel or sub-shell
 // that the console associated with the specified Meterpreter session is interacting with.
 // This simulates the console user pressing the Control+C hotkey.
-func (msf *MSFRPC) SessionMeterpreterSessionKill(ctx context.Context, id uint64) error {
+func (client *Client) SessionMeterpreterSessionKill(ctx context.Context, id uint64) error {
 	request := SessionMeterpreterSessionKillRequest{
 		Method: MethodSessionMeterpreterSessionKill,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result SessionMeterpreterSessionKillResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -313,15 +313,15 @@ func (msf *MSFRPC) SessionMeterpreterSessionKill(ctx context.Context, id uint64)
 // to session.meterpreter_run_single over session.meterpreter_write is that this method
 // will always run the Meterpreter command, even if the console tied to this sessions is
 // interacting with a channel.
-func (msf *MSFRPC) SessionMeterpreterRunSingle(ctx context.Context, id uint64, cmd string) error {
+func (client *Client) SessionMeterpreterRunSingle(ctx context.Context, id uint64, cmd string) error {
 	request := SessionMeterpreterRunSingleRequest{
 		Method:  MethodSessionMeterpreterRunSingle,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		ID:      id,
 		Command: cmd,
 	}
 	var result SessionMeterpreterRunSingleResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -341,14 +341,14 @@ func (msf *MSFRPC) SessionMeterpreterRunSingle(ctx context.Context, id uint64, c
 // SessionCompatibleModules is used to return a list of Post modules that are compatible
 // with the specified session. This includes matching Meterpreter Post modules to Meterpreter
 // sessions and enforcing platform and architecture restrictions.
-func (msf *MSFRPC) SessionCompatibleModules(ctx context.Context, id uint64) ([]string, error) {
+func (client *Client) SessionCompatibleModules(ctx context.Context, id uint64) ([]string, error) {
 	request := SessionCompatibleModulesRequest{
 		Method: MethodSessionCompatibleModules,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result SessionCompatibleModulesResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +363,7 @@ func (msf *MSFRPC) SessionCompatibleModules(ctx context.Context, id uint64) ([]s
 
 // Shell is used to provide a more gracefully io. It implemented io.ReadWriteCloser.
 type Shell struct {
-	ctx *MSFRPC
+	ctx *Client
 
 	id       uint64
 	interval time.Duration
@@ -380,12 +380,12 @@ type Shell struct {
 
 // NewShell is used to create a graceful IO stream with shell id.
 // If appear some errors about network, you can use it to attach an exist shell session.
-func (msf *MSFRPC) NewShell(id uint64, interval time.Duration) *Shell {
+func (client *Client) NewShell(id uint64, interval time.Duration) *Shell {
 	if interval < minReadInterval {
 		interval = minReadInterval
 	}
 	shell := Shell{
-		ctx:      msf,
+		ctx:      client,
 		id:       id,
 		interval: interval,
 		logSrc:   fmt.Sprintf("msfrpc-shell-%d", id),
@@ -393,7 +393,7 @@ func (msf *MSFRPC) NewShell(id uint64, interval time.Duration) *Shell {
 	}
 	shell.pr, shell.pw = io.Pipe()
 	shell.context, shell.cancel = context.WithCancel(context.Background())
-	msf.addIOResourceCount(2)
+	client.addIOResourceCount(2)
 	go shell.readLoop()
 	go shell.writeLimiter()
 	return &shell
@@ -527,7 +527,7 @@ func (shell *Shell) close() {
 
 // Meterpreter is used to provide a more gracefully io. It implemented io.ReadWriteCloser.
 type Meterpreter struct {
-	ctx *MSFRPC
+	ctx *Client
 
 	id       uint64
 	interval time.Duration
@@ -544,12 +544,12 @@ type Meterpreter struct {
 
 // NewMeterpreter is used to create a graceful IO stream with meterpreter id.
 // If appear some errors about network, you can use it to attach an exist meterpreter session.
-func (msf *MSFRPC) NewMeterpreter(id uint64, interval time.Duration) *Meterpreter {
+func (client *Client) NewMeterpreter(id uint64, interval time.Duration) *Meterpreter {
 	if interval < minReadInterval {
 		interval = minReadInterval
 	}
 	mp := Meterpreter{
-		ctx:      msf,
+		ctx:      client,
 		id:       id,
 		interval: interval,
 		logSrc:   fmt.Sprintf("msfrpc-meterpreter-%d", id),
@@ -557,7 +557,7 @@ func (msf *MSFRPC) NewMeterpreter(id uint64, interval time.Duration) *Meterprete
 	}
 	mp.pr, mp.pw = io.Pipe()
 	mp.context, mp.cancel = context.WithCancel(context.Background())
-	msf.addIOResourceCount(2)
+	client.addIOResourceCount(2)
 	go mp.readLoop()
 	go mp.writeLimiter()
 	return &mp

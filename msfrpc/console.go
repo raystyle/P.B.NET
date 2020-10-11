@@ -14,13 +14,13 @@ import (
 
 // ConsoleList is used to return a hash of all existing Console IDs, their status,
 // and their prompts.
-func (msf *MSFRPC) ConsoleList(ctx context.Context) ([]*ConsoleInfo, error) {
+func (client *Client) ConsoleList(ctx context.Context) ([]*ConsoleInfo, error) {
 	request := ConsoleListRequest{
 		Method: MethodConsoleList,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result ConsoleListResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (msf *MSFRPC) ConsoleList(ctx context.Context) ([]*ConsoleInfo, error) {
 // integers stored as strings, these may change to become alphanumeric strings in the
 // future. Callers should treat Console IDs as unique strings, not integers, wherever
 // possible.
-func (msf *MSFRPC) ConsoleCreate(ctx context.Context, workspace string) (*ConsoleCreateResult, error) {
+func (client *Client) ConsoleCreate(ctx context.Context, workspace string) (*ConsoleCreateResult, error) {
 	opts := make(map[string]string, 1)
 	if workspace == "" {
 		opts["workspace"] = defaultWorkspace
@@ -51,11 +51,11 @@ func (msf *MSFRPC) ConsoleCreate(ctx context.Context, workspace string) (*Consol
 	}
 	request := ConsoleCreateRequest{
 		Method:  MethodConsoleCreate,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Options: opts,
 	}
 	var result ConsoleCreateResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -65,21 +65,21 @@ func (msf *MSFRPC) ConsoleCreate(ctx context.Context, workspace string) (*Consol
 		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
-	msf.log(logger.Debug, "create console:", result.ID)
+	client.log(logger.Debug, "create console:", result.ID)
 	return &result, nil
 }
 
 // ConsoleDestroy is used to destroy a running console instance by Console ID. Consoles
 // should always be destroyed after the caller is finished to prevent resource leaks on
 // the server side. If an invalid Console ID is specified.
-func (msf *MSFRPC) ConsoleDestroy(ctx context.Context, id string) error {
+func (client *Client) ConsoleDestroy(ctx context.Context, id string) error {
 	request := ConsoleDestroyRequest{
 		Method: MethodConsoleDestroy,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result ConsoleDestroyResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (msf *MSFRPC) ConsoleDestroy(ctx context.Context, id string) error {
 	if result.Result != "success" {
 		return errors.New("invalid console id: " + id)
 	}
-	msf.log(logger.Debug, "destroy console:", id)
+	client.log(logger.Debug, "destroy console:", id)
 	return nil
 }
 
@@ -100,14 +100,14 @@ func (msf *MSFRPC) ConsoleDestroy(ctx context.Context, id string) error {
 // not already been read. The data is returned in the raw form printed by the actual
 // console. Note that a newly allocated console will have the initial banner available
 // to read.
-func (msf *MSFRPC) ConsoleRead(ctx context.Context, id string) (*ConsoleReadResult, error) {
+func (client *Client) ConsoleRead(ctx context.Context, id string) (*ConsoleReadResult, error) {
 	request := ConsoleReadRequest{
 		Method: MethodConsoleRead,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result ConsoleReadResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -127,18 +127,18 @@ func (msf *MSFRPC) ConsoleRead(ctx context.Context, id string) (*ConsoleReadResu
 // ConsoleWrite is used to send data to a specific console, just as if it had been typed
 // by a normal user. This means that most commands will need a newline included at the
 // end for the console to process them properly.
-func (msf *MSFRPC) ConsoleWrite(ctx context.Context, id, data string) (uint64, error) {
+func (client *Client) ConsoleWrite(ctx context.Context, id, data string) (uint64, error) {
 	if len(data) == 0 {
 		return 0, nil
 	}
 	request := ConsoleWriteRequest{
 		Method: MethodConsoleWrite,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 		Data:   data,
 	}
 	var result ConsoleWriteResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return 0, err
 	}
@@ -159,14 +159,14 @@ func (msf *MSFRPC) ConsoleWrite(ctx context.Context, id, data string) (uint64, e
 // Framework Console. This method can be used to return to the main Metasploit prompt
 // after entering an interactive session through a sessions –i console command or through
 // an exploit.
-func (msf *MSFRPC) ConsoleSessionDetach(ctx context.Context, id string) error {
+func (client *Client) ConsoleSessionDetach(ctx context.Context, id string) error {
 	request := ConsoleSessionDetachRequest{
 		Method: MethodConsoleSessionDetach,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result ConsoleSessionDetachResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -188,14 +188,14 @@ func (msf *MSFRPC) ConsoleSessionDetach(ctx context.Context, id string) error {
 // or an exploit was called through the Console API. In most cases, the session API methods
 // are a better way to session termination, while the console.session_detach method is a
 // better way to drop back to the main Metasploit console.
-func (msf *MSFRPC) ConsoleSessionKill(ctx context.Context, id string) error {
+func (client *Client) ConsoleSessionKill(ctx context.Context, id string) error {
 	request := ConsoleSessionKillRequest{
 		Method: MethodConsoleSessionKill,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		ID:     id,
 	}
 	var result ConsoleSessionKillResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -216,7 +216,7 @@ const minReadInterval = 100 * time.Millisecond
 
 // Console is used to provide a more gracefully io. It implemented io.ReadWriteCloser.
 type Console struct {
-	ctx *MSFRPC
+	ctx *Client
 
 	id       string
 	interval time.Duration
@@ -232,29 +232,29 @@ type Console struct {
 }
 
 // NewConsole is used to create a console, it will create a new console(msfrpc).
-func (msf *MSFRPC) NewConsole(
+func (client *Client) NewConsole(
 	ctx context.Context,
 	workspace string,
 	interval time.Duration,
 ) (*Console, error) {
 	// must use mutex(see metasploit document)
-	msf.rwm.Lock()
-	defer msf.rwm.Unlock()
-	result, err := msf.ConsoleCreate(ctx, workspace)
+	client.rwm.Lock()
+	defer client.rwm.Unlock()
+	result, err := client.ConsoleCreate(ctx, workspace)
 	if err != nil {
 		return nil, err
 	}
-	return msf.NewConsoleWithID(result.ID, interval), nil
+	return client.NewConsoleWithID(result.ID, interval), nil
 }
 
 // NewConsoleWithID is used to create a graceful IO stream with console id.
 // If appear some errors about network, you can use it to attach an exist console.
-func (msf *MSFRPC) NewConsoleWithID(id string, interval time.Duration) *Console {
+func (client *Client) NewConsoleWithID(id string, interval time.Duration) *Console {
 	if interval < minReadInterval {
 		interval = minReadInterval
 	}
 	console := Console{
-		ctx:      msf,
+		ctx:      client,
 		id:       id,
 		interval: interval,
 		logSrc:   "msfrpc-console-" + id,
@@ -262,7 +262,7 @@ func (msf *MSFRPC) NewConsoleWithID(id string, interval time.Duration) *Console 
 	}
 	console.pr, console.pw = io.Pipe()
 	console.context, console.cancel = context.WithCancel(context.Background())
-	msf.addIOResourceCount(2)
+	client.addIOResourceCount(2)
 	go console.readLoop()
 	go console.writeLimiter()
 	return &console
@@ -272,7 +272,7 @@ func (console *Console) log(lv logger.Level, log ...interface{}) {
 	console.ctx.logger.Println(lv, console.logSrc, log...)
 }
 
-// readLoop is used to call MSFRPC.ConsoleRead() high frequency and write the output
+// readLoop is used to call Client.ConsoleRead() high frequency and write the output
 // to a pipe and wait user call Read().
 func (console *Console) readLoop() {
 	defer func() {

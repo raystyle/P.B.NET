@@ -10,13 +10,13 @@ import (
 // ModuleExploits is used to returns a list of all loaded exploit modules in the
 // framework instance. Note that the exploit/ prefix is not included in the path
 // name of the return module.
-func (msf *MSFRPC) ModuleExploits(ctx context.Context) ([]string, error) {
+func (client *Client) ModuleExploits(ctx context.Context) ([]string, error) {
 	request := ModuleExploitsRequest{
 		Method: MethodModuleExploits,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result ModuleExploitsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -32,13 +32,13 @@ func (msf *MSFRPC) ModuleExploits(ctx context.Context) ([]string, error) {
 // ModuleAuxiliary is used to returns a list of all loaded auxiliary modules in the
 // framework instance. Note that the auxiliary/ prefix is not included in the path
 // name of the return module.
-func (msf *MSFRPC) ModuleAuxiliary(ctx context.Context) ([]string, error) {
+func (client *Client) ModuleAuxiliary(ctx context.Context) ([]string, error) {
 	request := ModuleAuxiliaryRequest{
 		Method: MethodModuleAuxiliary,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result ModuleAuxiliaryResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -54,13 +54,13 @@ func (msf *MSFRPC) ModuleAuxiliary(ctx context.Context) ([]string, error) {
 // ModulePost is used to returns a list of all loaded post modules in the framework
 // instance. Note that the post/ prefix is not included in the path name of the
 // return module.
-func (msf *MSFRPC) ModulePost(ctx context.Context) ([]string, error) {
+func (client *Client) ModulePost(ctx context.Context) ([]string, error) {
 	request := ModulePostRequest{
 		Method: MethodModulePost,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result ModulePostResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -76,13 +76,13 @@ func (msf *MSFRPC) ModulePost(ctx context.Context) ([]string, error) {
 // ModulePayloads is used to returns a list of all loaded payload modules in the
 // framework instance. Note that the payload/ prefix is not included in the path
 // name of the return module.
-func (msf *MSFRPC) ModulePayloads(ctx context.Context) ([]string, error) {
+func (client *Client) ModulePayloads(ctx context.Context) ([]string, error) {
 	request := ModulePayloadsRequest{
 		Method: MethodModulePayloads,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result ModulePayloadsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -98,13 +98,13 @@ func (msf *MSFRPC) ModulePayloads(ctx context.Context) ([]string, error) {
 // ModuleEncoders is used to returns a list of all loaded encoder modules in the
 // framework instance. Note that the encoder/ prefix is not included in the path
 // name of the return module.
-func (msf *MSFRPC) ModuleEncoders(ctx context.Context) ([]string, error) {
+func (client *Client) ModuleEncoders(ctx context.Context) ([]string, error) {
 	request := ModuleEncodersRequest{
 		Method: MethodModuleEncoders,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result ModuleEncodersResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -120,13 +120,13 @@ func (msf *MSFRPC) ModuleEncoders(ctx context.Context) ([]string, error) {
 // ModuleNops is used to returns a list of all loaded nop modules in the
 // framework instance. Note that the nop/ prefix is not included in the path
 // name of the return module.
-func (msf *MSFRPC) ModuleNops(ctx context.Context) ([]string, error) {
+func (client *Client) ModuleNops(ctx context.Context) ([]string, error) {
 	request := ModuleNopsRequest{
 		Method: MethodModuleNops,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result ModuleNopsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -142,13 +142,13 @@ func (msf *MSFRPC) ModuleNops(ctx context.Context) ([]string, error) {
 // ModuleEvasion is used to returns a list of all loaded evasion modules in the
 // framework instance. Note that the evasion/ prefix is not included in the path
 // name of the return module.
-func (msf *MSFRPC) ModuleEvasion(ctx context.Context) ([]string, error) {
+func (client *Client) ModuleEvasion(ctx context.Context) ([]string, error) {
 	request := ModuleEvasionRequest{
 		Method: MethodModuleEvasion,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result ModuleEvasionResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -165,15 +165,15 @@ func (msf *MSFRPC) ModuleEvasion(ctx context.Context) ([]string, error) {
 // module. The ModuleType should be one "exploit", "auxiliary", "post", "payload",
 // "encoder", and "nop". The ModuleName can either include module type prefix
 // (exploit/) or not.
-func (msf *MSFRPC) ModuleInfo(ctx context.Context, typ, name string) (*ModuleInfoResult, error) {
+func (client *Client) ModuleInfo(ctx context.Context, typ, name string) (*ModuleInfoResult, error) {
 	request := ModuleInfoRequest{
 		Method: MethodModuleInfo,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Type:   typ,
 		Name:   name,
 	}
 	var result ModuleInfoResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -192,10 +192,10 @@ func (msf *MSFRPC) ModuleInfo(ctx context.Context, typ, name string) (*ModuleInf
 // ModuleOptions is used to returns a hash of datastore options for the specified module.
 // The ModuleType should be one "exploit", "auxiliary", "post", "payload", "encoder", and
 // "nop". The ModuleName can either include module type prefix (exploit/) or not.
-func (msf *MSFRPC) ModuleOptions(ctx context.Context, typ, name string) (map[string]*ModuleSpecialOption, error) {
+func (client *Client) ModuleOptions(ctx context.Context, typ, name string) (map[string]*ModuleSpecialOption, error) {
 	request := ModuleOptionsRequest{
 		Method: MethodModuleOptions,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Type:   typ,
 		Name:   name,
 	}
@@ -203,7 +203,7 @@ func (msf *MSFRPC) ModuleOptions(ctx context.Context, typ, name string) (map[str
 		result   map[string]*ModuleSpecialOption
 		msfError MSFError
 	)
-	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	err := client.sendWithReplace(ctx, &request, &result, &msfError)
 	if err != nil {
 		return nil, err
 	}
@@ -221,14 +221,14 @@ func (msf *MSFRPC) ModuleOptions(ctx context.Context, typ, name string) (map[str
 
 // ModuleCompatiblePayloads is used to returns a list of payloads that are compatible
 // with the exploit module name specified.
-func (msf *MSFRPC) ModuleCompatiblePayloads(ctx context.Context, name string) ([]string, error) {
+func (client *Client) ModuleCompatiblePayloads(ctx context.Context, name string) ([]string, error) {
 	request := ModuleCompatiblePayloadsRequest{
 		Method: MethodModuleCompatiblePayloads,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 	}
 	var result ModuleCompatiblePayloadsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -249,19 +249,19 @@ func (msf *MSFRPC) ModuleCompatiblePayloads(ctx context.Context, name string) ([
 // to those that will work for a specific exploit target. For exploit modules that can
 // attack multiple platforms and operating systems, this is the method used to obtain
 // a list of available payloads after a target has been chosen.
-func (msf *MSFRPC) ModuleTargetCompatiblePayloads(
+func (client *Client) ModuleTargetCompatiblePayloads(
 	ctx context.Context,
 	name string,
 	target uint64,
 ) ([]string, error) {
 	request := ModuleTargetCompatiblePayloadsRequest{
 		Method: MethodModuleTargetCompatiblePayloads,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 		Target: target,
 	}
 	var result ModuleTargetCompatiblePayloadsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -279,14 +279,14 @@ func (msf *MSFRPC) ModuleTargetCompatiblePayloads(
 
 // ModuleCompatibleSessions is used to returns a list of payloads that are compatible
 // with the post module name specified.
-func (msf *MSFRPC) ModuleCompatibleSessions(ctx context.Context, name string) ([]string, error) {
+func (client *Client) ModuleCompatibleSessions(ctx context.Context, name string) ([]string, error) {
 	request := ModuleCompatibleSessionsRequest{
 		Method: MethodModuleCompatibleSessions,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 	}
 	var result ModuleCompatibleSessionsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -304,17 +304,17 @@ func (msf *MSFRPC) ModuleCompatibleSessions(ctx context.Context, name string) ([
 
 // ModuleCompatibleEvasionPayloads is used to returns a list of payloads that are
 // compatible with the evasion module.
-func (msf *MSFRPC) ModuleCompatibleEvasionPayloads(
+func (client *Client) ModuleCompatibleEvasionPayloads(
 	ctx context.Context,
 	name string,
 ) ([]string, error) {
 	request := ModuleCompatibleEvasionPayloadsRequest{
 		Method: MethodModuleCompatibleEvasionPayloads,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 	}
 	var result ModuleCompatibleEvasionPayloadsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -332,19 +332,19 @@ func (msf *MSFRPC) ModuleCompatibleEvasionPayloads(
 
 // ModuleTargetCompatibleEvasionPayloads is used to returns the compatible target-specific
 // payloads for an evasion module.
-func (msf *MSFRPC) ModuleTargetCompatibleEvasionPayloads(
+func (client *Client) ModuleTargetCompatibleEvasionPayloads(
 	ctx context.Context,
 	name string,
 	target uint64,
 ) ([]string, error) {
 	request := ModuleTargetCompatibleEvasionPayloadsRequest{
 		Method: MethodModuleTargetCompatibleEvasionPayloads,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Name:   name,
 		Target: target,
 	}
 	var result ModuleTargetCompatibleEvasionPayloadsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -361,16 +361,16 @@ func (msf *MSFRPC) ModuleTargetCompatibleEvasionPayloads(
 }
 
 // ModuleEncodeFormats is used to returns a list of encoding formats.
-func (msf *MSFRPC) ModuleEncodeFormats(ctx context.Context) ([]string, error) {
+func (client *Client) ModuleEncodeFormats(ctx context.Context) ([]string, error) {
 	request := ModuleEncodeFormatsRequest{
 		Method: MethodModuleEncodeFormats,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var (
 		result   []string
 		msfError MSFError
 	)
-	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	err := client.sendWithReplace(ctx, &request, &result, &msfError)
 	if err != nil {
 		return nil, err
 	}
@@ -384,16 +384,16 @@ func (msf *MSFRPC) ModuleEncodeFormats(ctx context.Context) ([]string, error) {
 }
 
 // ModuleExecutableFormats is used to returns a list of executable format names.
-func (msf *MSFRPC) ModuleExecutableFormats(ctx context.Context) ([]string, error) {
+func (client *Client) ModuleExecutableFormats(ctx context.Context) ([]string, error) {
 	request := ModuleExecutableFormatsRequest{
 		Method: MethodModuleExecutableFormats,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var (
 		result   []string
 		msfError MSFError
 	)
-	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	err := client.sendWithReplace(ctx, &request, &result, &msfError)
 	if err != nil {
 		return nil, err
 	}
@@ -407,16 +407,16 @@ func (msf *MSFRPC) ModuleExecutableFormats(ctx context.Context) ([]string, error
 }
 
 // ModuleTransformFormats is used to returns a list of transform format names.
-func (msf *MSFRPC) ModuleTransformFormats(ctx context.Context) ([]string, error) {
+func (client *Client) ModuleTransformFormats(ctx context.Context) ([]string, error) {
 	request := ModuleTransformFormatsRequest{
 		Method: MethodModuleTransformFormats,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var (
 		result   []string
 		msfError MSFError
 	)
-	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	err := client.sendWithReplace(ctx, &request, &result, &msfError)
 	if err != nil {
 		return nil, err
 	}
@@ -430,16 +430,16 @@ func (msf *MSFRPC) ModuleTransformFormats(ctx context.Context) ([]string, error)
 }
 
 // ModuleEncryptionFormats is used to returns a list of encryption format names.
-func (msf *MSFRPC) ModuleEncryptionFormats(ctx context.Context) ([]string, error) {
+func (client *Client) ModuleEncryptionFormats(ctx context.Context) ([]string, error) {
 	request := ModuleEncryptionFormatsRequest{
 		Method: MethodModuleEncryptionFormats,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var (
 		result   []string
 		msfError MSFError
 	)
-	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	err := client.sendWithReplace(ctx, &request, &result, &msfError)
 	if err != nil {
 		return nil, err
 	}
@@ -453,16 +453,16 @@ func (msf *MSFRPC) ModuleEncryptionFormats(ctx context.Context) ([]string, error
 }
 
 // ModulePlatforms is used to returns a list of platform names.
-func (msf *MSFRPC) ModulePlatforms(ctx context.Context) ([]string, error) {
+func (client *Client) ModulePlatforms(ctx context.Context) ([]string, error) {
 	request := ModulePlatformsRequest{
 		Method: MethodModulePlatforms,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var (
 		result   []string
 		msfError MSFError
 	)
-	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	err := client.sendWithReplace(ctx, &request, &result, &msfError)
 	if err != nil {
 		return nil, err
 	}
@@ -476,16 +476,16 @@ func (msf *MSFRPC) ModulePlatforms(ctx context.Context) ([]string, error) {
 }
 
 // ModuleArchitectures is used to returns a list of architecture names..
-func (msf *MSFRPC) ModuleArchitectures(ctx context.Context) ([]string, error) {
+func (client *Client) ModuleArchitectures(ctx context.Context) ([]string, error) {
 	request := ModuleArchitecturesRequest{
 		Method: MethodModuleArchitectures,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var (
 		result   []string
 		msfError MSFError
 	)
-	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	err := client.sendWithReplace(ctx, &request, &result, &msfError)
 	if err != nil {
 		return nil, err
 	}
@@ -500,7 +500,7 @@ func (msf *MSFRPC) ModuleArchitectures(ctx context.Context) ([]string, error) {
 
 // ModuleEncode is used to provide a way to encode an arbitrary payload (specified
 // as Data) with a specific encoder and set of options.
-func (msf *MSFRPC) ModuleEncode(
+func (client *Client) ModuleEncode(
 	ctx context.Context,
 	data string,
 	encoder string,
@@ -511,13 +511,13 @@ func (msf *MSFRPC) ModuleEncode(
 	}
 	request := ModuleEncodeRequest{
 		Method:  MethodModuleEncode,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Data:    data,
 		Encoder: encoder,
 		Options: opts.toMap(),
 	}
 	var result ModuleEncodeResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return "", err
 	}
@@ -546,7 +546,7 @@ func (msf *MSFRPC) ModuleEncode(
 // the datastore for the payload itself.
 //
 // parameter opts must be map[string]string or *ModuleExecuteOptions.
-func (msf *MSFRPC) ModuleExecute(
+func (client *Client) ModuleExecute(
 	ctx context.Context,
 	typ string,
 	name string,
@@ -554,7 +554,7 @@ func (msf *MSFRPC) ModuleExecute(
 ) (*ModuleExecuteResult, error) {
 	request := ModuleExecuteRequest{
 		Method: MethodModuleExecute,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 		Type:   typ,
 		Name:   name,
 	}
@@ -567,7 +567,7 @@ func (msf *MSFRPC) ModuleExecute(
 		return nil, errors.New("invalid module type: " + typ)
 	}
 	var result ModuleExecuteResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -584,7 +584,7 @@ func (msf *MSFRPC) ModuleExecute(
 }
 
 // ModuleCheck is used to check exploit and auxiliary module.
-func (msf *MSFRPC) ModuleCheck(
+func (client *Client) ModuleCheck(
 	ctx context.Context,
 	typ string,
 	name string,
@@ -597,13 +597,13 @@ func (msf *MSFRPC) ModuleCheck(
 	}
 	request := ModuleCheckRequest{
 		Method:  MethodModuleCheck,
-		Token:   msf.GetToken(),
+		Token:   client.GetToken(),
 		Type:    typ,
 		Name:    name,
 		Options: opts,
 	}
 	var result ModuleCheckResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -620,13 +620,13 @@ func (msf *MSFRPC) ModuleCheck(
 }
 
 // ModuleRunningStats is used to returns the currently running module stats in each state.
-func (msf *MSFRPC) ModuleRunningStats(ctx context.Context) (*ModuleRunningStatsResult, error) {
+func (client *Client) ModuleRunningStats(ctx context.Context) (*ModuleRunningStatsResult, error) {
 	request := ModuleRunningStatsRequest{
 		Method: MethodModuleRunningStats,
-		Token:  msf.GetToken(),
+		Token:  client.GetToken(),
 	}
 	var result ModuleRunningStatsResult
-	err := msf.send(ctx, &request, &result)
+	err := client.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}

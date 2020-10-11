@@ -46,7 +46,7 @@ type WebServer struct {
 }
 
 // NewWebServer is used to create a web server.
-func (msf *MSFRPC) NewWebServer(
+func (client *Client) NewWebServer(
 	username string,
 	password string,
 	hfs http.FileSystem,
@@ -58,7 +58,7 @@ func (msf *MSFRPC) NewWebServer(
 	}
 	// configure web handler.
 	wh := webHandler{
-		ctx:         msf,
+		ctx:         client,
 		maxBodySize: opts.MaxBodySize,
 	}
 	if wh.maxBodySize < minRequestBodySize { // 1 MB
@@ -213,7 +213,7 @@ func (msf *MSFRPC) NewWebServer(
 	}
 	// set web server
 	httpServer.Handler = router
-	httpServer.ErrorLog = logger.Wrap(logger.Warning, "msfrpc-web", msf.logger)
+	httpServer.ErrorLog = logger.Wrap(logger.Warning, "msfrpc-web", client.logger)
 	web := WebServer{
 		server:  httpServer,
 		handler: &wh,
@@ -259,7 +259,7 @@ type hR = http.Request
 type hP = httprouter.Params
 
 type webHandler struct {
-	ctx *MSFRPC
+	ctx *Client
 
 	username    string
 	password    string
