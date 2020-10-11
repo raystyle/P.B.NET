@@ -22,7 +22,7 @@ var testDBOptions = &DBConnectOptions{
 }
 
 func testGenerateMSFRPCAndConnectDB(t *testing.T) *Client {
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	err := msfrpc.DBConnect(context.Background(), testDBOptions)
 	require.NoError(t, err)
 	return msfrpc
@@ -32,7 +32,7 @@ func TestClient_DBConnect(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestClient_DBDisconnect(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -130,7 +130,7 @@ func TestClient_DBStatus(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {

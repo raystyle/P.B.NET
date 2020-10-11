@@ -14,7 +14,7 @@ func TestClient_AuthLogin(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPC(t)
+	msfrpc := testGenerateClient(t)
 
 	t.Run("success", func(t *testing.T) {
 		err := msfrpc.AuthLogin()
@@ -46,7 +46,7 @@ func TestClient_AuthLogout(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPC(t)
+	msfrpc := testGenerateClient(t)
 
 	t.Run("logout self", func(t *testing.T) {
 		err := msfrpc.AuthLogin()
@@ -81,7 +81,7 @@ func TestClient_AuthTokenList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -126,7 +126,7 @@ func TestClient_AuthTokenGenerate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -170,7 +170,7 @@ func TestClient_AuthTokenAdd(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const token = "TEST0123456789012345678901234567"
 
@@ -225,7 +225,7 @@ func TestClient_AuthTokenRemove(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const token = "TEST0123456789012345678901234567"
 

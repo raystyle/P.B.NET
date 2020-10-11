@@ -21,7 +21,7 @@ func TestClient_PluginLoad(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -60,7 +60,7 @@ func TestClient_PluginUnload(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -102,7 +102,7 @@ func TestClient_PluginLoaded(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {

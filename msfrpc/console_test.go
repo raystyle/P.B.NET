@@ -22,7 +22,7 @@ func TestClient_ConsoleList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestClient_ConsoleCreate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const workspace = ""
 
@@ -129,7 +129,7 @@ func TestClient_ConsoleDestroy(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const workspace = ""
 
@@ -172,7 +172,7 @@ func TestClient_ConsoleRead(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const workspace = ""
 
@@ -223,7 +223,7 @@ func TestClient_ConsoleWrite(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const workspace = ""
 
@@ -294,7 +294,7 @@ func TestClient_ConsoleSessionDetach(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const workspace = ""
 
@@ -350,7 +350,7 @@ func TestClient_ConsoleSessionKill(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const workspace = ""
 
@@ -489,7 +489,7 @@ func TestClient_NewConsole(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPC(t)
+	msfrpc := testGenerateClient(t)
 
 	// not login
 	console, err := msfrpc.NewConsole(context.Background(), "", 0)
@@ -507,7 +507,7 @@ func TestConsole_readLoop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 
 	ctx := context.Background()
 
@@ -583,7 +583,7 @@ func TestConsole_readLoop(t *testing.T) {
 		testsuite.IsDestroyed(t, console)
 
 		// destroy opened console
-		msfrpc = testGenerateMSFRPCAndLogin(t)
+		msfrpc = testGenerateClientAndLogin(t)
 
 		err = msfrpc.ConsoleDestroy(ctx, id)
 		require.NoError(t, err)
@@ -733,7 +733,7 @@ func TestConsole_writeLimiter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPC(t)
+	msfrpc := testGenerateClient(t)
 	// force setting IdleConnTimeout for prevent net/http call time.Reset()
 	msfrpc.client.Transport.(*http.Transport).IdleConnTimeout = 0
 	err := msfrpc.AuthLogin()

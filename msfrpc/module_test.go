@@ -18,7 +18,7 @@ func TestClient_ModuleExploits(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -58,7 +58,7 @@ func TestClient_ModuleAuxiliary(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestClient_ModulePost(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -138,7 +138,7 @@ func TestClient_ModulePayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -178,7 +178,7 @@ func TestClient_ModuleEncoders(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -218,7 +218,7 @@ func TestClient_ModuleNops(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -258,7 +258,7 @@ func TestClient_ModuleEvasion(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -298,7 +298,7 @@ func TestClient_ModuleInfo(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -468,7 +468,7 @@ func TestClient_ModuleOptions(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -522,7 +522,7 @@ func TestClient_ModuleCompatiblePayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -567,7 +567,7 @@ func TestClient_ModuleTargetCompatiblePayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	const (
@@ -618,7 +618,7 @@ func TestClient_ModuleCompatibleSessions(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const module = "post/windows/gather/enum_proxy"
 
@@ -665,7 +665,7 @@ func TestClient_ModuleCompatibleEvasionPayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const module = "windows/windows_defender_exe"
 
@@ -711,7 +711,7 @@ func TestClient_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	const (
@@ -762,7 +762,7 @@ func TestClient_ModuleEncodeFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -801,7 +801,7 @@ func TestClient_ModuleExecutableFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -840,7 +840,7 @@ func TestClient_ModuleTransformFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 
 	ctx := context.Background()
 
@@ -880,7 +880,7 @@ func TestClient_ModuleEncryptionFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -919,7 +919,7 @@ func TestClient_ModulePlatforms(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -958,7 +958,7 @@ func TestClient_ModuleArchitectures(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -997,7 +997,7 @@ func TestClient_ModuleEncode(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	const (
@@ -1067,7 +1067,7 @@ func TestClient_ModuleExecute(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("exploit", func(t *testing.T) {
@@ -1176,7 +1176,7 @@ func TestClient_ModuleCheck(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -1248,7 +1248,7 @@ func TestClient_ModuleRunningStats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {

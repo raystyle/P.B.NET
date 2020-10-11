@@ -105,7 +105,7 @@ func TestClient_SessionList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestClient_SessionStop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -191,7 +191,7 @@ func TestClient_SessionShellRead(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -240,7 +240,7 @@ func TestClient_SessionShellWrite(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -390,7 +390,7 @@ func TestClient_SessionUpgrade(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -466,7 +466,7 @@ func TestClient_SessionUpgrade(t *testing.T) {
 	file, id := testCreateShellSessionWithProgram(t, msfrpc, "55006")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateMSFRPCAndLogin(t)
+		msfrpc := testGenerateClientAndLogin(t)
 
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
@@ -548,7 +548,7 @@ func TestClient_SessionMeterpreterRead(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -597,7 +597,7 @@ func TestClient_SessionMeterpreterWrite(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -658,7 +658,7 @@ func TestClient_SessionMeterpreterSessionDetach(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -705,7 +705,7 @@ func TestClient_SessionMeterpreterSessionKill(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -752,7 +752,7 @@ func TestClient_SessionMeterpreterRunSingle(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -808,7 +808,7 @@ func TestClient_SessionCompatibleModules(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("shell", func(t *testing.T) {
@@ -953,7 +953,7 @@ func TestShell_readLoop(t *testing.T) {
 	id := testCreateShellSession(t, msfrpc, "55301")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateMSFRPCAndLogin(t)
+		msfrpc := testGenerateClientAndLogin(t)
 
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
@@ -1063,7 +1063,7 @@ func TestShell_writeLimiter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPC(t)
+	msfrpc := testGenerateClient(t)
 
 	// force set for prevent net/http call time.Reset()
 	msfrpc.client.Transport.(*http.Transport).IdleConnTimeout = 0
@@ -1081,7 +1081,7 @@ func TestShell_writeLimiter(t *testing.T) {
 	id := testCreateShellSession(t, msfrpc, "55301")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateMSFRPCAndLogin(t)
+		msfrpc := testGenerateClientAndLogin(t)
 
 		err = msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
@@ -1152,7 +1152,7 @@ func TestShell_Write(t *testing.T) {
 	id := testCreateShellSession(t, msfrpc, "55301")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateMSFRPCAndLogin(t)
+		msfrpc := testGenerateClientAndLogin(t)
 
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
@@ -1270,7 +1270,7 @@ func TestMeterpreter_readLoop(t *testing.T) {
 	id := testCreateMeterpreterSession(t, msfrpc, "55401")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateMSFRPCAndLogin(t)
+		msfrpc := testGenerateClientAndLogin(t)
 
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
@@ -1380,7 +1380,7 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPC(t)
+	msfrpc := testGenerateClient(t)
 
 	// force set for prevent net/http call time.Reset()
 	msfrpc.client.Transport.(*http.Transport).IdleConnTimeout = 0
@@ -1398,7 +1398,7 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 	id := testCreateMeterpreterSession(t, msfrpc, "55402")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateMSFRPCAndLogin(t)
+		msfrpc := testGenerateClientAndLogin(t)
 
 		err = msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
@@ -1469,7 +1469,7 @@ func TestMeterpreter_Write(t *testing.T) {
 	id := testCreateMeterpreterSession(t, msfrpc, "55403")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateMSFRPCAndLogin(t)
+		msfrpc := testGenerateClientAndLogin(t)
 
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
@@ -1509,7 +1509,7 @@ func TestMeterpreter_Detach(t *testing.T) {
 	id := testCreateMeterpreterSession(t, msfrpc, "55404")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateMSFRPCAndLogin(t)
+		msfrpc := testGenerateClientAndLogin(t)
 
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
@@ -1615,7 +1615,7 @@ func TestMeterpreter_Interrupt(t *testing.T) {
 	id := testCreateMeterpreterSession(t, msfrpc, "55405")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateMSFRPCAndLogin(t)
+		msfrpc := testGenerateClientAndLogin(t)
 
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)

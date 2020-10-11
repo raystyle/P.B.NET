@@ -17,7 +17,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 
 	const (
 		interval = 25 * time.Millisecond
@@ -173,7 +173,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const interval = 25 * time.Millisecond
 
@@ -329,7 +329,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const interval = 25 * time.Millisecond
 
@@ -1248,7 +1248,7 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPC(t)
+	msfrpc := testGenerateClient(t)
 
 	const interval = 25 * time.Millisecond
 

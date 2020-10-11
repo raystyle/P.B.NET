@@ -188,15 +188,15 @@ func testMainCheckThread(ctx context.Context, msfrpc *Client) bool {
 	return false
 }
 
-func testGenerateMSFRPC(t *testing.T) *Client {
-	msfrpc, err := NewClient(testAddress, testUsername, testPassword, logger.Test, nil)
+func testGenerateClient(t *testing.T) *Client {
+	client, err := NewClient(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
-	return msfrpc
+	return client
 }
 
-func testGenerateMSFRPCAndLogin(t *testing.T) *Client {
-	msfrpc := testGenerateMSFRPC(t)
-	err := msfrpc.AuthLogin()
+func testGenerateClientAndLogin(t *testing.T) *Client {
+	client := testGenerateClient(t)
+	err := client.AuthLogin()
 	require.NoError(t, err)
-	return msfrpc
+	return client
 }

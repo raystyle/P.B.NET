@@ -32,7 +32,7 @@ func TestNewMSFRPC(t *testing.T) {
 	})
 
 	t.Run("not login", func(t *testing.T) {
-		msfrpc := testGenerateMSFRPC(t)
+		msfrpc := testGenerateClient(t)
 
 		err := msfrpc.Close()
 		require.Error(t, err)
@@ -74,7 +74,7 @@ func TestClient_HijackLogWriter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPC(t)
+	msfrpc := testGenerateClient(t)
 
 	msfrpc.HijackLogWriter()
 
@@ -89,7 +89,7 @@ func TestClient_log(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPC(t)
+	msfrpc := testGenerateClient(t)
 
 	err := msfrpc.Close()
 	require.Error(t, err)
@@ -105,7 +105,7 @@ func TestClient_sendWithReplace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndLogin(t)
+	msfrpc := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	padding := func() {}
@@ -175,7 +175,7 @@ func TestClient_send(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("invalid request", func(t *testing.T) {
-		msfrpc := testGenerateMSFRPC(t)
+		msfrpc := testGenerateClient(t)
 
 		err := msfrpc.send(ctx, func() {}, nil)
 		require.Error(t, err)
@@ -373,7 +373,7 @@ func testPatchSend(f func()) {
 }
 
 func TestClient_GetConsole(t *testing.T) {
-	msfrpc := testGenerateMSFRPC(t)
+	msfrpc := testGenerateClient(t)
 
 	t.Run("exist", func(t *testing.T) {
 		const id = "0"
@@ -401,7 +401,7 @@ func TestClient_GetConsole(t *testing.T) {
 }
 
 func TestClient_GetShell(t *testing.T) {
-	msfrpc := testGenerateMSFRPC(t)
+	msfrpc := testGenerateClient(t)
 
 	t.Run("exist", func(t *testing.T) {
 		const id uint64 = 0
@@ -429,7 +429,7 @@ func TestClient_GetShell(t *testing.T) {
 }
 
 func TestClient_GetMeterpreter(t *testing.T) {
-	msfrpc := testGenerateMSFRPC(t)
+	msfrpc := testGenerateClient(t)
 
 	t.Run("exist", func(t *testing.T) {
 		const id uint64 = 0
@@ -461,7 +461,7 @@ func TestClient_Close(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("ok", func(t *testing.T) {
-		msfrpc := testGenerateMSFRPCAndLogin(t)
+		msfrpc := testGenerateClientAndLogin(t)
 
 		err := msfrpc.Close()
 		require.NoError(t, err)
@@ -470,7 +470,7 @@ func TestClient_Close(t *testing.T) {
 	})
 
 	t.Run("failed to close", func(t *testing.T) {
-		msfrpc := testGenerateMSFRPC(t)
+		msfrpc := testGenerateClient(t)
 
 		err := msfrpc.Close()
 		require.Error(t, err)
