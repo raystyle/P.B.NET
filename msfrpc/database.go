@@ -334,8 +334,8 @@ func (client *Client) DBDelService(ctx context.Context, opts *DBDelServiceOption
 }
 
 // DBReportClient is used to add browser client to database.
-func (client *Client) DBReportClient(ctx context.Context, client *DBReportClient) error {
-	clientCp := *client
+func (client *Client) DBReportClient(ctx context.Context, rc *DBReportClient) error {
+	clientCp := *rc
 	if clientCp.Workspace == "" {
 		clientCp.Workspace = defaultWorkspace
 	}
@@ -816,7 +816,7 @@ func (client *Client) DBEvent(ctx context.Context, opts *DBEventOptions) ([]*DBE
 // DBImportData is used to import external data to the database.
 func (client *Client) DBImportData(ctx context.Context, opts *DBImportDataOptions) error {
 	if len(opts.Data) == 0 {
-		return errors.New("no data")
+		return errors.New("import empty data")
 	}
 	optsCp := *opts
 	if optsCp.Workspace == "" {

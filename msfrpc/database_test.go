@@ -2010,9 +2010,9 @@ func TestClient_DBImportData(t *testing.T) {
 		require.True(t, added)
 	})
 
-	t.Run("no data", func(t *testing.T) {
+	t.Run("import empty data", func(t *testing.T) {
 		err := client.DBImportData(ctx, new(DBImportDataOptions))
-		require.EqualError(t, err, "no data")
+		require.EqualError(t, err, "import empty data")
 	})
 
 	t.Run("invalid workspace", func(t *testing.T) {
