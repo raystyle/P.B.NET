@@ -61,15 +61,15 @@ func Run(env *env.Env, options *Options, stmt ast.Stmt) (interface{}, error) {
 
 // RunContext executes statement in the specified environment with context.
 func RunContext(ctx context.Context, env *env.Env, opts *Options, stmt ast.Stmt) (interface{}, error) {
-	runInfo := runInfo{ctx: ctx, env: env, opts: opts, stmt: stmt, rv: nilValue}
-	if runInfo.opts == nil {
-		runInfo.opts = &Options{}
+	ri := runInfo{ctx: ctx, env: env, opts: opts, stmt: stmt, rv: nilValue}
+	if ri.opts == nil {
+		ri.opts = &Options{}
 	}
-	runInfo.runSingleStmt()
-	if runInfo.err == ErrReturn {
-		runInfo.err = nil
+	ri.runSingleStmt()
+	if ri.err == ErrReturn {
+		ri.err = nil
 	}
-	return runInfo.rv.Interface(), runInfo.err
+	return ri.rv.Interface(), ri.err
 }
 
 // recoverFunc generic recover function.

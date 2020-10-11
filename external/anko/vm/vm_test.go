@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"project/external/anko/ast"
+	"project/external/anko/core"
 	"project/external/anko/env"
 	"project/external/anko/parser"
 )
@@ -163,6 +164,8 @@ func runTest(t *testing.T, test *Test, opts *Options) {
 	}
 
 	envTest := env.NewEnv()
+	core.Import(envTest)
+
 	for typeName, typeValue := range test.Types {
 		err = envTest.DefineType(typeName, typeValue)
 		if err != nil {

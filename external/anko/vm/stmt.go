@@ -24,16 +24,24 @@ var (
 // runInfo provides run incoming and outgoing information.
 type runInfo struct {
 	// incoming
-	ctx  context.Context
-	env  *env.Env
-	opts *Options
-	stmt ast.Stmt
-	expr ast.Expr
-	op   ast.Operator
+	ctx    context.Context
+	env    *env.Env
+	opts   *Options
+	defers []deferFunc
+	stmt   ast.Stmt
+	expr   ast.Expr
+	op     ast.Operator
 
 	// outgoing
 	rv  reflect.Value
 	err error
+}
+
+// deferFunc is stacked in the scope.
+type deferFunc struct {
+	Func      reflect.Value
+	Args      []reflect.Value
+	CallSlice bool
 }
 
 // runSingleStmt executes statement in the specified environment with context.
@@ -795,6 +803,55 @@ func (ri *runInfo) runSingleStmt() {
 	case *ast.GoroutineStmt:
 		ri.expr = stmt.Expr
 		ri.invokeExpr()
+
+	// DeferStmt
+	case *ast.DeferStmt:
+		e := ri.env
+		switch t := stmt.Expr.(type) {
+		case *ast.AnonCallExpr:
+			ri.expr = t.Expr
+			ri.invokeExpr()
+			if ri.err != nil {
+				return
+			}
+			f := ri.rv
+			fType := f.Type()
+			callExpr := &ast.CallExpr{Func: f, SubExprs: t.SubExprs, VarArg: t.VarArg}
+			args, useCallSlice := ri.makeCallArgs(fType, true, callExpr)
+			if ri.err != nil {
+				return
+			}
+			ri.defers = append(ri.defers, deferFunc{
+				Func:      f,
+				Args:      args,
+				CallSlice: useCallSlice,
+			})
+		case *ast.CallExpr:
+			f := t.Func
+			if !f.IsValid() {
+				f, ri.err = e.GetValue(t.Name)
+				if ri.err != nil {
+					return
+				}
+				if f.Kind() != reflect.Func {
+					ri.err = newStringError(stmt, "call non-func symbol")
+					return
+				}
+			}
+			fType := f.Type()
+			isRunVMFunction := checkIfRunVMFunction(fType)
+			args, useCallSlice := ri.makeCallArgs(fType, isRunVMFunction, t)
+			if ri.err != nil {
+				return
+			}
+			ri.defers = append(ri.defers, deferFunc{
+				Func:      f,
+				Args:      args,
+				CallSlice: useCallSlice,
+			})
+		default:
+			ri.err = newStringError(stmt, "invalid defer statement")
+		}
 
 	// DeleteStmt
 	case *ast.DeleteStmt:

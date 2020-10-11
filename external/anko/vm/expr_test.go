@@ -2,6 +2,7 @@ package vm
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"reflect"
 	"sync"
@@ -367,6 +368,8 @@ func TestFunctions(t *testing.T) {
 
 		{Script: `a = make(Buffer); n, err = a.WriteString("a"); if err != nil { return err }; n`, Types: map[string]interface{}{"Buffer": bytes.Buffer{}}, RunOutput: 1},
 		{Script: `a = make(Buffer); n, err = a.WriteString("a"); if err != nil { return err }; a.String()`, Types: map[string]interface{}{"Buffer": bytes.Buffer{}}, RunOutput: "a"},
+
+		{Script: `a = 100; func out() { func(){ func(){ a = 1 }() }() }; out()`, RunOutput: int64(1)},
 
 		{Script: `b = {}; c = a(b.c); c`, Input: map[string]interface{}{"a": func(b string) bool {
 			return b == ""
@@ -1010,4 +1013,75 @@ func TestThrows(t *testing.T) {
 		{Script: `(true || func(){throw('abcde')}()) && (false || func(){throw('hello')}())`, RunError: fmt.Errorf("hello")},
 	}
 	runTests(t, tests, &Options{Debug: true})
+}
+
+func TestDefer(t *testing.T) {
+	tests := []*Test{
+		{
+			Script: `
+a = []
+func add(n) { a += n }
+func aFunc() {
+	var i = 0
+	defer add(i)
+	i++
+	defer add(i)
+	i++
+	defer add(i)
+	i++
+	defer add(i)
+	i++
+	defer add(i)
+}
+aFunc()
+return a
+`,
+			RunOutput: []interface{}{int64(4), int64(3), int64(2), int64(1), int64(0)},
+		},
+		{
+			Script: `
+a = []
+func add(n) { a += n }
+func aFunc() {
+	var i = 0
+	defer add(i)
+	i++
+	defer add(i)
+	i++
+	defer add(i)
+	i++
+	defer add(i)
+	i++
+	defer add(i)
+}
+aFunc()
+return a
+`,
+			RunOutput: []interface{}{int64(4), int64(3), int64(2), int64(1), int64(0)},
+		},
+	}
+	runTests(t, tests, &Options{Debug: true})
+
+	tests = []*Test{
+		{
+			Script: `
+func aFunc() {
+	defer foo()
+}
+aFunc()
+`,
+			RunError: errors.New(`undefined symbol "foo"`),
+		},
+		{
+			Script: `
+foo = 1
+func aFunc() {
+	defer foo()
+}
+aFunc()
+`,
+			RunError: errors.New("call non-func symbol"),
+		},
+	}
+	runTests(t, tests, &Options{Debug: false})
 }

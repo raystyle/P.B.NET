@@ -28,6 +28,7 @@ func (ri *runInfo) funcExpr() {
 	funcType := reflect.FuncOf(inTypes, out, funcExpr.VarArg)
 
 	// for adding env into saved function
+	opts := ri.opts
 	envFunc := ri.env
 
 	// create a function that can be used by reflect.MakeFunc
@@ -35,46 +36,56 @@ func (ri *runInfo) funcExpr() {
 	// returns slice of reflect.Type with two values:
 	// return value of the function and error value of the run
 	runVMFunction := func(in []reflect.Value) []reflect.Value {
-		runInfo := runInfo{
+		ri := runInfo{
 			ctx:  in[0].Interface().(context.Context),
-			opts: ri.opts,
+			opts: opts,
 			env:  envFunc.NewEnv(),
 			stmt: funcExpr.Stmt,
 			rv:   nilValue,
 		}
 		// add Params to newEnv, except last Params
 		for i := 0; i < len(funcExpr.Params)-1; i++ {
-			runInfo.rv = in[i+1].Interface().(reflect.Value)
-			_ = runInfo.env.DefineValue(funcExpr.Params[i], runInfo.rv)
+			ri.rv = in[i+1].Interface().(reflect.Value)
+			_ = ri.env.DefineValue(funcExpr.Params[i], ri.rv)
 		}
 		// add last Params to newEnv
 		if len(funcExpr.Params) > 0 {
 			if funcExpr.VarArg {
 				// function is variadic, add last Params to newEnv without
 				// convert to Interface and then reflect.Value
-				runInfo.rv = in[len(funcExpr.Params)]
-				_ = runInfo.env.DefineValue(funcExpr.Params[len(funcExpr.Params)-1], runInfo.rv)
+				ri.rv = in[len(funcExpr.Params)]
+				_ = ri.env.DefineValue(funcExpr.Params[len(funcExpr.Params)-1], ri.rv)
 			} else {
 				// function is not variadic, add last Params to newEnv
-				runInfo.rv = in[len(funcExpr.Params)].Interface().(reflect.Value)
-				_ = runInfo.env.DefineValue(funcExpr.Params[len(funcExpr.Params)-1], runInfo.rv)
+				ri.rv = in[len(funcExpr.Params)].Interface().(reflect.Value)
+				_ = ri.env.DefineValue(funcExpr.Params[len(funcExpr.Params)-1], ri.rv)
 			}
 		}
-
+		// run defer statements
+		defer func() {
+			for i := len(ri.defers) - 1; i >= 0; i-- {
+				cf := ri.defers[i]
+				if cf.CallSlice {
+					cf.Func.CallSlice(cf.Args)
+				} else {
+					cf.Func.Call(cf.Args)
+				}
+			}
+		}()
 		// run function statements
-		runInfo.runSingleStmt()
-		if runInfo.err != nil && runInfo.err != ErrReturn {
-			runInfo.err = newError(funcExpr, runInfo.err)
+		ri.runSingleStmt()
+		if ri.err != nil && ri.err != ErrReturn {
+			ri.err = newError(funcExpr, ri.err)
 			// return nil value and error
 			// need to do single reflect.ValueOf because nilValue is already reflect.Value of nil
 			// need to do double reflect.ValueOf of newError in order to match
-			err := reflect.ValueOf(reflect.ValueOf(newError(funcExpr, runInfo.err)))
+			err := reflect.ValueOf(reflect.ValueOf(newError(funcExpr, ri.err)))
 			return []reflect.Value{reflectValueNilValue, err}
 		}
 
 		// the reflect.ValueOf of rv is needed to work in the reflect.Value slice
 		// reflectValueErrorNilValue is already a double reflect.ValueOf
-		return []reflect.Value{reflect.ValueOf(runInfo.rv), reflectValueErrorNilValue}
+		return []reflect.Value{reflect.ValueOf(ri.rv), reflectValueErrorNilValue}
 	}
 
 	// make the reflect.Value function that calls runVMFunction
@@ -116,6 +127,8 @@ func (ri *runInfo) anonCallExpr() {
 }
 
 // callExpr handles *ast.CallExpr which calls a function.
+// nolint: gocyclo
+//gocyclo:ignore
 func (ri *runInfo) callExpr() {
 	// Note that if the function type looks the same as the VM function type,
 	// the returned values will probably be wrong.
