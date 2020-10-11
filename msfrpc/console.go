@@ -231,7 +231,7 @@ type Console struct {
 	cancel  context.CancelFunc
 }
 
-// NewConsole is used to create a console, it will create a new console(msfrpc).
+// NewConsole is used to create a console, it will create a new console(client).
 func (client *Client) NewConsole(
 	ctx context.Context,
 	workspace string,

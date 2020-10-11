@@ -18,11 +18,11 @@ func TestClient_ModuleExploits(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		modules, err := msfrpc.ModuleExploits(ctx)
+		modules, err := client.ModuleExploits(ctx)
 		require.NoError(t, err)
 
 		for i := 0; i < len(modules); i++ {
@@ -31,38 +31,38 @@ func TestClient_ModuleExploits(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		modules, err := msfrpc.ModuleExploits(ctx)
+		modules, err := client.ModuleExploits(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, modules)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			modules, err := msfrpc.ModuleExploits(ctx)
+			modules, err := client.ModuleExploits(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleAuxiliary(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		modules, err := msfrpc.ModuleAuxiliary(ctx)
+		modules, err := client.ModuleAuxiliary(ctx)
 		require.NoError(t, err)
 
 		for i := 0; i < len(modules); i++ {
@@ -71,38 +71,38 @@ func TestClient_ModuleAuxiliary(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		modules, err := msfrpc.ModuleAuxiliary(ctx)
+		modules, err := client.ModuleAuxiliary(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, modules)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			modules, err := msfrpc.ModuleAuxiliary(ctx)
+			modules, err := client.ModuleAuxiliary(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModulePost(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		modules, err := msfrpc.ModulePost(ctx)
+		modules, err := client.ModulePost(ctx)
 		require.NoError(t, err)
 
 		for i := 0; i < len(modules); i++ {
@@ -111,38 +111,38 @@ func TestClient_ModulePost(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		modules, err := msfrpc.ModulePost(ctx)
+		modules, err := client.ModulePost(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, modules)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			modules, err := msfrpc.ModulePost(ctx)
+			modules, err := client.ModulePost(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModulePayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		modules, err := msfrpc.ModulePayloads(ctx)
+		modules, err := client.ModulePayloads(ctx)
 		require.NoError(t, err)
 
 		for i := 0; i < len(modules); i++ {
@@ -151,38 +151,38 @@ func TestClient_ModulePayloads(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		modules, err := msfrpc.ModulePayloads(ctx)
+		modules, err := client.ModulePayloads(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, modules)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			modules, err := msfrpc.ModulePayloads(ctx)
+			modules, err := client.ModulePayloads(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleEncoders(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		modules, err := msfrpc.ModuleEncoders(ctx)
+		modules, err := client.ModuleEncoders(ctx)
 		require.NoError(t, err)
 
 		for i := 0; i < len(modules); i++ {
@@ -191,38 +191,38 @@ func TestClient_ModuleEncoders(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		modules, err := msfrpc.ModuleEncoders(ctx)
+		modules, err := client.ModuleEncoders(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, modules)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			modules, err := msfrpc.ModuleEncoders(ctx)
+			modules, err := client.ModuleEncoders(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleNops(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		modules, err := msfrpc.ModuleNops(ctx)
+		modules, err := client.ModuleNops(ctx)
 		require.NoError(t, err)
 
 		for i := 0; i < len(modules); i++ {
@@ -231,38 +231,38 @@ func TestClient_ModuleNops(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		modules, err := msfrpc.ModuleNops(ctx)
+		modules, err := client.ModuleNops(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, modules)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			modules, err := msfrpc.ModuleNops(ctx)
+			modules, err := client.ModuleNops(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleEvasion(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		modules, err := msfrpc.ModuleEvasion(ctx)
+		modules, err := client.ModuleEvasion(ctx)
 		require.NoError(t, err)
 
 		for i := 0; i < len(modules); i++ {
@@ -271,38 +271,38 @@ func TestClient_ModuleEvasion(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		modules, err := msfrpc.ModuleEvasion(ctx)
+		modules, err := client.ModuleEvasion(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, modules)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			modules, err := msfrpc.ModuleEvasion(ctx)
+			modules, err := client.ModuleEvasion(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleInfo(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		info, err := msfrpc.ModuleInfo(ctx, "exploit", "multi/handler")
+		info, err := client.ModuleInfo(ctx, "exploit", "multi/handler")
 		require.NoError(t, err)
 
 		t.Log(info.Type)
@@ -340,13 +340,13 @@ func TestClient_ModuleInfo(t *testing.T) {
 			name string
 			fn   func(context.Context) ([]string, error)
 		}{
-			{"exploit", msfrpc.ModuleExploits},
-			{"auxiliary", msfrpc.ModuleAuxiliary},
-			{"post", msfrpc.ModulePost},
-			{"payload", msfrpc.ModulePayloads},
-			{"encoder", msfrpc.ModuleEncoders},
-			{"nop", msfrpc.ModuleNops},
-			{"evasion", msfrpc.ModuleEvasion},
+			{"exploit", client.ModuleExploits},
+			{"auxiliary", client.ModuleAuxiliary},
+			{"post", client.ModulePost},
+			{"payload", client.ModulePayloads},
+			{"encoder", client.ModuleEncoders},
+			{"nop", client.ModuleNops},
+			{"evasion", client.ModuleEvasion},
 		} {
 			modules, err := testdata.fn(ctx)
 			require.NoError(t, err)
@@ -405,7 +405,7 @@ func TestClient_ModuleInfo(t *testing.T) {
 				if skip {
 					continue
 				}
-				_, err := msfrpc.ModuleInfo(ctx, typ, modules[i])
+				_, err := client.ModuleInfo(ctx, typ, modules[i])
 				if err != nil {
 					fmt.Printf("%s %s %s\n", typ, modules[i], err)
 					invalid = append(invalid, struct {
@@ -435,44 +435,44 @@ func TestClient_ModuleInfo(t *testing.T) {
 	})
 
 	t.Run("invalid module", func(t *testing.T) {
-		info, err := msfrpc.ModuleInfo(ctx, "foo type", "bar name")
+		info, err := client.ModuleInfo(ctx, "foo type", "bar name")
 		require.EqualError(t, err, "invalid module: foo type/bar name")
 		require.Nil(t, info)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		info, err := msfrpc.ModuleInfo(ctx, "foo", "bar")
+		info, err := client.ModuleInfo(ctx, "foo", "bar")
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, info)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			info, err := msfrpc.ModuleInfo(ctx, "foo", "bar")
+			info, err := client.ModuleInfo(ctx, "foo", "bar")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, info)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleOptions(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		options, err := msfrpc.ModuleOptions(ctx, "exploit", "multi/handler")
+		options, err := client.ModuleOptions(ctx, "exploit", "multi/handler")
 		require.NoError(t, err)
 
 		for name, option := range options {
@@ -489,44 +489,44 @@ func TestClient_ModuleOptions(t *testing.T) {
 	})
 
 	t.Run("invalid module", func(t *testing.T) {
-		options, err := msfrpc.ModuleOptions(ctx, "foo type", "bar name")
+		options, err := client.ModuleOptions(ctx, "foo type", "bar name")
 		require.EqualError(t, err, "invalid module: foo type/bar name")
 		require.Nil(t, options)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		options, err := msfrpc.ModuleOptions(ctx, "foo", "bar")
+		options, err := client.ModuleOptions(ctx, "foo", "bar")
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, options)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			options, err := msfrpc.ModuleOptions(ctx, "foo", "bar")
+			options, err := client.ModuleOptions(ctx, "foo", "bar")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, options)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleCompatiblePayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		payloads, err := msfrpc.ModuleCompatiblePayloads(ctx, "exploit/multi/handler")
+		payloads, err := client.ModuleCompatiblePayloads(ctx, "exploit/multi/handler")
 		require.NoError(t, err)
 		for i := 0; i < len(payloads); i++ {
 			t.Log(payloads[i])
@@ -534,40 +534,40 @@ func TestClient_ModuleCompatiblePayloads(t *testing.T) {
 	})
 
 	t.Run("invalid module", func(t *testing.T) {
-		payloads, err := msfrpc.ModuleCompatiblePayloads(ctx, "foo")
+		payloads, err := client.ModuleCompatiblePayloads(ctx, "foo")
 		require.EqualError(t, err, "invalid module: exploit/foo")
 		require.Nil(t, payloads)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		payloads, err := msfrpc.ModuleCompatiblePayloads(ctx, "foo")
+		payloads, err := client.ModuleCompatiblePayloads(ctx, "foo")
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, payloads)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			payloads, err := msfrpc.ModuleCompatiblePayloads(ctx, "foo")
+			payloads, err := client.ModuleCompatiblePayloads(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, payloads)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleTargetCompatiblePayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	const (
@@ -577,7 +577,7 @@ func TestClient_ModuleTargetCompatiblePayloads(t *testing.T) {
 	)
 
 	t.Run("success", func(t *testing.T) {
-		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, module, target)
+		payloads, err := client.ModuleTargetCompatiblePayloads(ctx, module, target)
 		require.NoError(t, err)
 		for i := 0; i < len(payloads); i++ {
 			t.Log(payloads[i])
@@ -585,45 +585,45 @@ func TestClient_ModuleTargetCompatiblePayloads(t *testing.T) {
 	})
 
 	t.Run("invalid module", func(t *testing.T) {
-		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, invalidModule, target)
+		payloads, err := client.ModuleTargetCompatiblePayloads(ctx, invalidModule, target)
 		require.EqualError(t, err, "invalid module: exploit/foo")
 		require.Nil(t, payloads)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, invalidModule, target)
+		payloads, err := client.ModuleTargetCompatiblePayloads(ctx, invalidModule, target)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, payloads)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, invalidModule, target)
+			payloads, err := client.ModuleTargetCompatiblePayloads(ctx, invalidModule, target)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, payloads)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleCompatibleSessions(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const module = "post/windows/gather/enum_proxy"
 
 	t.Run("success", func(t *testing.T) {
-		sessions, err := msfrpc.ModuleCompatibleSessions(ctx, module)
+		sessions, err := client.ModuleCompatibleSessions(ctx, module)
 		require.NoError(t, err)
 		// now is noting
 		for i := 0; i < len(sessions); i++ {
@@ -632,45 +632,45 @@ func TestClient_ModuleCompatibleSessions(t *testing.T) {
 	})
 
 	t.Run("invalid module", func(t *testing.T) {
-		sessions, err := msfrpc.ModuleCompatibleSessions(ctx, "foo")
+		sessions, err := client.ModuleCompatibleSessions(ctx, "foo")
 		require.EqualError(t, err, "invalid module: post/foo")
 		require.Nil(t, sessions)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		sessions, err := msfrpc.ModuleCompatibleSessions(ctx, "foo")
+		sessions, err := client.ModuleCompatibleSessions(ctx, "foo")
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, sessions)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			sessions, err := msfrpc.ModuleCompatibleSessions(ctx, "foo")
+			sessions, err := client.ModuleCompatibleSessions(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, sessions)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleCompatibleEvasionPayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 	const module = "windows/windows_defender_exe"
 
 	t.Run("success", func(t *testing.T) {
-		payloads, err := msfrpc.ModuleCompatibleEvasionPayloads(ctx, module)
+		payloads, err := client.ModuleCompatibleEvasionPayloads(ctx, module)
 		require.NoError(t, err)
 		for i := 0; i < len(payloads); i++ {
 			t.Log(payloads[i])
@@ -678,40 +678,40 @@ func TestClient_ModuleCompatibleEvasionPayloads(t *testing.T) {
 	})
 
 	t.Run("invalid module", func(t *testing.T) {
-		payloads, err := msfrpc.ModuleCompatibleEvasionPayloads(ctx, "foo")
+		payloads, err := client.ModuleCompatibleEvasionPayloads(ctx, "foo")
 		require.EqualError(t, err, "invalid module: evasion/foo")
 		require.Nil(t, payloads)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		payloads, err := msfrpc.ModuleCompatibleEvasionPayloads(ctx, "foo")
+		payloads, err := client.ModuleCompatibleEvasionPayloads(ctx, "foo")
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, payloads)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			payloads, err := msfrpc.ModuleCompatibleEvasionPayloads(ctx, "foo")
+			payloads, err := client.ModuleCompatibleEvasionPayloads(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, payloads)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	const (
@@ -721,7 +721,7 @@ func TestClient_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 	)
 
 	t.Run("success", func(t *testing.T) {
-		payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, module, target)
+		payloads, err := client.ModuleTargetCompatibleEvasionPayloads(ctx, module, target)
 		require.NoError(t, err)
 		for i := 0; i < len(payloads); i++ {
 			t.Log(payloads[i])
@@ -729,44 +729,44 @@ func TestClient_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 	})
 
 	t.Run("invalid module", func(t *testing.T) {
-		payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, invalidModule, target)
+		payloads, err := client.ModuleTargetCompatibleEvasionPayloads(ctx, invalidModule, target)
 		require.EqualError(t, err, "invalid module: evasion/foo")
 		require.Nil(t, payloads)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, invalidModule, target)
+		payloads, err := client.ModuleTargetCompatibleEvasionPayloads(ctx, invalidModule, target)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, payloads)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, invalidModule, target)
+			payloads, err := client.ModuleTargetCompatibleEvasionPayloads(ctx, invalidModule, target)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, payloads)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleEncodeFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		formats, err := msfrpc.ModuleEncodeFormats(ctx)
+		formats, err := client.ModuleEncodeFormats(ctx)
 		require.NoError(t, err)
 		for i := 0; i < len(formats); i++ {
 			t.Log(formats[i])
@@ -774,38 +774,38 @@ func TestClient_ModuleEncodeFormats(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		formats, err := msfrpc.ModuleEncodeFormats(ctx)
+		formats, err := client.ModuleEncodeFormats(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, formats)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			formats, err := msfrpc.ModuleEncodeFormats(ctx)
+			formats, err := client.ModuleEncodeFormats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, formats)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleExecutableFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		formats, err := msfrpc.ModuleExecutableFormats(ctx)
+		formats, err := client.ModuleExecutableFormats(ctx)
 		require.NoError(t, err)
 		for i := 0; i < len(formats); i++ {
 			t.Log(formats[i])
@@ -813,39 +813,39 @@ func TestClient_ModuleExecutableFormats(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		formats, err := msfrpc.ModuleExecutableFormats(ctx)
+		formats, err := client.ModuleExecutableFormats(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, formats)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			formats, err := msfrpc.ModuleExecutableFormats(ctx)
+			formats, err := client.ModuleExecutableFormats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, formats)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleTransformFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		formats, err := msfrpc.ModuleTransformFormats(ctx)
+		formats, err := client.ModuleTransformFormats(ctx)
 		require.NoError(t, err)
 		for i := 0; i < len(formats); i++ {
 			t.Log(formats[i])
@@ -853,38 +853,38 @@ func TestClient_ModuleTransformFormats(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		formats, err := msfrpc.ModuleTransformFormats(ctx)
+		formats, err := client.ModuleTransformFormats(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, formats)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			formats, err := msfrpc.ModuleTransformFormats(ctx)
+			formats, err := client.ModuleTransformFormats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, formats)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleEncryptionFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		formats, err := msfrpc.ModuleEncryptionFormats(ctx)
+		formats, err := client.ModuleEncryptionFormats(ctx)
 		require.NoError(t, err)
 		for i := 0; i < len(formats); i++ {
 			t.Log(formats[i])
@@ -892,38 +892,38 @@ func TestClient_ModuleEncryptionFormats(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		formats, err := msfrpc.ModuleEncryptionFormats(ctx)
+		formats, err := client.ModuleEncryptionFormats(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, formats)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			formats, err := msfrpc.ModuleEncryptionFormats(ctx)
+			formats, err := client.ModuleEncryptionFormats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, formats)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModulePlatforms(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		platforms, err := msfrpc.ModulePlatforms(ctx)
+		platforms, err := client.ModulePlatforms(ctx)
 		require.NoError(t, err)
 		for i := 0; i < len(platforms); i++ {
 			t.Log(platforms[i])
@@ -931,38 +931,38 @@ func TestClient_ModulePlatforms(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		platforms, err := msfrpc.ModulePlatforms(ctx)
+		platforms, err := client.ModulePlatforms(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, platforms)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			platforms, err := msfrpc.ModulePlatforms(ctx)
+			platforms, err := client.ModulePlatforms(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, platforms)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleArchitectures(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		architectures, err := msfrpc.ModuleArchitectures(ctx)
+		architectures, err := client.ModuleArchitectures(ctx)
 		require.NoError(t, err)
 		for i := 0; i < len(architectures); i++ {
 			t.Log(architectures[i])
@@ -970,34 +970,34 @@ func TestClient_ModuleArchitectures(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		architectures, err := msfrpc.ModuleArchitectures(ctx)
+		architectures, err := client.ModuleArchitectures(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, architectures)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			architectures, err := msfrpc.ModuleArchitectures(ctx)
+			architectures, err := client.ModuleArchitectures(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, architectures)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleEncode(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	const (
@@ -1019,13 +1019,13 @@ func TestClient_ModuleEncode(t *testing.T) {
 	}
 
 	t.Run("success", func(t *testing.T) {
-		encoded, err := msfrpc.ModuleEncode(ctx, data, encoder, opts)
+		encoded, err := client.ModuleEncode(ctx, data, encoder, opts)
 		require.NoError(t, err)
 		t.Logf("\n%s\n", encoded)
 	})
 
 	t.Run("no data", func(t *testing.T) {
-		encoded, err := msfrpc.ModuleEncode(ctx, "", encoder, opts)
+		encoded, err := client.ModuleEncode(ctx, "", encoder, opts)
 		require.EqualError(t, err, "no data")
 		require.Zero(t, encoded)
 	})
@@ -1034,40 +1034,40 @@ func TestClient_ModuleEncode(t *testing.T) {
 		opts.Format = "foo"
 		defer func() { opts.Format = "c" }()
 
-		encoded, err := msfrpc.ModuleEncode(ctx, data, encoder, opts)
+		encoded, err := client.ModuleEncode(ctx, data, encoder, opts)
 		require.EqualError(t, err, "invalid format: foo")
 		require.Zero(t, encoded)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		encoded, err := msfrpc.ModuleEncode(ctx, data, encoder, opts)
+		encoded, err := client.ModuleEncode(ctx, data, encoder, opts)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Zero(t, encoded)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			encoded, err := msfrpc.ModuleEncode(ctx, data, encoder, opts)
+			encoded, err := client.ModuleEncode(ctx, data, encoder, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Zero(t, encoded)
 		})
 	})
 
-	err = msfrpc.Close()
+	err = client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleExecute(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("exploit", func(t *testing.T) {
@@ -1079,28 +1079,28 @@ func TestClient_ModuleExecute(t *testing.T) {
 		opts["LPORT"] = "0"
 
 		t.Run("success", func(t *testing.T) {
-			result, err := msfrpc.ModuleExecute(ctx, "exploit", exploit, opts)
+			result, err := client.ModuleExecute(ctx, "exploit", exploit, opts)
 			require.NoError(t, err)
 
 			jobID := strconv.FormatUint(result.JobID, 10)
-			info, err := msfrpc.JobInfo(ctx, jobID)
+			info, err := client.JobInfo(ctx, jobID)
 			require.NoError(t, err)
 			t.Log(info.Name)
 			for key, value := range info.DataStore {
 				t.Log(key, value)
 			}
-			err = msfrpc.JobStop(ctx, jobID)
+			err = client.JobStop(ctx, jobID)
 			require.NoError(t, err)
 		})
 
 		t.Run("invalid port", func(t *testing.T) {
 			opts["LPORT"] = "foo"
 			defer func() { opts["LPORT"] = "0" }()
-			result, err := msfrpc.ModuleExecute(ctx, "exploit", exploit, opts)
+			result, err := client.ModuleExecute(ctx, "exploit", exploit, opts)
 			require.NoError(t, err)
 
 			jobID := strconv.FormatUint(result.JobID, 10)
-			info, err := msfrpc.JobInfo(ctx, jobID)
+			info, err := client.JobInfo(ctx, jobID)
 			require.Error(t, err)
 			require.Nil(t, info)
 		})
@@ -1115,7 +1115,7 @@ func TestClient_ModuleExecute(t *testing.T) {
 		opts.DataStore["LPORT"] = "1999"
 
 		t.Run("success", func(t *testing.T) {
-			result, err := msfrpc.ModuleExecute(ctx, "payload", payload, opts)
+			result, err := client.ModuleExecute(ctx, "payload", payload, opts)
 			require.NoError(t, err)
 			t.Log(result.Payload)
 		})
@@ -1124,14 +1124,14 @@ func TestClient_ModuleExecute(t *testing.T) {
 			const errStr = "failed to generate: One or more options failed to validate: LPORT."
 			opts.DataStore["LPORT"] = "foo"
 			defer func() { opts.DataStore["LPORT"] = "1999" }()
-			result, err := msfrpc.ModuleExecute(ctx, "payload", payload, opts)
+			result, err := client.ModuleExecute(ctx, "payload", payload, opts)
 			require.EqualError(t, err, errStr)
 			require.Nil(t, result)
 		})
 	})
 
 	t.Run("invalid module type", func(t *testing.T) {
-		result, err := msfrpc.ModuleExecute(ctx, "foo", "bar", nil)
+		result, err := client.ModuleExecute(ctx, "foo", "bar", nil)
 		require.EqualError(t, err, "invalid module type: foo")
 		require.Nil(t, result)
 	})
@@ -1143,40 +1143,40 @@ func TestClient_ModuleExecute(t *testing.T) {
 	opts := make(map[string]interface{})
 
 	t.Run("invalid module", func(t *testing.T) {
-		result, err := msfrpc.ModuleExecute(ctx, typ, name, opts)
+		result, err := client.ModuleExecute(ctx, typ, name, opts)
 		require.EqualError(t, err, "invalid module: exploit/foo")
 		require.Nil(t, result)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		result, err := msfrpc.ModuleExecute(ctx, typ, name, opts)
+		result, err := client.ModuleExecute(ctx, typ, name, opts)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, result)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			result, err := msfrpc.ModuleExecute(ctx, typ, name, opts)
+			result, err := client.ModuleExecute(ctx, typ, name, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleCheck(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -1189,22 +1189,22 @@ func TestClient_ModuleCheck(t *testing.T) {
 		opts["LHOST"] = "127.0.0.1"
 		opts["LPORT"] = "1999"
 
-		result, err := msfrpc.ModuleCheck(ctx, "exploit", exploit, opts)
+		result, err := client.ModuleCheck(ctx, "exploit", exploit, opts)
 		require.NoError(t, err)
 
 		jobID := strconv.FormatUint(result.JobID, 10)
-		info, err := msfrpc.JobInfo(ctx, jobID)
+		info, err := client.JobInfo(ctx, jobID)
 		require.NoError(t, err)
 		t.Log(info.Name)
 		for key, value := range info.DataStore {
 			t.Log(key, value)
 		}
-		err = msfrpc.JobStop(ctx, jobID)
+		err = client.JobStop(ctx, jobID)
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid module type", func(t *testing.T) {
-		result, err := msfrpc.ModuleCheck(ctx, "foo", "bar", nil)
+		result, err := client.ModuleCheck(ctx, "foo", "bar", nil)
 		require.EqualError(t, err, "invalid module type: foo")
 		require.Nil(t, result)
 	})
@@ -1215,44 +1215,44 @@ func TestClient_ModuleCheck(t *testing.T) {
 	)
 
 	t.Run("invalid module", func(t *testing.T) {
-		result, err := msfrpc.ModuleCheck(ctx, typ, name, nil)
+		result, err := client.ModuleCheck(ctx, typ, name, nil)
 		require.EqualError(t, err, "invalid module: exploit/foo")
 		require.Nil(t, result)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		result, err := msfrpc.ModuleCheck(ctx, typ, name, nil)
+		result, err := client.ModuleCheck(ctx, typ, name, nil)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, result)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			result, err := msfrpc.ModuleCheck(ctx, typ, name, nil)
+			result, err := client.ModuleCheck(ctx, typ, name, nil)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_ModuleRunningStats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		result, err := msfrpc.ModuleRunningStats(ctx)
+		result, err := client.ModuleRunningStats(ctx)
 		require.NoError(t, err)
 
 		for i := 0; i < len(result.Waiting); i++ {
@@ -1267,25 +1267,25 @@ func TestClient_ModuleRunningStats(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		result, err := msfrpc.ModuleRunningStats(ctx)
+		result, err := client.ModuleRunningStats(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, result)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			result, err := msfrpc.ModuleRunningStats(ctx)
+			result, err := client.ModuleRunningStats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }

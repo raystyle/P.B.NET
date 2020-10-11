@@ -381,7 +381,7 @@ func (client *Client) Close() error {
 func (client *Client) Kill() {
 	err := client.AuthLogout(client.GetToken())
 	if err != nil {
-		client.log(logger.Warning, "appear error when kill msfrpc:", err)
+		client.log(logger.Warning, "appear error when kill msfrpc client:", err)
 	}
 	client.close()
 	client.counter.Wait()

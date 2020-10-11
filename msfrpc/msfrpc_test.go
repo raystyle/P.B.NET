@@ -26,9 +26,9 @@ const (
 func TestMain(m *testing.M) {
 	exitCode := m.Run()
 	// create msfrpc
-	msfrpc, err := NewClient(testAddress, testUsername, testPassword, logger.Discard, nil)
+	client, err := NewClient(testAddress, testUsername, testPassword, logger.Discard, nil)
 	testsuite.CheckErrorInTestMain(err)
-	err = msfrpc.AuthLogin()
+	err = client.AuthLogin()
 	testsuite.CheckErrorInTestMain(err)
 	// check leaks
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -40,12 +40,12 @@ func TestMain(m *testing.M) {
 		testMainCheckToken,
 		testMainCheckThread,
 	} {
-		if !check(ctx, msfrpc) {
+		if !check(ctx, client) {
 			time.Sleep(time.Minute)
 			os.Exit(1)
 		}
 	}
-	err = msfrpc.Close()
+	err = client.Close()
 	testsuite.CheckErrorInTestMain(err)
 	// one test main goroutine and two goroutine about
 	// pprof server in internal/testsuite.go
@@ -62,21 +62,21 @@ func TestMain(m *testing.M) {
 		time.Sleep(time.Minute)
 		os.Exit(1)
 	}
-	if !testsuite.Destroyed(msfrpc) {
-		fmt.Println("[warning] msfrpc is not destroyed!")
+	if !testsuite.Destroyed(client) {
+		fmt.Println("[warning] msfrpc client is not destroyed!")
 		time.Sleep(time.Minute)
 		os.Exit(1)
 	}
 	os.Exit(exitCode)
 }
 
-func testMainCheckSession(ctx context.Context, msfrpc *Client) bool {
+func testMainCheckSession(ctx context.Context, client *Client) bool {
 	var (
 		sessions map[uint64]*SessionInfo
 		err      error
 	)
 	for i := 0; i < 30; i++ {
-		sessions, err = msfrpc.SessionList(ctx)
+		sessions, err = client.SessionList(ctx)
 		testsuite.CheckErrorInTestMain(err)
 		if len(sessions) == 0 {
 			return true
@@ -91,13 +91,13 @@ func testMainCheckSession(ctx context.Context, msfrpc *Client) bool {
 	return false
 }
 
-func testMainCheckJob(ctx context.Context, msfrpc *Client) bool {
+func testMainCheckJob(ctx context.Context, client *Client) bool {
 	var (
 		list map[string]string
 		err  error
 	)
 	for i := 0; i < 30; i++ {
-		list, err = msfrpc.JobList(ctx)
+		list, err = client.JobList(ctx)
 		testsuite.CheckErrorInTestMain(err)
 		if len(list) == 0 {
 			return true
@@ -112,13 +112,13 @@ func testMainCheckJob(ctx context.Context, msfrpc *Client) bool {
 	return false
 }
 
-func testMainCheckConsole(ctx context.Context, msfrpc *Client) bool {
+func testMainCheckConsole(ctx context.Context, client *Client) bool {
 	var (
 		consoles []*ConsoleInfo
 		err      error
 	)
 	for i := 0; i < 30; i++ {
-		consoles, err = msfrpc.ConsoleList(ctx)
+		consoles, err = client.ConsoleList(ctx)
 		testsuite.CheckErrorInTestMain(err)
 		if len(consoles) == 0 {
 			return true
@@ -133,13 +133,13 @@ func testMainCheckConsole(ctx context.Context, msfrpc *Client) bool {
 	return false
 }
 
-func testMainCheckToken(ctx context.Context, msfrpc *Client) bool {
+func testMainCheckToken(ctx context.Context, client *Client) bool {
 	var (
 		tokens []string
 		err    error
 	)
 	for i := 0; i < 30; i++ {
-		tokens, err = msfrpc.AuthTokenList(ctx)
+		tokens, err = client.AuthTokenList(ctx)
 		testsuite.CheckErrorInTestMain(err)
 		// include self token
 		if len(tokens) == 1 {
@@ -154,13 +154,13 @@ func testMainCheckToken(ctx context.Context, msfrpc *Client) bool {
 	return false
 }
 
-func testMainCheckThread(ctx context.Context, msfrpc *Client) bool {
+func testMainCheckThread(ctx context.Context, client *Client) bool {
 	var (
 		threads map[uint64]*CoreThreadInfo
 		err     error
 	)
 	for i := 0; i < 30; i++ {
-		threads, err = msfrpc.CoreThreadList(ctx)
+		threads, err = client.CoreThreadList(ctx)
 		testsuite.CheckErrorInTestMain(err)
 		// TODO [external] msfrpcd thread leaks
 		// if you call SessionMeterpreterRead() or SessionMeterpreterWrite()

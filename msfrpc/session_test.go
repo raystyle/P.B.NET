@@ -25,15 +25,15 @@ import (
 	"project/internal/testsuite"
 )
 
-func testCreateShellSession(t *testing.T, msfrpc *Client, port string) uint64 {
-	return testCreateSession(t, msfrpc, "shell", port)
+func testCreateShellSession(t *testing.T, client *Client, port string) uint64 {
+	return testCreateSession(t, client, "shell", port)
 }
 
-func testCreateMeterpreterSession(t *testing.T, msfrpc *Client, port string) uint64 {
-	return testCreateSession(t, msfrpc, "meterpreter", port)
+func testCreateMeterpreterSession(t *testing.T, client *Client, port string) uint64 {
+	return testCreateSession(t, client, "meterpreter", port)
 }
 
-func testCreateSession(t *testing.T, msfrpc *Client, typ, port string) uint64 {
+func testCreateSession(t *testing.T, client *Client, typ, port string) uint64 {
 	ctx := context.Background()
 
 	// select payload
@@ -69,11 +69,11 @@ func testCreateSession(t *testing.T, msfrpc *Client, typ, port string) uint64 {
 	opts["EXITFUNC"] = "thread"
 
 	// start handler
-	mResult, err := msfrpc.ModuleExecute(ctx, "exploit", "multi/handler", opts)
+	mResult, err := client.ModuleExecute(ctx, "exploit", "multi/handler", opts)
 	require.NoError(t, err)
 	defer func() {
 		jobID := strconv.FormatUint(mResult.JobID, 10)
-		err = msfrpc.JobStop(ctx, jobID)
+		err = client.JobStop(ctx, jobID)
 		require.NoError(t, err)
 	}()
 
@@ -84,7 +84,7 @@ func testCreateSession(t *testing.T, msfrpc *Client, typ, port string) uint64 {
 	payloadOpts.DataStore["EXITFUNC"] = "thread"
 	payloadOpts.DataStore["LHOST"] = "127.0.0.1"
 	payloadOpts.DataStore["LPORT"] = port
-	pResult, err := msfrpc.ModuleExecute(ctx, "payload", payload, payloadOpts)
+	pResult, err := client.ModuleExecute(ctx, "payload", payload, payloadOpts)
 	require.NoError(t, err)
 	sc := []byte(pResult.Payload)
 	// execute shellcode and wait some time
@@ -92,7 +92,7 @@ func testCreateSession(t *testing.T, msfrpc *Client, typ, port string) uint64 {
 	time.Sleep(5 * time.Second)
 
 	// check session number
-	sessions, err := msfrpc.SessionList(ctx)
+	sessions, err := client.SessionList(ctx)
 	require.NoError(t, err)
 	require.Len(t, sessions, 1)
 	for id := range sessions {
@@ -105,166 +105,166 @@ func TestClient_SessionList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		testCreateShellSession(t, msfrpc, "55001")
+		testCreateShellSession(t, client, "55001")
 
-		sessions, err := msfrpc.SessionList(ctx)
+		sessions, err := client.SessionList(ctx)
 		require.NoError(t, err)
 		for id, session := range sessions {
 			const format = "id: %d type: %s remote: %s\n"
 			t.Logf(format, id, session.Type, session.TunnelPeer)
 
-			err = msfrpc.SessionStop(ctx, id)
+			err = client.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		sessions, err := msfrpc.SessionList(ctx)
+		sessions, err := client.SessionList(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, sessions)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			sessions, err := msfrpc.SessionList(ctx)
+			sessions, err := client.SessionList(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, sessions)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_SessionStop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		id := testCreateShellSession(t, msfrpc, "55002")
+		id := testCreateShellSession(t, client, "55002")
 
-		err := msfrpc.SessionStop(ctx, id)
+		err := client.SessionStop(ctx, id)
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid session id", func(t *testing.T) {
-		err := msfrpc.SessionStop(ctx, 999)
+		err := client.SessionStop(ctx, 999)
 		require.EqualError(t, err, "unknown session id: 999")
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		err := msfrpc.SessionStop(ctx, 999)
+		err := client.SessionStop(ctx, 999)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.SessionStop(ctx, 999)
+			err := client.SessionStop(ctx, 999)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_SessionShellRead(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		id := testCreateShellSession(t, msfrpc, "55003")
+		id := testCreateShellSession(t, client, "55003")
 		defer func() {
-			err := msfrpc.SessionStop(ctx, id)
+			err := client.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 
-		result, err := msfrpc.SessionShellRead(ctx, id)
+		result, err := client.SessionShellRead(ctx, id)
 		require.NoError(t, err)
 		t.Log(result.Seq, result.Data)
 	})
 
 	t.Run("invalid session id", func(t *testing.T) {
-		result, err := msfrpc.SessionShellRead(ctx, 999)
+		result, err := client.SessionShellRead(ctx, 999)
 		require.EqualError(t, err, "unknown session id: 999")
 		require.Nil(t, result)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		result, err := msfrpc.SessionShellRead(ctx, 999)
+		result, err := client.SessionShellRead(ctx, 999)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, result)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			result, err := msfrpc.SessionShellRead(ctx, 999)
+			result, err := client.SessionShellRead(ctx, 999)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_SessionShellWrite(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		id := testCreateShellSession(t, msfrpc, "55004")
+		id := testCreateShellSession(t, client, "55004")
 		defer func() {
-			err := msfrpc.SessionStop(ctx, id)
+			err := client.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 
-		result, err := msfrpc.SessionShellRead(ctx, id)
+		result, err := client.SessionShellRead(ctx, id)
 		require.NoError(t, err)
 		t.Log(result.Seq, result.Data)
 
-		n, err := msfrpc.SessionShellWrite(ctx, id, "whoami\n")
+		n, err := client.SessionShellWrite(ctx, id, "whoami\n")
 		require.NoError(t, err)
 		require.Equal(t, uint64(7), n)
 
-		result, err = msfrpc.SessionShellRead(ctx, id)
+		result, err = client.SessionShellRead(ctx, id)
 		require.NoError(t, err)
 		t.Log(result.Seq, result.Data)
 	})
 
 	t.Run("no data", func(t *testing.T) {
-		n, err := msfrpc.SessionShellWrite(ctx, 0, "")
+		n, err := client.SessionShellWrite(ctx, 0, "")
 		require.NoError(t, err)
 		require.Zero(t, n)
 	})
@@ -275,37 +275,37 @@ func TestClient_SessionShellWrite(t *testing.T) {
 	)
 
 	t.Run("invalid session id", func(t *testing.T) {
-		n, err := msfrpc.SessionShellWrite(ctx, id, data)
+		n, err := client.SessionShellWrite(ctx, id, data)
 		require.EqualError(t, err, "unknown session id: 999")
 		require.Zero(t, n)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		n, err := msfrpc.SessionShellWrite(ctx, id, data)
+		n, err := client.SessionShellWrite(ctx, id, data)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Zero(t, n)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			n, err := msfrpc.SessionShellWrite(ctx, id, data)
+			n, err := client.SessionShellWrite(ctx, id, data)
 			monkey.IsMonkeyError(t, err)
 			require.Zero(t, n)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 // testCreateShellSessionWithProgram will return file path and session id.
-func testCreateShellSessionWithProgram(t *testing.T, msfrpc *Client, port string) (string, uint64) {
+func testCreateShellSessionWithProgram(t *testing.T, client *Client, port string) (string, uint64) {
 	ctx := context.Background()
 
 	// select payload
@@ -348,11 +348,11 @@ func testCreateShellSessionWithProgram(t *testing.T, msfrpc *Client, port string
 	opts["EXITFUNC"] = "thread"
 
 	// start handler
-	mResult, err := msfrpc.ModuleExecute(ctx, "exploit", "multi/handler", opts)
+	mResult, err := client.ModuleExecute(ctx, "exploit", "multi/handler", opts)
 	require.NoError(t, err)
 	defer func() {
 		jobID := strconv.FormatUint(mResult.JobID, 10)
-		err = msfrpc.JobStop(ctx, jobID)
+		err = client.JobStop(ctx, jobID)
 		require.NoError(t, err)
 	}()
 
@@ -362,7 +362,7 @@ func testCreateShellSessionWithProgram(t *testing.T, msfrpc *Client, port string
 	payloadOpts.DataStore["LPORT"] = port
 
 	payload := opts["PAYLOAD"].(string)
-	pResult, err := msfrpc.ModuleExecute(ctx, "payload", payload, payloadOpts)
+	pResult, err := client.ModuleExecute(ctx, "payload", payload, payloadOpts)
 	require.NoError(t, err)
 
 	// save
@@ -377,7 +377,7 @@ func testCreateShellSessionWithProgram(t *testing.T, msfrpc *Client, port string
 	time.Sleep(5 * time.Second)
 
 	// check session number
-	sessions, err := msfrpc.SessionList(ctx)
+	sessions, err := client.SessionList(ctx)
 	require.NoError(t, err)
 	require.Len(t, sessions, 1)
 	for id := range sessions {
@@ -390,11 +390,11 @@ func TestClient_SessionUpgrade(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		file, id := testCreateShellSessionWithProgram(t, msfrpc, "55005")
+		file, id := testCreateShellSessionWithProgram(t, client, "55005")
 		defer func() {
 			// wait program exit
 			time.Sleep(time.Second)
@@ -426,27 +426,27 @@ func TestClient_SessionUpgrade(t *testing.T) {
 		opts["EXITFUNC"] = "thread"
 
 		// start handler
-		result, err := msfrpc.ModuleExecute(ctx, "exploit", "multi/handler", opts)
+		result, err := client.ModuleExecute(ctx, "exploit", "multi/handler", opts)
 		require.NoError(t, err)
 		defer func() {
 			jobID := strconv.FormatUint(result.JobID, 10)
-			err = msfrpc.JobStop(ctx, jobID)
+			err = client.JobStop(ctx, jobID)
 			require.NoError(t, err)
 		}()
 
-		_, err = msfrpc.SessionUpgrade(ctx, id, host, port, nil, 0)
+		_, err = client.SessionUpgrade(ctx, id, host, port, nil, 0)
 		require.NoError(t, err)
 
 		time.Sleep(5 * time.Second)
 
 		// list session
-		sessions, err := msfrpc.SessionList(ctx)
+		sessions, err := client.SessionList(ctx)
 		require.NoError(t, err)
 		for id, session := range sessions {
 			const format = "id: %d type: %s remote: %s\n"
 			t.Logf(format, id, session.Type, session.TunnelPeer)
 
-			err = msfrpc.SessionStop(ctx, id)
+			err = client.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}
 	})
@@ -458,17 +458,17 @@ func TestClient_SessionUpgrade(t *testing.T) {
 	)
 
 	t.Run("invalid session id", func(t *testing.T) {
-		result, err := msfrpc.SessionUpgrade(ctx, 999, host, port, nil, wait)
+		result, err := client.SessionUpgrade(ctx, 999, host, port, nil, wait)
 		require.EqualError(t, err, "invalid session id: 999")
 		require.Nil(t, result)
 	})
 
-	file, id := testCreateShellSessionWithProgram(t, msfrpc, "55006")
+	file, id := testCreateShellSessionWithProgram(t, client, "55006")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateClientAndLogin(t)
+		client := testGenerateClientAndLogin(t)
 
-		err := msfrpc.SessionStop(ctx, id)
+		err := client.SessionStop(ctx, id)
 		require.NoError(t, err)
 
 		// wait program exit
@@ -477,10 +477,10 @@ func TestClient_SessionUpgrade(t *testing.T) {
 		err = os.Remove(file)
 		require.NoError(t, err)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.NoError(t, err)
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	}()
 
 	t.Run("cancel", func(t *testing.T) {
@@ -491,7 +491,7 @@ func TestClient_SessionUpgrade(t *testing.T) {
 			cancel()
 		}()
 
-		_, err := msfrpc.SessionUpgrade(ctx, id, host, port, nil, wait)
+		_, err := client.SessionUpgrade(ctx, id, host, port, nil, wait)
 		require.Error(t, err)
 	})
 
@@ -503,16 +503,16 @@ func TestClient_SessionUpgrade(t *testing.T) {
 			cancel()
 		}()
 
-		_, err := msfrpc.SessionUpgrade(ctx, id, host, port, nil, wait)
+		_, err := client.SessionUpgrade(ctx, id, host, port, nil, wait)
 		require.Error(t, err)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		result, err := msfrpc.SessionUpgrade(ctx, id, host, port, nil, wait)
+		result, err := client.SessionUpgrade(ctx, id, host, port, nil, wait)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, result)
 	})
@@ -522,97 +522,97 @@ func TestClient_SessionUpgrade(t *testing.T) {
 			interface{}) (*ModuleExecuteResult, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.PatchInstanceMethod(msfrpc, "ModuleExecute", patch)
+		pg := monkey.PatchInstanceMethod(client, "ModuleExecute", patch)
 		defer pg.Unpatch()
 
-		result, err := msfrpc.SessionUpgrade(ctx, id, host, port, nil, wait)
+		result, err := client.SessionUpgrade(ctx, id, host, port, nil, wait)
 		monkey.IsMonkeyError(t, err)
 		require.Nil(t, result)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			result, err := msfrpc.SessionUpgrade(ctx, id, host, port, nil, wait)
+			result, err := client.SessionUpgrade(ctx, id, host, port, nil, wait)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_SessionMeterpreterRead(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		id := testCreateMeterpreterSession(t, msfrpc, "55010")
+		id := testCreateMeterpreterSession(t, client, "55010")
 		defer func() {
-			err := msfrpc.SessionStop(ctx, id)
+			err := client.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 
-		data, err := msfrpc.SessionMeterpreterRead(ctx, id)
+		data, err := client.SessionMeterpreterRead(ctx, id)
 		require.NoError(t, err)
 		t.Log(data)
 	})
 
 	t.Run("invalid session id", func(t *testing.T) {
-		data, err := msfrpc.SessionMeterpreterRead(ctx, 999)
+		data, err := client.SessionMeterpreterRead(ctx, 999)
 		require.EqualError(t, err, "unknown session id: 999")
 		require.Zero(t, data)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		data, err := msfrpc.SessionMeterpreterRead(ctx, 999)
+		data, err := client.SessionMeterpreterRead(ctx, 999)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Zero(t, data)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			data, err := msfrpc.SessionMeterpreterRead(ctx, 999)
+			data, err := client.SessionMeterpreterRead(ctx, 999)
 			monkey.IsMonkeyError(t, err)
 			require.Zero(t, data)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_SessionMeterpreterWrite(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		id := testCreateMeterpreterSession(t, msfrpc, "55011")
+		id := testCreateMeterpreterSession(t, client, "55011")
 		defer func() {
-			err := msfrpc.SessionStop(ctx, id)
+			err := client.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 
-		err := msfrpc.SessionMeterpreterWrite(ctx, id, "sysinfo")
+		err := client.SessionMeterpreterWrite(ctx, id, "sysinfo")
 		require.NoError(t, err)
 
 		time.Sleep(time.Second)
 
-		data, err := msfrpc.SessionMeterpreterRead(ctx, id)
+		data, err := client.SessionMeterpreterRead(ctx, id)
 		require.NoError(t, err)
 		t.Logf("\n%s\n", data)
 	})
@@ -623,151 +623,151 @@ func TestClient_SessionMeterpreterWrite(t *testing.T) {
 	)
 
 	t.Run("no data", func(t *testing.T) {
-		err := msfrpc.SessionMeterpreterWrite(ctx, id, "")
+		err := client.SessionMeterpreterWrite(ctx, id, "")
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid session id", func(t *testing.T) {
-		err := msfrpc.SessionMeterpreterWrite(ctx, id, data)
+		err := client.SessionMeterpreterWrite(ctx, id, data)
 		require.EqualError(t, err, "unknown session id: 999")
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		err := msfrpc.SessionMeterpreterWrite(ctx, id, data)
+		err := client.SessionMeterpreterWrite(ctx, id, data)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.SessionMeterpreterWrite(ctx, id, data)
+			err := client.SessionMeterpreterWrite(ctx, id, data)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_SessionMeterpreterSessionDetach(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		id := testCreateMeterpreterSession(t, msfrpc, "55012")
+		id := testCreateMeterpreterSession(t, client, "55012")
 		defer func() {
-			err := msfrpc.SessionStop(ctx, id)
+			err := client.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 
-		err := msfrpc.SessionMeterpreterSessionDetach(ctx, id)
+		err := client.SessionMeterpreterSessionDetach(ctx, id)
 		require.NoError(t, err)
 	})
 
 	const id = 999
 
 	t.Run("invalid session id", func(t *testing.T) {
-		err := msfrpc.SessionMeterpreterSessionDetach(ctx, id)
+		err := client.SessionMeterpreterSessionDetach(ctx, id)
 		require.EqualError(t, err, "unknown session id: 999")
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		err := msfrpc.SessionMeterpreterSessionDetach(ctx, id)
+		err := client.SessionMeterpreterSessionDetach(ctx, id)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.SessionMeterpreterSessionDetach(ctx, id)
+			err := client.SessionMeterpreterSessionDetach(ctx, id)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_SessionMeterpreterSessionKill(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		id := testCreateMeterpreterSession(t, msfrpc, "55013")
+		id := testCreateMeterpreterSession(t, client, "55013")
 		defer func() {
-			err := msfrpc.SessionStop(ctx, id)
+			err := client.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 
-		err := msfrpc.SessionMeterpreterSessionKill(ctx, id)
+		err := client.SessionMeterpreterSessionKill(ctx, id)
 		require.NoError(t, err)
 	})
 
 	const id = 999
 
 	t.Run("invalid session id", func(t *testing.T) {
-		err := msfrpc.SessionMeterpreterSessionKill(ctx, id)
+		err := client.SessionMeterpreterSessionKill(ctx, id)
 		require.EqualError(t, err, "unknown session id: 999")
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		err := msfrpc.SessionMeterpreterSessionKill(ctx, id)
+		err := client.SessionMeterpreterSessionKill(ctx, id)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.SessionMeterpreterSessionKill(ctx, id)
+			err := client.SessionMeterpreterSessionKill(ctx, id)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_SessionMeterpreterRunSingle(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		id := testCreateMeterpreterSession(t, msfrpc, "55014")
+		id := testCreateMeterpreterSession(t, client, "55014")
 		defer func() {
-			err := msfrpc.SessionStop(ctx, id)
+			err := client.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 
-		err := msfrpc.SessionMeterpreterRunSingle(ctx, id, "sysinfo")
+		err := client.SessionMeterpreterRunSingle(ctx, id, "sysinfo")
 		require.NoError(t, err)
 
 		time.Sleep(time.Second)
 
-		data, err := msfrpc.SessionMeterpreterRead(ctx, id)
+		data, err := client.SessionMeterpreterRead(ctx, id)
 		require.NoError(t, err)
 		t.Logf("\n%s\n", data)
 	})
@@ -778,60 +778,60 @@ func TestClient_SessionMeterpreterRunSingle(t *testing.T) {
 	)
 
 	t.Run("invalid session id", func(t *testing.T) {
-		err := msfrpc.SessionMeterpreterRunSingle(ctx, id, data)
+		err := client.SessionMeterpreterRunSingle(ctx, id, data)
 		require.EqualError(t, err, "unknown session id: 999")
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		err := msfrpc.SessionMeterpreterRunSingle(ctx, id, data)
+		err := client.SessionMeterpreterRunSingle(ctx, id, data)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.SessionMeterpreterRunSingle(ctx, id, data)
+			err := client.SessionMeterpreterRunSingle(ctx, id, data)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_SessionCompatibleModules(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("shell", func(t *testing.T) {
-		id := testCreateShellSession(t, msfrpc, "55015")
+		id := testCreateShellSession(t, client, "55015")
 
-		modules, err := msfrpc.SessionCompatibleModules(ctx, id)
+		modules, err := client.SessionCompatibleModules(ctx, id)
 		require.NoError(t, err)
 		for i := 0; i < len(modules); i++ {
 			t.Log(modules[i])
 		}
 
-		err = msfrpc.SessionStop(ctx, id)
+		err = client.SessionStop(ctx, id)
 		require.NoError(t, err)
 	})
 
 	t.Run("meterpreter", func(t *testing.T) {
-		id := testCreateMeterpreterSession(t, msfrpc, "55016")
+		id := testCreateMeterpreterSession(t, client, "55016")
 		defer func() {
-			err := msfrpc.SessionStop(ctx, id)
+			err := client.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 
-		modules, err := msfrpc.SessionCompatibleModules(ctx, id)
+		modules, err := client.SessionCompatibleModules(ctx, id)
 		require.NoError(t, err)
 		for i := 0; i < len(modules); i++ {
 			t.Log(modules[i])
@@ -841,27 +841,27 @@ func TestClient_SessionCompatibleModules(t *testing.T) {
 	const id = 999
 
 	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
+		token := client.GetToken()
+		defer client.SetToken(token)
+		client.SetToken(testInvalidToken)
 
-		modules, err := msfrpc.SessionCompatibleModules(ctx, id)
+		modules, err := client.SessionCompatibleModules(ctx, id)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, modules)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			modules, err := msfrpc.SessionCompatibleModules(ctx, id)
+			modules, err := client.SessionCompatibleModules(ctx, id)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
 		})
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 // if print output, Goland will crash(test), so we write to file.
@@ -879,12 +879,12 @@ func TestShell(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	client := testGenerateClientAndConnectDB(t)
 	ctx := context.Background()
 	const interval = 25 * time.Millisecond
 
-	id := testCreateShellSession(t, msfrpc, "55300")
-	shell := msfrpc.NewShell(id, interval)
+	id := testCreateShellSession(t, client, "55300")
+	shell := client.NewShell(id, interval)
 
 	buf := new(bytes.Buffer)
 	wg := sync.WaitGroup{}
@@ -936,39 +936,39 @@ func TestShell(t *testing.T) {
 
 	testSessionPrintOutput(t, buf)
 
-	err = msfrpc.Close()
+	err = client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestShell_readLoop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	client := testGenerateClientAndConnectDB(t)
 	ctx := context.Background()
 	const interval = 25 * time.Millisecond
 
-	id := testCreateShellSession(t, msfrpc, "55301")
+	id := testCreateShellSession(t, client, "55301")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateClientAndLogin(t)
+		client := testGenerateClientAndLogin(t)
 
-		err := msfrpc.SessionStop(ctx, id)
+		err := client.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.NoError(t, err)
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	}()
 
-	t.Run("after msfrpc closed", func(t *testing.T) {
-		atomic.StoreInt32(&msfrpc.inShutdown, 1)
-		defer atomic.StoreInt32(&msfrpc.inShutdown, 0)
+	t.Run("after msfrpc client closed", func(t *testing.T) {
+		atomic.StoreInt32(&client.inShutdown, 1)
+		defer atomic.StoreInt32(&client.inShutdown, 0)
 
-		shell := msfrpc.NewShell(id, interval)
+		shell := client.NewShell(id, interval)
 
 		// wait close self
 		time.Sleep(time.Second)
@@ -980,7 +980,7 @@ func TestShell_readLoop(t *testing.T) {
 	})
 
 	t.Run("failed to read", func(t *testing.T) {
-		shell := msfrpc.NewShell(id, interval)
+		shell := client.NewShell(id, interval)
 
 		go func() { _, _ = io.Copy(ioutil.Discard, shell) }()
 
@@ -1003,7 +1003,7 @@ func TestShell_readLoop(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(w, "Write", patch)
 		defer pg.Unpatch()
 
-		shell := msfrpc.NewShell(id, interval)
+		shell := client.NewShell(id, interval)
 
 		go func() { _, _ = io.Copy(ioutil.Discard, shell) }()
 
@@ -1021,29 +1021,29 @@ func TestShell_readLoop(t *testing.T) {
 	})
 
 	t.Run("tracker", func(t *testing.T) {
-		shell := msfrpc.NewShell(id, interval)
+		shell := client.NewShell(id, interval)
 
 		// wait shell tracker
 		time.Sleep(time.Second)
 
-		err := msfrpc.Close()
+		err := client.Close()
 		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, shell)
 	})
 
-	msfrpc.Kill()
+	client.Kill()
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestShell_read(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	client := testGenerateClientAndConnectDB(t)
 
-	shell := msfrpc.NewShell(999, 25*time.Millisecond)
+	shell := client.NewShell(999, 25*time.Millisecond)
 
 	err := shell.Close()
 	require.NoError(t, err)
@@ -1053,47 +1053,47 @@ func TestShell_read(t *testing.T) {
 
 	testsuite.IsDestroyed(t, shell)
 
-	err = msfrpc.Close()
+	err = client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestShell_writeLimiter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClient(t)
+	client := testGenerateClient(t)
 
 	// force set for prevent net/http call time.Reset()
-	msfrpc.client.Transport.(*http.Transport).IdleConnTimeout = 0
+	client.client.Transport.(*http.Transport).IdleConnTimeout = 0
 
-	err := msfrpc.AuthLogin()
+	err := client.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
 
-	err = msfrpc.DBConnect(ctx, testDBOptions)
+	err = client.DBConnect(ctx, testDBOptions)
 	require.NoError(t, err)
 
 	const interval = 25 * time.Millisecond
 
-	id := testCreateShellSession(t, msfrpc, "55301")
+	id := testCreateShellSession(t, client, "55301")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateClientAndLogin(t)
+		client := testGenerateClientAndLogin(t)
 
-		err = msfrpc.SessionStop(ctx, id)
+		err = client.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		err := msfrpc.Close()
+		err := client.Close()
 		require.NoError(t, err)
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	}()
 
 	t.Run("cancel", func(t *testing.T) {
-		shell := msfrpc.NewShell(id, interval)
+		shell := client.NewShell(id, interval)
 
 		go func() { _, _ = io.Copy(ioutil.Discard, shell) }()
 
@@ -1115,7 +1115,7 @@ func TestShell_writeLimiter(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(timer, "Reset", patch)
 		defer pg.Unpatch()
 
-		shell := msfrpc.NewShell(id, interval)
+		shell := client.NewShell(id, interval)
 
 		time.Sleep(time.Second)
 
@@ -1135,35 +1135,35 @@ func TestShell_writeLimiter(t *testing.T) {
 		testsuite.IsDestroyed(t, shell)
 	})
 
-	err = msfrpc.Close()
+	err = client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestShell_Write(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	client := testGenerateClientAndConnectDB(t)
 	ctx := context.Background()
 	const interval = 25 * time.Millisecond
 
-	id := testCreateShellSession(t, msfrpc, "55301")
+	id := testCreateShellSession(t, client, "55301")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateClientAndLogin(t)
+		client := testGenerateClientAndLogin(t)
 
-		err := msfrpc.SessionStop(ctx, id)
+		err := client.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.NoError(t, err)
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	}()
 
-	shell := msfrpc.NewShell(id, interval)
+	shell := client.NewShell(id, interval)
 
 	go func() { _, _ = io.Copy(ioutil.Discard, shell) }()
 
@@ -1175,20 +1175,20 @@ func TestShell_Write(t *testing.T) {
 
 	testsuite.IsDestroyed(t, shell)
 
-	err = msfrpc.Close()
+	err = client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestShell_Stop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	client := testGenerateClientAndConnectDB(t)
 	const interval = 25 * time.Millisecond
 
-	shell := msfrpc.NewShell(999, interval)
+	shell := client.NewShell(999, interval)
 	err := shell.Stop()
 	require.Error(t, err)
 	err = shell.Close()
@@ -1196,22 +1196,22 @@ func TestShell_Stop(t *testing.T) {
 
 	testsuite.IsDestroyed(t, shell)
 
-	err = msfrpc.Close()
+	err = client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestMeterpreter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	client := testGenerateClientAndConnectDB(t)
 	ctx := context.Background()
 	const interval = 25 * time.Millisecond
 
-	id := testCreateMeterpreterSession(t, msfrpc, "55400")
-	meterpreter := msfrpc.NewMeterpreter(id, interval)
+	id := testCreateMeterpreterSession(t, client, "55400")
+	meterpreter := client.NewMeterpreter(id, interval)
 
 	buf := new(bytes.Buffer)
 	wg := sync.WaitGroup{}
@@ -1253,39 +1253,39 @@ func TestMeterpreter(t *testing.T) {
 
 	testSessionPrintOutput(t, buf)
 
-	err = msfrpc.Close()
+	err = client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestMeterpreter_readLoop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	client := testGenerateClientAndConnectDB(t)
 	ctx := context.Background()
 	const interval = 25 * time.Millisecond
 
-	id := testCreateMeterpreterSession(t, msfrpc, "55401")
+	id := testCreateMeterpreterSession(t, client, "55401")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateClientAndLogin(t)
+		client := testGenerateClientAndLogin(t)
 
-		err := msfrpc.SessionStop(ctx, id)
+		err := client.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.NoError(t, err)
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	}()
 
-	t.Run("after msfrpc closed", func(t *testing.T) {
-		atomic.StoreInt32(&msfrpc.inShutdown, 1)
-		defer atomic.StoreInt32(&msfrpc.inShutdown, 0)
+	t.Run("after msfrpc client closed", func(t *testing.T) {
+		atomic.StoreInt32(&client.inShutdown, 1)
+		defer atomic.StoreInt32(&client.inShutdown, 0)
 
-		meterpreter := msfrpc.NewMeterpreter(id, interval)
+		meterpreter := client.NewMeterpreter(id, interval)
 
 		// wait close self
 		time.Sleep(time.Second)
@@ -1297,7 +1297,7 @@ func TestMeterpreter_readLoop(t *testing.T) {
 	})
 
 	t.Run("failed to read", func(t *testing.T) {
-		meterpreter := msfrpc.NewMeterpreter(id, interval)
+		meterpreter := client.NewMeterpreter(id, interval)
 
 		go func() { _, _ = io.Copy(ioutil.Discard, meterpreter) }()
 
@@ -1320,7 +1320,7 @@ func TestMeterpreter_readLoop(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(w, "Write", patch)
 		defer pg.Unpatch()
 
-		meterpreter := msfrpc.NewMeterpreter(id, interval)
+		meterpreter := client.NewMeterpreter(id, interval)
 
 		go func() { _, _ = io.Copy(ioutil.Discard, meterpreter) }()
 
@@ -1338,29 +1338,29 @@ func TestMeterpreter_readLoop(t *testing.T) {
 	})
 
 	t.Run("tracker", func(t *testing.T) {
-		meterpreter := msfrpc.NewMeterpreter(id, interval)
+		meterpreter := client.NewMeterpreter(id, interval)
 
 		// wait meterpreter tracker
 		time.Sleep(time.Second)
 
-		err := msfrpc.Close()
+		err := client.Close()
 		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, meterpreter)
 	})
 
-	msfrpc.Kill()
+	client.Kill()
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestMeterpreter_read(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	client := testGenerateClientAndConnectDB(t)
 
-	meterpreter := msfrpc.NewMeterpreter(999, 25*time.Millisecond)
+	meterpreter := client.NewMeterpreter(999, 25*time.Millisecond)
 
 	err := meterpreter.Close()
 	require.NoError(t, err)
@@ -1370,47 +1370,47 @@ func TestMeterpreter_read(t *testing.T) {
 
 	testsuite.IsDestroyed(t, meterpreter)
 
-	err = msfrpc.Close()
+	err = client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestMeterpreter_writeLimiter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClient(t)
+	client := testGenerateClient(t)
 
 	// force set for prevent net/http call time.Reset()
-	msfrpc.client.Transport.(*http.Transport).IdleConnTimeout = 0
+	client.client.Transport.(*http.Transport).IdleConnTimeout = 0
 
-	err := msfrpc.AuthLogin()
+	err := client.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
 
-	err = msfrpc.DBConnect(ctx, testDBOptions)
+	err = client.DBConnect(ctx, testDBOptions)
 	require.NoError(t, err)
 
 	const interval = 25 * time.Millisecond
 
-	id := testCreateMeterpreterSession(t, msfrpc, "55402")
+	id := testCreateMeterpreterSession(t, client, "55402")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateClientAndLogin(t)
+		client := testGenerateClientAndLogin(t)
 
-		err = msfrpc.SessionStop(ctx, id)
+		err = client.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		err := msfrpc.Close()
+		err := client.Close()
 		require.NoError(t, err)
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	}()
 
 	t.Run("cancel", func(t *testing.T) {
-		meterpreter := msfrpc.NewMeterpreter(id, interval)
+		meterpreter := client.NewMeterpreter(id, interval)
 
 		go func() { _, _ = io.Copy(ioutil.Discard, meterpreter) }()
 
@@ -1432,7 +1432,7 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(timer, "Reset", patch)
 		defer pg.Unpatch()
 
-		meterpreter := msfrpc.NewMeterpreter(id, interval)
+		meterpreter := client.NewMeterpreter(id, interval)
 
 		time.Sleep(time.Second)
 
@@ -1452,35 +1452,35 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 		testsuite.IsDestroyed(t, meterpreter)
 	})
 
-	err = msfrpc.Close()
+	err = client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestMeterpreter_Write(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	client := testGenerateClientAndConnectDB(t)
 	ctx := context.Background()
 	const interval = 25 * time.Millisecond
 
-	id := testCreateMeterpreterSession(t, msfrpc, "55403")
+	id := testCreateMeterpreterSession(t, client, "55403")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateClientAndLogin(t)
+		client := testGenerateClientAndLogin(t)
 
-		err := msfrpc.SessionStop(ctx, id)
+		err := client.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.NoError(t, err)
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	}()
 
-	meterpreter := msfrpc.NewMeterpreter(id, interval)
+	meterpreter := client.NewMeterpreter(id, interval)
 
 	go func() { _, _ = io.Copy(ioutil.Discard, meterpreter) }()
 
@@ -1492,37 +1492,37 @@ func TestMeterpreter_Write(t *testing.T) {
 
 	testsuite.IsDestroyed(t, meterpreter)
 
-	err = msfrpc.Close()
+	err = client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestMeterpreter_Detach(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	client := testGenerateClientAndConnectDB(t)
 	ctx := context.Background()
 	const interval = 25 * time.Millisecond
 
-	id := testCreateMeterpreterSession(t, msfrpc, "55404")
+	id := testCreateMeterpreterSession(t, client, "55404")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateClientAndLogin(t)
+		client := testGenerateClientAndLogin(t)
 
-		err := msfrpc.SessionStop(ctx, id)
+		err := client.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.NoError(t, err)
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	}()
 	time.Sleep(3 * time.Second)
 
 	t.Run("success", func(t *testing.T) {
-		meterpreter := msfrpc.NewMeterpreter(id, interval)
+		meterpreter := client.NewMeterpreter(id, interval)
 
 		buf := new(bytes.Buffer)
 		wg := sync.WaitGroup{}
@@ -1587,7 +1587,7 @@ func TestMeterpreter_Detach(t *testing.T) {
 	})
 
 	t.Run("failed", func(t *testing.T) {
-		meterpreter := msfrpc.NewMeterpreter(999, interval)
+		meterpreter := client.NewMeterpreter(999, interval)
 
 		err := meterpreter.Detach(ctx)
 		require.Error(t, err)
@@ -1598,36 +1598,36 @@ func TestMeterpreter_Detach(t *testing.T) {
 		testsuite.IsDestroyed(t, meterpreter)
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestMeterpreter_Interrupt(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	client := testGenerateClientAndConnectDB(t)
 	ctx := context.Background()
 	const interval = 25 * time.Millisecond
 
-	id := testCreateMeterpreterSession(t, msfrpc, "55405")
+	id := testCreateMeterpreterSession(t, client, "55405")
 	defer func() {
 		// stop session(need create a new msfrpc client)
-		msfrpc := testGenerateClientAndLogin(t)
+		client := testGenerateClientAndLogin(t)
 
-		err := msfrpc.SessionStop(ctx, id)
+		err := client.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.NoError(t, err)
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	}()
 
 	t.Run("success", func(t *testing.T) {
-		meterpreter := msfrpc.NewMeterpreter(id, interval)
+		meterpreter := client.NewMeterpreter(id, interval)
 
 		buf := new(bytes.Buffer)
 		wg := sync.WaitGroup{}
@@ -1692,7 +1692,7 @@ func TestMeterpreter_Interrupt(t *testing.T) {
 	})
 
 	t.Run("failed", func(t *testing.T) {
-		meterpreter := msfrpc.NewMeterpreter(999, interval)
+		meterpreter := client.NewMeterpreter(999, interval)
 
 		err := meterpreter.Interrupt(ctx)
 		require.Error(t, err)
@@ -1703,20 +1703,20 @@ func TestMeterpreter_Interrupt(t *testing.T) {
 		testsuite.IsDestroyed(t, meterpreter)
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestMeterpreter_Stop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	client := testGenerateClientAndConnectDB(t)
 	const interval = 25 * time.Millisecond
 
-	meterpreter := msfrpc.NewMeterpreter(999, interval)
+	meterpreter := client.NewMeterpreter(999, interval)
 	err := meterpreter.Stop()
 	require.Error(t, err)
 	err = meterpreter.Close()
@@ -1724,8 +1724,8 @@ func TestMeterpreter_Stop(t *testing.T) {
 
 	testsuite.IsDestroyed(t, meterpreter)
 
-	err = msfrpc.Close()
+	err = client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }

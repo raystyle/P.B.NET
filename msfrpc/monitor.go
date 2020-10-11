@@ -58,8 +58,8 @@ type Monitor struct {
 	dbErrorCount  int
 
 	// store status
-	msfAlive atomic.Value
-	dbAlive  atomic.Value
+	clientAlive   atomic.Value
+	databaseAlive atomic.Value
 
 	// key = token
 	tokens    map[string]struct{}
@@ -107,8 +107,8 @@ func (client *Client) NewMonitor(
 		interval:  interval,
 		dbOptions: dbOpts,
 	}
-	monitor.msfAlive.Store(true)
-	monitor.dbAlive.Store(true)
+	monitor.clientAlive.Store(true)
+	monitor.databaseAlive.Store(true)
 	monitor.context, monitor.cancel = context.WithCancel(context.Background())
 	monitor.wg.Add(3)
 	go monitor.tokenMonitor()
@@ -240,8 +240,8 @@ func (monitor *Monitor) updateMSFErrorCount(add bool) {
 	if !add {
 		if monitor.msfErrorCount != 0 {
 			monitor.msfErrorCount = 0
-			monitor.msfAlive.Store(true)
-			const log = "msfrpcd reconnected"
+			monitor.clientAlive.Store(true)
+			const log = "client reconnected"
 			monitor.log(logger.Info, log)
 			monitor.callbacks.OnEvent(log)
 		}
@@ -261,8 +261,8 @@ func (monitor *Monitor) updateMSFErrorCount(add bool) {
 	if monitor.msfErrorCount != 3 { // core! core! core!
 		return
 	}
-	monitor.msfAlive.Store(false)
-	const log = "msfrpcd disconnected"
+	monitor.clientAlive.Store(false)
+	const log = "client disconnected"
 	monitor.log(logger.Warning, log)
 	monitor.callbacks.OnEvent(log)
 }
@@ -272,7 +272,7 @@ func (monitor *Monitor) updateDBErrorCount(add bool) {
 	if !add {
 		if monitor.dbErrorCount != 0 {
 			monitor.dbErrorCount = 0
-			monitor.dbAlive.Store(true)
+			monitor.databaseAlive.Store(true)
 			const log = "database reconnected"
 			monitor.log(logger.Info, log)
 			monitor.callbacks.OnEvent(log)
@@ -291,7 +291,7 @@ func (monitor *Monitor) updateDBErrorCount(add bool) {
 	if monitor.dbErrorCount != 3 { // core! core! core!
 		return
 	}
-	monitor.dbAlive.Store(false)
+	monitor.databaseAlive.Store(false)
 	const log = "database disconnected"
 	monitor.log(logger.Warning, log)
 	monitor.callbacks.OnEvent(log)
@@ -803,14 +803,14 @@ loop:
 	}
 }
 
-// MSFRPCDAlive is used to check msfrpcd is connected.
-func (monitor *Monitor) MSFRPCDAlive() bool {
-	return monitor.msfAlive.Load().(bool)
+// ClientAlive is used to check client is connect msfrpcd.
+func (monitor *Monitor) ClientAlive() bool {
+	return monitor.clientAlive.Load().(bool)
 }
 
 // DatabaseAlive is used to check database is connected.
 func (monitor *Monitor) DatabaseAlive() bool {
-	return monitor.dbAlive.Load().(bool)
+	return monitor.databaseAlive.Load().(bool)
 }
 
 // Close is used to close monitor.

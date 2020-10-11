@@ -18,7 +18,7 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestNewMSFRPC(t *testing.T) {
+func TestNewClient(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -26,47 +26,47 @@ func TestNewMSFRPC(t *testing.T) {
 		opts := ClientOptions{}
 		opts.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
 
-		msfrpc, err := NewClient(testAddress, testUsername, testPassword, logger.Test, &opts)
+		client, err := NewClient(testAddress, testUsername, testPassword, logger.Test, &opts)
 		require.Error(t, err)
-		require.Nil(t, msfrpc)
+		require.Nil(t, client)
 	})
 
 	t.Run("not login", func(t *testing.T) {
-		msfrpc := testGenerateClient(t)
+		client := testGenerateClient(t)
 
-		err := msfrpc.Close()
+		err := client.Close()
 		require.Error(t, err)
-		msfrpc.Kill()
+		client.Kill()
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("disable TLS", func(t *testing.T) {
 		opts := ClientOptions{DisableTLS: true}
 
-		msfrpc, err := NewClient(testAddress, testUsername, testPassword, logger.Test, &opts)
+		client, err := NewClient(testAddress, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
-		require.NotNil(t, msfrpc)
+		require.NotNil(t, client)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.Error(t, err)
-		msfrpc.Kill()
+		client.Kill()
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("custom handler", func(t *testing.T) {
 		opts := ClientOptions{Handler: "hello"}
 
-		msfrpc, err := NewClient(testAddress, testUsername, testPassword, logger.Test, &opts)
+		client, err := NewClient(testAddress, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
-		require.NotNil(t, msfrpc)
+		require.NotNil(t, client)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.Error(t, err)
-		msfrpc.Kill()
+		client.Kill()
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 }
 
@@ -74,38 +74,38 @@ func TestClient_HijackLogWriter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClient(t)
+	client := testGenerateClient(t)
 
-	msfrpc.HijackLogWriter()
+	client.HijackLogWriter()
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.Error(t, err)
-	msfrpc.Kill()
+	client.Kill()
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_log(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClient(t)
+	client := testGenerateClient(t)
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.Error(t, err)
-	msfrpc.Kill()
+	client.Kill()
 
-	msfrpc.logf(logger.Debug, "%s", "foo")
-	msfrpc.log(logger.Debug, "foo")
+	client.logf(logger.Debug, "%s", "foo")
+	client.log(logger.Debug, "foo")
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_sendWithReplace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc := testGenerateClientAndLogin(t)
+	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
 
 	padding := func() {}
@@ -113,59 +113,59 @@ func TestClient_sendWithReplace(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		request := AuthTokenListRequest{
 			Method: MethodAuthTokenList,
-			Token:  msfrpc.GetToken(),
+			Token:  client.GetToken(),
 		}
 		var result AuthTokenListResult
 
-		err := msfrpc.sendWithReplace(ctx, request, &result, padding)
+		err := client.sendWithReplace(ctx, request, &result, padding)
 		require.NoError(t, err)
 	})
 
 	t.Run("replace", func(t *testing.T) {
 		request := AuthTokenListRequest{
 			Method: MethodAuthTokenList,
-			Token:  msfrpc.GetToken(),
+			Token:  client.GetToken(),
 		}
 		var result AuthTokenListResult
 
-		err := msfrpc.sendWithReplace(ctx, request, padding, &result)
+		err := client.sendWithReplace(ctx, request, padding, &result)
 		require.NoError(t, err)
 	})
 
 	t.Run("failed to read from-200", func(t *testing.T) {
-		client := new(http.Client)
+		httpClient := new(http.Client)
 		patch := func(interface{}, *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       testsuite.NewMockConnWithReadError(),
 			}, nil
 		}
-		pg := monkey.PatchInstanceMethod(client, "Do", patch)
+		pg := monkey.PatchInstanceMethod(httpClient, "Do", patch)
 		defer pg.Unpatch()
 
-		err := msfrpc.sendWithReplace(ctx, nil, nil, nil)
+		err := client.sendWithReplace(ctx, nil, nil, nil)
 		testsuite.IsMockConnReadError(t, errors.Unwrap(err))
 	})
 
 	t.Run("failed to read from-500", func(t *testing.T) {
-		client := new(http.Client)
+		httpClient := new(http.Client)
 		patch := func(interface{}, *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusInternalServerError,
 				Body:       testsuite.NewMockConnWithReadError(),
 			}, nil
 		}
-		pg := monkey.PatchInstanceMethod(client, "Do", patch)
+		pg := monkey.PatchInstanceMethod(httpClient, "Do", patch)
 		defer pg.Unpatch()
 
-		err := msfrpc.sendWithReplace(ctx, nil, nil, nil)
+		err := client.sendWithReplace(ctx, nil, nil, nil)
 		testsuite.IsMockConnReadError(t, errors.Unwrap(err))
 	})
 
-	err := msfrpc.Close()
+	err := client.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_send(t *testing.T) {
@@ -175,16 +175,16 @@ func TestClient_send(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("invalid request", func(t *testing.T) {
-		msfrpc := testGenerateClient(t)
+		client := testGenerateClient(t)
 
-		err := msfrpc.send(ctx, func() {}, nil)
+		err := client.send(ctx, func() {}, nil)
 		require.Error(t, err)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.Error(t, err)
-		msfrpc.Kill()
+		client.Kill()
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	// start mock server(like msfrpcd)
@@ -228,17 +228,17 @@ func TestClient_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "500_ok",
 		}
-		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
+		client, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
-		err = msfrpc.send(ctx, nil, nil)
+		err = client.send(ctx, nil, nil)
 		require.EqualError(t, err, testError)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.Error(t, err)
-		msfrpc.Kill()
+		client.Kill()
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("internal server error_failed", func(t *testing.T) {
@@ -246,17 +246,17 @@ func TestClient_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "500_failed",
 		}
-		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
+		client, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
-		err = msfrpc.send(ctx, nil, nil)
+		err = client.send(ctx, nil, nil)
 		require.Error(t, err)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.Error(t, err)
-		msfrpc.Kill()
+		client.Kill()
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("unauthorized", func(t *testing.T) {
@@ -264,17 +264,17 @@ func TestClient_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "401",
 		}
-		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
+		client, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
-		err = msfrpc.send(ctx, nil, nil)
+		err = client.send(ctx, nil, nil)
 		require.EqualError(t, err, "invalid token")
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.Error(t, err)
-		msfrpc.Kill()
+		client.Kill()
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("forbidden", func(t *testing.T) {
@@ -282,17 +282,17 @@ func TestClient_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "403",
 		}
-		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
+		client, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
-		err = msfrpc.send(ctx, nil, nil)
+		err = client.send(ctx, nil, nil)
 		require.EqualError(t, err, "this token is not granted access to the resource")
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.Error(t, err)
-		msfrpc.Kill()
+		client.Kill()
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("not found", func(t *testing.T) {
@@ -300,17 +300,17 @@ func TestClient_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "not_found",
 		}
-		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
+		client, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
-		err = msfrpc.send(ctx, nil, nil)
+		err = client.send(ctx, nil, nil)
 		require.EqualError(t, err, "the request was sent to an invalid URL")
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.Error(t, err)
-		msfrpc.Kill()
+		client.Kill()
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("unexpected http status code", func(t *testing.T) {
@@ -318,17 +318,17 @@ func TestClient_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "unexpected",
 		}
-		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
+		client, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
-		err = msfrpc.send(ctx, nil, nil)
+		err = client.send(ctx, nil, nil)
 		require.EqualError(t, err, "unexpected http status code: 202")
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.Error(t, err)
-		msfrpc.Kill()
+		client.Kill()
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("parallel", func(t *testing.T) {
@@ -336,30 +336,30 @@ func TestClient_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "200",
 		}
-		msfrpc, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
+		client, err := NewClient(address, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 
 		send1 := func() {
 			testdata := []byte{0x00, 0x01}
 			var result []byte
-			err := msfrpc.send(ctx, &testdata, &result)
+			err := client.send(ctx, &testdata, &result)
 			require.NoError(t, err)
 			require.Equal(t, []byte("ok"), result)
 		}
 		send2 := func() {
 			testdata := []byte{0x02, 0x03}
 			var result []byte
-			err := msfrpc.send(ctx, &testdata, &result)
+			err := client.send(ctx, &testdata, &result)
 			require.NoError(t, err)
 			require.Equal(t, []byte("ok"), result)
 		}
 		testsuite.RunParallel(10, nil, nil, send1, send2)
 
-		err = msfrpc.Close()
+		err = client.Close()
 		require.Error(t, err)
-		msfrpc.Kill()
+		client.Kill()
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 }
 
@@ -373,87 +373,87 @@ func testPatchSend(f func()) {
 }
 
 func TestClient_GetConsole(t *testing.T) {
-	msfrpc := testGenerateClient(t)
+	client := testGenerateClient(t)
 
 	t.Run("exist", func(t *testing.T) {
 		const id = "0"
 		console := &Console{id: id}
 
-		add := msfrpc.trackConsole(console, true)
+		add := client.trackConsole(console, true)
 		require.True(t, add)
 		defer func() {
-			del := msfrpc.trackConsole(console, false)
+			del := client.trackConsole(console, false)
 			require.True(t, del)
 		}()
 
-		c, err := msfrpc.GetConsole(id)
+		c, err := client.GetConsole(id)
 		require.NoError(t, err)
 		require.Equal(t, console, c)
 	})
 
 	t.Run("doesn't exist", func(t *testing.T) {
-		console, err := msfrpc.GetConsole("foo id")
+		console, err := client.GetConsole("foo id")
 		require.EqualError(t, err, "console \"foo id\" doesn't exist")
 		require.Nil(t, console)
 	})
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_GetShell(t *testing.T) {
-	msfrpc := testGenerateClient(t)
+	client := testGenerateClient(t)
 
 	t.Run("exist", func(t *testing.T) {
 		const id uint64 = 0
 		shell := &Shell{id: id}
 
-		add := msfrpc.trackShell(shell, true)
+		add := client.trackShell(shell, true)
 		require.True(t, add)
 		defer func() {
-			del := msfrpc.trackShell(shell, false)
+			del := client.trackShell(shell, false)
 			require.True(t, del)
 		}()
 
-		s, err := msfrpc.GetShell(id)
+		s, err := client.GetShell(id)
 		require.NoError(t, err)
 		require.Equal(t, shell, s)
 	})
 
 	t.Run("doesn't exist", func(t *testing.T) {
-		shell, err := msfrpc.GetShell(999)
+		shell, err := client.GetShell(999)
 		require.EqualError(t, err, "shell \"999\" doesn't exist")
 		require.Nil(t, shell)
 	})
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_GetMeterpreter(t *testing.T) {
-	msfrpc := testGenerateClient(t)
+	client := testGenerateClient(t)
 
 	t.Run("exist", func(t *testing.T) {
 		const id uint64 = 0
 		meterpreter := &Meterpreter{id: id}
 
-		add := msfrpc.trackMeterpreter(meterpreter, true)
+		add := client.trackMeterpreter(meterpreter, true)
 		require.True(t, add)
 		defer func() {
-			del := msfrpc.trackMeterpreter(meterpreter, false)
+			del := client.trackMeterpreter(meterpreter, false)
 			require.True(t, del)
 		}()
 
-		m, err := msfrpc.GetMeterpreter(id)
+		m, err := client.GetMeterpreter(id)
 		require.NoError(t, err)
 		require.Equal(t, meterpreter, m)
 	})
 
 	t.Run("doesn't exist", func(t *testing.T) {
-		meterpreter, err := msfrpc.GetMeterpreter(999)
+		meterpreter, err := client.GetMeterpreter(999)
 		require.EqualError(t, err, "meterpreter \"999\" doesn't exist")
 		require.Nil(t, meterpreter)
 	})
 
-	testsuite.IsDestroyed(t, msfrpc)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_Close(t *testing.T) {
@@ -461,27 +461,27 @@ func TestClient_Close(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("ok", func(t *testing.T) {
-		msfrpc := testGenerateClientAndLogin(t)
+		client := testGenerateClientAndLogin(t)
 
-		err := msfrpc.Close()
+		err := client.Close()
 		require.NoError(t, err)
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("failed to close", func(t *testing.T) {
-		msfrpc := testGenerateClient(t)
+		client := testGenerateClient(t)
 
-		err := msfrpc.Close()
+		err := client.Close()
 		require.Error(t, err)
 
-		msfrpc.Kill()
+		client.Kill()
 
-		testsuite.IsDestroyed(t, msfrpc)
+		testsuite.IsDestroyed(t, client)
 	})
 }
 
-func TestOptions(t *testing.T) {
+func TestClientOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/options.toml")
 	require.NoError(t, err)
 
