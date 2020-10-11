@@ -14,7 +14,7 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestMSFRPC_ModuleExploits(t *testing.T) {
+func TestClient_ModuleExploits(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -54,7 +54,7 @@ func TestMSFRPC_ModuleExploits(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleAuxiliary(t *testing.T) {
+func TestClient_ModuleAuxiliary(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -94,7 +94,7 @@ func TestMSFRPC_ModuleAuxiliary(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModulePost(t *testing.T) {
+func TestClient_ModulePost(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -134,7 +134,7 @@ func TestMSFRPC_ModulePost(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModulePayloads(t *testing.T) {
+func TestClient_ModulePayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -174,7 +174,7 @@ func TestMSFRPC_ModulePayloads(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleEncoders(t *testing.T) {
+func TestClient_ModuleEncoders(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -214,7 +214,7 @@ func TestMSFRPC_ModuleEncoders(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleNops(t *testing.T) {
+func TestClient_ModuleNops(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -254,7 +254,7 @@ func TestMSFRPC_ModuleNops(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleEvasion(t *testing.T) {
+func TestClient_ModuleEvasion(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -294,7 +294,7 @@ func TestMSFRPC_ModuleEvasion(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleInfo(t *testing.T) {
+func TestClient_ModuleInfo(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -464,7 +464,7 @@ func TestMSFRPC_ModuleInfo(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleOptions(t *testing.T) {
+func TestClient_ModuleOptions(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -518,7 +518,7 @@ func TestMSFRPC_ModuleOptions(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleCompatiblePayloads(t *testing.T) {
+func TestClient_ModuleCompatiblePayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -563,7 +563,7 @@ func TestMSFRPC_ModuleCompatiblePayloads(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
+func TestClient_ModuleTargetCompatiblePayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -614,7 +614,7 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleCompatibleSessions(t *testing.T) {
+func TestClient_ModuleCompatibleSessions(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -661,7 +661,7 @@ func TestMSFRPC_ModuleCompatibleSessions(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleCompatibleEvasionPayloads(t *testing.T) {
+func TestClient_ModuleCompatibleEvasionPayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -707,7 +707,7 @@ func TestMSFRPC_ModuleCompatibleEvasionPayloads(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
+func TestClient_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -758,7 +758,7 @@ func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleEncodeFormats(t *testing.T) {
+func TestClient_ModuleEncodeFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -797,7 +797,7 @@ func TestMSFRPC_ModuleEncodeFormats(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleExecutableFormats(t *testing.T) {
+func TestClient_ModuleExecutableFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -836,7 +836,7 @@ func TestMSFRPC_ModuleExecutableFormats(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleTransformFormats(t *testing.T) {
+func TestClient_ModuleTransformFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -876,7 +876,7 @@ func TestMSFRPC_ModuleTransformFormats(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleEncryptionFormats(t *testing.T) {
+func TestClient_ModuleEncryptionFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -915,7 +915,7 @@ func TestMSFRPC_ModuleEncryptionFormats(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModulePlatforms(t *testing.T) {
+func TestClient_ModulePlatforms(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -954,7 +954,7 @@ func TestMSFRPC_ModulePlatforms(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleArchitectures(t *testing.T) {
+func TestClient_ModuleArchitectures(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -993,7 +993,7 @@ func TestMSFRPC_ModuleArchitectures(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleEncode(t *testing.T) {
+func TestClient_ModuleEncode(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1063,7 +1063,7 @@ func TestMSFRPC_ModuleEncode(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleExecute(t *testing.T) {
+func TestClient_ModuleExecute(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1172,7 +1172,7 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleCheck(t *testing.T) {
+func TestClient_ModuleCheck(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1244,7 +1244,7 @@ func TestMSFRPC_ModuleCheck(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleRunningStats(t *testing.T) {
+func TestClient_ModuleRunningStats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

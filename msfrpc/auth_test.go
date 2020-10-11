@@ -10,7 +10,7 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestMSFRPC_AuthLogin(t *testing.T) {
+func TestClient_AuthLogin(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -42,7 +42,7 @@ func TestMSFRPC_AuthLogin(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_AuthLogout(t *testing.T) {
+func TestClient_AuthLogout(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -77,7 +77,7 @@ func TestMSFRPC_AuthLogout(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_AuthTokenList(t *testing.T) {
+func TestClient_AuthTokenList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -122,7 +122,7 @@ func TestMSFRPC_AuthTokenList(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_AuthTokenGenerate(t *testing.T) {
+func TestClient_AuthTokenGenerate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -166,7 +166,7 @@ func TestMSFRPC_AuthTokenGenerate(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_AuthTokenAdd(t *testing.T) {
+func TestClient_AuthTokenAdd(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -221,7 +221,7 @@ func TestMSFRPC_AuthTokenAdd(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_AuthTokenRemove(t *testing.T) {
+func TestClient_AuthTokenRemove(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

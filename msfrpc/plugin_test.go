@@ -17,7 +17,7 @@ const (
 
 var testPluginOptions = map[string]string{"opt-a": "a", "opt-b": "b"}
 
-func TestMSFRPC_PluginLoad(t *testing.T) {
+func TestClient_PluginLoad(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -56,7 +56,7 @@ func TestMSFRPC_PluginLoad(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_PluginUnload(t *testing.T) {
+func TestClient_PluginUnload(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -98,7 +98,7 @@ func TestMSFRPC_PluginUnload(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_PluginLoaded(t *testing.T) {
+func TestClient_PluginLoaded(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

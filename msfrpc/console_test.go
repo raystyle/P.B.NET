@@ -18,7 +18,7 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestMSFRPC_ConsoleList(t *testing.T) {
+func TestClient_ConsoleList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -60,7 +60,7 @@ func TestMSFRPC_ConsoleList(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ConsoleCreate(t *testing.T) {
+func TestClient_ConsoleCreate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -125,7 +125,7 @@ func TestMSFRPC_ConsoleCreate(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ConsoleDestroy(t *testing.T) {
+func TestClient_ConsoleDestroy(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -168,7 +168,7 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ConsoleRead(t *testing.T) {
+func TestClient_ConsoleRead(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -219,7 +219,7 @@ func TestMSFRPC_ConsoleRead(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ConsoleWrite(t *testing.T) {
+func TestClient_ConsoleWrite(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -290,7 +290,7 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
+func TestClient_ConsoleSessionDetach(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -346,7 +346,7 @@ func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
+func TestClient_ConsoleSessionKill(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -485,7 +485,7 @@ func TestConsole(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_NewConsole(t *testing.T) {
+func TestClient_NewConsole(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

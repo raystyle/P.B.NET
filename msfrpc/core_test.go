@@ -11,7 +11,7 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestMSFRPC_CoreModuleStats(t *testing.T) {
+func TestClient_CoreModuleStats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -53,7 +53,7 @@ func TestMSFRPC_CoreModuleStats(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_CoreAddModulePath(t *testing.T) {
+func TestClient_CoreAddModulePath(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -101,7 +101,7 @@ func TestMSFRPC_CoreAddModulePath(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_CoreReloadModules(t *testing.T) {
+func TestClient_CoreReloadModules(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -143,7 +143,7 @@ func TestMSFRPC_CoreReloadModules(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_CoreThreadList(t *testing.T) {
+func TestClient_CoreThreadList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -182,7 +182,7 @@ func TestMSFRPC_CoreThreadList(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_CoreThreadKill(t *testing.T) {
+func TestClient_CoreThreadKill(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -216,7 +216,7 @@ func TestMSFRPC_CoreThreadKill(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_CoreSetG(t *testing.T) {
+func TestClient_CoreSetG(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -250,7 +250,7 @@ func TestMSFRPC_CoreSetG(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_CoreGetG(t *testing.T) {
+func TestClient_CoreGetG(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -294,7 +294,7 @@ func TestMSFRPC_CoreGetG(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_CoreUnsetG(t *testing.T) {
+func TestClient_CoreUnsetG(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -341,7 +341,7 @@ func TestMSFRPC_CoreUnsetG(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_CoreSave(t *testing.T) {
+func TestClient_CoreSave(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -375,7 +375,7 @@ func TestMSFRPC_CoreSave(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_CoreVersion(t *testing.T) {
+func TestClient_CoreVersion(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

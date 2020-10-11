@@ -70,7 +70,7 @@ func TestNewMSFRPC(t *testing.T) {
 	})
 }
 
-func TestMSFRPC_HijackLogWriter(t *testing.T) {
+func TestClient_HijackLogWriter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -85,7 +85,7 @@ func TestMSFRPC_HijackLogWriter(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_log(t *testing.T) {
+func TestClient_log(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -101,7 +101,7 @@ func TestMSFRPC_log(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_sendWithReplace(t *testing.T) {
+func TestClient_sendWithReplace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -168,7 +168,7 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_send(t *testing.T) {
+func TestClient_send(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -372,7 +372,7 @@ func testPatchSend(f func()) {
 	f()
 }
 
-func TestMSFRPC_GetConsole(t *testing.T) {
+func TestClient_GetConsole(t *testing.T) {
 	msfrpc := testGenerateMSFRPC(t)
 
 	t.Run("exist", func(t *testing.T) {
@@ -400,7 +400,7 @@ func TestMSFRPC_GetConsole(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_GetShell(t *testing.T) {
+func TestClient_GetShell(t *testing.T) {
 	msfrpc := testGenerateMSFRPC(t)
 
 	t.Run("exist", func(t *testing.T) {
@@ -428,7 +428,7 @@ func TestMSFRPC_GetShell(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_GetMeterpreter(t *testing.T) {
+func TestClient_GetMeterpreter(t *testing.T) {
 	msfrpc := testGenerateMSFRPC(t)
 
 	t.Run("exist", func(t *testing.T) {
@@ -456,7 +456,7 @@ func TestMSFRPC_GetMeterpreter(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_Close(t *testing.T) {
+func TestClient_Close(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

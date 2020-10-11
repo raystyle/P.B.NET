@@ -28,7 +28,7 @@ func testGenerateMSFRPCAndConnectDB(t *testing.T) *Client {
 	return msfrpc
 }
 
-func TestMSFRPC_DBConnect(t *testing.T) {
+func TestClient_DBConnect(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -86,7 +86,7 @@ func TestMSFRPC_DBConnect(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBDisconnect(t *testing.T) {
+func TestClient_DBDisconnect(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -126,7 +126,7 @@ func TestMSFRPC_DBDisconnect(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBStatus(t *testing.T) {
+func TestClient_DBStatus(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -187,7 +187,7 @@ var testDBHost = &DBReportHost{
 	VirtualHost:  "VMWare",
 }
 
-func TestMSFRPC_DBReportHost(t *testing.T) {
+func TestClient_DBReportHost(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -244,7 +244,7 @@ func TestMSFRPC_DBReportHost(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBHosts(t *testing.T) {
+func TestClient_DBHosts(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -313,7 +313,7 @@ func TestMSFRPC_DBHosts(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBGetHost(t *testing.T) {
+func TestClient_DBGetHost(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -398,7 +398,7 @@ func TestMSFRPC_DBGetHost(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBDelHost(t *testing.T) {
+func TestClient_DBDelHost(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -494,7 +494,7 @@ var testDBService = &DBReportService{
 	Name:     "smb",
 }
 
-func TestMSFRPC_DBReportService(t *testing.T) {
+func TestClient_DBReportService(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -551,7 +551,7 @@ func TestMSFRPC_DBReportService(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBServices(t *testing.T) {
+func TestClient_DBServices(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -629,7 +629,7 @@ func TestMSFRPC_DBServices(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBGetService(t *testing.T) {
+func TestClient_DBGetService(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -705,7 +705,7 @@ func TestMSFRPC_DBGetService(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBDelService(t *testing.T) {
+func TestClient_DBDelService(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -804,7 +804,7 @@ var testDBClient = &DBReportClient{
 	UAVersion: "5.0",
 }
 
-func TestMSFRPC_DBReportClient(t *testing.T) {
+func TestClient_DBReportClient(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -861,7 +861,7 @@ func TestMSFRPC_DBReportClient(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBClients(t *testing.T) {
+func TestClient_DBClients(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -935,7 +935,7 @@ func TestMSFRPC_DBClients(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBGetClient(t *testing.T) {
+func TestClient_DBGetClient(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1016,7 +1016,7 @@ func TestMSFRPC_DBGetClient(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBDelClient(t *testing.T) {
+func TestClient_DBDelClient(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1122,7 +1122,7 @@ var testDBCred = &DBCreateCredentialOptions{
 	WorkspaceID:    1,
 }
 
-func TestMSFRPC_DBCreateCredential(t *testing.T) {
+func TestClient_DBCreateCredential(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1163,7 +1163,7 @@ func TestMSFRPC_DBCreateCredential(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBCreds(t *testing.T) {
+func TestClient_DBCreds(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1231,7 +1231,7 @@ func TestMSFRPC_DBCreds(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBDelCreds(t *testing.T) {
+func TestClient_DBDelCreds(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1303,7 +1303,7 @@ var testDBLoot = &DBReportLoot{
 	Information: "test information",
 }
 
-func TestMSFRPC_DBReportLoot(t *testing.T) {
+func TestClient_DBReportLoot(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1360,7 +1360,7 @@ func TestMSFRPC_DBReportLoot(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBLoots(t *testing.T) {
+func TestClient_DBLoots(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1434,7 +1434,7 @@ func TestMSFRPC_DBLoots(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBWorkspaces(t *testing.T) {
+func TestClient_DBWorkspaces(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1491,7 +1491,7 @@ func TestMSFRPC_DBWorkspaces(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBGetWorkspace(t *testing.T) {
+func TestClient_DBGetWorkspace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1559,7 +1559,7 @@ func TestMSFRPC_DBGetWorkspace(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBAddWorkspace(t *testing.T) {
+func TestClient_DBAddWorkspace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1641,7 +1641,7 @@ func TestMSFRPC_DBAddWorkspace(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBDelWorkspace(t *testing.T) {
+func TestClient_DBDelWorkspace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1718,7 +1718,7 @@ func TestMSFRPC_DBDelWorkspace(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBSetWorkspace(t *testing.T) {
+func TestClient_DBSetWorkspace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1798,7 +1798,7 @@ func TestMSFRPC_DBSetWorkspace(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBCurrentWorkspace(t *testing.T) {
+func TestClient_DBCurrentWorkspace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1881,7 +1881,7 @@ func TestMSFRPC_DBCurrentWorkspace(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBEvent(t *testing.T) {
+func TestClient_DBEvent(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1982,7 +1982,7 @@ func TestMSFRPC_DBEvent(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_DBImportData(t *testing.T) {
+func TestClient_DBImportData(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

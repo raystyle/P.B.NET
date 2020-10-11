@@ -101,7 +101,7 @@ func testCreateSession(t *testing.T, msfrpc *Client, typ, port string) uint64 {
 	return 0
 }
 
-func TestMSFRPC_SessionList(t *testing.T) {
+func TestClient_SessionList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -146,7 +146,7 @@ func TestMSFRPC_SessionList(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionStop(t *testing.T) {
+func TestClient_SessionStop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -187,7 +187,7 @@ func TestMSFRPC_SessionStop(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionShellRead(t *testing.T) {
+func TestClient_SessionShellRead(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -236,7 +236,7 @@ func TestMSFRPC_SessionShellRead(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionShellWrite(t *testing.T) {
+func TestClient_SessionShellWrite(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -386,7 +386,7 @@ func testCreateShellSessionWithProgram(t *testing.T, msfrpc *Client, port string
 	return file, 0
 }
 
-func TestMSFRPC_SessionUpgrade(t *testing.T) {
+func TestClient_SessionUpgrade(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -544,7 +544,7 @@ func TestMSFRPC_SessionUpgrade(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionMeterpreterRead(t *testing.T) {
+func TestClient_SessionMeterpreterRead(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -593,7 +593,7 @@ func TestMSFRPC_SessionMeterpreterRead(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionMeterpreterWrite(t *testing.T) {
+func TestClient_SessionMeterpreterWrite(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -654,7 +654,7 @@ func TestMSFRPC_SessionMeterpreterWrite(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionMeterpreterSessionDetach(t *testing.T) {
+func TestClient_SessionMeterpreterSessionDetach(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -701,7 +701,7 @@ func TestMSFRPC_SessionMeterpreterSessionDetach(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionMeterpreterSessionKill(t *testing.T) {
+func TestClient_SessionMeterpreterSessionKill(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -748,7 +748,7 @@ func TestMSFRPC_SessionMeterpreterSessionKill(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionMeterpreterRunSingle(t *testing.T) {
+func TestClient_SessionMeterpreterRunSingle(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -804,7 +804,7 @@ func TestMSFRPC_SessionMeterpreterRunSingle(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionCompatibleModules(t *testing.T) {
+func TestClient_SessionCompatibleModules(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

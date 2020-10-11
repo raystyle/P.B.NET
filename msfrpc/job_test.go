@@ -12,7 +12,7 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestMSFRPC_JobList(t *testing.T) {
+func TestClient_JobList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -90,7 +90,7 @@ func TestMSFRPC_JobList(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_JobInfo(t *testing.T) {
+func TestClient_JobInfo(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -184,7 +184,7 @@ func TestMSFRPC_JobInfo(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_JobStop(t *testing.T) {
+func TestClient_JobStop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
