@@ -41,7 +41,7 @@ func TestClient_ModuleExploits(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			modules, err := client.ModuleExploits(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
@@ -81,7 +81,7 @@ func TestClient_ModuleAuxiliary(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			modules, err := client.ModuleAuxiliary(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
@@ -121,7 +121,7 @@ func TestClient_ModulePost(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			modules, err := client.ModulePost(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
@@ -161,7 +161,7 @@ func TestClient_ModulePayloads(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			modules, err := client.ModulePayloads(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
@@ -201,7 +201,7 @@ func TestClient_ModuleEncoders(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			modules, err := client.ModuleEncoders(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
@@ -241,7 +241,7 @@ func TestClient_ModuleNops(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			modules, err := client.ModuleNops(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
@@ -281,7 +281,7 @@ func TestClient_ModuleEvasion(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			modules, err := client.ModuleEvasion(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)
@@ -451,7 +451,7 @@ func TestClient_ModuleInfo(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			info, err := client.ModuleInfo(ctx, "foo", "bar")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, info)
@@ -505,7 +505,7 @@ func TestClient_ModuleOptions(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			options, err := client.ModuleOptions(ctx, "foo", "bar")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, options)
@@ -550,7 +550,7 @@ func TestClient_ModuleCompatiblePayloads(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			payloads, err := client.ModuleCompatiblePayloads(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, payloads)
@@ -601,7 +601,7 @@ func TestClient_ModuleTargetCompatiblePayloads(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			payloads, err := client.ModuleTargetCompatiblePayloads(ctx, invalidModule, target)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, payloads)
@@ -648,7 +648,7 @@ func TestClient_ModuleCompatibleSessions(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			sessions, err := client.ModuleCompatibleSessions(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, sessions)
@@ -694,7 +694,7 @@ func TestClient_ModuleCompatibleEvasionPayloads(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			payloads, err := client.ModuleCompatibleEvasionPayloads(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, payloads)
@@ -745,7 +745,7 @@ func TestClient_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			payloads, err := client.ModuleTargetCompatibleEvasionPayloads(ctx, invalidModule, target)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, payloads)
@@ -784,7 +784,7 @@ func TestClient_ModuleEncodeFormats(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			formats, err := client.ModuleEncodeFormats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, formats)
@@ -823,7 +823,7 @@ func TestClient_ModuleExecutableFormats(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			formats, err := client.ModuleExecutableFormats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, formats)
@@ -863,7 +863,7 @@ func TestClient_ModuleTransformFormats(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			formats, err := client.ModuleTransformFormats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, formats)
@@ -902,7 +902,7 @@ func TestClient_ModuleEncryptionFormats(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			formats, err := client.ModuleEncryptionFormats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, formats)
@@ -941,7 +941,7 @@ func TestClient_ModulePlatforms(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			platforms, err := client.ModulePlatforms(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, platforms)
@@ -980,7 +980,7 @@ func TestClient_ModuleArchitectures(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			architectures, err := client.ModuleArchitectures(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, architectures)
@@ -1050,7 +1050,7 @@ func TestClient_ModuleEncode(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			encoded, err := client.ModuleEncode(ctx, data, encoder, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Zero(t, encoded)
@@ -1159,7 +1159,7 @@ func TestClient_ModuleExecute(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			result, err := client.ModuleExecute(ctx, typ, name, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
@@ -1231,7 +1231,7 @@ func TestClient_ModuleCheck(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			result, err := client.ModuleCheck(ctx, typ, name, nil)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
@@ -1277,7 +1277,7 @@ func TestClient_ModuleRunningStats(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			result, err := client.ModuleRunningStats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)

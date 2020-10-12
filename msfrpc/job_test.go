@@ -77,7 +77,7 @@ func TestClient_JobList(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			jobs, err := client.JobList(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, jobs)
@@ -171,7 +171,7 @@ func TestClient_JobInfo(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			info, err := client.JobInfo(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, info)
@@ -251,7 +251,7 @@ func TestClient_JobStop(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.JobStop(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 		})

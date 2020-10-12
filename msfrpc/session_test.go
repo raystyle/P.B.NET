@@ -133,7 +133,7 @@ func TestClient_SessionList(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			sessions, err := client.SessionList(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, sessions)
@@ -175,7 +175,7 @@ func TestClient_SessionStop(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.SessionStop(ctx, 999)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -223,7 +223,7 @@ func TestClient_SessionShellRead(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			result, err := client.SessionShellRead(ctx, 999)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
@@ -291,7 +291,7 @@ func TestClient_SessionShellWrite(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			n, err := client.SessionShellWrite(ctx, id, data)
 			monkey.IsMonkeyError(t, err)
 			require.Zero(t, n)
@@ -531,7 +531,7 @@ func TestClient_SessionUpgrade(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			result, err := client.SessionUpgrade(ctx, id, host, port, nil, wait)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
@@ -580,7 +580,7 @@ func TestClient_SessionMeterpreterRead(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			data, err := client.SessionMeterpreterRead(ctx, 999)
 			monkey.IsMonkeyError(t, err)
 			require.Zero(t, data)
@@ -642,7 +642,7 @@ func TestClient_SessionMeterpreterWrite(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.SessionMeterpreterWrite(ctx, id, data)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -689,7 +689,7 @@ func TestClient_SessionMeterpreterSessionDetach(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.SessionMeterpreterSessionDetach(ctx, id)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -736,7 +736,7 @@ func TestClient_SessionMeterpreterSessionKill(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.SessionMeterpreterSessionKill(ctx, id)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -792,7 +792,7 @@ func TestClient_SessionMeterpreterRunSingle(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.SessionMeterpreterRunSingle(ctx, id, data)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -851,7 +851,7 @@ func TestClient_SessionCompatibleModules(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			modules, err := client.SessionCompatibleModules(ctx, id)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, modules)

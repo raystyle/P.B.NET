@@ -275,16 +275,17 @@ func (console *Console) log(lv logger.Level, log ...interface{}) {
 // readLoop is used to call Client.ConsoleRead() high frequency and write the output
 // to a pipe and wait user call Read().
 func (console *Console) readLoop() {
+	defer console.ctx.deleteIOResourceCount(1)
 	defer func() {
 		if r := recover(); r != nil {
 			console.log(logger.Fatal, xpanic.Print(r, "Console.readLoop"))
 			// restart readLoop
 			time.Sleep(time.Second)
+			console.ctx.addIOResourceCount(1)
 			go console.readLoop()
-		} else {
-			console.close()
-			console.ctx.deleteIOResourceCount(1)
+			return
 		}
+		console.close()
 	}()
 	if !console.ctx.trackConsole(console, true) {
 		return
@@ -378,14 +379,14 @@ func (console *Console) read() bool {
 }
 
 func (console *Console) writeLimiter() {
+	defer console.ctx.deleteIOResourceCount(1)
 	defer func() {
 		if r := recover(); r != nil {
 			console.log(logger.Fatal, xpanic.Print(r, "Console.writeLimiter"))
 			// restart limiter
 			time.Sleep(time.Second)
+			console.ctx.addIOResourceCount(1)
 			go console.writeLimiter()
-		} else {
-			console.ctx.deleteIOResourceCount(1)
 		}
 	}()
 	// don't use ticker otherwise read write will appear confusion.

@@ -74,7 +74,7 @@ func TestClient_DBConnect(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.DBConnect(ctx, testDBOptions)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -114,7 +114,7 @@ func TestClient_DBDisconnect(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.DBDisconnect(ctx)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -162,7 +162,7 @@ func TestClient_DBStatus(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			status, err := client.DBStatus(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, status)
@@ -229,7 +229,7 @@ func TestClient_DBReportHost(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.DBReportHost(ctx, testDBHost)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -297,7 +297,7 @@ func TestClient_DBHosts(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			hosts, err := client.DBHosts(ctx, workspace)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, hosts)
@@ -382,7 +382,7 @@ func TestClient_DBGetHost(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			host, err := client.DBGetHost(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, host)
@@ -471,7 +471,7 @@ func TestClient_DBDelHost(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			hosts, err := client.DBDelHost(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, hosts)
@@ -536,7 +536,7 @@ func TestClient_DBReportService(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.DBReportService(ctx, testDBService)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -613,7 +613,7 @@ func TestClient_DBServices(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			services, err := client.DBServices(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, services)
@@ -689,7 +689,7 @@ func TestClient_DBGetService(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			services, err := client.DBGetService(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, services)
@@ -781,7 +781,7 @@ func TestClient_DBDelService(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			services, err := client.DBDelService(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, services)
@@ -846,7 +846,7 @@ func TestClient_DBReportClient(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.DBReportClient(ctx, testDBClient)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -919,7 +919,7 @@ func TestClient_DBClients(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			clients, err := client.DBClients(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, clients)
@@ -1000,7 +1000,7 @@ func TestClient_DBGetClient(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			client, err := client.DBGetClient(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, client)
@@ -1093,7 +1093,7 @@ func TestClient_DBDelClient(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			clients, err := client.DBDelClient(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, clients)
@@ -1147,7 +1147,7 @@ func TestClient_DBCreateCredential(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			result, err := client.DBCreateCredential(ctx, testDBCred)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
@@ -1215,7 +1215,7 @@ func TestClient_DBCreds(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			creds, err := client.DBCreds(ctx, "")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, creds)
@@ -1279,7 +1279,7 @@ func TestClient_DBDelCreds(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			creds, err := client.DBDelCreds(ctx, "")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, creds)
@@ -1345,7 +1345,7 @@ func TestClient_DBReportLoot(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.DBReportLoot(ctx, testDBLoot)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -1418,7 +1418,7 @@ func TestClient_DBLoots(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			loots, err := client.DBLoots(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, loots)
@@ -1475,7 +1475,7 @@ func TestClient_DBWorkspaces(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			workspaces, err := client.DBWorkspaces(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, workspaces)
@@ -1543,7 +1543,7 @@ func TestClient_DBGetWorkspace(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			workspace, err := client.DBGetWorkspace(ctx, defaultWorkspace)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, workspace)
@@ -1626,7 +1626,7 @@ func TestClient_DBAddWorkspace(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.DBAddWorkspace(ctx, name)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -1703,7 +1703,7 @@ func TestClient_DBDelWorkspace(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.DBDelWorkspace(ctx, name)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -1783,7 +1783,7 @@ func TestClient_DBSetWorkspace(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.DBSetWorkspace(ctx, name)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -1865,7 +1865,7 @@ func TestClient_DBCurrentWorkspace(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			workspace, err := client.DBCurrentWorkspace(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, workspace)
@@ -1966,7 +1966,7 @@ func TestClient_DBEvent(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			events, err := client.DBEvent(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, events)
@@ -2059,7 +2059,7 @@ func TestClient_DBImportData(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.DBImportData(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 		})

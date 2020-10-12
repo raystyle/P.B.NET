@@ -47,7 +47,7 @@ func TestClient_ConsoleList(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			consoles, err := client.ConsoleList(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, consoles)
@@ -112,7 +112,7 @@ func TestClient_ConsoleCreate(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			result, err := client.ConsoleCreate(ctx, workspace)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
@@ -156,7 +156,7 @@ func TestClient_ConsoleDestroy(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.ConsoleDestroy(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 		})
@@ -206,7 +206,7 @@ func TestClient_ConsoleRead(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			output, err := client.ConsoleRead(ctx, "999")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, output)
@@ -277,7 +277,7 @@ func TestClient_ConsoleWrite(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			n, err := client.ConsoleWrite(ctx, id, data)
 			monkey.IsMonkeyError(t, err)
 			require.Equal(t, uint64(0), n)
@@ -334,7 +334,7 @@ func TestClient_ConsoleSessionDetach(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.ConsoleSessionDetach(ctx, "999")
 			monkey.IsMonkeyError(t, err)
 		})
@@ -419,7 +419,7 @@ func TestClient_ConsoleSessionKill(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.ConsoleSessionKill(ctx, "999")
 			monkey.IsMonkeyError(t, err)
 		})

@@ -30,7 +30,7 @@ func TestClient_AuthLogin(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.AuthLogin()
 			monkey.IsMonkeyError(t, err)
 		})
@@ -65,7 +65,7 @@ func TestClient_AuthLogout(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.AuthLogout(client.GetToken())
 			monkey.IsMonkeyError(t, err)
 		})
@@ -109,7 +109,7 @@ func TestClient_AuthTokenList(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			tokens, err := client.AuthTokenList(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, tokens)
@@ -153,7 +153,7 @@ func TestClient_AuthTokenGenerate(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			token, err := client.AuthTokenGenerate(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Zero(t, token)
@@ -209,7 +209,7 @@ func TestClient_AuthTokenAdd(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.AuthTokenAdd(ctx, token)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -264,7 +264,7 @@ func TestClient_AuthTokenRemove(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.AuthTokenRemove(ctx, token)
 			monkey.IsMonkeyError(t, err)
 		})

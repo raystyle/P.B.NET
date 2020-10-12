@@ -404,16 +404,17 @@ func (shell *Shell) log(lv logger.Level, log ...interface{}) {
 }
 
 func (shell *Shell) readLoop() {
+	defer shell.ctx.deleteIOResourceCount(1)
 	defer func() {
 		if r := recover(); r != nil {
 			shell.log(logger.Fatal, xpanic.Print(r, "Shell.readLoop"))
 			// restart readLoop
 			time.Sleep(time.Second)
+			shell.ctx.addIOResourceCount(1)
 			go shell.readLoop()
-		} else {
-			shell.close()
-			shell.ctx.deleteIOResourceCount(1)
+			return
 		}
+		shell.close()
 	}()
 	if !shell.ctx.trackShell(shell, true) {
 		return
@@ -450,14 +451,14 @@ func (shell *Shell) read() bool {
 }
 
 func (shell *Shell) writeLimiter() {
+	defer shell.ctx.deleteIOResourceCount(1)
 	defer func() {
 		if r := recover(); r != nil {
 			shell.log(logger.Fatal, xpanic.Print(r, "Shell.writeLimiter"))
 			// restart limiter
 			time.Sleep(time.Second)
+			shell.ctx.addIOResourceCount(1)
 			go shell.writeLimiter()
-		} else {
-			shell.ctx.deleteIOResourceCount(1)
 		}
 	}()
 	// don't use ticker otherwise read write will appear confusion.
@@ -568,16 +569,17 @@ func (mp *Meterpreter) log(lv logger.Level, log ...interface{}) {
 }
 
 func (mp *Meterpreter) readLoop() {
+	defer mp.ctx.deleteIOResourceCount(1)
 	defer func() {
 		if r := recover(); r != nil {
 			mp.log(logger.Fatal, xpanic.Print(r, "Meterpreter.readLoop"))
 			// restart readLoop
 			time.Sleep(time.Second)
+			mp.ctx.addIOResourceCount(1)
 			go mp.readLoop()
-		} else {
-			mp.close()
-			mp.ctx.deleteIOResourceCount(1)
+			return
 		}
+		mp.close()
 	}()
 	if !mp.ctx.trackMeterpreter(mp, true) {
 		return
@@ -614,14 +616,14 @@ func (mp *Meterpreter) read() bool {
 }
 
 func (mp *Meterpreter) writeLimiter() {
+	defer mp.ctx.deleteIOResourceCount(1)
 	defer func() {
 		if r := recover(); r != nil {
 			mp.log(logger.Fatal, xpanic.Print(r, "Meterpreter.writeLimiter"))
 			// restart limiter
 			time.Sleep(time.Second)
+			mp.ctx.addIOResourceCount(1)
 			go mp.writeLimiter()
-		} else {
-			mp.ctx.deleteIOResourceCount(1)
 		}
 	}()
 	// don't use ticker otherwise read write will appear confusion.

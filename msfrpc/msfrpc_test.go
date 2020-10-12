@@ -204,7 +204,7 @@ func testGenerateClientAndLogin(t *testing.T) *Client {
 	return client
 }
 
-func testPatchSend(fn func()) {
+func testPatchClientSend(fn func()) {
 	patch := func(context.Context, string, string, io.Reader) (*http.Request, error) {
 		return nil, monkey.Error
 	}

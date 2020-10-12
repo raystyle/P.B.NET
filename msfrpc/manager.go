@@ -292,15 +292,15 @@ func newParallelReader(rc io.ReadCloser, logger logger.Logger, onRead func()) *p
 }
 
 func (pr *parallelReader) readLoop() {
+	defer pr.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			buf := xpanic.Print(r, "parallelReader.readLoop")
 			pr.logger.Println(logger.Fatal, "parallelReader", buf)
 			// restart readLoop
 			time.Sleep(time.Second)
+			pr.wg.Add(1)
 			go pr.readLoop()
-		} else {
-			pr.wg.Done()
 		}
 	}()
 	var (

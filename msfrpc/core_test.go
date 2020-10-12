@@ -40,7 +40,7 @@ func TestClient_CoreModuleStats(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			status, err := client.CoreModuleStats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, status)
@@ -88,7 +88,7 @@ func TestClient_CoreAddModulePath(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			status, err := client.CoreAddModulePath(ctx, "")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, status)
@@ -130,7 +130,7 @@ func TestClient_CoreReloadModules(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			status, err := client.CoreReloadModules(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, status)
@@ -169,7 +169,7 @@ func TestClient_CoreThreadList(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			threads, err := client.CoreThreadList(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, threads)
@@ -204,7 +204,7 @@ func TestClient_CoreThreadKill(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.CoreThreadKill(ctx, 0)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -238,7 +238,7 @@ func TestClient_CoreSetG(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.CoreSetG(ctx, "test", "test value")
 			monkey.IsMonkeyError(t, err)
 		})
@@ -281,7 +281,7 @@ func TestClient_CoreGetG(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			value, err := client.CoreGetG(ctx, "test")
 			monkey.IsMonkeyError(t, err)
 			require.Zero(t, value)
@@ -329,7 +329,7 @@ func TestClient_CoreUnsetG(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.CoreUnsetG(ctx, "test")
 			monkey.IsMonkeyError(t, err)
 		})
@@ -363,7 +363,7 @@ func TestClient_CoreSave(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.CoreSave(ctx)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -401,7 +401,7 @@ func TestClient_CoreVersion(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			version, err := client.CoreVersion(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, version)

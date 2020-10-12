@@ -44,7 +44,7 @@ func TestClient_PluginLoad(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.PluginLoad(ctx, testPluginFileName, testPluginOptions)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -86,7 +86,7 @@ func TestClient_PluginUnload(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			err := client.PluginUnload(ctx, testPluginName)
 			monkey.IsMonkeyError(t, err)
 		})
@@ -126,7 +126,7 @@ func TestClient_PluginLoaded(t *testing.T) {
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
+		testPatchClientSend(func() {
 			plugins, err := client.PluginLoaded(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, plugins)
