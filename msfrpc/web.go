@@ -1437,7 +1437,6 @@ func (wh *webHandler) handleModuleEncode(w hRW, r *hR, _ hP) {
 
 func (wh *webHandler) handleModuleGeneratePayload(w hRW, r *hR, _ hP) {
 	req := struct {
-		Type    string                `json:"type"`
 		Name    string                `json:"name"`
 		Options *ModuleExecuteOptions `json:"options"`
 	}{}
@@ -1446,7 +1445,7 @@ func (wh *webHandler) handleModuleGeneratePayload(w hRW, r *hR, _ hP) {
 		wh.writeError(w, err)
 		return
 	}
-	result, err := wh.ctx.ModuleExecute(r.Context(), req.Type, req.Name, req.Options)
+	result, err := wh.ctx.ModuleExecute(r.Context(), "payload", req.Name, req.Options)
 	if err != nil {
 		wh.writeError(w, err)
 		return

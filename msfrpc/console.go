@@ -220,8 +220,8 @@ type Console struct {
 
 	id       string
 	interval time.Duration
+	logSrc   string
 
-	logSrc  string
 	pr      *io.PipeReader
 	pw      *io.PipeWriter
 	token   chan struct{}
@@ -283,7 +283,7 @@ func (console *Console) readLoop() {
 			go console.readLoop()
 		} else {
 			console.close()
-			console.ctx.addIOResourceCount(-1)
+			console.ctx.deleteIOResourceCount(1)
 		}
 	}()
 	if !console.ctx.trackConsole(console, true) {
@@ -385,7 +385,7 @@ func (console *Console) writeLimiter() {
 			time.Sleep(time.Second)
 			go console.writeLimiter()
 		} else {
-			console.ctx.addIOResourceCount(-1)
+			console.ctx.deleteIOResourceCount(1)
 		}
 	}()
 	// don't use ticker otherwise read write will appear confusion.

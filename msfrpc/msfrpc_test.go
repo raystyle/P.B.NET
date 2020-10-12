@@ -3,6 +3,8 @@ package msfrpc
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"runtime"
 	"testing"
@@ -11,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -199,4 +202,13 @@ func testGenerateClientAndLogin(t *testing.T) *Client {
 	err := client.AuthLogin()
 	require.NoError(t, err)
 	return client
+}
+
+func testPatchSend(fn func()) {
+	patch := func(context.Context, string, string, io.Reader) (*http.Request, error) {
+		return nil, monkey.Error
+	}
+	pg := monkey.Patch(http.NewRequestWithContext, patch)
+	defer pg.Unpatch()
+	fn()
 }

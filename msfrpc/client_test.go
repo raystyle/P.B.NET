@@ -2,7 +2,6 @@ package msfrpc
 
 import (
 	"context"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -361,15 +360,6 @@ func TestClient_send(t *testing.T) {
 
 		testsuite.IsDestroyed(t, client)
 	})
-}
-
-func testPatchSend(f func()) {
-	patch := func(context.Context, string, string, io.Reader) (*http.Request, error) {
-		return nil, monkey.Error
-	}
-	pg := monkey.Patch(http.NewRequestWithContext, patch)
-	defer pg.Unpatch()
-	f()
 }
 
 func TestClient_GetConsole(t *testing.T) {

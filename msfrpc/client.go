@@ -51,7 +51,7 @@ type Client struct {
 	rwm sync.RWMutex
 
 	// io resource counter
-	counter xsync.Counter
+	ioCounter xsync.Counter
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -291,7 +291,11 @@ func (client *Client) log(lv logger.Level, log ...interface{}) {
 }
 
 func (client *Client) addIOResourceCount(delta int) {
-	client.counter.Add(delta)
+	client.ioCounter.Add(delta)
+}
+
+func (client *Client) deleteIOResourceCount(delta int) {
+	client.ioCounter.Add(-delta)
 }
 
 func (client *Client) trackConsole(console *Console, add bool) bool {
@@ -373,7 +377,7 @@ func (client *Client) Close() error {
 		return err
 	}
 	client.close()
-	client.counter.Wait()
+	client.ioCounter.Wait()
 	return nil
 }
 
@@ -384,7 +388,7 @@ func (client *Client) Kill() {
 		client.log(logger.Warning, "appear error when kill msfrpc client:", err)
 	}
 	client.close()
-	client.counter.Wait()
+	client.ioCounter.Wait()
 }
 
 func (client *Client) close() {

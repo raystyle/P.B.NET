@@ -367,8 +367,8 @@ type Shell struct {
 
 	id       uint64
 	interval time.Duration
+	logSrc   string
 
-	logSrc  string
 	pr      *io.PipeReader
 	pw      *io.PipeWriter
 	writeMu sync.Mutex
@@ -412,7 +412,7 @@ func (shell *Shell) readLoop() {
 			go shell.readLoop()
 		} else {
 			shell.close()
-			shell.ctx.addIOResourceCount(-1)
+			shell.ctx.deleteIOResourceCount(1)
 		}
 	}()
 	if !shell.ctx.trackShell(shell, true) {
@@ -457,7 +457,7 @@ func (shell *Shell) writeLimiter() {
 			time.Sleep(time.Second)
 			go shell.writeLimiter()
 		} else {
-			shell.ctx.addIOResourceCount(-1)
+			shell.ctx.deleteIOResourceCount(1)
 		}
 	}()
 	// don't use ticker otherwise read write will appear confusion.
@@ -531,8 +531,8 @@ type Meterpreter struct {
 
 	id       uint64
 	interval time.Duration
+	logSrc   string
 
-	logSrc  string
 	pr      *io.PipeReader
 	pw      *io.PipeWriter
 	writeMu sync.Mutex
@@ -576,7 +576,7 @@ func (mp *Meterpreter) readLoop() {
 			go mp.readLoop()
 		} else {
 			mp.close()
-			mp.ctx.addIOResourceCount(-1)
+			mp.ctx.deleteIOResourceCount(1)
 		}
 	}()
 	if !mp.ctx.trackMeterpreter(mp, true) {
@@ -621,7 +621,7 @@ func (mp *Meterpreter) writeLimiter() {
 			time.Sleep(time.Second)
 			go mp.writeLimiter()
 		} else {
-			mp.ctx.addIOResourceCount(-1)
+			mp.ctx.deleteIOResourceCount(1)
 		}
 	}()
 	// don't use ticker otherwise read write will appear confusion.

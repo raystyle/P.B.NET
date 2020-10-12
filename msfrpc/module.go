@@ -192,7 +192,11 @@ func (client *Client) ModuleInfo(ctx context.Context, typ, name string) (*Module
 // ModuleOptions is used to returns a hash of datastore options for the specified module.
 // The ModuleType should be one "exploit", "auxiliary", "post", "payload", "encoder", and
 // "nop". The ModuleName can either include module type prefix (exploit/) or not.
-func (client *Client) ModuleOptions(ctx context.Context, typ, name string) (map[string]*ModuleSpecialOption, error) {
+func (client *Client) ModuleOptions(
+	ctx context.Context,
+	typ string,
+	name string,
+) (map[string]*ModuleSpecialOption, error) {
 	request := ModuleOptionsRequest{
 		Method: MethodModuleOptions,
 		Token:  client.GetToken(),

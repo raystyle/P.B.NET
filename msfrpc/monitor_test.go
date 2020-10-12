@@ -1220,7 +1220,7 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 		monitor.msfErrorCount = 2
 		monitor.updateMSFErrorCount(true)
 
-		require.Equal(t, "msfrpcd disconnected", errStr)
+		require.Equal(t, "client disconnected", errStr)
 		require.False(t, monitor.ClientAlive())
 	})
 
@@ -1231,7 +1231,7 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 		// ok
 		monitor.updateMSFErrorCount(false)
 
-		require.Equal(t, "msfrpcd reconnected", errStr)
+		require.Equal(t, "client reconnected", errStr)
 		require.True(t, monitor.ClientAlive())
 	})
 
