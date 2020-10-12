@@ -298,14 +298,14 @@ func (monitor *Monitor) updateDBErrorCount(add bool) {
 }
 
 func (monitor *Monitor) tokenMonitor() {
+	defer monitor.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.tokenMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
+			monitor.wg.Add(1)
 			go monitor.tokenMonitor()
-		} else {
-			monitor.wg.Done()
 		}
 	}()
 	timer := time.NewTimer(monitor.interval)
@@ -361,14 +361,14 @@ loop:
 }
 
 func (monitor *Monitor) jobMonitor() {
+	defer monitor.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.jobMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
+			monitor.wg.Add(1)
 			go monitor.jobMonitor()
-		} else {
-			monitor.wg.Done()
 		}
 	}()
 	timer := time.NewTimer(monitor.interval)
@@ -418,14 +418,14 @@ loop:
 }
 
 func (monitor *Monitor) sessionMonitor() {
+	defer monitor.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.sessionMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
+			monitor.wg.Add(1)
 			go monitor.sessionMonitor()
-		} else {
-			monitor.wg.Done()
 		}
 	}()
 	timer := time.NewTimer(monitor.interval)
@@ -484,14 +484,14 @@ func (monitor *Monitor) StartDatabaseMonitors() {
 }
 
 func (monitor *Monitor) hostMonitor() {
+	defer monitor.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.hostMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
+			monitor.wg.Add(1)
 			go monitor.hostMonitor()
-		} else {
-			monitor.wg.Done()
 		}
 	}()
 	timer := time.NewTimer(monitor.interval)
@@ -567,14 +567,14 @@ loopAdd:
 }
 
 func (monitor *Monitor) credentialMonitor() {
+	defer monitor.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.credentialMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
+			monitor.wg.Add(1)
 			go monitor.credentialMonitor()
-		} else {
-			monitor.wg.Done()
 		}
 	}()
 	timer := time.NewTimer(monitor.interval)
@@ -648,14 +648,14 @@ loopAdd:
 }
 
 func (monitor *Monitor) lootMonitor() {
+	defer monitor.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.lootMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
+			monitor.wg.Add(1)
 			go monitor.lootMonitor()
-		} else {
-			monitor.wg.Done()
 		}
 	}()
 	timer := time.NewTimer(monitor.interval)
@@ -726,14 +726,14 @@ loop:
 }
 
 func (monitor *Monitor) workspaceCleaner() {
+	defer monitor.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.workspaceCleaner"))
 			// restart monitor
 			time.Sleep(time.Second)
+			monitor.wg.Add(1)
 			go monitor.workspaceCleaner()
-		} else {
-			monitor.wg.Done()
 		}
 	}()
 	ticker := time.NewTicker(time.Second)

@@ -12,13 +12,13 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestParallelReader_Bytes(t *testing.T) {
+func TestIOReader_Read(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	r, w := io.Pipe()
 	onRead := func() {}
-	pr := newParallelReader(r, logger.Test, onRead)
+	reader := newIOReader(r, logger.Test, onRead)
 
 	testdata := testsuite.Bytes()
 	_, err := w.Write(testdata)
@@ -28,38 +28,38 @@ func TestParallelReader_Bytes(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	t.Run("common", func(t *testing.T) {
-		output := pr.Bytes(0)
+		output := reader.Read(0)
 		require.Equal(t, testdata, output)
 	})
 
 	t.Run("start < 0", func(t *testing.T) {
-		output := pr.Bytes(-1)
+		output := reader.Read(-1)
 		require.Equal(t, testdata, output)
 	})
 
 	t.Run("start != 0", func(t *testing.T) {
-		output := pr.Bytes(10)
+		output := reader.Read(10)
 		require.Equal(t, testdata[10:], output)
 	})
 
 	t.Run("start > len", func(t *testing.T) {
-		output := pr.Bytes(257)
+		output := reader.Read(257)
 		require.Nil(t, output)
 	})
 
-	err = pr.Close()
+	err = reader.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, pr)
+	testsuite.IsDestroyed(t, reader)
 }
 
-func TestParallelReader_Parallel(t *testing.T) {
+func TestIOReader_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	r, w := io.Pipe()
 	onRead := func() {}
-	pr := newParallelReader(r, logger.Test, onRead)
+	reader := newIOReader(r, logger.Test, onRead)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -70,7 +70,7 @@ func TestParallelReader_Parallel(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		err := pr.Close()
+		err := reader.Close()
 		require.NoError(t, err)
 	}()
 
@@ -81,7 +81,7 @@ func TestParallelReader_Parallel(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := 0; i < 100; i++ {
-				data := pr.Bytes(i)
+				data := reader.Read(i)
 				if len(data) == 0 {
 					return
 				}
@@ -92,21 +92,21 @@ func TestParallelReader_Parallel(t *testing.T) {
 
 	wg.Wait()
 
-	testsuite.IsDestroyed(t, pr)
+	testsuite.IsDestroyed(t, reader)
 }
 
-func TestParallelReader_Panic(t *testing.T) {
+func TestIOReader_Panic(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	reader := testsuite.NewMockConnWithReadPanic()
+	conn := testsuite.NewMockConnWithReadPanic()
 	onRead := func() {}
-	pr := newParallelReader(reader, logger.Test, onRead)
+	reader := newIOReader(conn, logger.Test, onRead)
 
 	time.Sleep(time.Second)
 
-	err := pr.Close()
+	err := reader.Close()
 	require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, pr)
+	testsuite.IsDestroyed(t, reader)
 }
