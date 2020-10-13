@@ -13,16 +13,42 @@ import (
 	"project/internal/testsuite"
 )
 
+var (
+	testBasicMonitorOpts = &MonitorOptions{
+		Interval: 25 * time.Millisecond,
+	}
+	testDBMonitorOpts = &MonitorOptions{
+		Interval:  25 * time.Millisecond,
+		EnableDB:  true,
+		DBOptions: testDBOptions,
+	}
+)
+
+func TestNewMonitor(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+
+	monitor := NewMonitor(client, nil, nil)
+
+	monitor.Close()
+
+	testsuite.IsDestroyed(t, monitor)
+
+	err := client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
 func TestMonitor_tokenMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	client := testGenerateClientAndLogin(t)
 
-	const (
-		interval = 25 * time.Millisecond
-		token    = "TEST0123456789012345678901234567"
-	)
+	const token = "TEST0123456789012345678901234567"
 	ctx := context.Background()
 
 	t.Run("add", func(t *testing.T) {
@@ -35,7 +61,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 			sToken = token
 			sAdd = add
 		}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -74,7 +100,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 			sToken = token
 			sAdd = add
 		}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -95,7 +121,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	})
 
 	t.Run("failed to watch", func(t *testing.T) {
-		monitor := client.NewMonitor(new(Callbacks), interval, testDBOptions)
+		monitor := NewMonitor(client, nil, testBasicMonitorOpts)
 		monitor.Close()
 
 		monitor.watchToken()
@@ -107,7 +133,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		callbacks := Callbacks{OnToken: func(string, bool) {
 			panic("test panic")
 		}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -129,7 +155,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 
 	t.Run("tokens", func(t *testing.T) {
 		callbacks := Callbacks{OnToken: func(token string, add bool) {}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -175,7 +201,6 @@ func TestMonitor_jobMonitor(t *testing.T) {
 
 	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
-	const interval = 25 * time.Millisecond
 
 	t.Run("active", func(t *testing.T) {
 		// add a job before start monitor for first watch
@@ -195,7 +220,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 			sName = name
 			sActive = active
 		}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -233,7 +258,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 			sName = name
 			sActive = active
 		}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -255,7 +280,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 	})
 
 	t.Run("failed to watch", func(t *testing.T) {
-		monitor := client.NewMonitor(new(Callbacks), interval, testDBOptions)
+		monitor := NewMonitor(client, nil, testBasicMonitorOpts)
 		monitor.Close()
 
 		monitor.watchJob()
@@ -267,7 +292,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		callbacks := Callbacks{OnJob: func(string, string, bool) {
 			panic("test panic")
 		}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -294,7 +319,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		}()
 
 		callbacks := Callbacks{OnJob: func(string, string, bool) {}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		time.Sleep(3 * minWatchInterval)
 
@@ -331,7 +356,6 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 
 	client := testGenerateClientAndLogin(t)
 	ctx := context.Background()
-	const interval = 25 * time.Millisecond
 
 	t.Run("first session", func(t *testing.T) {
 		id := testCreateShellSession(t, client, "55500")
@@ -343,7 +367,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 			OnJob:     func(id, name string, active bool) {},
 			OnSession: func(id uint64, info *SessionInfo, opened bool) {},
 		}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -364,7 +388,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 				sOpened = opened
 			},
 		}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -401,7 +425,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 				sOpened = opened
 			},
 		}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -423,7 +447,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 	})
 
 	t.Run("failed to watch", func(t *testing.T) {
-		monitor := client.NewMonitor(new(Callbacks), interval, testDBOptions)
+		monitor := NewMonitor(client, nil, testBasicMonitorOpts)
 		monitor.Close()
 
 		monitor.watchSession()
@@ -438,7 +462,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 				panic("test panic")
 			},
 		}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -468,7 +492,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 			OnJob:     func(string, string, bool) {},
 			OnSession: func(uint64, *SessionInfo, bool) {},
 		}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		time.Sleep(3 * minWatchInterval)
 
@@ -507,7 +531,6 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		interval         = 25 * time.Millisecond
 		tempWorkspace    = "temp"
 		invalidWorkspace = "foo"
 	)
@@ -540,8 +563,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 				sAdd = add
 			},
 		}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -587,8 +609,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 				sAdd = add
 			},
 		}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -610,8 +631,8 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	})
 
 	t.Run("failed to get workspace", func(t *testing.T) {
-		monitor := client.NewMonitor(new(Callbacks), interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, nil, testDBMonitorOpts)
+
 		monitor.Close()
 
 		monitor.watchHost()
@@ -620,8 +641,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	})
 
 	t.Run("failed to watch", func(t *testing.T) {
-		monitor := client.NewMonitor(new(Callbacks), interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, nil, testDBMonitorOpts)
 
 		monitor.watchHostWithWorkspace(invalidWorkspace)
 
@@ -637,8 +657,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		callbacks := Callbacks{OnHost: func(string, *DBHost, bool) {
 			panic("test panic")
 		}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -669,8 +688,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		}()
 
 		callbacks := Callbacks{OnHost: func(string, *DBHost, bool) {}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -716,7 +734,6 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		interval         = 25 * time.Millisecond
 		workspace        = ""
 		tempWorkspace    = "temp"
 		invalidWorkspace = "foo"
@@ -746,8 +763,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 				sAdd = add
 			},
 		}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -795,8 +811,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 				sAdd = add
 			},
 		}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -818,8 +833,8 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 	})
 
 	t.Run("failed to get workspace", func(t *testing.T) {
-		monitor := client.NewMonitor(new(Callbacks), interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, nil, testDBMonitorOpts)
+
 		monitor.Close()
 
 		monitor.watchCredential()
@@ -828,8 +843,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 	})
 
 	t.Run("failed to watch", func(t *testing.T) {
-		monitor := client.NewMonitor(new(Callbacks), interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, nil, testDBMonitorOpts)
 
 		monitor.watchCredentialWithWorkspace(invalidWorkspace)
 
@@ -845,8 +859,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		callbacks := Callbacks{OnCredential: func(string, *DBCred, bool) {
 			panic("test panic")
 		}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -877,8 +890,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		}()
 
 		callbacks := Callbacks{OnCredential: func(string, *DBCred, bool) {}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -924,7 +936,6 @@ func TestMonitor_lootMonitor(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		interval         = 25 * time.Millisecond
 		tempWorkspace    = "temp"
 		invalidWorkspace = "foo"
 	)
@@ -949,8 +960,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 				sLoot = loot
 			},
 		}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -972,8 +982,8 @@ func TestMonitor_lootMonitor(t *testing.T) {
 	})
 
 	t.Run("failed to get workspace", func(t *testing.T) {
-		monitor := client.NewMonitor(new(Callbacks), interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, nil, testDBMonitorOpts)
+
 		monitor.Close()
 
 		monitor.watchLoot()
@@ -982,8 +992,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 	})
 
 	t.Run("failed to watch", func(t *testing.T) {
-		monitor := client.NewMonitor(new(Callbacks), interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, nil, testDBMonitorOpts)
 
 		monitor.watchLootWithWorkspace(invalidWorkspace)
 
@@ -996,8 +1005,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 		callbacks := Callbacks{OnLoot: func(string, *DBLoot) {
 			panic("test panic")
 		}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -1020,8 +1028,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 		require.NoError(t, err)
 
 		callbacks := Callbacks{OnLoot: func(string, *DBLoot) {}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -1066,10 +1073,7 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 	client := testGenerateClientAndConnectDB(t)
 	ctx := context.Background()
 
-	const (
-		interval  = 25 * time.Millisecond
-		workspace = "temp"
-	)
+	const workspace = "temp"
 
 	t.Run("clean", func(t *testing.T) {
 		// add temporary workspace
@@ -1099,8 +1103,7 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 
 		// create monitor
 		callbacks := Callbacks{OnJob: func(string, string, bool) {}}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -1117,8 +1120,8 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 	})
 
 	t.Run("failed to get workspace", func(t *testing.T) {
-		monitor := client.NewMonitor(new(Callbacks), interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, nil, testDBMonitorOpts)
+
 		monitor.Close()
 
 		monitor.cleanWorkspace()
@@ -1135,8 +1138,7 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 		defer pg.Unpatch()
 
 		callbacks := Callbacks{}
-		monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-		monitor.StartDatabaseMonitors()
+		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait clean workspace
 		time.Sleep(2 * time.Second)
@@ -1162,14 +1164,13 @@ func TestMonitor_log(t *testing.T) {
 	const (
 		username = "foo"
 		password = "bar"
-		interval = 25 * time.Millisecond
 	)
 
 	client, err := NewClient(testAddress, username, password, logger.Test, nil)
 	require.NoError(t, err)
 	client.token = "TEST"
 
-	monitor := client.NewMonitor(new(Callbacks), interval, testDBOptions)
+	monitor := NewMonitor(client, nil, testDBMonitorOpts)
 
 	// log before close
 	monitor.logf(logger.Debug, "%s", "foo")
@@ -1197,7 +1198,6 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 	const (
 		username = "foo"
 		password = "bar"
-		interval = 25 * time.Millisecond
 	)
 
 	client, err := NewClient(testAddress, username, password, logger.Test, nil)
@@ -1208,7 +1208,7 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 	callbacks := Callbacks{OnEvent: func(error string) {
 		errStr = error
 	}}
-	monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
+	monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 	monitor.Close()
 	monitor.inShutdown = 0
 
@@ -1250,15 +1250,19 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 
 	client := testGenerateClient(t)
 
-	const interval = 25 * time.Millisecond
-
 	var errStr string
 	callbacks := Callbacks{OnEvent: func(error string) {
 		errStr = error
 	}}
-	dbOpts := *testDBOptions
-	dbOpts.Port = 99999
-	monitor := client.NewMonitor(&callbacks, interval, &dbOpts)
+
+	// set invalid port
+	port := testDBMonitorOpts.DBOptions.Port
+	testDBMonitorOpts.DBOptions.Port = 99999
+	defer func() {
+		testDBMonitorOpts.DBOptions.Port = port
+	}()
+
+	monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 	monitor.Close()
 	monitor.inShutdown = 0
 
@@ -1300,11 +1304,9 @@ func TestMonitor_AutoReconnect(t *testing.T) {
 
 	client := testGenerateClientAndConnectDB(t)
 	ctx := context.Background()
-	const interval = 25 * time.Millisecond
 
 	callbacks := Callbacks{OnEvent: func(event string) {}}
-	monitor := client.NewMonitor(&callbacks, interval, testDBOptions)
-	monitor.StartDatabaseMonitors()
+	monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 	t.Run("msfrpcd", func(t *testing.T) {
 		err := client.AuthLogout(client.GetToken())

@@ -937,12 +937,14 @@ func TestConsole_Detach(t *testing.T) {
 	}
 
 	// generate payload and execute shellcode
-	payloadOpts := NewModuleExecuteOptions()
+	payloadOpts := &ModuleExecuteOptions{
+		DataStore: make(map[string]interface{}),
+	}
 	payloadOpts.Format = "raw"
 	payloadOpts.DataStore["EXITFUNC"] = "thread"
 	payloadOpts.DataStore["LHOST"] = "127.0.0.1"
 	payloadOpts.DataStore["LPORT"] = 55200
-	pResult, err := client.ModuleExecute(ctx, "payload", payload, payloadOpts)
+	pResult, err := client.ModuleExecute(ctx, "payload", payload, &payloadOpts)
 	require.NoError(t, err)
 	sc := []byte(pResult.Payload)
 	// execute shellcode and wait some time

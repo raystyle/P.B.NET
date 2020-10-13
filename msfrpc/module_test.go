@@ -1108,7 +1108,9 @@ func TestClient_ModuleExecute(t *testing.T) {
 
 	t.Run("generate payload", func(t *testing.T) {
 		const payload = "windows/meterpreter/reverse_tcp"
-		opts := NewModuleExecuteOptions()
+		opts := &ModuleExecuteOptions{
+			DataStore: make(map[string]interface{}),
+		}
 		opts.Format = "c"
 		opts.Iterations = 1
 		opts.DataStore["LHOST"] = "127.0.0.1"

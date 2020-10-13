@@ -92,12 +92,19 @@ type Monitor struct {
 	wg      sync.WaitGroup
 }
 
+// MonitorOptions contains options about basic and database monitor.
+type MonitorOptions struct {
+	Interval  time.Duration     `toml:"interval"`
+	EnableDB  bool              `toml:"enable_db"`
+	DBOptions *DBConnectOptions `toml:"db_options"`
+}
+
 // NewMonitor is used to create a data monitor.
-func (client *Client) NewMonitor(
-	callbacks *Callbacks,
-	interval time.Duration,
-	dbOpts *DBConnectOptions,
-) *Monitor {
+func NewMonitor(client *Client, callbacks *Callbacks, opts *MonitorOptions) *Monitor {
+	if opts == nil {
+		opts = new(MonitorOptions)
+	}
+	interval := opts.Interval
 	if interval < minWatchInterval {
 		interval = minWatchInterval
 	}
@@ -105,7 +112,7 @@ func (client *Client) NewMonitor(
 		ctx:       client,
 		callbacks: callbacks,
 		interval:  interval,
-		dbOptions: dbOpts,
+		dbOptions: opts.DBOptions,
 	}
 	monitor.clientAlive.Store(true)
 	monitor.databaseAlive.Store(true)
@@ -114,6 +121,13 @@ func (client *Client) NewMonitor(
 	go monitor.tokenMonitor()
 	go monitor.jobMonitor()
 	go monitor.sessionMonitor()
+	if opts.EnableDB {
+		monitor.wg.Add(4)
+		go monitor.hostMonitor()
+		go monitor.credentialMonitor()
+		go monitor.lootMonitor()
+		go monitor.workspaceCleaner()
+	}
 	return monitor
 }
 
@@ -472,15 +486,6 @@ loop:
 			monitor.callbacks.OnSession(id, info, true)
 		}
 	}
-}
-
-// StartDatabaseMonitors is used to start monitors about database.
-func (monitor *Monitor) StartDatabaseMonitors() {
-	monitor.wg.Add(4)
-	go monitor.hostMonitor()
-	go monitor.credentialMonitor()
-	go monitor.lootMonitor()
-	go monitor.workspaceCleaner()
 }
 
 func (monitor *Monitor) hostMonitor() {

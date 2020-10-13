@@ -1591,11 +1591,6 @@ type ModuleExecuteOptions struct {
 	DataStore           map[string]interface{} `json:"data_store"`
 }
 
-// NewModuleExecuteOptions is used to create a module execute options.
-func NewModuleExecuteOptions() *ModuleExecuteOptions {
-	return &ModuleExecuteOptions{DataStore: make(map[string]interface{})}
-}
-
 func (opts *ModuleExecuteOptions) toMap() map[string]interface{} {
 	m := map[string]interface{}{
 		"BadChars":            opts.BadChars,

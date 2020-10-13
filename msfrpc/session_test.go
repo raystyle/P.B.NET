@@ -79,7 +79,9 @@ func testCreateSession(t *testing.T, client *Client, typ, port string) uint64 {
 
 	// generate payload
 	payload := opts["PAYLOAD"].(string)
-	payloadOpts := NewModuleExecuteOptions()
+	payloadOpts := &ModuleExecuteOptions{
+		DataStore: make(map[string]interface{}),
+	}
 	payloadOpts.Format = "raw"
 	payloadOpts.DataStore["EXITFUNC"] = "thread"
 	payloadOpts.DataStore["LHOST"] = "127.0.0.1"
@@ -310,7 +312,7 @@ func testCreateShellSessionWithProgram(t *testing.T, client *Client, port string
 
 	// select payload
 	opts := make(map[string]interface{})
-	payloadOpts := NewModuleExecuteOptions()
+	payloadOpts := testNewModuleExecuteOptions()
 	switch runtime.GOOS {
 	case "windows":
 		payloadOpts.Format = "exe"
