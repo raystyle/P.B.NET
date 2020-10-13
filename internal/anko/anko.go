@@ -20,7 +20,7 @@ var (
 	Types    = env.PackageTypes
 )
 
-// NewEnv is used to create an new global scope with packages.
+// NewEnv is used to create a new global scope with packages.
 func NewEnv() *Env {
 	e := newEnv(env.NewEnv(), os.Stdout)
 	e.ctx, e.cancel = context.WithCancel(context.Background())

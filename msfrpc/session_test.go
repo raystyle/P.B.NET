@@ -312,7 +312,9 @@ func testCreateShellSessionWithProgram(t *testing.T, client *Client, port string
 
 	// select payload
 	opts := make(map[string]interface{})
-	payloadOpts := testNewModuleExecuteOptions()
+	payloadOpts := &ModuleExecuteOptions{
+		DataStore: make(map[string]interface{}),
+	}
 	switch runtime.GOOS {
 	case "windows":
 		payloadOpts.Format = "exe"

@@ -355,11 +355,11 @@ func (monitor *Monitor) watchToken() {
 		return
 	}
 	// check deleted tokens
-loop:
+next:
 	for oToken := range monitor.tokens {
 		for i := 0; i < l; i++ {
 			if tokens[i] == oToken {
-				continue loop
+				continue next
 			}
 		}
 		delete(monitor.tokens, oToken)
@@ -412,11 +412,11 @@ func (monitor *Monitor) watchJob() {
 		return
 	}
 	// check stopped jobs
-loop:
+next:
 	for oID, oName := range monitor.jobs {
 		for id := range jobs {
 			if id == oID {
-				continue loop
+				continue next
 			}
 		}
 		delete(monitor.jobs, oID)
@@ -469,11 +469,11 @@ func (monitor *Monitor) watchSession() {
 		return
 	}
 	// check closed sessions
-loop:
+next:
 	for oID, oInfo := range monitor.sessions {
 		for id := range sessions {
 			if id == oID {
-				continue loop
+				continue next
 			}
 		}
 		delete(monitor.sessions, oID)
@@ -714,11 +714,11 @@ func (monitor *Monitor) watchLootWithWorkspace(workspace string) {
 		monitor.loots[workspace] = make(map[*DBLoot]struct{}, l)
 	}
 	// check added loots
-loop:
+next:
 	for i := 0; i < l; i++ {
 		for oLoot := range monitor.loots[workspace] {
 			if reflect.DeepEqual(oLoot, loots[i]) {
-				continue loop
+				continue next
 			}
 		}
 		monitor.loots[workspace][loots[i]] = struct{}{}
@@ -730,6 +730,7 @@ loop:
 	}
 }
 
+// delete doesn't exist workspace.
 func (monitor *Monitor) workspaceCleaner() {
 	defer monitor.wg.Done()
 	defer func() {
@@ -753,7 +754,6 @@ func (monitor *Monitor) workspaceCleaner() {
 	}
 }
 
-// delete doesn't exist workspace.
 func (monitor *Monitor) cleanWorkspace() {
 	workspaces, err := monitor.ctx.DBWorkspaces(monitor.context)
 	if err != nil {
@@ -761,47 +761,47 @@ func (monitor *Monitor) cleanWorkspace() {
 		return
 	}
 	l := len(workspaces)
-	monitor.cleanHosts(workspaces, l)
-	monitor.cleanCreds(workspaces, l)
-	monitor.cleanLoots(workspaces, l)
+	monitor.cleanWorkspaceAboutHosts(workspaces, l)
+	monitor.cleanWorkspaceAboutCreds(workspaces, l)
+	monitor.cleanWorkspaceAboutLoots(workspaces, l)
 }
 
-func (monitor *Monitor) cleanHosts(workspaces []*DBWorkspace, l int) {
+func (monitor *Monitor) cleanWorkspaceAboutHosts(workspaces []*DBWorkspace, l int) {
 	monitor.hostsRWM.Lock()
 	defer monitor.hostsRWM.Unlock()
-loop:
+next:
 	for workspace := range monitor.hosts {
 		for i := 0; i < l; i++ {
 			if workspace == workspaces[i].Name {
-				continue loop
+				continue next
 			}
 		}
 		delete(monitor.hosts, workspace)
 	}
 }
 
-func (monitor *Monitor) cleanCreds(workspaces []*DBWorkspace, l int) {
+func (monitor *Monitor) cleanWorkspaceAboutCreds(workspaces []*DBWorkspace, l int) {
 	monitor.credsRWM.Lock()
 	defer monitor.credsRWM.Unlock()
-loop:
+next:
 	for workspace := range monitor.creds {
 		for i := 0; i < l; i++ {
 			if workspace == workspaces[i].Name {
-				continue loop
+				continue next
 			}
 		}
 		delete(monitor.creds, workspace)
 	}
 }
 
-func (monitor *Monitor) cleanLoots(workspaces []*DBWorkspace, l int) {
+func (monitor *Monitor) cleanWorkspaceAboutLoots(workspaces []*DBWorkspace, l int) {
 	monitor.lootsRWM.Lock()
 	defer monitor.lootsRWM.Unlock()
-loop:
+next:
 	for workspace := range monitor.loots {
 		for i := 0; i < l; i++ {
 			if workspace == workspaces[i].Name {
-				continue loop
+				continue next
 			}
 		}
 		delete(monitor.loots, workspace)

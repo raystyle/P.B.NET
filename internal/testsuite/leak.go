@@ -30,11 +30,7 @@ func MarkGoroutines(t testing.TB) *GoroutineMark {
 	profile := pprof.Lookup("goroutine")
 	err := profile.WriteTo(buf, 1)
 	require.NoError(t, err)
-	return &GoroutineMark{
-		t:      t,
-		then:   num,
-		record: buf,
-	}
+	return &GoroutineMark{t: t, then: num, record: buf}
 }
 
 // total wait 3 seconds for wait goroutine return.
