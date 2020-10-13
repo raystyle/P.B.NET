@@ -131,7 +131,7 @@ func TestIOReader_Parallel(t *testing.T) {
 			var (
 				r      *io.PipeReader
 				w      *io.PipeWriter
-				reader *ioReader
+				reader *IOReader
 			)
 			onRead := func() {}
 
@@ -200,7 +200,7 @@ func TestIOReader_Parallel(t *testing.T) {
 			var (
 				r      *io.PipeReader
 				w      *io.PipeWriter
-				reader *ioReader
+				reader *IOReader
 			)
 			onRead := func() {}
 

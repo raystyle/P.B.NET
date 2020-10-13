@@ -11,66 +11,201 @@ import (
 	"project/internal/xpanic"
 )
 
+// IOReader is used to wrap Console, Shell and Meterpreter.
+// different reader(user) can get the same data, when new data read, it will
+// call onRead() for notice user that can get new data.
+type IOReader struct {
+	rc     io.ReadCloser
+	logger logger.Logger
+	onRead func()
+
+	// store history output
+	buf *bytes.Buffer
+	rwm sync.RWMutex
+
+	wg sync.WaitGroup
+}
+
+func newIOReader(rc io.ReadCloser, logger logger.Logger, onRead func()) *IOReader {
+	reader := IOReader{
+		rc:     rc,
+		logger: logger,
+		onRead: onRead,
+		buf:    bytes.NewBuffer(make([]byte, 0, 64)),
+	}
+	reader.wg.Add(1)
+	go reader.readLoop()
+	return &reader
+}
+
+func (reader *IOReader) readLoop() {
+	defer reader.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			buf := xpanic.Print(r, "ioReader.readLoop")
+			reader.logger.Println(logger.Fatal, "msfrpc-ioReader", buf)
+			// restart readLoop
+			time.Sleep(time.Second)
+			reader.wg.Add(1)
+			go reader.readLoop()
+		}
+	}()
+	var (
+		n   int
+		err error
+	)
+	buf := make([]byte, 4096)
+	for {
+		n, err = reader.rc.Read(buf)
+		if err != nil {
+			return
+		}
+		reader.write(buf[:n])
+		reader.onRead()
+	}
+}
+
+func (reader *IOReader) write(b []byte) {
+	reader.rwm.Lock()
+	defer reader.rwm.Unlock()
+	reader.buf.Write(b)
+}
+
+// Read is used to read buffer data [start:].
+func (reader *IOReader) Read(start int) []byte {
+	if start < 0 {
+		start = 0
+	}
+	reader.rwm.RLock()
+	defer reader.rwm.RUnlock()
+	l := reader.buf.Len()
+	if start >= l {
+		return nil
+	}
+	b := make([]byte, l-start)
+	copy(b, reader.buf.Bytes()[start:])
+	return b
+}
+
+// Clean is used to clean buffer data.
+func (reader *IOReader) Clean() {
+	reader.rwm.Lock()
+	defer reader.rwm.Unlock()
+	// clean buffer data at once
+	security.CoverBytes(reader.buf.Bytes())
+	// alloc a new buffer
+	reader.buf = bytes.NewBuffer(make([]byte, 0, 64))
+}
+
+// Close is used to close io reader, it will also close under ReadCloser.
+func (reader *IOReader) Close() error {
+	err := reader.rc.Close()
+	reader.wg.Wait()
+	// prevent cycle reference
+	reader.onRead = nil
+	return err
+}
+
 // IOStatus contains the status about the IO(console, shell and meterpreter).
-// must use token to operate IO, except with Force. usually the admin can call it.
+// must use token for write data to IO object, usually the admin can unlock it force.
 type IOStatus struct {
-	User   string // user name
 	Locker string // user token
 	LockAt time.Time
+	rwm    sync.RWMutex
+}
+
+// IOObject contains IO object, IO reader and status.
+type IOObject struct {
+	Object interface{} // *Console, *Shell and *Meterpreter
+	Reader *IOReader
+	Status *IOStatus
+}
+
+// ToConsole is used to convert *IOObject to a *Console.
+func (obj *IOObject) ToConsole() *Console {
+	return obj.Object.(*Console)
+}
+
+// ToConsole is used to convert *IOObject to a *Shell.
+func (obj *IOObject) ToShell() *Shell {
+	return obj.Object.(*Shell)
+}
+
+// ToConsole is used to convert *IOObject to a *Meterpreter.
+func (obj *IOObject) ToMeterpreter() *Meterpreter {
+	return obj.Object.(*Meterpreter)
+}
+
+// Lock is used to lock IO object write.
+func (obj *IOObject) Lock(token string) bool {
+	obj.Status.rwm.Lock()
+	defer obj.Status.rwm.Unlock()
+	if obj.Status.Locker == "" {
+		obj.Status.Locker = token
+		return true
+	}
+	return false
+}
+
+// Unlock is used to unlock IO object write.
+func (obj *IOObject) Unlock(token string) bool {
+	obj.Status.rwm.Lock()
+	defer obj.Status.rwm.Unlock()
+	if obj.Status.Locker == "" {
+		return true
+	}
+	if obj.Status.Locker == token {
+		obj.Status.Locker = ""
+		return true
+	}
+	return false
+}
+
+// UnlockForce is used to clean locker force, usually only admin can call it.
+func (obj *IOObject) UnlockForce() {
+	obj.Status.rwm.Lock()
+	defer obj.Status.rwm.Unlock()
+	obj.Status.Locker = ""
 }
 
 // IOManager is used to manage Console IO, Shell session IO and Meterpreter session IO.
-// It can lock IO instance for one user can write data to it, other user can read it with io reader.
-//
-// It can create IO instance that only one user can read or write, other user can
-// only destroy it(Console IO) or kill session(Shell or Meterpreter).
+// It can lock IO instance for one user can write data to it, other user can read it
+// with IO reader, other user can only destroy it(Console) or kill session(Shell or Meterpreter).
 type IOManager struct {
 	ctx *Client
 
 	// key = console id
-	consoles       map[string]*Console
-	consolesReader map[string]*ioReader
-	consolesStatus map[string]*IOStatus
-	consolesRWM    sync.RWMutex
+	consoles    map[string]*IOObject
+	consolesRWM sync.RWMutex
 
 	// key = shell session id
-	shells       map[uint64]*Shell
-	shellsReader map[uint64]*ioReader
-	shellsStatus map[uint64]*IOStatus
-	shellsRWM    sync.RWMutex
+	shells    map[uint64]*IOObject
+	shellsRWM sync.RWMutex
 
 	// key = meterpreter session id
-	meterpreters       map[uint64]*Meterpreter
-	meterpretersReader map[uint64]*ioReader
-	meterpretersStatus map[uint64]*IOStatus
-	meterpretersRWM    sync.RWMutex
+	meterpreters    map[uint64]*IOObject
+	meterpretersRWM sync.RWMutex
 }
 
 // NewIOManager is used to create a new IO manager.
-func (client *Client) NewIOManager() *IOManager {
+func NewIOManager(client *Client) *IOManager {
 	return &IOManager{
 		ctx:          client,
-		consoles:     make(map[string]*Console),
-		shells:       make(map[uint64]*Shell),
-		meterpreters: make(map[uint64]*Meterpreter),
+		consoles:     make(map[string]*IOObject),
+		shells:       make(map[uint64]*IOObject),
+		meterpreters: make(map[uint64]*IOObject),
 	}
 }
 
 // NewConsole is used to create a new console with IO status, All user can read or write.
-// It will create a new under console.
+// Usually it is used to
 func (iom *IOManager) NewConsole() {
 
 }
 
-// NewConsoleAndLockWrite is used to create a new console and lock write.
+// NewConsoleAndLock is used to create a new console and lock it.
 // Only the creator can write it. It will create a new under console.
-func (iom *IOManager) NewConsoleAndLockWrite() {
-
-}
-
-// NewConsoleAndLockRW is used to create a new console and lock read and write.
-// Only the creator can read and write it. It will create a new under console.
-func (iom *IOManager) NewConsoleAndLockRW() {
+func (iom *IOManager) NewConsoleAndLock() {
 
 }
 
@@ -272,99 +407,4 @@ func (iom *IOManager) MeterpreterRead() {
 // MeterpreterWrite is used to write data to meterpreter, it will check token.
 func (iom *IOManager) MeterpreterWrite() {
 
-}
-
-// ioReader is used to wrap Console, Shell and Meterpreter.
-// different reader(user) can get the same data, when new data read, it will
-// call onRead() for notice user that can get new data.
-type ioReader struct {
-	rc     io.ReadCloser
-	logger logger.Logger
-	onRead func()
-
-	// store history output
-	buf *bytes.Buffer
-	rwm sync.RWMutex
-
-	wg sync.WaitGroup
-}
-
-func newIOReader(rc io.ReadCloser, logger logger.Logger, onRead func()) *ioReader {
-	reader := ioReader{
-		rc:     rc,
-		logger: logger,
-		onRead: onRead,
-		buf:    bytes.NewBuffer(make([]byte, 0, 64)),
-	}
-	reader.wg.Add(1)
-	go reader.readLoop()
-	return &reader
-}
-
-func (reader *ioReader) readLoop() {
-	defer reader.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			buf := xpanic.Print(r, "ioReader.readLoop")
-			reader.logger.Println(logger.Fatal, "msfrpc-ioReader", buf)
-			// restart readLoop
-			time.Sleep(time.Second)
-			reader.wg.Add(1)
-			go reader.readLoop()
-		}
-	}()
-	var (
-		n   int
-		err error
-	)
-	buf := make([]byte, 4096)
-	for {
-		n, err = reader.rc.Read(buf)
-		if err != nil {
-			return
-		}
-		reader.write(buf[:n])
-		reader.onRead()
-	}
-}
-
-func (reader *ioReader) write(b []byte) {
-	reader.rwm.Lock()
-	defer reader.rwm.Unlock()
-	reader.buf.Write(b)
-}
-
-// Read is used to read buffer data [start:].
-func (reader *ioReader) Read(start int) []byte {
-	if start < 0 {
-		start = 0
-	}
-	reader.rwm.RLock()
-	defer reader.rwm.RUnlock()
-	l := reader.buf.Len()
-	if start >= l {
-		return nil
-	}
-	b := make([]byte, l-start)
-	copy(b, reader.buf.Bytes()[start:])
-	return b
-}
-
-// Clean is used to clean buffer data.
-func (reader *ioReader) Clean() {
-	reader.rwm.Lock()
-	defer reader.rwm.Unlock()
-	// clean buffer data at once
-	security.CoverBytes(reader.buf.Bytes())
-	// alloc a new buffer
-	reader.buf = bytes.NewBuffer(make([]byte, 0, 64))
-}
-
-// Close is used to close io reader, it will also close under ReadCloser.
-func (reader *ioReader) Close() error {
-	err := reader.rc.Close()
-	reader.wg.Wait()
-	// prevent cycle reference
-	reader.onRead = nil
-	return err
 }
