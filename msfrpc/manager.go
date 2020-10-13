@@ -42,8 +42,8 @@ func (reader *IOReader) readLoop() {
 	defer reader.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			buf := xpanic.Print(r, "ioReader.readLoop")
-			reader.logger.Println(logger.Fatal, "msfrpc-ioReader", buf)
+			buf := xpanic.Print(r, "IOReader.readLoop")
+			reader.logger.Println(logger.Fatal, "msfrpc-IOReader", buf)
 			// restart readLoop
 			time.Sleep(time.Second)
 			reader.wg.Add(1)
@@ -106,19 +106,18 @@ func (reader *IOReader) Close() error {
 	return err
 }
 
-// IOStatus contains the status about the IO(console, shell and meterpreter).
+// IOObject contains under IO Object, IO Reader and IO status about IO Object.
+// IO status contains the status about the IO(console, shell and meterpreter).
 // must use token for write data to IO object, usually the admin can unlock it force.
-type IOStatus struct {
-	Locker string // user token
-	LockAt time.Time
-	rwm    sync.RWMutex
-}
-
-// IOObject contains IO object, IO reader and status.
 type IOObject struct {
 	Object interface{} // *Console, *Shell and *Meterpreter
 	Reader *IOReader
-	Status *IOStatus
+	now    func() time.Time
+
+	// status
+	locker string // user token
+	lockAt time.Time
+	rwm    sync.RWMutex
 }
 
 // ToConsole is used to convert *IOObject to a *Console.
@@ -126,22 +125,23 @@ func (obj *IOObject) ToConsole() *Console {
 	return obj.Object.(*Console)
 }
 
-// ToConsole is used to convert *IOObject to a *Shell.
+// ToShell is used to convert *IOObject to a *Shell.
 func (obj *IOObject) ToShell() *Shell {
 	return obj.Object.(*Shell)
 }
 
-// ToConsole is used to convert *IOObject to a *Meterpreter.
+// ToMeterpreter is used to convert *IOObject to a *Meterpreter.
 func (obj *IOObject) ToMeterpreter() *Meterpreter {
 	return obj.Object.(*Meterpreter)
 }
 
 // Lock is used to lock IO object write.
 func (obj *IOObject) Lock(token string) bool {
-	obj.Status.rwm.Lock()
-	defer obj.Status.rwm.Unlock()
-	if obj.Status.Locker == "" {
-		obj.Status.Locker = token
+	obj.rwm.Lock()
+	defer obj.rwm.Unlock()
+	if obj.locker == "" {
+		obj.locker = token
+		obj.lockAt = obj.now()
 		return true
 	}
 	return false
@@ -149,23 +149,37 @@ func (obj *IOObject) Lock(token string) bool {
 
 // Unlock is used to unlock IO object write.
 func (obj *IOObject) Unlock(token string) bool {
-	obj.Status.rwm.Lock()
-	defer obj.Status.rwm.Unlock()
-	if obj.Status.Locker == "" {
+	obj.rwm.Lock()
+	defer obj.rwm.Unlock()
+	if obj.locker == "" {
 		return true
 	}
-	if obj.Status.Locker == token {
-		obj.Status.Locker = ""
+	if obj.locker == token {
+		obj.locker = ""
 		return true
 	}
 	return false
 }
 
-// UnlockForce is used to clean locker force, usually only admin can call it.
-func (obj *IOObject) UnlockForce() {
-	obj.Status.rwm.Lock()
-	defer obj.Status.rwm.Unlock()
-	obj.Status.Locker = ""
+// ForceUnlock is used to clean locker force, usually only admin can call it.
+func (obj *IOObject) ForceUnlock() {
+	obj.rwm.Lock()
+	defer obj.rwm.Unlock()
+	obj.locker = ""
+}
+
+// Locker is used to return locker token for find lock user.
+func (obj *IOObject) Locker() string {
+	obj.rwm.RLock()
+	defer obj.rwm.RUnlock()
+	return obj.locker
+}
+
+// LockAt is used to get the time about lock object.
+func (obj *IOObject) LockAt() time.Time {
+	obj.rwm.RLock()
+	defer obj.rwm.RUnlock()
+	return obj.lockAt
 }
 
 // IOManager is used to manage Console IO, Shell session IO and Meterpreter session IO.
@@ -173,6 +187,7 @@ func (obj *IOObject) UnlockForce() {
 // with IO reader, other user can only destroy it(Console) or kill session(Shell or Meterpreter).
 type IOManager struct {
 	ctx *Client
+	now func() time.Time
 
 	// key = console id
 	consoles    map[string]*IOObject
@@ -188,9 +203,10 @@ type IOManager struct {
 }
 
 // NewIOManager is used to create a new IO manager.
-func NewIOManager(client *Client) *IOManager {
+func NewIOManager(client *Client, now func() time.Time) *IOManager {
 	return &IOManager{
 		ctx:          client,
+		now:          now,
 		consoles:     make(map[string]*IOObject),
 		shells:       make(map[uint64]*IOObject),
 		meterpreters: make(map[uint64]*IOObject),
@@ -407,4 +423,32 @@ func (iom *IOManager) MeterpreterRead() {
 // MeterpreterWrite is used to write data to meterpreter, it will check token.
 func (iom *IOManager) MeterpreterWrite() {
 
+}
+
+// Close is used to close IOManager..
+func (iom *IOManager) Close() error {
+	var err error
+	for id, obj := range iom.consoles {
+		e := obj.Reader.Close()
+		if e != nil && err == nil {
+			err = e
+		}
+		delete(iom.consoles, id)
+	}
+	for id, obj := range iom.shells {
+		e := obj.Reader.Close()
+		if e != nil && err == nil {
+			err = e
+		}
+		delete(iom.shells, id)
+	}
+	for id, obj := range iom.meterpreters {
+		e := obj.Reader.Close()
+		if e != nil && err == nil {
+			err = e
+		}
+		delete(iom.meterpreters, id)
+	}
+	iom.now = nil
+	return nil
 }
