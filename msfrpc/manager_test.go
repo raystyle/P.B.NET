@@ -2,7 +2,6 @@ package msfrpc
 
 import (
 	"io"
-	"sync"
 	"testing"
 	"time"
 
@@ -129,60 +128,109 @@ func TestIOReader_Parallel(t *testing.T) {
 		})
 
 		t.Run("whole", func(t *testing.T) {
+			var (
+				r      *io.PipeReader
+				w      *io.PipeWriter
+				reader *ioReader
+			)
+			onRead := func() {}
 
+			init := func() {
+				r, w = io.Pipe()
+				reader = newIOReader(r, logger.Test, onRead)
+			}
+			write := func() {
+				_, err := w.Write(testdata)
+				require.NoError(t, err)
+			}
+			read := func() {
+				for i := 0; i < 100; i++ {
+					output := reader.Read(i)
+					if len(output) == 0 {
+						return
+					}
+					require.Equal(t, testdata[i:], output)
+				}
+			}
+			clean := func() {
+				reader.Clean()
+			}
+			cleanup := func() {
+				err := reader.Close()
+				require.NoError(t, err)
+			}
+			testsuite.RunParallel(100, init, cleanup, write, read, clean)
+
+			testsuite.IsDestroyed(t, reader)
 		})
 	})
 
 	t.Run("with close", func(t *testing.T) {
 		t.Run("part", func(t *testing.T) {
+			r, w := io.Pipe()
+			onRead := func() {}
+			reader := newIOReader(r, logger.Test, onRead)
 
+			write := func() {
+				// writer pipe maybe closed
+				_, _ = w.Write(testdata)
+			}
+			read := func() {
+				for i := 0; i < 100; i++ {
+					output := reader.Read(i)
+					if len(output) == 0 {
+						return
+					}
+					require.Equal(t, testdata[i:], output)
+				}
+			}
+			clean := func() {
+				reader.Clean()
+			}
+			close1 := func() {
+				err := reader.Close()
+				require.NoError(t, err)
+			}
+			testsuite.RunParallel(100, nil, nil, write, read, clean, close1)
+
+			testsuite.IsDestroyed(t, reader)
 		})
 
 		t.Run("whole", func(t *testing.T) {
+			var (
+				r      *io.PipeReader
+				w      *io.PipeWriter
+				reader *ioReader
+			)
+			onRead := func() {}
 
+			init := func() {
+				r, w = io.Pipe()
+				reader = newIOReader(r, logger.Test, onRead)
+			}
+			write := func() {
+				// writer pipe maybe closed
+				_, _ = w.Write(testdata)
+			}
+			read := func() {
+				for i := 0; i < 100; i++ {
+					output := reader.Read(i)
+					if len(output) == 0 {
+						return
+					}
+					require.Equal(t, testdata[i:], output)
+				}
+			}
+			clean := func() {
+				reader.Clean()
+			}
+			close1 := func() {
+				err := reader.Close()
+				require.NoError(t, err)
+			}
+			testsuite.RunParallel(100, init, nil, write, read, clean, close1)
+
+			testsuite.IsDestroyed(t, reader)
 		})
 	})
-
-	r, w := io.Pipe()
-	onRead := func() {}
-	reader := newIOReader(r, logger.Test, onRead)
-
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 1000; i++ {
-			_, err := w.Write(testsuite.Bytes())
-			require.NoError(t, err)
-		}
-
-		err := reader.Close()
-		require.NoError(t, err)
-	}()
-
-	time.Sleep(time.Millisecond)
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		reader.Clean()
-	}()
-
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 100; i++ {
-				data := reader.Read(i)
-				if len(data) == 0 {
-					return
-				}
-				data[0] = 1
-			}
-		}()
-	}
-
-	wg.Wait()
-
-	testsuite.IsDestroyed(t, reader)
 }
