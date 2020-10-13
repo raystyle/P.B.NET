@@ -21,10 +21,9 @@ type GoroutineMark struct {
 }
 
 // MarkGoroutines is used to mark the number of the goroutines.
-// It must add it in to the top Test, can't use is into the sub test
-// that use t.Run().
+// It will save current goroutine stack record, it must add it in
+// to the top Test, can't use it into the sub test that use t.Run().
 func MarkGoroutines(t testing.TB) *GoroutineMark {
-	// save current goroutine stack record
 	num := runtime.NumGoroutine()
 	buf := bytes.NewBuffer(make([]byte, 0, 1024*num))
 	profile := pprof.Lookup("goroutine")
@@ -33,8 +32,15 @@ func MarkGoroutines(t testing.TB) *GoroutineMark {
 	return &GoroutineMark{t: t, then: num, record: buf}
 }
 
+// Compare is used to compare the number of the goroutines.
+func (m *GoroutineMark) Compare() {
+	const format = "goroutine leaks! then: %d now: %d"
+	delta := m.compare()
+	require.Equalf(m.t, 0, delta, format, m.then, m.now)
+}
+
 // total wait 3 seconds for wait goroutine return.
-func (m *GoroutineMark) calculate() int {
+func (m *GoroutineMark) compare() int {
 	for i := 0; i < 300; i++ {
 		if runtime.NumGoroutine()-m.then == 0 {
 			return 0
@@ -68,13 +74,6 @@ func (m *GoroutineMark) calculate() int {
 	// save current goroutine number
 	m.now = num
 	return m.now - m.then
-}
-
-// Compare is used to compare the number of the goroutines.
-func (m *GoroutineMark) Compare() {
-	const format = "goroutine leaks! then: %d now: %d"
-	delta := m.calculate()
-	require.Equalf(m.t, 0, delta, format, m.then, m.now)
 }
 
 // Destroyed is used to check if the object has been recycled by the GC.
@@ -123,13 +122,13 @@ func MarkMemory(t testing.TB) *MemoryMark {
 	return m
 }
 
-func (m *MemoryMark) calculate() bool {
+// Compare is used to compare the memory status.
+func (m *MemoryMark) Compare() {
+	require.True(m.t, m.compare(), "memory leaks")
+}
+
+func (m *MemoryMark) compare() bool {
 	runtime.GC()
 	runtime.ReadMemStats(m.now)
 	return true
-}
-
-// Compare is used to compare the memory status.
-func (m *MemoryMark) Compare() {
-	require.True(m.t, m.calculate(), "memory leaks")
 }

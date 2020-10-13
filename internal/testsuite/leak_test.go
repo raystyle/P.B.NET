@@ -22,7 +22,7 @@ func TestMarkGoroutine(t *testing.T) {
 func TestMarkGoroutine_Leak(t *testing.T) {
 	gm := MarkGoroutines(t)
 	defer func() {
-		delta := gm.calculate()
+		delta := gm.compare()
 		require.Equal(t, 1, delta)
 	}()
 
