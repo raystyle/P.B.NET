@@ -14,14 +14,13 @@ import (
 // IOStatus contains the status about the IO(console, shell and meterpreter).
 // must use token to operate IO, except with Force. usually the admin can call it.
 type IOStatus struct {
-	User   string
-	Lock   string // user token
+	User   string // user name
+	Locker string // user token
 	LockAt time.Time
 }
 
 // IOManager is used to manage Console IO, Shell session IO and Meterpreter session IO.
-// It can lock IO instance for one user can write data to it, other user can
-// read it with parallel reader.
+// It can lock IO instance for one user can write data to it, other user can read it with io reader.
 //
 // It can create IO instance that only one user can read or write, other user can
 // only destroy it(Console IO) or kill session(Shell or Meterpreter).
@@ -36,11 +35,13 @@ type IOManager struct {
 
 	// key = shell session id
 	shells       map[uint64]*Shell
+	shellsReader map[uint64]*ioReader
 	shellsStatus map[uint64]*IOStatus
 	shellsRWM    sync.RWMutex
 
 	// key = meterpreter session id
 	meterpreters       map[uint64]*Meterpreter
+	meterpretersReader map[uint64]*ioReader
 	meterpretersStatus map[uint64]*IOStatus
 	meterpretersRWM    sync.RWMutex
 }
@@ -322,12 +323,12 @@ func (reader *ioReader) readLoop() {
 		if err != nil {
 			return
 		}
-		reader.writeToBuffer(buf[:n])
+		reader.write(buf[:n])
 		reader.onRead()
 	}
 }
 
-func (reader *ioReader) writeToBuffer(b []byte) {
+func (reader *ioReader) write(b []byte) {
 	reader.rwm.Lock()
 	defer reader.rwm.Unlock()
 	reader.buf.Write(b)
@@ -359,10 +360,11 @@ func (reader *ioReader) Clean() {
 	reader.buf = bytes.NewBuffer(make([]byte, 0, 64))
 }
 
-// Close is used to close io reader.
+// Close is used to close io reader, it will also close under ReadCloser.
 func (reader *ioReader) Close() error {
 	err := reader.rc.Close()
 	reader.wg.Wait()
+	// prevent cycle reference
 	reader.onRead = nil
 	return err
 }

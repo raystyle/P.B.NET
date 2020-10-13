@@ -53,9 +53,95 @@ func TestIOReader_Read(t *testing.T) {
 	testsuite.IsDestroyed(t, reader)
 }
 
+func TestIOReader_Clean(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	r, w := io.Pipe()
+	onRead := func() {}
+	reader := newIOReader(r, logger.Test, onRead)
+
+	testdata := testsuite.Bytes()
+	_, err := w.Write(testdata)
+	require.NoError(t, err)
+
+	reader.Clean()
+
+	output := reader.Read(257)
+	require.Nil(t, output)
+
+	err = reader.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, reader)
+}
+
+func TestIOReader_Panic(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	conn := testsuite.NewMockConnWithReadPanic()
+	onRead := func() {}
+	reader := newIOReader(conn, logger.Test, onRead)
+
+	time.Sleep(time.Second)
+
+	err := reader.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, reader)
+}
+
 func TestIOReader_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
+
+	testdata := testsuite.Bytes()
+
+	t.Run("without close", func(t *testing.T) {
+		t.Run("part", func(t *testing.T) {
+			r, w := io.Pipe()
+			onRead := func() {}
+			reader := newIOReader(r, logger.Test, onRead)
+
+			write := func() {
+				_, err := w.Write(testdata)
+				require.NoError(t, err)
+			}
+			read := func() {
+				for i := 0; i < 100; i++ {
+					output := reader.Read(i)
+					if len(output) == 0 {
+						return
+					}
+					require.Equal(t, testdata[i:], output)
+				}
+			}
+			clean := func() {
+				reader.Clean()
+			}
+			testsuite.RunParallel(100, nil, nil, write, read, clean)
+
+			err := reader.Close()
+			require.NoError(t, err)
+
+			testsuite.IsDestroyed(t, reader)
+		})
+
+		t.Run("whole", func(t *testing.T) {
+
+		})
+	})
+
+	t.Run("with close", func(t *testing.T) {
+		t.Run("part", func(t *testing.T) {
+
+		})
+
+		t.Run("whole", func(t *testing.T) {
+
+		})
+	})
 
 	r, w := io.Pipe()
 	onRead := func() {}
@@ -76,6 +162,12 @@ func TestIOReader_Parallel(t *testing.T) {
 
 	time.Sleep(time.Millisecond)
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		reader.Clean()
+	}()
+
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
@@ -91,22 +183,6 @@ func TestIOReader_Parallel(t *testing.T) {
 	}
 
 	wg.Wait()
-
-	testsuite.IsDestroyed(t, reader)
-}
-
-func TestIOReader_Panic(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	conn := testsuite.NewMockConnWithReadPanic()
-	onRead := func() {}
-	reader := newIOReader(conn, logger.Test, onRead)
-
-	time.Sleep(time.Second)
-
-	err := reader.Close()
-	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, reader)
 }
