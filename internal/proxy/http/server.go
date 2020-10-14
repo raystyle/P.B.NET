@@ -24,12 +24,16 @@ import (
 	"project/internal/xsync"
 )
 
+// EmptyTag is a reserve tag that delete "-" in tag,
+// "https proxy- " -> "https proxy", it is used to tool/proxy.
+const EmptyTag = " "
+
 // Server implemented internal/proxy.server.
 type Server struct {
-	tag      string
 	logger   logger.Logger
 	https    bool
 	maxConns int
+	logSrc   string
 
 	// accept client request
 	server  *http.Server
@@ -38,8 +42,6 @@ type Server struct {
 	// listener addresses
 	addresses    map[*net.Addr]struct{}
 	addressesRWM sync.RWMutex
-
-	closeOnce sync.Once
 }
 
 // NewHTTPServer is used to create a HTTP proxy server.
@@ -83,13 +85,17 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	if srv.maxConns < 1 {
 		srv.maxConns = defaultMaxConnections
 	}
-	// tag
+	// log source
+	var logSrc string
 	if srv.https {
-		tag = "https proxy-" + tag
+		logSrc = "https proxy"
 	} else {
-		tag = "http proxy-" + tag
+		logSrc = "http proxy"
 	}
-	srv.tag = tag
+	if tag != EmptyTag {
+		logSrc += "-" + tag
+	}
+	srv.logSrc = logSrc
 	// initialize http handler
 	handler := &handler{
 		tag:         tag,
@@ -114,7 +120,7 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	// http proxy server
 	srv.handler = handler
 	srv.server.Handler = handler
-	srv.server.ErrorLog = logger.Wrap(logger.Error, srv.tag, lg)
+	srv.server.ErrorLog = logger.Wrap(logger.Error, logSrc, lg)
 	srv.server.ConnState = func(conn net.Conn, state http.ConnState) {
 		switch state {
 		case http.StateNew:
@@ -128,20 +134,20 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 }
 
 func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
-	s.logger.Printf(lv, s.tag, format, log...)
+	s.logger.Printf(lv, s.logSrc, format, log...)
 }
 
 func (s *Server) log(lv logger.Level, log ...interface{}) {
-	s.logger.Println(lv, s.tag, log...)
+	s.logger.Println(lv, s.logSrc, log...)
 }
 
-func (s *Server) addAddress(addr *net.Addr) {
+func (s *Server) addListenerAddress(addr *net.Addr) {
 	s.addressesRWM.Lock()
 	defer s.addressesRWM.Unlock()
 	s.addresses[addr] = struct{}{}
 }
 
-func (s *Server) deleteAddress(addr *net.Addr) {
+func (s *Server) deleteListenerAddress(addr *net.Addr) {
 	s.addressesRWM.Lock()
 	defer s.addressesRWM.Unlock()
 	delete(s.addresses, addr)
@@ -177,8 +183,8 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 
 	address := listener.Addr()
 	network := address.Network()
-	s.addAddress(&address)
-	defer s.deleteAddress(&address)
+	s.addListenerAddress(&address)
+	defer s.deleteListenerAddress(&address)
 
 	s.logf(logger.Info, "start listener (%s %s)", network, address)
 	defer s.logf(logger.Info, "listener closed (%s %s)", network, address)
@@ -238,12 +244,10 @@ func (s *Server) Info() string {
 }
 
 // Close is used to close HTTP proxy server.
-func (s *Server) Close() (err error) {
-	s.closeOnce.Do(func() {
-		err = s.server.Close()
-		s.handler.Close()
-	})
-	return
+func (s *Server) Close() error {
+	err := s.server.Close()
+	s.handler.Close()
+	return err
 }
 
 type handler struct {
