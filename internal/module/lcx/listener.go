@@ -22,8 +22,8 @@ type Listener struct {
 	iAddress string // slaver connected Listener
 	logger   logger.Logger
 	opts     *Options
+	logSrc   string
 
-	logSrc    string
 	iListener net.Listener // accept slaver connection
 	lListener net.Listener // accept user connection
 	conns     map[*lConn]struct{}
@@ -34,7 +34,7 @@ type Listener struct {
 }
 
 // NewListener is used to create a listener.
-func NewListener(tag, iNetwork, iAddress string, logger logger.Logger, opts *Options) (*Listener, error) {
+func NewListener(tag, iNetwork, iAddress string, lg logger.Logger, opts *Options) (*Listener, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
@@ -53,12 +53,17 @@ func NewListener(tag, iNetwork, iAddress string, logger logger.Logger, opts *Opt
 	if err != nil {
 		return nil, err
 	}
+	// log source
+	logSrc := "lcx listen"
+	if tag != EmptyTag {
+		logSrc += "-" + tag
+	}
 	return &Listener{
 		iNetwork: iNetwork,
 		iAddress: iAddress,
-		logger:   logger,
+		logger:   lg,
 		opts:     opts,
-		logSrc:   "lcx listen-" + tag,
+		logSrc:   logSrc,
 		conns:    make(map[*lConn]struct{}),
 	}, nil
 }

@@ -4,6 +4,10 @@ import (
 	"time"
 )
 
+// EmptyTag is a reserve tag that delete "-" in tag,
+// "https proxy- " -> "https proxy", it is used to tool/proxy.
+const EmptyTag = " "
+
 // about default options
 const (
 	DefaultConnectTimeout = 10 * time.Second

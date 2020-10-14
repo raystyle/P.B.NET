@@ -71,6 +71,11 @@ func NewSlaver(
 		opts = new(Options)
 	}
 	opts = opts.apply()
+	// log source
+	logSrc := "lcx slave"
+	if tag != EmptyTag {
+		logSrc += "-" + tag
+	}
 	return &Slaver{
 		lNetwork:   lNetwork,
 		lAddress:   lAddress,
@@ -78,7 +83,7 @@ func NewSlaver(
 		dstAddress: dstAddress,
 		logger:     logger,
 		opts:       opts,
-		logSrc:     "lcx slave-" + tag,
+		logSrc:     logSrc,
 		sleeper:    random.NewSleeper(),
 		stopped:    true,
 		conns:      make(map[*sConn]struct{}),

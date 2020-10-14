@@ -36,7 +36,7 @@ type Tranner struct {
 }
 
 // NewTranner is used to create a tranner.
-func NewTranner(tag, dstNetwork, dstAddress string, logger logger.Logger, opts *Options) (*Tranner, error) {
+func NewTranner(tag, dstNetwork, dstAddress string, lg logger.Logger, opts *Options) (*Tranner, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
@@ -55,12 +55,17 @@ func NewTranner(tag, dstNetwork, dstAddress string, logger logger.Logger, opts *
 	if err != nil {
 		return nil, err
 	}
+	// log source
+	logSrc := "lcx tran"
+	if tag != EmptyTag {
+		logSrc += "-" + tag
+	}
 	return &Tranner{
 		dstNetwork: dstNetwork,
 		dstAddress: dstAddress,
-		logger:     logger,
+		logger:     lg,
 		opts:       opts,
-		logSrc:     "lcx tran-" + tag,
+		logSrc:     logSrc,
 		conns:      make(map[*tConn]struct{}),
 	}, nil
 }
