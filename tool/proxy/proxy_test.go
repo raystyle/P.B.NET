@@ -1,4 +1,4 @@
-package test
+package proxy
 
 import (
 	"fmt"
@@ -14,24 +14,21 @@ import (
 
 	"project/internal/proxy"
 	"project/internal/testsuite"
-
-	"project/tool/proxy/client"
-	"project/tool/proxy/server"
 )
 
-func TestProxyClientWithBalanceAndChain(t *testing.T) {
+func TestBalanceAndChain(t *testing.T) {
 	testsuite.InitHTTPServers(t)
 
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	// generate 9 proxy servers
-	proxyServers := make([]*server.Server, 9)
+	proxyServers := make([]*Server, 9)
 	var err error
 	for i := 0; i < 9; i++ {
 		options := fmt.Sprintf("username = \"admin\"\r\npassword = \"12345%d\"", i)
-		proxyServers[i], err = server.New(&server.Config{
-			Tag: strconv.Itoa(i + 1),
+		proxyServers[i], err = NewServer(&ServerConfig{
+			tag: strconv.Itoa(i + 1),
 			Proxy: struct {
 				Mode    string `toml:"mode"`
 				Network string `toml:"network"`
@@ -44,7 +41,7 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 				Options: options,
 			}})
 		require.NoError(t, err)
-		go func(server *server.Server) {
+		go func(server *Server) {
 			err := server.Main()
 			require.NoError(t, err)
 		}(proxyServers[i])
@@ -53,7 +50,7 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 	time.Sleep(250 * time.Millisecond)
 
 	// make proxy client
-	config := client.Config{
+	config := ClientConfig{
 		Server: struct {
 			Mode    string `toml:"mode"`
 			Network string `toml:"network"`
@@ -73,7 +70,7 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 			Tag:     "socks5-" + strconv.Itoa(i+1),
 			Mode:    proxy.ModeSocks5,
 			Network: "tcp",
-			Address: proxyServers[i].Address(),
+			Address: proxyServers[i].testAddress(),
 			Options: options,
 		})
 	}
@@ -98,7 +95,7 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 		Options: `tags = ["balance-1","balance-2","balance-3"]`,
 	})
 
-	proxyClient, err := client.New(&config)
+	proxyClient, err := NewClient(&config)
 	require.NoError(t, err)
 	go func() {
 		err := proxyClient.Main()
@@ -108,7 +105,7 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 	time.Sleep(250 * time.Millisecond)
 
 	// make client
-	URL, err := url.Parse("socks5://" + proxyClient.Address())
+	URL, err := url.Parse("socks5://" + proxyClient.testAddress())
 	require.NoError(t, err)
 	transport := &http.Transport{Proxy: http.ProxyURL(URL)}
 

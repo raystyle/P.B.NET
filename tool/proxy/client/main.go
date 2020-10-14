@@ -12,7 +12,7 @@ import (
 
 	"project/internal/patch/toml"
 
-	"project/tool/proxy/client"
+	"project/tool/proxy"
 )
 
 func main() {
@@ -46,12 +46,12 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	cfg := new(client.Config)
+	cfg := new(proxy.ClientConfig)
 	err = toml.Unmarshal(data, cfg)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	proxyClient, err := client.New(cfg)
+	proxyClient, err := proxy.NewClient(cfg)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -95,7 +95,7 @@ func main() {
 }
 
 type program struct {
-	client *client.Client
+	client *proxy.Client
 	wg     sync.WaitGroup
 }
 
