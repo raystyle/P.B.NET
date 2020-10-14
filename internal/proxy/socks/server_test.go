@@ -306,7 +306,6 @@ func TestServer_Close(t *testing.T) {
 
 		conn := &conn{local: testsuite.NewMockConnWithCloseError()}
 		server.trackConn(conn, true)
-		server.counter.Done()
 
 		err = server.Close()
 		testsuite.IsMockConnCloseError(t, err)

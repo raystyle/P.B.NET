@@ -15,7 +15,9 @@ import (
 	"project/internal/nettool"
 )
 
+// reference:
 // https://www.ietf.org/rfc/rfc1928.txt
+// https://www.ietf.org/rfc/rfc1929.txt
 
 const (
 	version5 = 0x05

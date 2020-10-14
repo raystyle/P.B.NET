@@ -30,6 +30,10 @@ const (
 	ModeDirect = "direct"
 )
 
+// EmptyTag is a reserve tag that delete "-" in tag,
+// "https proxy- " -> "https proxy", it is used to tool/proxy.
+const EmptyTag = " "
+
 type client interface {
 	Dial(network, address string) (net.Conn, error)
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)

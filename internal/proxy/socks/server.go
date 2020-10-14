@@ -19,16 +19,20 @@ import (
 	"project/internal/xsync"
 )
 
+// EmptyTag is a reserve tag that delete "-" in tag,
+// "https proxy- " -> "https proxy", it is used to tool/proxy.
+const EmptyTag = " "
+
 // ErrServerClosed is returned by the Server's Serve, ListenAndServe,
 // methods after a call Close.
 var ErrServerClosed = fmt.Errorf("socks server closed")
 
 // Server implemented internal/proxy.server.
 type Server struct {
-	tag        string
 	logger     logger.Logger
 	socks4     bool
 	disableExt bool // socks4 can't resolve domain name
+	logSrc     string
 
 	// options
 	username []byte
@@ -45,10 +49,9 @@ type Server struct {
 	inShutdown int32
 	rwm        sync.RWMutex
 
-	closeOnce sync.Once
-	ctx       context.Context
-	cancel    context.CancelFunc
-	counter   xsync.Counter
+	ctx     context.Context
+	cancel  context.CancelFunc
+	counter xsync.Counter
 }
 
 // NewSocks5Server is used to create a socks5 server.
@@ -83,17 +86,22 @@ func newServer(tag string, lg logger.Logger, opts *Options, socks4, disableExt b
 		listeners:   make(map[*net.Listener]struct{}),
 		conns:       make(map[*conn]struct{}),
 	}
-	// tag
+	// log source
+	var logSrc string
 	if srv.socks4 {
 		if srv.disableExt {
-			srv.tag = "socks4-" + tag
+			logSrc = "socks4"
 		} else {
-			srv.tag = "socks4a-" + tag
+			logSrc = "socks4a"
 		}
 	} else {
-		srv.tag = "socks5-" + tag
+		logSrc = "socks5"
 	}
-	// auth
+	if tag != EmptyTag {
+		logSrc += "-" + tag
+	}
+	srv.logSrc = logSrc
+	// authentication
 	if opts.Username != "" || opts.Password != "" {
 		srv.username = []byte(opts.Username)
 		srv.password = []byte(opts.Password)
@@ -115,11 +123,11 @@ func newServer(tag string, lg logger.Logger, opts *Options, socks4, disableExt b
 }
 
 func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
-	s.logger.Printf(lv, s.tag, format, log...)
+	s.logger.Printf(lv, s.logSrc, format, log...)
 }
 
 func (s *Server) log(lv logger.Level, log ...interface{}) {
-	s.logger.Println(lv, s.tag, log...)
+	s.logger.Println(lv, s.logSrc, log...)
 }
 
 func (s *Server) shuttingDown() bool {
@@ -233,10 +241,8 @@ func (s *Server) trackConn(conn *conn, add bool) bool {
 			return false
 		}
 		s.conns[conn] = struct{}{}
-		s.counter.Add(1)
 	} else {
 		delete(s.conns, conn)
-		s.counter.Done()
 	}
 	return true
 }
@@ -292,12 +298,10 @@ func (s *Server) Info() string {
 }
 
 // Close is used to close socks server.
-func (s *Server) Close() (err error) {
-	s.closeOnce.Do(func() {
-		err = s.close()
-		s.counter.Wait()
-	})
-	return
+func (s *Server) Close() error {
+	err := s.close()
+	s.counter.Wait()
+	return err
 }
 
 func (s *Server) close() error {

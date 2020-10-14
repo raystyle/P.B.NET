@@ -15,6 +15,7 @@ import (
 	"project/internal/nettool"
 )
 
+// reference:
 // http://ftp.icm.edu.pl/packages/socks/socks4/SOCKS4.protocol
 // http://www.openssh.com/txt/socks4a.protocol
 
