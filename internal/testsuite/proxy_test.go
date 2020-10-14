@@ -95,12 +95,10 @@ func (mps *mockProxyServer) Info() string {
 	return "mock proxy server information"
 }
 
-func (mps *mockProxyServer) Close() (err error) {
-	mps.closeOnce.Do(func() {
-		err = mps.close()
-		mps.counter.Wait()
-	})
-	return
+func (mps *mockProxyServer) Close() error {
+	err := mps.close()
+	mps.counter.Wait()
+	return err
 }
 
 func (mps *mockProxyServer) close() error {

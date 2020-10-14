@@ -64,6 +64,52 @@ type Client struct {
 	client `check:"-"`
 }
 
+// Server is the proxy server.
+type Server struct {
+	Tag     string `toml:"tag"`
+	Mode    string `toml:"mode"`
+	Options string `toml:"options"`
+	// secondary proxy
+	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-"`
+
+	server `check:"-"`
+
+	now      func() time.Time
+	createAt time.Time
+	serveAt  []time.Time
+	rwm      sync.RWMutex
+}
+
+func (s *Server) addServeAt() {
+	s.rwm.Lock()
+	defer s.rwm.Unlock()
+	s.serveAt = append(s.serveAt, s.now())
+}
+
+// ListenAndServe is used to listen a listener and serve.
+func (s *Server) ListenAndServe(network, address string) error {
+	s.addServeAt()
+	return s.server.ListenAndServe(network, address)
+}
+
+// Serve accept incoming connections on the listener.
+func (s *Server) Serve(listener net.Listener) error {
+	s.addServeAt()
+	return s.server.Serve(listener)
+}
+
+// CreateAt is used get proxy server create time.
+func (s *Server) CreateAt() time.Time {
+	return s.createAt
+}
+
+// ServeAt is used get proxy server serve time.
+func (s *Server) ServeAt() []time.Time {
+	s.rwm.RLock()
+	defer s.rwm.RUnlock()
+	return s.serveAt
+}
+
 // balance: general
 // 1. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
 // 2. http-c:    http://admin4:1234564@127.0.0.1:6319
@@ -126,50 +172,4 @@ func printClientsInfo(buf *bytes.Buffer, clients []*Client) {
 			_, _ = fmt.Fprintf(buf, format, i+1, client.Tag+":", client.Info())
 		}
 	}
-}
-
-// Server is the proxy server.
-type Server struct {
-	Tag     string `toml:"tag"`
-	Mode    string `toml:"mode"`
-	Options string `toml:"options"`
-	// secondary proxy
-	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-"`
-
-	server `check:"-"`
-
-	now      func() time.Time
-	createAt time.Time
-	serveAt  []time.Time
-	rwm      sync.RWMutex
-}
-
-func (s *Server) addServeAt() {
-	s.rwm.Lock()
-	defer s.rwm.Unlock()
-	s.serveAt = append(s.serveAt, s.now())
-}
-
-// ListenAndServe is used to listen a listener and serve.
-func (s *Server) ListenAndServe(network, address string) error {
-	s.addServeAt()
-	return s.server.ListenAndServe(network, address)
-}
-
-// Serve accept incoming connections on the listener.
-func (s *Server) Serve(listener net.Listener) error {
-	s.addServeAt()
-	return s.server.Serve(listener)
-}
-
-// CreateAt is used get proxy server create time.
-func (s *Server) CreateAt() time.Time {
-	return s.createAt
-}
-
-// ServeAt is used get proxy server serve time.
-func (s *Server) ServeAt() []time.Time {
-	s.rwm.RLock()
-	defer s.rwm.RUnlock()
-	return s.serveAt
 }

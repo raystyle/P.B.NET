@@ -49,7 +49,7 @@ func main() {
 	flag.IntVar(&opts.MaxConns, "max-conn", lcx.DefaultMaxConnections, usage)
 	flag.Parse()
 
-	const tag = "m"
+	const tag = lcx.EmptyTag
 	var (
 		mod module.Module
 		err error

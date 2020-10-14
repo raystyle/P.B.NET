@@ -98,7 +98,7 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	srv.logSrc = logSrc
 	// initialize http handler
 	handler := &handler{
-		tag:         tag,
+		logSrc:      logSrc,
 		logger:      lg,
 		timeout:     timeout,
 		transport:   transport,
@@ -251,8 +251,8 @@ func (s *Server) Close() error {
 }
 
 type handler struct {
-	tag    string
 	logger logger.Logger
+	logSrc string
 
 	// dial timeout
 	timeout time.Duration
@@ -285,7 +285,7 @@ func (h *handler) log(lv logger.Level, r *http.Request, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log...)
 	_, _ = httptool.FprintRequest(buf, r)
-	h.logger.Println(lv, h.tag, buf)
+	h.logger.Println(lv, h.logSrc, buf)
 }
 
 // ServeHTTP implement http.Handler.
