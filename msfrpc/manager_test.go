@@ -1,6 +1,8 @@
 package msfrpc
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -152,7 +154,12 @@ func TestIOReader_Parallel(t *testing.T) {
 			clean := func() {
 				reader.Clean()
 			}
-			testsuite.RunParallel(100, nil, nil, write, read, clean)
+			cleanup := func() {
+				// maybe not read finish
+				time.Sleep(50 * time.Millisecond)
+				reader.Clean()
+			}
+			testsuite.RunParallel(100, nil, cleanup, write, read, clean)
 
 			err := reader.Close()
 			require.NoError(t, err)
@@ -243,7 +250,12 @@ func TestIOReader_Parallel(t *testing.T) {
 				err := reader.Close()
 				require.NoError(t, err)
 			}
-			testsuite.RunParallel(100, nil, nil, write, read, clean, close1)
+			cleanup := func() {
+				// maybe not read finish
+				time.Sleep(50 * time.Millisecond)
+				reader.Clean()
+			}
+			testsuite.RunParallel(100, nil, cleanup, write, read, clean, close1)
 
 			require.True(t, bRead)
 			require.True(t, closed)
@@ -299,4 +311,85 @@ func TestIOReader_Parallel(t *testing.T) {
 			testsuite.IsDestroyed(t, reader)
 		})
 	})
+}
+
+var (
+	testIOManagerOptions = &IOManagerOptions{
+		Interval: 25 * time.Millisecond,
+	}
+	testIOObjectToken = "test user token"
+)
+
+func TestIOObject_Console(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+
+	ctx := context.Background()
+	var (
+		consoleID string
+		read      bool
+		closed    bool
+		locked    bool
+		unlocked  bool
+	)
+	handlers := IOEventHandlers{
+		OnConsoleRead: func(id string) {
+			require.Equal(t, consoleID, id)
+			read = true
+		},
+		OnConsoleClosed: func(id string) {
+			require.Equal(t, consoleID, id)
+			closed = true
+		},
+		OnConsoleLocked: func(id, token string) {
+			require.Equal(t, consoleID, id)
+			require.Equal(t, testIOObjectToken, token)
+			locked = true
+		},
+		OnConsoleUnlocked: func(id, token string) {
+			require.Equal(t, consoleID, id)
+			require.Equal(t, testIOObjectToken, token)
+			unlocked = true
+		},
+	}
+	manager := NewIOManager(client, &handlers, testIOManagerOptions)
+
+	console, err := manager.NewConsole(ctx, defaultWorkspace)
+	require.NoError(t, err)
+	consoleID = console.ToConsole().id
+
+	t.Run("not locked", func(t *testing.T) {
+		// write command
+		err := console.Write(testIOObjectToken, []byte("version\r\n"))
+		require.NoError(t, err)
+		// read data
+		start := 0
+		for i := 0; i < 10; i++ {
+			data := console.Read(start)
+			l := len(data)
+			if l != 0 {
+				fmt.Println(string(data))
+				start += l
+			}
+			time.Sleep(minReadInterval)
+		}
+	})
+
+	err = manager.Close()
+	require.NoError(t, err)
+
+	require.True(t, read)
+	require.True(t, closed)
+	require.False(t, locked)
+	require.False(t, unlocked)
+
+	err = client.ConsoleDestroy(ctx, consoleID)
+	require.NoError(t, err)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
 }

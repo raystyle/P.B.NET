@@ -30,8 +30,6 @@ type ioReader struct {
 	// store history output
 	buf *bytes.Buffer
 	rwm sync.RWMutex
-
-	wg sync.WaitGroup
 }
 
 func newIOReader(lg logger.Logger, rc io.ReadCloser, onRead, onClose func()) *ioReader {
@@ -46,19 +44,16 @@ func newIOReader(lg logger.Logger, rc io.ReadCloser, onRead, onClose func()) *io
 
 // ReadLoop is used to start read data loop.
 func (reader *ioReader) ReadLoop() {
-	reader.wg.Add(1)
 	go reader.readLoop()
 }
 
 func (reader *ioReader) readLoop() {
-	defer reader.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			buf := xpanic.Print(r, "ioReader.readLoop")
 			reader.logger.Println(logger.Fatal, "msfrpc-io reader", buf)
 			// restart readLoop
 			time.Sleep(time.Second)
-			reader.wg.Add(1)
 			go reader.readLoop()
 			return
 		}
@@ -116,9 +111,7 @@ func (reader *ioReader) Clean() {
 
 // Close is used to close io reader, it will also close under ReadCloser.
 func (reader *ioReader) Close() error {
-	err := reader.rc.Close()
-	reader.wg.Wait()
-	return err
+	return reader.rc.Close()
 }
 
 // IOObject contains under io object, io Reader and io status about io object.
@@ -127,11 +120,11 @@ func (reader *ioReader) Close() error {
 type IOObject struct {
 	object   io.Writer // *Console, *Shell and *Meterpreter
 	reader   *ioReader
+	now      func() time.Time
 	onLock   func(token string)
 	onUnlock func(token string)
 
 	// status
-	now    func() time.Time
 	locker string // user token
 	lockAt time.Time
 	rwm    sync.RWMutex
@@ -292,7 +285,7 @@ func NewIOManager(client *Client, handlers *IOEventHandlers, opts *IOManagerOpti
 	}
 	interval := opts.Interval
 	if interval < minReadInterval {
-		interval = minWatchInterval
+		interval = minReadInterval
 	}
 	now := opts.Now
 	if now == nil {
@@ -331,13 +324,13 @@ func (mgr *IOManager) trackConsole(console *IOObject, add bool) bool {
 }
 
 // NewConsole is used to create a new console with status, All users can read or write.
-func (mgr *IOManager) NewConsole(ctx context.Context, workspace string) (string, error) {
+func (mgr *IOManager) NewConsole(ctx context.Context, workspace string) (*IOObject, error) {
 	if mgr.shuttingDown() {
-		return "", ErrIOManagerClosed
+		return nil, ErrIOManagerClosed
 	}
 	console, err := mgr.ctx.NewConsole(ctx, workspace, mgr.interval)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	obj := &IOObject{
 		object: console,
@@ -359,12 +352,12 @@ func (mgr *IOManager) NewConsole(ctx context.Context, workspace string) (string,
 	reader := newIOReader(mgr.ctx.logger, console, onRead, onClose)
 	// must track first.
 	if !mgr.trackConsole(obj, true) {
-		return "", ErrIOManagerClosed
+		return nil, ErrIOManagerClosed
 	}
 	// prevent cycle reference.
 	obj.reader = reader
 	reader.ReadLoop()
-	return console.id, nil
+	return obj, nil
 }
 
 // NewConsoleWithLocker is used to create a new console and lock it.
@@ -551,10 +544,17 @@ func (mgr *IOManager) MeterpreterWrite() {
 
 // Close is used to close IOManager, it will close all io objects.
 func (mgr *IOManager) Close() error {
+	err := mgr.close()
+	mgr.counter.Wait()
+	return err
+}
+
+func (mgr *IOManager) close() error {
 	atomic.StoreInt32(&mgr.inShutdown, 1)
 	var err error
 	mgr.rwm.Lock()
 	defer mgr.rwm.Unlock()
+	// close all consoles
 	for id, console := range mgr.consoles {
 		e := console.Close()
 		if e != nil && err == nil {
@@ -562,6 +562,7 @@ func (mgr *IOManager) Close() error {
 		}
 		delete(mgr.consoles, id)
 	}
+	// close all shells
 	for id, shell := range mgr.shells {
 		e := shell.Close()
 		if e != nil && err == nil {
@@ -569,6 +570,7 @@ func (mgr *IOManager) Close() error {
 		}
 		delete(mgr.shells, id)
 	}
+	// close all meterpreters
 	for id, meterpreter := range mgr.meterpreters {
 		e := meterpreter.Close()
 		if e != nil && err == nil {
@@ -576,6 +578,5 @@ func (mgr *IOManager) Close() error {
 		}
 		delete(mgr.meterpreters, id)
 	}
-	mgr.counter.Wait()
 	return err
 }
