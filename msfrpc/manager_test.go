@@ -16,8 +16,8 @@ func TestIOReader_Read(t *testing.T) {
 	defer gm.Compare()
 
 	r, w := io.Pipe()
-	onRead := func() {}
-	reader := newIOReader(r, logger.Test, onRead)
+
+	reader := newIOReader(r, logger.Test, testOnRead)
 
 	testdata := testsuite.Bytes()
 	_, err := w.Write(testdata)
@@ -131,7 +131,7 @@ func TestIOReader_Parallel(t *testing.T) {
 			var (
 				r      *io.PipeReader
 				w      *io.PipeWriter
-				reader *IOReader
+				reader *ioReader
 			)
 			onRead := func() {}
 
@@ -200,7 +200,7 @@ func TestIOReader_Parallel(t *testing.T) {
 			var (
 				r      *io.PipeReader
 				w      *io.PipeWriter
-				reader *IOReader
+				reader *ioReader
 			)
 			onRead := func() {}
 
