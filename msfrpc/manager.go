@@ -40,6 +40,7 @@ func newIOReader(lg logger.Logger, rc io.ReadCloser, onRead, onClose func()) *io
 	}
 }
 
+// ReadLoop is used to start read data loop.
 func (reader *ioReader) ReadLoop() {
 	reader.wg.Add(1)
 	go reader.readLoop()
@@ -194,9 +195,10 @@ func (obj *IOObject) LockAt() time.Time {
 
 // DataArrive contains callbacks about IO objects read new data.
 type DataArrive struct {
-	OnConsole     func(id string)
-	OnShell       func(id uint64)
-	OnMeterpreter func(id uint64)
+	OnConsoleRead   func(id string)
+	OnConsoleClosed func(id string)
+	OnShellRead       func(id uint64)
+	OnMeterpreterRead func(id uint64)
 }
 
 // IOManager is used to manage Console IO, Shell session IO and Meterpreter session IO.
@@ -281,7 +283,7 @@ func (mgr *IOManager) NewConsole(
 		now:    mgr.now,
 	}
 	onRead := func() {
-		mgr.da.OnConsole(console.id)
+		mgr.da.OnConsoleRead(console.id)
 	}
 	onClose := func() {
 		mgr.trackConsole(obj, false)

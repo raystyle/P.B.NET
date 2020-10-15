@@ -16,8 +16,14 @@ func TestIOReader_Read(t *testing.T) {
 	defer gm.Compare()
 
 	r, w := io.Pipe()
-
-	reader := newIOReader(r, logger.Test, testOnRead)
+	var (
+		read   bool
+		closed bool
+	)
+	onRead := func() { read = true }
+	onClose := func() { closed = true }
+	reader := newIOReader(logger.Test, r, onRead, onClose)
+	reader.ReadLoop()
 
 	testdata := testsuite.Bytes()
 	_, err := w.Write(testdata)
@@ -49,6 +55,9 @@ func TestIOReader_Read(t *testing.T) {
 	err = reader.Close()
 	require.NoError(t, err)
 
+	require.True(t, read)
+	require.True(t, closed)
+
 	testsuite.IsDestroyed(t, reader)
 }
 
@@ -57,8 +66,14 @@ func TestIOReader_Clean(t *testing.T) {
 	defer gm.Compare()
 
 	r, w := io.Pipe()
-	onRead := func() {}
-	reader := newIOReader(r, logger.Test, onRead)
+	var (
+		read   bool
+		closed bool
+	)
+	onRead := func() { read = true }
+	onClose := func() { closed = true }
+	reader := newIOReader(logger.Test, r, onRead, onClose)
+	reader.ReadLoop()
 
 	testdata := testsuite.Bytes()
 	_, err := w.Write(testdata)
@@ -72,6 +87,9 @@ func TestIOReader_Clean(t *testing.T) {
 	err = reader.Close()
 	require.NoError(t, err)
 
+	require.True(t, read)
+	require.True(t, closed)
+
 	testsuite.IsDestroyed(t, reader)
 }
 
@@ -80,13 +98,22 @@ func TestIOReader_Panic(t *testing.T) {
 	defer gm.Compare()
 
 	conn := testsuite.NewMockConnWithReadPanic()
-	onRead := func() {}
-	reader := newIOReader(conn, logger.Test, onRead)
+	var (
+		read   bool
+		closed bool
+	)
+	onRead := func() { read = true }
+	onClose := func() { closed = true }
+	reader := newIOReader(logger.Test, conn, onRead, onClose)
+	reader.ReadLoop()
 
 	time.Sleep(time.Second)
 
 	err := reader.Close()
 	require.NoError(t, err)
+
+	require.False(t, read)
+	require.True(t, closed)
 
 	testsuite.IsDestroyed(t, reader)
 }
@@ -100,8 +127,14 @@ func TestIOReader_Parallel(t *testing.T) {
 	t.Run("without close", func(t *testing.T) {
 		t.Run("part", func(t *testing.T) {
 			r, w := io.Pipe()
-			onRead := func() {}
-			reader := newIOReader(r, logger.Test, onRead)
+			var (
+				bRead  bool
+				closed bool
+			)
+			onRead := func() { bRead = true }
+			onClose := func() { closed = true }
+			reader := newIOReader(logger.Test, r, onRead, onClose)
+			reader.ReadLoop()
 
 			write := func() {
 				_, err := w.Write(testdata)
@@ -124,6 +157,9 @@ func TestIOReader_Parallel(t *testing.T) {
 			err := reader.Close()
 			require.NoError(t, err)
 
+			require.True(t, bRead)
+			require.True(t, closed)
+
 			testsuite.IsDestroyed(t, reader)
 		})
 
@@ -133,11 +169,16 @@ func TestIOReader_Parallel(t *testing.T) {
 				w      *io.PipeWriter
 				reader *ioReader
 			)
-			onRead := func() {}
-
+			var (
+				bRead  bool
+				closed bool
+			)
+			onRead := func() { bRead = true }
+			onClose := func() { closed = true }
 			init := func() {
 				r, w = io.Pipe()
-				reader = newIOReader(r, logger.Test, onRead)
+				reader = newIOReader(logger.Test, r, onRead, onClose)
+				reader.ReadLoop()
 			}
 			write := func() {
 				_, err := w.Write(testdata)
@@ -158,6 +199,11 @@ func TestIOReader_Parallel(t *testing.T) {
 			cleanup := func() {
 				err := reader.Close()
 				require.NoError(t, err)
+
+				require.True(t, bRead)
+				require.True(t, closed)
+				bRead = false
+				closed = false
 			}
 			testsuite.RunParallel(100, init, cleanup, write, read, clean)
 
@@ -168,8 +214,14 @@ func TestIOReader_Parallel(t *testing.T) {
 	t.Run("with close", func(t *testing.T) {
 		t.Run("part", func(t *testing.T) {
 			r, w := io.Pipe()
-			onRead := func() {}
-			reader := newIOReader(r, logger.Test, onRead)
+			var (
+				bRead  bool
+				closed bool
+			)
+			onRead := func() { bRead = true }
+			onClose := func() { closed = true }
+			reader := newIOReader(logger.Test, r, onRead, onClose)
+			reader.ReadLoop()
 
 			write := func() {
 				// writer pipe maybe closed
@@ -193,6 +245,9 @@ func TestIOReader_Parallel(t *testing.T) {
 			}
 			testsuite.RunParallel(100, nil, nil, write, read, clean, close1)
 
+			require.True(t, bRead)
+			require.True(t, closed)
+
 			testsuite.IsDestroyed(t, reader)
 		})
 
@@ -202,11 +257,16 @@ func TestIOReader_Parallel(t *testing.T) {
 				w      *io.PipeWriter
 				reader *ioReader
 			)
-			onRead := func() {}
-
+			var (
+				bRead  bool
+				closed bool
+			)
+			onRead := func() { bRead = true }
+			onClose := func() { closed = true }
 			init := func() {
 				r, w = io.Pipe()
-				reader = newIOReader(r, logger.Test, onRead)
+				reader = newIOReader(logger.Test, r, onRead, onClose)
+				reader.ReadLoop()
 			}
 			write := func() {
 				// writer pipe maybe closed
@@ -228,7 +288,13 @@ func TestIOReader_Parallel(t *testing.T) {
 				err := reader.Close()
 				require.NoError(t, err)
 			}
-			testsuite.RunParallel(100, init, nil, write, read, clean, close1)
+			cleanup := func() {
+				require.True(t, bRead)
+				require.True(t, closed)
+				bRead = false
+				closed = false
+			}
+			testsuite.RunParallel(100, init, cleanup, write, read, clean, close1)
 
 			testsuite.IsDestroyed(t, reader)
 		})
