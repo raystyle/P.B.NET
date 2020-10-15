@@ -57,7 +57,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 			sAdd   bool
 		)
 
-		callbacks := Callbacks{OnToken: func(token string, add bool) {
+		callbacks := MonitorCallbacks{OnToken: func(token string, add bool) {
 			sToken = token
 			sAdd = add
 		}}
@@ -96,7 +96,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		var sToken string
 		sAdd := true
 
-		callbacks := Callbacks{OnToken: func(token string, add bool) {
+		callbacks := MonitorCallbacks{OnToken: func(token string, add bool) {
 			sToken = token
 			sAdd = add
 		}}
@@ -130,7 +130,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		callbacks := Callbacks{OnToken: func(string, bool) {
+		callbacks := MonitorCallbacks{OnToken: func(string, bool) {
 			panic("test panic")
 		}}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
@@ -154,7 +154,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	})
 
 	t.Run("tokens", func(t *testing.T) {
-		callbacks := Callbacks{OnToken: func(token string, add bool) {}}
+		callbacks := MonitorCallbacks{OnToken: func(token string, add bool) {}}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		// wait first watch
@@ -215,7 +215,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 			sName   string
 			sActive bool
 		)
-		callbacks := Callbacks{OnJob: func(id, name string, active bool) {
+		callbacks := MonitorCallbacks{OnJob: func(id, name string, active bool) {
 			sID = id
 			sName = name
 			sActive = active
@@ -253,7 +253,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		)
 		sActive := true
 
-		callbacks := Callbacks{OnJob: func(id, name string, active bool) {
+		callbacks := MonitorCallbacks{OnJob: func(id, name string, active bool) {
 			sID = id
 			sName = name
 			sActive = active
@@ -289,7 +289,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		callbacks := Callbacks{OnJob: func(string, string, bool) {
+		callbacks := MonitorCallbacks{OnJob: func(string, string, bool) {
 			panic("test panic")
 		}}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
@@ -318,7 +318,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		callbacks := Callbacks{OnJob: func(string, string, bool) {}}
+		callbacks := MonitorCallbacks{OnJob: func(string, string, bool) {}}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
 
 		time.Sleep(3 * minWatchInterval)
@@ -363,7 +363,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 			err := client.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
-		callbacks := Callbacks{
+		callbacks := MonitorCallbacks{
 			OnJob:     func(id, name string, active bool) {},
 			OnSession: func(id uint64, info *SessionInfo, opened bool) {},
 		}
@@ -381,7 +381,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 			sID     uint64
 			sOpened bool
 		)
-		callbacks := Callbacks{
+		callbacks := MonitorCallbacks{
 			OnJob: func(string, string, bool) {},
 			OnSession: func(id uint64, info *SessionInfo, opened bool) {
 				sID = id
@@ -418,7 +418,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		var sID uint64
 		sOpened := true
 
-		callbacks := Callbacks{
+		callbacks := MonitorCallbacks{
 			OnJob: func(string, string, bool) {},
 			OnSession: func(id uint64, info *SessionInfo, opened bool) {
 				sID = id
@@ -456,7 +456,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		callbacks := Callbacks{
+		callbacks := MonitorCallbacks{
 			OnJob: func(string, string, bool) {},
 			OnSession: func(uint64, *SessionInfo, bool) {
 				panic("test panic")
@@ -488,7 +488,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		callbacks := Callbacks{
+		callbacks := MonitorCallbacks{
 			OnJob:     func(string, string, bool) {},
 			OnSession: func(uint64, *SessionInfo, bool) {},
 		}
@@ -556,7 +556,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 			sHost      *DBHost
 			sAdd       bool
 		)
-		callbacks := Callbacks{
+		callbacks := MonitorCallbacks{
 			OnHost: func(workspace string, host *DBHost, add bool) {
 				sWorkspace = workspace
 				sHost = host
@@ -602,7 +602,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		)
 		sAdd := true
 
-		callbacks := Callbacks{
+		callbacks := MonitorCallbacks{
 			OnHost: func(workspace string, host *DBHost, add bool) {
 				sWorkspace = workspace
 				sHost = host
@@ -654,7 +654,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		// must delete or not new host
 		_, _ = client.DBDelHost(ctx, opts)
 
-		callbacks := Callbacks{OnHost: func(string, *DBHost, bool) {
+		callbacks := MonitorCallbacks{OnHost: func(string, *DBHost, bool) {
 			panic("test panic")
 		}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
@@ -687,7 +687,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		callbacks := Callbacks{OnHost: func(string, *DBHost, bool) {}}
+		callbacks := MonitorCallbacks{OnHost: func(string, *DBHost, bool) {}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
@@ -756,7 +756,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 			sCred      *DBCred
 			sAdd       bool
 		)
-		callbacks := Callbacks{
+		callbacks := MonitorCallbacks{
 			OnCredential: func(workspace string, cred *DBCred, add bool) {
 				sWorkspace = workspace
 				sCred = cred
@@ -804,7 +804,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		)
 		sAdd := true
 
-		callbacks := Callbacks{
+		callbacks := MonitorCallbacks{
 			OnCredential: func(workspace string, cred *DBCred, add bool) {
 				sWorkspace = workspace
 				sCred = cred
@@ -856,7 +856,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		// must delete or not new credentials
 		_, _ = client.DBDelCreds(ctx, workspace)
 
-		callbacks := Callbacks{OnCredential: func(string, *DBCred, bool) {
+		callbacks := MonitorCallbacks{OnCredential: func(string, *DBCred, bool) {
 			panic("test panic")
 		}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
@@ -889,7 +889,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		callbacks := Callbacks{OnCredential: func(string, *DBCred, bool) {}}
+		callbacks := MonitorCallbacks{OnCredential: func(string, *DBCred, bool) {}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
@@ -954,7 +954,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 			sLoot      *DBLoot
 		)
 
-		callbacks := Callbacks{
+		callbacks := MonitorCallbacks{
 			OnLoot: func(workspace string, loot *DBLoot) {
 				sWorkspace = workspace
 				sLoot = loot
@@ -1002,7 +1002,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		callbacks := Callbacks{OnLoot: func(string, *DBLoot) {
+		callbacks := MonitorCallbacks{OnLoot: func(string, *DBLoot) {
 			panic("test panic")
 		}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
@@ -1027,7 +1027,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 		err := client.DBReportLoot(ctx, testDBLoot)
 		require.NoError(t, err)
 
-		callbacks := Callbacks{OnLoot: func(string, *DBLoot) {}}
+		callbacks := MonitorCallbacks{OnLoot: func(string, *DBLoot) {}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
@@ -1102,7 +1102,7 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 		}()
 
 		// create monitor
-		callbacks := Callbacks{OnJob: func(string, string, bool) {}}
+		callbacks := MonitorCallbacks{OnJob: func(string, string, bool) {}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait first watch
@@ -1137,7 +1137,7 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(m, "DBWorkspaces", patch)
 		defer pg.Unpatch()
 
-		callbacks := Callbacks{}
+		callbacks := MonitorCallbacks{}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 		// wait clean workspace
@@ -1205,7 +1205,7 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 	client.token = "TEST"
 
 	var errStr string
-	callbacks := Callbacks{OnEvent: func(error string) {
+	callbacks := MonitorCallbacks{OnEvent: func(error string) {
 		errStr = error
 	}}
 	monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
@@ -1251,7 +1251,7 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 	client := testGenerateClient(t)
 
 	var errStr string
-	callbacks := Callbacks{OnEvent: func(error string) {
+	callbacks := MonitorCallbacks{OnEvent: func(error string) {
 		errStr = error
 	}}
 
@@ -1305,7 +1305,7 @@ func TestMonitor_AutoReconnect(t *testing.T) {
 	client := testGenerateClientAndConnectDB(t)
 	ctx := context.Background()
 
-	callbacks := Callbacks{OnEvent: func(event string) {}}
+	callbacks := MonitorCallbacks{OnEvent: func(event string) {}}
 	monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 
 	t.Run("msfrpcd", func(t *testing.T) {

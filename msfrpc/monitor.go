@@ -16,8 +16,8 @@ import (
 
 const minWatchInterval = 250 * time.Millisecond
 
-// Callbacks contains about all callback functions.
-type Callbacks struct {
+// MonitorCallbacks contains about all callbacks about Monitor.
+type MonitorCallbacks struct {
 	// add or delete
 	OnToken func(token string, add bool)
 
@@ -49,7 +49,7 @@ type Callbacks struct {
 type Monitor struct {
 	ctx *Client
 
-	callbacks *Callbacks
+	callbacks *MonitorCallbacks
 	interval  time.Duration
 	dbOptions *DBConnectOptions
 
@@ -100,7 +100,7 @@ type MonitorOptions struct {
 }
 
 // NewMonitor is used to create a data monitor.
-func NewMonitor(client *Client, callbacks *Callbacks, opts *MonitorOptions) *Monitor {
+func NewMonitor(client *Client, callbacks *MonitorCallbacks, opts *MonitorOptions) *Monitor {
 	if opts == nil {
 		opts = new(MonitorOptions)
 	}

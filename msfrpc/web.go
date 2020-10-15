@@ -225,8 +225,8 @@ func (client *Client) NewWebServer(
 }
 
 // Callbacks is used to return callbacks for monitor.
-func (web *WebServer) Callbacks() *Callbacks {
-	return &Callbacks{
+func (web *WebServer) Callbacks() *MonitorCallbacks {
+	return &MonitorCallbacks{
 		OnToken:      web.handler.onToken,
 		OnJob:        web.handler.onJob,
 		OnSession:    web.handler.onSession,
