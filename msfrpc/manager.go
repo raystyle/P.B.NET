@@ -3,6 +3,7 @@ package msfrpc
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -121,8 +122,10 @@ func (reader *ioReader) Close() error {
 // IO status contains the status about the IO(console, shell and meterpreter).
 // must use token for write data to IO object, usually the admin can unlock it force.
 type IOObject struct {
-	object interface{} // *Console, *Shell and *Meterpreter
-	reader *ioReader
+	object   io.Writer // *Console, *Shell and *Meterpreter
+	reader   *ioReader
+	onLock   func(token string)
+	onUnlock func(token string)
 
 	// status
 	now    func() time.Time
@@ -153,6 +156,7 @@ func (obj *IOObject) Lock(token string) bool {
 	if obj.locker == "" {
 		obj.locker = token
 		obj.lockAt = obj.now()
+		obj.onLock(token)
 		return true
 	}
 	return false
@@ -167,16 +171,18 @@ func (obj *IOObject) Unlock(token string) bool {
 	}
 	if obj.locker == token {
 		obj.locker = ""
+		obj.onUnlock(token)
 		return true
 	}
 	return false
 }
 
 // ForceUnlock is used to clean locker force, usually only admin can call it.
-func (obj *IOObject) ForceUnlock() {
+func (obj *IOObject) ForceUnlock(token string) {
 	obj.rwm.Lock()
 	defer obj.rwm.Unlock()
 	obj.locker = ""
+	obj.onUnlock(token)
 }
 
 // Locker is used to return locker token for find lock user.
@@ -193,11 +199,56 @@ func (obj *IOObject) LockAt() time.Time {
 	return obj.lockAt
 }
 
-// DataArrive contains callbacks about IO objects read new data.
-type DataArrive struct {
-	OnConsoleRead   func(id string)
-	OnConsoleClosed func(id string)
+// checkToken is used to check is user that lock this object.
+func (obj *IOObject) checkToken(token string) bool {
+	locker := obj.Locker()
+	if locker != "" && token != locker {
+		return false
+	}
+	return true
+}
+
+// Read is used to read data from the under io reader.
+func (obj *IOObject) Read(start int) []byte {
+	return obj.reader.Read(start)
+}
+
+// Write is used to write data to the under io object,
+// if token is correct, it will failed.
+func (obj *IOObject) Write(token string, data []byte) error {
+	if !obj.checkToken(token) {
+		return errors.New("another user lock it")
+	}
+	_, err := obj.object.Write(data)
+	return err
+}
+
+// Clean is used to clean buffer in the under io reader.
+func (obj *IOObject) Clean(token string) error {
+	if !obj.checkToken(token) {
+		return errors.New("another user lock it")
+	}
+	obj.reader.Clean()
+	return nil
+}
+
+// Close is used to close the under io reader.
+func (obj *IOObject) Close() error {
+	return obj.reader.Close()
+}
+
+// IOEventHandlers contains callbacks about io objects event.
+type IOEventHandlers struct {
+	OnConsoleRead     func(id string)
+	OnConsoleClosed   func(id string)
+	OnConsoleLocked   func(id, token string)
+	OnConsoleUnlocked func(id, token string)
+
 	OnShellRead       func(id uint64)
+	
+	
+	
+	
 	OnMeterpreterRead func(id uint64)
 }
 
@@ -205,9 +256,9 @@ type DataArrive struct {
 // It can lock IO instance for one user can write data to it, other user can read it
 // with IO reader, other user can only destroy it(Console) or kill session(Shell or Meterpreter).
 type IOManager struct {
-	ctx *Client
-	da  *DataArrive
-	now func() time.Time
+	ctx      *Client
+	handlers *IOEventHandlers
+	now      func() time.Time
 
 	consoles     map[string]*IOObject // key = console id
 	shells       map[uint64]*IOObject // key = shell session id
@@ -219,13 +270,13 @@ type IOManager struct {
 }
 
 // NewIOManager is used to create a new IO manager.
-func NewIOManager(client *Client, da *DataArrive, now func() time.Time) *IOManager {
+func NewIOManager(client *Client, handlers *IOEventHandlers, now func() time.Time) *IOManager {
 	if now == nil {
 		now = time.Now
 	}
 	return &IOManager{
 		ctx:          client,
-		da:           da,
+		handlers:     handlers,
 		now:          now,
 		consoles:     make(map[string]*IOObject),
 		shells:       make(map[uint64]*IOObject),
@@ -283,13 +334,21 @@ func (mgr *IOManager) NewConsole(
 		now:    mgr.now,
 	}
 	onRead := func() {
-		mgr.da.OnConsoleRead(console.id)
+		mgr.handlers.OnConsoleRead(console.id)
 	}
 	onClose := func() {
+		mgr.handlers.OnConsoleClosed(console.id)
 		mgr.trackConsole(obj, false)
+	}
+	obj.onLock = func(token string) {
+		mgr.handlers.OnConsoleLocked(console.id, token)
+	}
+	obj.onUnlock = func(token string) {
+		mgr.handlers.OnConsoleUnlocked(console.id, token)
 	}
 	reader := newIOReader(mgr.ctx.logger, console, onRead, onClose)
 	obj.reader = reader
+	// must track first.
 	mgr.trackConsole(obj, true)
 	reader.ReadLoop()
 	return console.id, nil
@@ -502,6 +561,5 @@ func (mgr *IOManager) Close() error {
 		}
 		delete(mgr.meterpreters, id)
 	}
-	mgr.now = nil
 	return nil
 }
