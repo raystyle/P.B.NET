@@ -30,6 +30,8 @@ type ioReader struct {
 	// store history output
 	buf *bytes.Buffer
 	rwm sync.RWMutex
+
+	wg sync.WaitGroup
 }
 
 func newIOReader(lg logger.Logger, rc io.ReadCloser, onRead, onClose func()) *ioReader {
@@ -44,16 +46,19 @@ func newIOReader(lg logger.Logger, rc io.ReadCloser, onRead, onClose func()) *io
 
 // ReadLoop is used to start read data loop.
 func (reader *ioReader) ReadLoop() {
+	reader.wg.Add(1)
 	go reader.readLoop()
 }
 
 func (reader *ioReader) readLoop() {
+	defer reader.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			buf := xpanic.Print(r, "ioReader.readLoop")
 			reader.logger.Println(logger.Fatal, "msfrpc-io reader", buf)
 			// restart readLoop
 			time.Sleep(time.Second)
+			reader.wg.Add(1)
 			go reader.readLoop()
 			return
 		}
@@ -111,6 +116,13 @@ func (reader *ioReader) Clean() {
 
 // Close is used to close io reader, it will also close under ReadCloser.
 func (reader *ioReader) Close() error {
+	err := reader.rc.Close()
+	reader.wg.Wait()
+	return err
+}
+
+// close will not call wait group.
+func (reader *ioReader) close() error {
 	return reader.rc.Close()
 }
 
@@ -231,6 +243,11 @@ func (obj *IOObject) Clean(token string) error {
 // Close is used to close the under io reader.
 func (obj *IOObject) Close() error {
 	return obj.reader.Close()
+}
+
+// close will not call wait group, IOManager will call it.
+func (obj *IOObject) close() error {
+	return obj.reader.close()
 }
 
 // IOEventHandlers contains callbacks about io objects events.
@@ -556,7 +573,7 @@ func (mgr *IOManager) close() error {
 	defer mgr.rwm.Unlock()
 	// close all consoles
 	for id, console := range mgr.consoles {
-		e := console.Close()
+		e := console.close()
 		if e != nil && err == nil {
 			err = e
 		}
@@ -564,7 +581,7 @@ func (mgr *IOManager) close() error {
 	}
 	// close all shells
 	for id, shell := range mgr.shells {
-		e := shell.Close()
+		e := shell.close()
 		if e != nil && err == nil {
 			err = e
 		}
@@ -572,7 +589,7 @@ func (mgr *IOManager) close() error {
 	}
 	// close all meterpreters
 	for id, meterpreter := range mgr.meterpreters {
-		e := meterpreter.Close()
+		e := meterpreter.close()
 		if e != nil && err == nil {
 			err = e
 		}

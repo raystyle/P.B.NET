@@ -26,8 +26,7 @@ type mockProxyServer struct {
 	inShutdown int32
 	rwm        sync.RWMutex
 
-	closeOnce sync.Once
-	counter   xsync.Counter
+	counter xsync.Counter
 }
 
 func newMockProxyServer() *mockProxyServer {

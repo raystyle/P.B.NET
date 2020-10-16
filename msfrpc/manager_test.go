@@ -156,7 +156,7 @@ func TestIOReader_Parallel(t *testing.T) {
 			}
 			cleanup := func() {
 				// maybe not read finish
-				time.Sleep(50 * time.Millisecond)
+				time.Sleep(25 * time.Millisecond)
 				reader.Clean()
 			}
 			testsuite.RunParallel(100, nil, cleanup, write, read, clean)
@@ -251,8 +251,6 @@ func TestIOReader_Parallel(t *testing.T) {
 				require.NoError(t, err)
 			}
 			cleanup := func() {
-				// maybe not read finish
-				time.Sleep(50 * time.Millisecond)
 				reader.Clean()
 			}
 			testsuite.RunParallel(100, nil, cleanup, write, read, clean, close1)
@@ -275,6 +273,7 @@ func TestIOReader_Parallel(t *testing.T) {
 			)
 			onRead := func() { bRead = true }
 			onClose := func() { closed = true }
+
 			init := func() {
 				r, w = io.Pipe()
 				reader = newIOReader(logger.Test, r, onRead, onClose)
@@ -297,10 +296,15 @@ func TestIOReader_Parallel(t *testing.T) {
 				reader.Clean()
 			}
 			close1 := func() {
+				// maybe not read
+				time.Sleep(25 * time.Millisecond)
+
 				err := reader.Close()
 				require.NoError(t, err)
 			}
 			cleanup := func() {
+				reader.Clean()
+
 				require.True(t, bRead)
 				require.True(t, closed)
 				bRead = false
@@ -320,7 +324,7 @@ var (
 	testIOObjectToken = "test user token"
 )
 
-func TestIOObject_Console(t *testing.T) {
+func TestIOObject(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -387,6 +391,9 @@ func TestIOObject_Console(t *testing.T) {
 
 	err = client.ConsoleDestroy(ctx, consoleID)
 	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, console)
+	testsuite.IsDestroyed(t, manager)
 
 	err = client.Close()
 	require.NoError(t, err)
