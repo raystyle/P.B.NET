@@ -341,8 +341,49 @@ func (mgr *IOManager) trackConsole(console *IOObject, add bool) bool {
 	return true
 }
 
-// NewConsole is used to create a new console with status, All users can read or write.
+func (mgr *IOManager) trackShell(shell *IOObject, add bool) bool {
+	id := shell.ToShell().id
+	mgr.rwm.Lock()
+	defer mgr.rwm.Unlock()
+	if add {
+		if mgr.shuttingDown() {
+			return false
+		}
+		mgr.shells[id] = shell
+		mgr.counter.Add(1)
+	} else {
+		delete(mgr.shells, id)
+		mgr.counter.Done()
+	}
+	return true
+}
+
+func (mgr *IOManager) trackMeterpreter(meterpreter *IOObject, add bool) bool {
+	id := meterpreter.ToMeterpreter().id
+	mgr.rwm.Lock()
+	defer mgr.rwm.Unlock()
+	if add {
+		if mgr.shuttingDown() {
+			return false
+		}
+		mgr.meterpreters[id] = meterpreter
+		mgr.counter.Add(1)
+	} else {
+		delete(mgr.meterpreters, id)
+		mgr.counter.Done()
+	}
+	return true
+}
+
+// NewConsole is used to create a new console and wrap it to IOObject,
+// all users can read or write. It will create a new under console.
 func (mgr *IOManager) NewConsole(ctx context.Context, workspace string) (*IOObject, error) {
+	return mgr.NewConsoleWithLocker(ctx, workspace, "")
+}
+
+// NewConsoleWithLocker is used to create a new console and lock it.
+// Only the creator can write it. It will create a new under console.
+func (mgr *IOManager) NewConsoleWithLocker(ctx context.Context, workspace, token string) (*IOObject, error) {
 	if mgr.shuttingDown() {
 		return nil, ErrIOManagerClosed
 	}
@@ -370,6 +411,7 @@ func (mgr *IOManager) NewConsole(ctx context.Context, workspace string) (*IOObje
 	}
 	obj.onLock = onLock
 	obj.onUnlock = onUnlock
+	obj.Lock(token)
 	// must track first.
 	if !mgr.trackConsole(obj, true) {
 		// if track failed must deference reader,
@@ -379,12 +421,6 @@ func (mgr *IOManager) NewConsole(ctx context.Context, workspace string) (*IOObje
 	}
 	obj.reader.ReadLoop()
 	return obj, nil
-}
-
-// NewConsoleWithLocker is used to create a new console and lock it.
-// Only the creator can write it. It will create a new under console.
-func (mgr *IOManager) NewConsoleWithLocker() {
-
 }
 
 // NewConsoleWithID is used to create a new console, All user can read or write.

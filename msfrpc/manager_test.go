@@ -464,6 +464,33 @@ func TestIOObject(t *testing.T) {
 		testReadDataFromIOObject(console)
 	})
 
+	t.Run("Clean", func(t *testing.T) {
+		err := console.Write(testUserToken, testConsoleCommand)
+		require.NoError(t, err)
+
+		err = console.Clean(testUserToken)
+		require.NoError(t, err)
+
+		data := console.Read(0)
+		require.Nil(t, data)
+	})
+
+	t.Run("clean after lock", func(t *testing.T) {
+		ok := console.Lock(testUserToken)
+		require.True(t, ok)
+
+		err = console.Clean(testAnotherToken)
+		require.Error(t, err)
+
+		ok = console.Unlock(testUserToken)
+		require.True(t, ok)
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		err := console.Close()
+		require.NoError(t, err)
+	})
+
 	err = manager.Close()
 	require.NoError(t, err)
 
