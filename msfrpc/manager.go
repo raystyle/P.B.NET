@@ -185,7 +185,8 @@ func (obj *IOObject) Unlock(token string) bool {
 	return false
 }
 
-// ForceUnlock is used to clean locker force, usually only admin can call it.
+// ForceUnlock is used to clean locker force, usually
+// only admin cal call it or occur some error.
 func (obj *IOObject) ForceUnlock(token string) {
 	obj.rwm.Lock()
 	defer obj.rwm.Unlock()
@@ -360,20 +361,23 @@ func (mgr *IOManager) NewConsole(ctx context.Context, workspace string) (*IOObje
 		mgr.handlers.OnConsoleClosed(console.id)
 		mgr.trackConsole(obj, false)
 	}
-	obj.onLock = func(token string) {
+	obj.reader = newIOReader(mgr.ctx.logger, console, onRead, onClose)
+	onLock := func(token string) {
 		mgr.handlers.OnConsoleLocked(console.id, token)
 	}
-	obj.onUnlock = func(token string) {
+	onUnlock := func(token string) {
 		mgr.handlers.OnConsoleUnlocked(console.id, token)
 	}
-	reader := newIOReader(mgr.ctx.logger, console, onRead, onClose)
+	obj.onLock = onLock
+	obj.onUnlock = onUnlock
 	// must track first.
 	if !mgr.trackConsole(obj, true) {
+		// if track failed must deference reader,
+		// otherwise it will occur cycle reference
+		obj.reader = nil
 		return nil, ErrIOManagerClosed
 	}
-	// prevent cycle reference.
-	obj.reader = reader
-	reader.ReadLoop()
+	obj.reader.ReadLoop()
 	return obj, nil
 }
 
@@ -577,6 +581,7 @@ func (mgr *IOManager) close() error {
 		if e != nil && err == nil {
 			err = e
 		}
+		console.reader = nil
 		delete(mgr.consoles, id)
 	}
 	// close all shells
@@ -585,6 +590,7 @@ func (mgr *IOManager) close() error {
 		if e != nil && err == nil {
 			err = e
 		}
+		shell.reader = nil
 		delete(mgr.shells, id)
 	}
 	// close all meterpreters
@@ -593,6 +599,7 @@ func (mgr *IOManager) close() error {
 		if e != nil && err == nil {
 			err = e
 		}
+		meterpreter.reader = nil
 		delete(mgr.meterpreters, id)
 	}
 	return err

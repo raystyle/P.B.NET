@@ -321,8 +321,24 @@ var (
 	testIOManagerOptions = &IOManagerOptions{
 		Interval: 25 * time.Millisecond,
 	}
-	testIOObjectToken = "test user token"
+	testUserToken      = "test-user-token"
+	testAnotherToken   = "test-another-token"
+	testAdminToken     = "test-admin-token"
+	testConsoleCommand = []byte("version\r\n")
 )
+
+func testReadDataFromIOObject(obj *IOObject) {
+	start := 0
+	for i := 0; i < 10; i++ {
+		data := obj.Read(start)
+		l := len(data)
+		if l != 0 {
+			fmt.Println(string(data))
+			start += l
+		}
+		time.Sleep(minReadInterval)
+	}
+}
 
 func TestIOObject(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
@@ -349,12 +365,14 @@ func TestIOObject(t *testing.T) {
 		},
 		OnConsoleLocked: func(id, token string) {
 			require.Equal(t, consoleID, id)
-			require.Equal(t, testIOObjectToken, token)
+			require.Equal(t, testUserToken, token)
 			locked = true
 		},
 		OnConsoleUnlocked: func(id, token string) {
 			require.Equal(t, consoleID, id)
-			require.Equal(t, testIOObjectToken, token)
+			if token != testUserToken && token != testAdminToken {
+				t.Fatal("unexpected token:", token)
+			}
 			unlocked = true
 		},
 	}
@@ -365,20 +383,85 @@ func TestIOObject(t *testing.T) {
 	consoleID = console.ToConsole().id
 
 	t.Run("not locked", func(t *testing.T) {
-		// write command
-		err := console.Write(testIOObjectToken, []byte("version\r\n"))
+		err := console.Write(testUserToken, testConsoleCommand)
 		require.NoError(t, err)
-		// read data
-		start := 0
-		for i := 0; i < 10; i++ {
-			data := console.Read(start)
-			l := len(data)
-			if l != 0 {
-				fmt.Println(string(data))
-				start += l
-			}
-			time.Sleep(minReadInterval)
-		}
+
+		testReadDataFromIOObject(console)
+	})
+
+	t.Run("lock", func(t *testing.T) {
+		ok := console.Lock(testUserToken)
+		require.True(t, ok)
+
+		fmt.Println("lock at:", console.LockAt())
+
+		err := console.Write(testUserToken, testConsoleCommand)
+		require.NoError(t, err)
+
+		testReadDataFromIOObject(console)
+
+		ok = console.Unlock(testUserToken)
+		require.True(t, ok)
+	})
+
+	t.Run("write after another lock", func(t *testing.T) {
+		ok := console.Lock(testUserToken)
+		require.True(t, ok)
+
+		err := console.Write(testUserToken, testConsoleCommand)
+		require.NoError(t, err)
+
+		testReadDataFromIOObject(console)
+
+		err = console.Write(testAnotherToken, nil)
+		require.Error(t, err)
+
+		ok = console.Unlock(testUserToken)
+		require.True(t, ok)
+
+		err = console.Write(testAnotherToken, testConsoleCommand)
+		require.NoError(t, err)
+
+		testReadDataFromIOObject(console)
+	})
+
+	t.Run("lock after another lock", func(t *testing.T) {
+		ok := console.Lock(testUserToken)
+		require.True(t, ok)
+
+		ok = console.Lock(testAnotherToken)
+		require.False(t, ok)
+
+		ok = console.Unlock(testUserToken)
+		require.True(t, ok)
+	})
+
+	t.Run("unlock without lock", func(t *testing.T) {
+		ok := console.Unlock(testUserToken)
+		require.True(t, ok)
+	})
+
+	t.Run("unlock with another token", func(t *testing.T) {
+		ok := console.Lock(testUserToken)
+		require.True(t, ok)
+
+		ok = console.Unlock(testAnotherToken)
+		require.False(t, ok)
+
+		ok = console.Unlock(testUserToken)
+		require.True(t, ok)
+	})
+
+	t.Run("force unlock", func(t *testing.T) {
+		ok := console.Lock(testUserToken)
+		require.True(t, ok)
+
+		console.ForceUnlock(testAdminToken)
+
+		err = console.Write(testAnotherToken, testConsoleCommand)
+		require.NoError(t, err)
+
+		testReadDataFromIOObject(console)
 	})
 
 	err = manager.Close()
@@ -386,8 +469,8 @@ func TestIOObject(t *testing.T) {
 
 	require.True(t, read)
 	require.True(t, closed)
-	require.False(t, locked)
-	require.False(t, unlocked)
+	require.True(t, locked)
+	require.True(t, unlocked)
 
 	err = client.ConsoleDestroy(ctx, consoleID)
 	require.NoError(t, err)
