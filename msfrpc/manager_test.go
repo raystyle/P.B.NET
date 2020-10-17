@@ -42,17 +42,17 @@ func TestIOReader_Read(t *testing.T) {
 		require.Equal(t, testdata, output)
 	})
 
-	t.Run("start < 0", func(t *testing.T) {
+	t.Run("offset < 0", func(t *testing.T) {
 		output := reader.Read(-1)
 		require.Equal(t, testdata, output)
 	})
 
-	t.Run("start != 0", func(t *testing.T) {
+	t.Run("offset != 0", func(t *testing.T) {
 		output := reader.Read(10)
 		require.Equal(t, testdata[10:], output)
 	})
 
-	t.Run("start > len", func(t *testing.T) {
+	t.Run("offset > len", func(t *testing.T) {
 		output := reader.Read(257)
 		require.Nil(t, output)
 	})
@@ -64,15 +64,15 @@ func TestIOReader_Read(t *testing.T) {
 		_, err := w.Write(testdata)
 		require.NoError(t, err)
 
-		start := 0
+		offset := 0
 		for {
-			output := reader.Read(start)
+			output := reader.Read(offset)
 			l := len(output)
 			if l == 0 {
 				break
 			}
-			require.True(t, bytes.Equal(testdata[start:start+l], output))
-			start += l
+			require.True(t, bytes.Equal(testdata[offset:offset+l], output))
+			offset += l
 		}
 	})
 
@@ -374,13 +374,13 @@ var (
 )
 
 func testReadDataFromIOObject(obj *IOObject) {
-	start := 0
+	offset := 0
 	for i := 0; i < 10; i++ {
-		data := obj.Read(start)
+		data := obj.Read(offset)
 		l := len(data)
 		if l != 0 {
 			fmt.Println(string(data))
-			start += l
+			offset += l
 		}
 		time.Sleep(minReadInterval)
 	}
@@ -538,7 +538,7 @@ func TestIOObject(t *testing.T) {
 	})
 
 	t.Run("Close", func(t *testing.T) {
-		err := console.Close()
+		err := console.Close(testUserToken)
 		require.NoError(t, err)
 	})
 
@@ -643,7 +643,7 @@ func TestIOObject_Parallel(t *testing.T) {
 		}
 		testsuite.RunParallel(5, nil, nil, fns...)
 
-		err = console.Close()
+		err = console.Close(testUserToken)
 		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, console)
@@ -696,7 +696,7 @@ func TestIOObject_Parallel(t *testing.T) {
 			require.NoError(t, err)
 		}
 		cleanup := func() {
-			err = console.Close()
+			err = console.Close(testUserToken)
 			require.NoError(t, err)
 
 			err = client.ConsoleDestroy(ctx, consoleID)

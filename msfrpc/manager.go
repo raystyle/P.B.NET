@@ -21,6 +21,7 @@ import (
 var (
 	ErrIOManagerClosed   = fmt.Errorf("io manager is closed")
 	ErrAnotherUserLocked = fmt.Errorf("another user lock it")
+	ErrInvalidLockToken  = fmt.Errorf("invalid lock token")
 )
 
 // ioReader is used to wrap Console, Shell and Meterpreter.
@@ -73,7 +74,7 @@ func (reader *ioReader) readLoop() {
 		// prevent cycle reference
 		reader.onRead = nil
 		reader.onClose = nil
-
+		// must use lock
 		reader.rwm.Lock()
 		defer reader.rwm.Unlock()
 		reader.onClean = nil
@@ -99,24 +100,24 @@ func (reader *ioReader) write(b []byte) {
 	reader.buf.Write(b)
 }
 
-// Read is used to read buffer data [start:].
-func (reader *ioReader) Read(start int) []byte {
+// Read is used to read buffer data with offset [offset:].
+func (reader *ioReader) Read(offset int) []byte {
 	const maxChunkSize = 32 * 1024
-	if start < 0 {
-		start = 0
+	if offset < 0 {
+		offset = 0
 	}
 	reader.rwm.RLock()
 	defer reader.rwm.RUnlock()
 	l := reader.buf.Len()
-	if start >= l {
+	if offset >= l {
 		return nil
 	}
-	size := l - start
+	size := l - offset
 	if size > maxChunkSize {
 		size = maxChunkSize
 	}
 	b := make([]byte, size)
-	copy(b, reader.buf.Bytes()[start:start+size])
+	copy(b, reader.buf.Bytes()[offset:offset+size])
 	return b
 }
 
@@ -233,8 +234,8 @@ func (obj *IOObject) LockAt() time.Time {
 	return obj.lockAt
 }
 
-// checkToken is used to check is user that lock this object.
-func (obj *IOObject) checkToken(token string) bool {
+// CheckToken is used to check is user that lock this object.
+func (obj *IOObject) CheckToken(token string) bool {
 	locker := obj.Locker()
 	if locker != "" && token != locker {
 		return false
@@ -243,14 +244,14 @@ func (obj *IOObject) checkToken(token string) bool {
 }
 
 // Read is used to read data from the under io reader.
-func (obj *IOObject) Read(start int) []byte {
-	return obj.reader.Read(start)
+func (obj *IOObject) Read(offset int) []byte {
+	return obj.reader.Read(offset)
 }
 
 // Write is used to write data to the under io object,
 // if token is correct, it will failed.
 func (obj *IOObject) Write(token string, data []byte) error {
-	if !obj.checkToken(token) {
+	if !obj.CheckToken(token) {
 		return ErrAnotherUserLocked
 	}
 	_, err := obj.object.Write(data)
@@ -259,7 +260,7 @@ func (obj *IOObject) Write(token string, data []byte) error {
 
 // Clean is used to clean buffer in the under io reader.
 func (obj *IOObject) Clean(token string) error {
-	if !obj.checkToken(token) {
+	if !obj.CheckToken(token) {
 		return ErrAnotherUserLocked
 	}
 	obj.reader.Clean()
@@ -267,7 +268,10 @@ func (obj *IOObject) Clean(token string) error {
 }
 
 // Close is used to close the under io reader.
-func (obj *IOObject) Close() error {
+func (obj *IOObject) Close(token string) error {
+	if !obj.CheckToken(token) {
+		return ErrAnotherUserLocked
+	}
 	return obj.reader.Close()
 }
 
@@ -558,31 +562,85 @@ func (mgr *IOManager) checkConsoleID(ctx context.Context, id string) error {
 	return errors.Errorf("console %s is not exist", id)
 }
 
-// ConsoleLock is used to lock write for console that only one user
-// can write to this console.
-func (mgr *IOManager) ConsoleLock() {
-
+// ConsoleLock is used to lock console that only one user
+// can operate this console, other user can only read.
+func (mgr *IOManager) ConsoleLock(id, token string) error {
+	console, err := mgr.GetConsole(id)
+	if err != nil {
+		return err
+	}
+	if console.Lock(token) {
+		return nil
+	}
+	return ErrAnotherUserLocked
 }
 
-// ConsoleUnlock is used to unlock write for console that all user
-// can write to this console.
-func (mgr *IOManager) ConsoleUnlock() {
-
+// ConsoleUnlock is used to unlock console.
+func (mgr *IOManager) ConsoleUnlock(id, token string) error {
+	console, err := mgr.GetConsole(id)
+	if err != nil {
+		return err
+	}
+	if console.Unlock(token) {
+		return nil
+	}
+	return ErrInvalidLockToken
 }
 
 // ConsoleForceUnlock is used to unlock write for console that all user
 // can write to this console, it will not check the token.
-func (mgr *IOManager) ConsoleForceUnlock() {
-
+func (mgr *IOManager) ConsoleForceUnlock(id, token string) error {
+	console, err := mgr.GetConsole(id)
+	if err != nil {
+		return err
+	}
+	console.ForceUnlock(token)
+	return nil
 }
 
-// ConsoleRead is used to read data from console, it will check token.
-func (mgr *IOManager) ConsoleRead() {
-
+// ConsoleRead is used to read data from console.
+func (mgr *IOManager) ConsoleRead(id string, offset int) ([]byte, error) {
+	console, err := mgr.GetConsole(id)
+	if err != nil {
+		return nil, err
+	}
+	return console.Read(offset), nil
 }
 
 // ConsoleWrite is used to write data to console, it will check token.
-func (mgr *IOManager) ConsoleWrite() {
+func (mgr *IOManager) ConsoleWrite(id, token string, data []byte) error {
+	console, err := mgr.GetConsole(id)
+	if err != nil {
+		return err
+	}
+	return console.Write(token, data)
+}
+
+// ConsoleClean is used to clean buffer in under reader.
+func (mgr *IOManager) ConsoleClean(id, token string) error {
+	console, err := mgr.GetConsole(id)
+	if err != nil {
+		return err
+	}
+	return console.Clean(token)
+}
+
+// ConsoleClose is used to close console io object, it will not destroy the under console.
+func (mgr *IOManager) ConsoleClose(id, token string) error {
+	console, err := mgr.GetConsole(id)
+	if err != nil {
+		return err
+	}
+	return console.Close(token)
+}
+
+// ConsoleDetach is used to detach current console.
+func (mgr *IOManager) ConsoleDetach() {
+
+}
+
+// ConsoleDestroy is used t destroy under console.
+func (mgr *IOManager) ConsoleDestroy() {
 
 }
 
@@ -740,7 +798,6 @@ func (mgr *IOManager) close() error {
 		if e != nil && err == nil {
 			err = e
 		}
-		console.reader = nil
 		delete(mgr.consoles, id)
 	}
 	// close all shells
@@ -749,7 +806,6 @@ func (mgr *IOManager) close() error {
 		if e != nil && err == nil {
 			err = e
 		}
-		shell.reader = nil
 		delete(mgr.shells, id)
 	}
 	// close all meterpreters
@@ -758,7 +814,6 @@ func (mgr *IOManager) close() error {
 		if e != nil && err == nil {
 			err = e
 		}
-		meterpreter.reader = nil
 		delete(mgr.meterpreters, id)
 	}
 	return err
