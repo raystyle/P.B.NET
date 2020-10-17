@@ -30,6 +30,7 @@ type ioReader struct {
 	logger  logger.Logger
 	rc      io.ReadCloser
 	onRead  func()
+	onClean func()
 	onClose func()
 
 	// store history output
@@ -39,11 +40,12 @@ type ioReader struct {
 	wg sync.WaitGroup
 }
 
-func newIOReader(lg logger.Logger, rc io.ReadCloser, onRead, onClose func()) *ioReader {
+func newIOReader(lg logger.Logger, rc io.ReadCloser, onRead, onClean, onClose func()) *ioReader {
 	return &ioReader{
 		logger:  lg,
 		rc:      rc,
 		onRead:  onRead,
+		onClean: onClean,
 		onClose: onClose,
 		buf:     bytes.NewBuffer(make([]byte, 0, 64)),
 	}
@@ -71,6 +73,10 @@ func (reader *ioReader) readLoop() {
 		// prevent cycle reference
 		reader.onRead = nil
 		reader.onClose = nil
+
+		reader.rwm.Lock()
+		defer reader.rwm.Unlock()
+		reader.onClean = nil
 	}()
 	var (
 		n   int
@@ -95,6 +101,7 @@ func (reader *ioReader) write(b []byte) {
 
 // Read is used to read buffer data [start:].
 func (reader *ioReader) Read(start int) []byte {
+	const maxChunkSize = 32 * 1024
 	if start < 0 {
 		start = 0
 	}
@@ -104,19 +111,32 @@ func (reader *ioReader) Read(start int) []byte {
 	if start >= l {
 		return nil
 	}
-	b := make([]byte, l-start)
-	copy(b, reader.buf.Bytes()[start:])
+	size := l - start
+	if size > maxChunkSize {
+		size = maxChunkSize
+	}
+	b := make([]byte, size)
+	copy(b, reader.buf.Bytes()[start:start+size])
 	return b
 }
 
 // Clean is used to clean buffer data.
 func (reader *ioReader) Clean() {
+	cleanFn := reader.clean()
+	if cleanFn != nil {
+		cleanFn()
+	}
+}
+
+func (reader *ioReader) clean() func() {
 	reader.rwm.Lock()
 	defer reader.rwm.Unlock()
 	// clean buffer data at once
 	security.CoverBytes(reader.buf.Bytes())
 	// alloc a new buffer
 	reader.buf = bytes.NewBuffer(make([]byte, 0, 64))
+	// must use lock or may be call nil onClean
+	return reader.onClean
 }
 
 // Close is used to close io reader, it will also close under ReadCloser.
@@ -259,16 +279,19 @@ func (obj *IOObject) close() error {
 // IOEventHandlers contains callbacks about io objects events.
 type IOEventHandlers struct {
 	OnConsoleRead     func(id string)
+	OnConsoleClean    func(id string)
 	OnConsoleClosed   func(id string)
 	OnConsoleLocked   func(id, token string)
 	OnConsoleUnlocked func(id, token string)
 
 	OnShellRead     func(id uint64)
+	OnShellClean    func(id uint64)
 	OnShellClosed   func(id uint64)
 	OnShellLocked   func(id uint64, token string)
 	OnShellUnlocked func(id uint64, token string)
 
 	OnMeterpreterRead     func(id uint64)
+	OnMeterpreterClean    func(id uint64)
 	OnMeterpreterClosed   func(id uint64)
 	OnMeterpreterLocked   func(id uint64, token string)
 	OnMeterpreterUnlocked func(id uint64, token string)
@@ -433,7 +456,7 @@ func (mgr *IOManager) GetShell(id uint64) (*IOObject, error) {
 	return nil, errors.Errorf("shell %d is not exist", id)
 }
 
-// GetConsole is used to get console by ID.
+// GetMeterpreter is used to get console by ID.
 func (mgr *IOManager) GetMeterpreter(id uint64) (*IOObject, error) {
 	mgr.rwm.RLock()
 	defer mgr.rwm.RUnlock()
@@ -491,11 +514,14 @@ func (mgr *IOManager) createConsoleIOObject(console *Console, token string) (*IO
 	onRead := func() {
 		mgr.handlers.OnConsoleRead(console.id)
 	}
+	onClean := func() {
+		mgr.handlers.OnConsoleClean(console.id)
+	}
 	onClose := func() {
 		mgr.handlers.OnConsoleClosed(console.id)
 		mgr.trackConsole(obj, false)
 	}
-	obj.reader = newIOReader(mgr.ctx.logger, console, onRead, onClose)
+	obj.reader = newIOReader(mgr.ctx.logger, console, onRead, onClean, onClose)
 	onLock := func(token string) {
 		mgr.handlers.OnConsoleLocked(console.id, token)
 	}
@@ -504,7 +530,10 @@ func (mgr *IOManager) createConsoleIOObject(console *Console, token string) (*IO
 	}
 	obj.onLock = onLock
 	obj.onUnlock = onUnlock
-	obj.Lock(token)
+	if token != "" {
+		obj.locker = token
+		obj.lockAt = mgr.now()
+	}
 	// must track first.
 	if !mgr.trackConsole(obj, true) {
 		// if track failed must deference reader,

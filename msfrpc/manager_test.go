@@ -1,6 +1,7 @@
 package msfrpc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -19,12 +20,14 @@ func TestIOReader_Read(t *testing.T) {
 
 	r, w := io.Pipe()
 	var (
-		read   bool
-		closed bool
+		read    bool
+		cleaned bool
+		closed  bool
 	)
 	onRead := func() { read = true }
+	onClean := func() { cleaned = true }
 	onClose := func() { closed = true }
-	reader := newIOReader(logger.Test, r, onRead, onClose)
+	reader := newIOReader(logger.Test, r, onRead, onClean, onClose)
 	reader.ReadLoop()
 
 	testdata := testsuite.Bytes()
@@ -54,10 +57,31 @@ func TestIOReader_Read(t *testing.T) {
 		require.Nil(t, output)
 	})
 
+	t.Run("read big size data", func(t *testing.T) {
+		reader.Clean()
+
+		testdata := bytes.Repeat(testsuite.Bytes(), 256)
+		_, err := w.Write(testdata)
+		require.NoError(t, err)
+
+		start := 0
+		for {
+			output := reader.Read(start)
+			l := len(output)
+			if l == 0 {
+				break
+			}
+			require.True(t, bytes.Equal(testdata[start:start+l], output))
+			start += l
+		}
+	})
+
+	reader.Clean()
 	err = reader.Close()
 	require.NoError(t, err)
 
 	require.True(t, read)
+	require.True(t, cleaned)
 	require.True(t, closed)
 
 	testsuite.IsDestroyed(t, reader)
@@ -69,12 +93,14 @@ func TestIOReader_Clean(t *testing.T) {
 
 	r, w := io.Pipe()
 	var (
-		read   bool
-		closed bool
+		read    bool
+		cleaned bool
+		closed  bool
 	)
 	onRead := func() { read = true }
+	onClean := func() { cleaned = true }
 	onClose := func() { closed = true }
-	reader := newIOReader(logger.Test, r, onRead, onClose)
+	reader := newIOReader(logger.Test, r, onRead, onClean, onClose)
 	reader.ReadLoop()
 
 	testdata := testsuite.Bytes()
@@ -90,6 +116,7 @@ func TestIOReader_Clean(t *testing.T) {
 	require.NoError(t, err)
 
 	require.True(t, read)
+	require.True(t, cleaned)
 	require.True(t, closed)
 
 	testsuite.IsDestroyed(t, reader)
@@ -101,20 +128,24 @@ func TestIOReader_Panic(t *testing.T) {
 
 	conn := testsuite.NewMockConnWithReadPanic()
 	var (
-		read   bool
-		closed bool
+		read    bool
+		cleaned bool
+		closed  bool
 	)
 	onRead := func() { read = true }
+	onClean := func() { cleaned = true }
 	onClose := func() { closed = true }
-	reader := newIOReader(logger.Test, conn, onRead, onClose)
+	reader := newIOReader(logger.Test, conn, onRead, onClean, onClose)
 	reader.ReadLoop()
 
 	time.Sleep(time.Second)
 
+	reader.Clean()
 	err := reader.Close()
 	require.NoError(t, err)
 
 	require.False(t, read)
+	require.True(t, cleaned)
 	require.True(t, closed)
 
 	testsuite.IsDestroyed(t, reader)
@@ -130,12 +161,14 @@ func TestIOReader_Parallel(t *testing.T) {
 		t.Run("part", func(t *testing.T) {
 			r, w := io.Pipe()
 			var (
-				bRead  bool
-				closed bool
+				bRead   bool
+				cleaned bool
+				closed  bool
 			)
 			onRead := func() { bRead = true }
+			onClean := func() { cleaned = true }
 			onClose := func() { closed = true }
-			reader := newIOReader(logger.Test, r, onRead, onClose)
+			reader := newIOReader(logger.Test, r, onRead, onClean, onClose)
 			reader.ReadLoop()
 
 			write := func() {
@@ -165,6 +198,7 @@ func TestIOReader_Parallel(t *testing.T) {
 			require.NoError(t, err)
 
 			require.True(t, bRead)
+			require.True(t, cleaned)
 			require.True(t, closed)
 
 			testsuite.IsDestroyed(t, reader)
@@ -177,14 +211,17 @@ func TestIOReader_Parallel(t *testing.T) {
 				reader *ioReader
 			)
 			var (
-				bRead  bool
-				closed bool
+				bRead   bool
+				cleaned bool
+				closed  bool
 			)
 			onRead := func() { bRead = true }
+			onClean := func() { cleaned = true }
 			onClose := func() { closed = true }
+
 			init := func() {
 				r, w = io.Pipe()
-				reader = newIOReader(logger.Test, r, onRead, onClose)
+				reader = newIOReader(logger.Test, r, onRead, onClean, onClose)
 				reader.ReadLoop()
 			}
 			write := func() {
@@ -208,8 +245,10 @@ func TestIOReader_Parallel(t *testing.T) {
 				require.NoError(t, err)
 
 				require.True(t, bRead)
+				require.True(t, cleaned)
 				require.True(t, closed)
 				bRead = false
+				cleaned = false
 				closed = false
 			}
 			testsuite.RunParallel(100, init, cleanup, write, read, clean)
@@ -222,12 +261,14 @@ func TestIOReader_Parallel(t *testing.T) {
 		t.Run("part", func(t *testing.T) {
 			r, w := io.Pipe()
 			var (
-				bRead  bool
-				closed bool
+				bRead   bool
+				cleaned bool
+				closed  bool
 			)
 			onRead := func() { bRead = true }
+			onClean := func() { cleaned = true }
 			onClose := func() { closed = true }
-			reader := newIOReader(logger.Test, r, onRead, onClose)
+			reader := newIOReader(logger.Test, r, onRead, onClean, onClose)
 			reader.ReadLoop()
 
 			write := func() {
@@ -256,6 +297,7 @@ func TestIOReader_Parallel(t *testing.T) {
 			testsuite.RunParallel(100, nil, cleanup, write, read, clean, close1)
 
 			require.True(t, bRead)
+			require.True(t, cleaned)
 			require.True(t, closed)
 
 			testsuite.IsDestroyed(t, reader)
@@ -268,15 +310,17 @@ func TestIOReader_Parallel(t *testing.T) {
 				reader *ioReader
 			)
 			var (
-				bRead  bool
-				closed bool
+				bRead   bool
+				cleaned bool
+				closed  bool
 			)
 			onRead := func() { bRead = true }
+			onClean := func() { cleaned = true }
 			onClose := func() { closed = true }
 
 			init := func() {
 				r, w = io.Pipe()
-				reader = newIOReader(logger.Test, r, onRead, onClose)
+				reader = newIOReader(logger.Test, r, onRead, onClean, onClose)
 				reader.ReadLoop()
 			}
 			write := func() {
@@ -306,8 +350,10 @@ func TestIOReader_Parallel(t *testing.T) {
 				reader.Clean()
 
 				require.True(t, bRead)
+				require.True(t, cleaned)
 				require.True(t, closed)
 				bRead = false
+				cleaned = false
 				closed = false
 			}
 			testsuite.RunParallel(100, init, cleanup, write, read, clean, close1)
@@ -350,6 +396,7 @@ func TestIOObject(t *testing.T) {
 	var (
 		consoleID string
 		read      bool
+		cleaned   bool
 		closed    bool
 		locked    bool
 		unlocked  bool
@@ -358,6 +405,10 @@ func TestIOObject(t *testing.T) {
 		OnConsoleRead: func(id string) {
 			require.Equal(t, consoleID, id)
 			read = true
+		},
+		OnConsoleClean: func(id string) {
+			require.Equal(t, consoleID, id)
+			cleaned = true
 		},
 		OnConsoleClosed: func(id string) {
 			require.Equal(t, consoleID, id)
@@ -495,6 +546,7 @@ func TestIOObject(t *testing.T) {
 	require.NoError(t, err)
 
 	require.True(t, read)
+	require.True(t, cleaned)
 	require.True(t, closed)
 	require.True(t, locked)
 	require.True(t, unlocked)
