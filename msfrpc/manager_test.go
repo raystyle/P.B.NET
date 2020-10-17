@@ -567,4 +567,108 @@ func TestIOObject_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	client := testGenerateClientAndLogin(t)
+
+	ctx := context.Background()
+	var (
+		consoleID string
+		bRead     bool
+		cleaned   bool
+		closed    bool
+		locked    bool
+		unlocked  bool
+	)
+	handlers := IOEventHandlers{
+		OnConsoleRead: func(id string) {
+			require.Equal(t, consoleID, id)
+			bRead = true
+		},
+		OnConsoleClean: func(id string) {
+			require.Equal(t, consoleID, id)
+			cleaned = true
+		},
+		OnConsoleClosed: func(id string) {
+			require.Equal(t, consoleID, id)
+			closed = true
+		},
+		OnConsoleLocked: func(id, token string) {
+			require.Equal(t, consoleID, id)
+			require.Equal(t, testUserToken, token)
+			locked = true
+		},
+		OnConsoleUnlocked: func(id, token string) {
+			require.Equal(t, consoleID, id)
+			if token != testUserToken && token != testAdminToken {
+				t.Fatal("unexpected token:", token)
+			}
+			unlocked = true
+		},
+	}
+	manager := NewIOManager(client, &handlers, testIOManagerOptions)
+
+	t.Run("part", func(t *testing.T) {
+		console, err := manager.NewConsole(ctx, defaultWorkspace)
+		require.NoError(t, err)
+		consoleID = console.ToConsole().id
+
+		lock := func() {
+			ok := console.Lock(testUserToken)
+			require.True(t, ok)
+		}
+		unlock := func() {
+			ok := console.Unlock(testUserToken)
+			require.True(t, ok)
+		}
+		forceUnlock := func() {
+			console.ForceUnlock(testAdminToken)
+		}
+		read := func() {
+			testReadDataFromIOObject(console)
+		}
+		write := func() {
+			// maybe locked
+			_ = console.Write(testAnotherToken, testConsoleCommand)
+		}
+		writeWithLock := func() {
+			err := console.Write(testUserToken, testConsoleCommand)
+			require.NoError(t, err)
+		}
+		clean := func() {
+			err := console.Clean(testUserToken)
+			require.NoError(t, err)
+		}
+		fns := []func(){
+			lock, unlock, forceUnlock,
+			read, write, writeWithLock, clean,
+		}
+		testsuite.RunParallel(5, nil, nil, fns...)
+
+		err = console.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, console)
+
+		err = client.ConsoleDestroy(ctx, consoleID)
+		require.NoError(t, err)
+
+		require.True(t, bRead)
+		require.True(t, cleaned)
+		require.True(t, closed)
+		require.True(t, locked)
+		require.True(t, unlocked)
+	})
+
+	t.Run("whole", func(t *testing.T) {
+
+	})
+
+	err := manager.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
 }
