@@ -821,7 +821,7 @@ func TestIOManager_Console(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
-func TestIOManager_NewConsoleWithLocker(t *testing.T) {
+func TestIOManager_NewConsole(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -842,7 +842,7 @@ func TestIOManager_NewConsoleWithLocker(t *testing.T) {
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchClientSend(func() {
-			console, err := manager.NewConsoleWithLocker(ctx, defaultWorkspace, testUserToken)
+			console, err := manager.NewConsole(ctx, defaultWorkspace)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, console)
 		})
@@ -852,7 +852,7 @@ func TestIOManager_NewConsoleWithLocker(t *testing.T) {
 		err := manager.Close()
 		require.NoError(t, err)
 
-		console, err := manager.NewConsoleWithLocker(ctx, defaultWorkspace, testUserToken)
+		console, err := manager.NewConsole(ctx, defaultWorkspace)
 		require.Equal(t, ErrIOManagerClosed, err)
 		require.Nil(t, console)
 	})
@@ -868,7 +868,7 @@ func TestIOManager_NewConsoleWithLocker(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
-func TestIOManager_NewConsoleWithIDAndLocker(t *testing.T) {
+func TestIOManager_NewConsoleWithID(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

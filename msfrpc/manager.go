@@ -470,6 +470,32 @@ func (mgr *IOManager) GetMeterpreter(id uint64) (*IOObject, error) {
 	return nil, errors.Errorf("meterpreter %d is not exist", id)
 }
 
+func (mgr *IOManager) checkConsoleID(ctx context.Context, id string) error {
+	consoles, err := mgr.ctx.ConsoleList(ctx)
+	if err != nil {
+		return err
+	}
+	for _, console := range consoles {
+		if console.ID == id {
+			return nil
+		}
+	}
+	return errors.Errorf("console %s is not exist", id)
+}
+
+func (mgr *IOManager) checkSessionID(ctx context.Context, typ string, id uint64) error {
+	sessions, err := mgr.ctx.SessionList(ctx)
+	if err != nil {
+		return err
+	}
+	for sid, session := range sessions {
+		if session.Type == typ && sid == id {
+			return nil
+		}
+	}
+	return errors.Errorf("%s session %d is not exist", typ, id)
+}
+
 // ------------------------------------------about console-----------------------------------------
 
 // NewConsole is used to create a new console and wrap it to IOObject,
@@ -513,26 +539,27 @@ func (mgr *IOManager) NewConsoleWithIDAndLocker(ctx context.Context, id, token s
 }
 
 func (mgr *IOManager) createConsoleIOObject(console *Console, token string) (*IOObject, error) {
+	id := console.ID()
 	obj := &IOObject{
 		object: console,
 		now:    mgr.now,
 	}
 	onRead := func() {
-		mgr.handlers.OnConsoleRead(console.ID())
+		mgr.handlers.OnConsoleRead(id)
 	}
 	onClean := func() {
-		mgr.handlers.OnConsoleClean(console.ID())
+		mgr.handlers.OnConsoleClean(id)
 	}
 	onClose := func() {
-		mgr.handlers.OnConsoleClosed(console.ID())
+		mgr.handlers.OnConsoleClosed(id)
 		mgr.trackConsole(obj, false)
 	}
 	obj.reader = newIOReader(mgr.ctx.logger, console, onRead, onClean, onClose)
 	onLock := func(token string) {
-		mgr.handlers.OnConsoleLocked(console.ID(), token)
+		mgr.handlers.OnConsoleLocked(id, token)
 	}
 	onUnlock := func(token string) {
-		mgr.handlers.OnConsoleUnlocked(console.ID(), token)
+		mgr.handlers.OnConsoleUnlocked(id, token)
 	}
 	obj.onLock = onLock
 	obj.onUnlock = onUnlock
@@ -549,19 +576,6 @@ func (mgr *IOManager) createConsoleIOObject(console *Console, token string) (*IO
 	}
 	obj.reader.ReadLoop()
 	return obj, nil
-}
-
-func (mgr *IOManager) checkConsoleID(ctx context.Context, id string) error {
-	consoles, err := mgr.ctx.ConsoleList(ctx)
-	if err != nil {
-		return err
-	}
-	for _, console := range consoles {
-		if console.ID == id {
-			return nil
-		}
-	}
-	return errors.Errorf("console %s is not exist", id)
 }
 
 // ConsoleLock is used to lock console that only one user
@@ -675,21 +689,57 @@ func (mgr *IOManager) ConsoleDestroy(id, token string) error {
 
 // -------------------------------------------about shell------------------------------------------
 
-// NewShell is used to create a new shell with IO status.
-func (mgr *IOManager) NewShell() {
-
+// NewShell is used to wrap an existing shell and wrap it to IOObject.
+func (mgr *IOManager) NewShell(ctx context.Context, id uint64) (*IOObject, error) {
+	return mgr.NewShellWithLocker(ctx, id, "")
 }
 
-// NewShellAndLockWrite is used to create a new shell with IO status and lock write.
-// Only the creator can write it.
-func (mgr *IOManager) NewShellAndLockWrite() {
-
-}
-
-// NewShellAndLockRW is used to create a new shell and lock read and write.
-// Only the creator can read and write it.
-func (mgr *IOManager) NewShellAndLockRW() {
-
+// NewShellWithLocker is used to wrap an existing shell and wrap it to IOObject with locker.
+func (mgr *IOManager) NewShellWithLocker(ctx context.Context, id uint64, token string) (*IOObject, error) {
+	if mgr.shuttingDown() {
+		return nil, ErrIOManagerClosed
+	}
+	err := mgr.checkSessionID(ctx, "shell", id)
+	if err != nil {
+		return nil, err
+	}
+	shell := mgr.ctx.NewShell(id, mgr.interval)
+	obj := &IOObject{
+		object: shell,
+		now:    mgr.now,
+	}
+	onRead := func() {
+		mgr.handlers.OnShellRead(id)
+	}
+	onClean := func() {
+		mgr.handlers.OnShellClean(id)
+	}
+	onClose := func() {
+		mgr.handlers.OnShellClosed(id)
+		mgr.trackShell(obj, false)
+	}
+	obj.reader = newIOReader(mgr.ctx.logger, shell, onRead, onClean, onClose)
+	onLock := func(token string) {
+		mgr.handlers.OnShellLocked(id, token)
+	}
+	onUnlock := func(token string) {
+		mgr.handlers.OnShellUnlocked(id, token)
+	}
+	obj.onLock = onLock
+	obj.onUnlock = onUnlock
+	if token != "" {
+		obj.locker = token
+		obj.lockAt = mgr.now()
+	}
+	// must track first.
+	if !mgr.trackShell(obj, true) {
+		// if track failed must deference reader,
+		// otherwise it will occur cycle reference
+		obj.reader = nil
+		return nil, ErrIOManagerClosed
+	}
+	obj.reader.ReadLoop()
+	return obj, nil
 }
 
 // ShellLockWrite is used to lock write for shell that only one user
