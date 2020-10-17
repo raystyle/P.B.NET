@@ -890,6 +890,38 @@ func TestIOManager_NewConsoleWithIDAndLocker(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("console is not exist", func(t *testing.T) {
+		console, err := manager.NewConsoleWithID(ctx, "999")
+		require.EqualError(t, err, "console 999 is not exist")
+		require.Nil(t, console)
+	})
+
+	t.Run("failed to get console list", func(t *testing.T) {
+		testPatchClientSend(func() {
+			console, err := manager.NewConsoleWithID(ctx, id)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, console)
+		})
+	})
+
+	t.Run("call after close", func(t *testing.T) {
+		err := manager.Close()
+		require.NoError(t, err)
+
+		console, err := manager.NewConsoleWithID(ctx, id)
+		require.Equal(t, ErrIOManagerClosed, err)
+		require.Nil(t, console)
+	})
+
+	t.Run("failed to create io object", func(t *testing.T) {
+		err := manager.Close()
+		require.NoError(t, err)
+
+		obj, err := manager.createConsoleIOObject(console, testUserToken)
+		require.Equal(t, ErrIOManagerClosed, err)
+		require.Nil(t, obj)
+	})
+
 	err = manager.Close()
 	require.NoError(t, err)
 
