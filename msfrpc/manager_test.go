@@ -538,8 +538,14 @@ func TestIOObject(t *testing.T) {
 	})
 
 	t.Run("Close", func(t *testing.T) {
+		ok := console.Lock(testUserToken)
+		require.True(t, ok)
+
 		err := console.Close(testUserToken)
 		require.NoError(t, err)
+
+		err = console.Close(testAnotherToken)
+		require.Error(t, err)
 	})
 
 	err = manager.Close()

@@ -357,7 +357,7 @@ func (mgr *IOManager) shuttingDown() bool {
 }
 
 func (mgr *IOManager) trackConsole(console *IOObject, add bool) bool {
-	id := console.ToConsole().id
+	id := console.ToConsole().ID()
 	mgr.rwm.Lock()
 	defer mgr.rwm.Unlock()
 	if add {
@@ -374,7 +374,7 @@ func (mgr *IOManager) trackConsole(console *IOObject, add bool) bool {
 }
 
 func (mgr *IOManager) trackShell(shell *IOObject, add bool) bool {
-	id := shell.ToShell().id
+	id := shell.ToShell().ID()
 	mgr.rwm.Lock()
 	defer mgr.rwm.Unlock()
 	if add {
@@ -391,7 +391,7 @@ func (mgr *IOManager) trackShell(shell *IOObject, add bool) bool {
 }
 
 func (mgr *IOManager) trackMeterpreter(meterpreter *IOObject, add bool) bool {
-	id := meterpreter.ToMeterpreter().id
+	id := meterpreter.ToMeterpreter().ID()
 	mgr.rwm.Lock()
 	defer mgr.rwm.Unlock()
 	if add {
@@ -516,21 +516,21 @@ func (mgr *IOManager) createConsoleIOObject(console *Console, token string) (*IO
 		now:    mgr.now,
 	}
 	onRead := func() {
-		mgr.handlers.OnConsoleRead(console.id)
+		mgr.handlers.OnConsoleRead(console.ID())
 	}
 	onClean := func() {
-		mgr.handlers.OnConsoleClean(console.id)
+		mgr.handlers.OnConsoleClean(console.ID())
 	}
 	onClose := func() {
-		mgr.handlers.OnConsoleClosed(console.id)
+		mgr.handlers.OnConsoleClosed(console.ID())
 		mgr.trackConsole(obj, false)
 	}
 	obj.reader = newIOReader(mgr.ctx.logger, console, onRead, onClean, onClose)
 	onLock := func(token string) {
-		mgr.handlers.OnConsoleLocked(console.id, token)
+		mgr.handlers.OnConsoleLocked(console.ID(), token)
 	}
 	onUnlock := func(token string) {
-		mgr.handlers.OnConsoleUnlocked(console.id, token)
+		mgr.handlers.OnConsoleUnlocked(console.ID(), token)
 	}
 	obj.onLock = onLock
 	obj.onUnlock = onUnlock
@@ -635,23 +635,40 @@ func (mgr *IOManager) ConsoleClose(id, token string) error {
 }
 
 // ConsoleDetach is used to detach current console.
-func (mgr *IOManager) ConsoleDetach() {
-
+func (mgr *IOManager) ConsoleDetach(ctx context.Context, id, token string) error {
+	console, err := mgr.GetConsole(id)
+	if err != nil {
+		return err
+	}
+	if !console.CheckToken(token) {
+		return ErrAnotherUserLocked
+	}
+	return console.ToConsole().Detach(ctx)
 }
 
-// ConsoleDestroy is used t destroy under console.
-func (mgr *IOManager) ConsoleDestroy() {
-
+// ConsoleInterrupt is used to send interrupt to current console.
+func (mgr *IOManager) ConsoleInterrupt(ctx context.Context, id, token string) error {
+	console, err := mgr.GetConsole(id)
+	if err != nil {
+		return err
+	}
+	if !console.CheckToken(token) {
+		return ErrAnotherUserLocked
+	}
+	return console.ToConsole().Interrupt(ctx)
 }
 
-// ConsoleSessionDetach is used to detach session in console, it will check token.
-func (mgr *IOManager) ConsoleSessionDetach() {
-
-}
-
-// ConsoleSessionKill is used to kill session in console, it will check token.
-func (mgr *IOManager) ConsoleSessionKill() {
-
+// ConsoleDestroy is used to destroy under console, it will close io object first.
+func (mgr *IOManager) ConsoleDestroy(id, token string) error {
+	console, err := mgr.GetConsole(id)
+	if err != nil {
+		return err
+	}
+	err = console.Close(token)
+	if err != nil {
+		return err
+	}
+	return console.ToConsole().Destroy()
 }
 
 // NewShell is used to create a new shell with IO status.

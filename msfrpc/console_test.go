@@ -472,6 +472,8 @@ func TestConsole(t *testing.T) {
 	fmt.Println()
 	fmt.Println()
 
+	fmt.Println(console.ID())
+
 	err = console.Destroy()
 	require.NoError(t, err)
 

@@ -925,6 +925,8 @@ func TestShell(t *testing.T) {
 
 	time.Sleep(time.Second)
 
+	fmt.Println(shell.ID())
+
 	modules, err := shell.CompatibleModules(ctx)
 	require.NoError(t, err)
 	for i := 0; i < len(modules); i++ {
@@ -1237,6 +1239,8 @@ func TestMeterpreter(t *testing.T) {
 	}
 
 	time.Sleep(time.Second)
+
+	fmt.Println(meterpreter.ID())
 
 	modules, err := meterpreter.CompatibleModules(ctx)
 	require.NoError(t, err)

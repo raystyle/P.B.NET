@@ -504,6 +504,11 @@ func (shell *Shell) Close() error {
 	return nil
 }
 
+// ID is used to get the shell session id.
+func (shell *Shell) ID() uint64 {
+	return shell.id
+}
+
 // CompatibleModules is used to return a list of Post modules that compatible.
 func (shell *Shell) CompatibleModules(ctx context.Context) ([]string, error) {
 	return shell.ctx.SessionCompatibleModules(ctx, shell.id)
@@ -667,6 +672,11 @@ func (mp *Meterpreter) Write(b []byte) (int, error) {
 func (mp *Meterpreter) Close() error {
 	mp.close()
 	return nil
+}
+
+// ID is used to get the meterpreter session id.
+func (mp *Meterpreter) ID() uint64 {
+	return mp.id
 }
 
 // Detach is used to detach current meterpreter session.

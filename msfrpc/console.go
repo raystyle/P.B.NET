@@ -442,6 +442,11 @@ func (console *Console) Close() error {
 	return nil
 }
 
+// ID is used to get the console id.
+func (console *Console) ID() string {
+	return console.id
+}
+
 // Detach is used to detach current console.
 func (console *Console) Detach(ctx context.Context) error {
 	return console.ctx.ConsoleSessionDetach(ctx, console.id)
