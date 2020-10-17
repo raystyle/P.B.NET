@@ -377,7 +377,7 @@ func (client *Client) Close() error {
 		return err
 	}
 	client.close()
-	client.ioCounter.Wait()
+	client.wait()
 	return nil
 }
 
@@ -388,13 +388,13 @@ func (client *Client) Kill() {
 		client.log(logger.Warning, "appear error when kill msfrpc client:", err)
 	}
 	client.close()
-	client.ioCounter.Wait()
+	client.wait()
 }
 
 func (client *Client) close() {
+	atomic.StoreInt32(&client.inShutdown, 1)
 	client.rwm.Lock()
 	defer client.rwm.Unlock()
-	atomic.StoreInt32(&client.inShutdown, 1)
 	// close all consoles
 	for _, console := range client.consoles {
 		_ = console.Close()
@@ -408,5 +408,9 @@ func (client *Client) close() {
 		_ = meterpreter.Close()
 	}
 	client.cancel()
+}
+
+func (client *Client) wait() {
+	client.ioCounter.Wait()
 	client.client.CloseIdleConnections()
 }

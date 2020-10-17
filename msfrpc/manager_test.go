@@ -480,7 +480,7 @@ func TestIOObject(t *testing.T) {
 		testReadDataFromIOObject(console)
 
 		err = console.Write(testAnotherToken, nil)
-		require.Error(t, err)
+		require.Equal(t, ErrAnotherUserLocked, err)
 
 		ok = console.Unlock(testUserToken)
 		require.True(t, ok)
@@ -546,7 +546,7 @@ func TestIOObject(t *testing.T) {
 		require.True(t, ok)
 
 		err = console.Clean(testAnotherToken)
-		require.Error(t, err)
+		require.Equal(t, ErrAnotherUserLocked, err)
 
 		ok = console.Unlock(testUserToken)
 		require.True(t, ok)
@@ -560,7 +560,7 @@ func TestIOObject(t *testing.T) {
 		require.NoError(t, err)
 
 		err = console.Close(testAnotherToken)
-		require.Error(t, err)
+		require.Equal(t, ErrAnotherUserLocked, err)
 	})
 
 	err = manager.Close()
@@ -749,6 +749,78 @@ func TestIOObject_Parallel(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
+func TestIOManager_Console(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+
+	ctx := context.Background()
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	console, err := manager.NewConsole(ctx, defaultWorkspace)
+	require.NoError(t, err)
+	id := console.ToConsole().ID()
+
+	err = manager.ConsoleWrite(id, testUserToken, testConsoleCommand)
+	require.NoError(t, err)
+	err = manager.ConsoleWrite(id, testAnotherToken, testConsoleCommand)
+	require.NoError(t, err)
+	data, err := manager.ConsoleRead(id, 0)
+	require.NoError(t, err)
+	fmt.Println(string(data))
+
+	err = manager.ConsoleLock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.ConsoleWrite(id, testUserToken, testConsoleCommand)
+	require.NoError(t, err)
+	err = manager.ConsoleWrite(id, testAnotherToken, testConsoleCommand)
+	require.Equal(t, ErrAnotherUserLocked, err)
+	data, err = manager.ConsoleRead(id, 0)
+	require.NoError(t, err)
+	fmt.Println(string(data))
+	err = manager.ConsoleUnlock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.ConsoleWrite(id, testAnotherToken, testConsoleCommand)
+	require.NoError(t, err)
+	fmt.Println(string(data))
+
+	err = manager.ConsoleLock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.ConsoleClean(id, testAnotherToken)
+	require.Equal(t, ErrAnotherUserLocked, err)
+	err = manager.ConsoleClean(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.ConsoleUnlock(id, testUserToken)
+	require.NoError(t, err)
+
+	err = manager.ConsoleLock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.ConsoleForceUnlock(id, testAdminToken)
+	require.NoError(t, err)
+
+	err = manager.ConsoleLock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.ConsoleClose(id, testAnotherToken)
+	require.Equal(t, ErrAnotherUserLocked, err)
+	err = manager.ConsoleClose(id, testUserToken)
+	require.NoError(t, err)
+
+	err = client.ConsoleDestroy(ctx, id)
+	require.NoError(t, err)
+
+	err = manager.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
 func TestIOManager_NewConsoleWithLocker(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -762,8 +834,9 @@ func TestIOManager_NewConsoleWithLocker(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		console, err := manager.NewConsoleWithLocker(ctx, defaultWorkspace, testUserToken)
 		require.NoError(t, err)
+		id := console.ToConsole().ID()
 
-		err = manager.ConsoleDestroy(console.ToConsole().ID(), testUserToken)
+		err = client.ConsoleDestroy(ctx, id)
 		require.NoError(t, err)
 	})
 
@@ -785,6 +858,39 @@ func TestIOManager_NewConsoleWithLocker(t *testing.T) {
 	})
 
 	err := manager.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestIOManager_NewConsoleWithIDAndLocker(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+
+	ctx := context.Background()
+	console, err := client.NewConsole(ctx, defaultWorkspace, minReadInterval)
+	require.NoError(t, err)
+	id := console.ID()
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	t.Run("success", func(t *testing.T) {
+		console, err := manager.NewConsoleWithIDAndLocker(ctx, id, testUserToken)
+		require.NoError(t, err)
+		fmt.Println(string(console.Read(0)))
+
+		err = client.ConsoleDestroy(ctx, id)
+		require.NoError(t, err)
+	})
+
+	err = manager.Close()
 	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, manager)
