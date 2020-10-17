@@ -659,7 +659,62 @@ func TestIOObject_Parallel(t *testing.T) {
 	})
 
 	t.Run("whole", func(t *testing.T) {
+		var (
+			console *IOObject
+			err     error
+		)
 
+		init := func() {
+			console, err = manager.NewConsole(ctx, defaultWorkspace)
+			require.NoError(t, err)
+			consoleID = console.ToConsole().id
+		}
+		lock := func() {
+			ok := console.Lock(testUserToken)
+			require.True(t, ok)
+		}
+		unlock := func() {
+			ok := console.Unlock(testUserToken)
+			require.True(t, ok)
+		}
+		forceUnlock := func() {
+			console.ForceUnlock(testAdminToken)
+		}
+		read := func() {
+			testReadDataFromIOObject(console)
+		}
+		write := func() {
+			// maybe locked
+			_ = console.Write(testAnotherToken, testConsoleCommand)
+		}
+		writeWithLock := func() {
+			err := console.Write(testUserToken, testConsoleCommand)
+			require.NoError(t, err)
+		}
+		clean := func() {
+			err := console.Clean(testUserToken)
+			require.NoError(t, err)
+		}
+		cleanup := func() {
+			err = console.Close()
+			require.NoError(t, err)
+
+			err = client.ConsoleDestroy(ctx, consoleID)
+			require.NoError(t, err)
+		}
+		fns := []func(){
+			lock, unlock, forceUnlock,
+			read, write, writeWithLock, clean,
+		}
+		testsuite.RunParallel(5, init, cleanup, fns...)
+
+		testsuite.IsDestroyed(t, console)
+
+		require.True(t, bRead)
+		require.True(t, cleaned)
+		require.True(t, closed)
+		require.True(t, locked)
+		require.True(t, unlocked)
 	})
 
 	err := manager.Close()
