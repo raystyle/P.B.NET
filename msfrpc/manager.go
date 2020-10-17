@@ -3,11 +3,13 @@ package msfrpc
 import (
 	"bytes"
 	"context"
-	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"project/internal/logger"
 	"project/internal/security"
@@ -15,8 +17,11 @@ import (
 	"project/internal/xsync"
 )
 
-// ErrIOManagerClosed is a error that to tell caller IOManager is closed.
-var ErrIOManagerClosed = errors.New("io manager is closed")
+// about errors
+var (
+	ErrIOManagerClosed   = fmt.Errorf("io manager is closed")
+	ErrAnotherUserLocked = fmt.Errorf("another user lock it")
+)
 
 // ioReader is used to wrap Console, Shell and Meterpreter.
 // different reader(user) can get the same data, when new data read,
@@ -226,7 +231,7 @@ func (obj *IOObject) Read(start int) []byte {
 // if token is correct, it will failed.
 func (obj *IOObject) Write(token string, data []byte) error {
 	if !obj.checkToken(token) {
-		return errors.New("another user lock it")
+		return ErrAnotherUserLocked
 	}
 	_, err := obj.object.Write(data)
 	return err
@@ -235,7 +240,7 @@ func (obj *IOObject) Write(token string, data []byte) error {
 // Clean is used to clean buffer in the under io reader.
 func (obj *IOObject) Clean(token string) error {
 	if !obj.checkToken(token) {
-		return errors.New("another user lock it")
+		return ErrAnotherUserLocked
 	}
 	obj.reader.Clean()
 	return nil
@@ -375,6 +380,69 @@ func (mgr *IOManager) trackMeterpreter(meterpreter *IOObject, add bool) bool {
 	return true
 }
 
+// Consoles is used to get consoles that IOManager has attached.
+func (mgr *IOManager) Consoles() map[string]*IOObject {
+	mgr.rwm.RLock()
+	defer mgr.rwm.RUnlock()
+	consoles := make(map[string]*IOObject, len(mgr.consoles))
+	for id, console := range mgr.consoles {
+		consoles[id] = console
+	}
+	return consoles
+}
+
+// Shells is used to get shells that IOManager has attached.
+func (mgr *IOManager) Shells() map[uint64]*IOObject {
+	mgr.rwm.RLock()
+	defer mgr.rwm.RUnlock()
+	shells := make(map[uint64]*IOObject, len(mgr.shells))
+	for id, shell := range mgr.shells {
+		shells[id] = shell
+	}
+	return shells
+}
+
+// Meterpreters is used to get meterpreters that IOManager has attached.
+func (mgr *IOManager) Meterpreters() map[uint64]*IOObject {
+	mgr.rwm.RLock()
+	defer mgr.rwm.RUnlock()
+	meterpreters := make(map[uint64]*IOObject, len(mgr.meterpreters))
+	for id, meterpreter := range mgr.meterpreters {
+		meterpreters[id] = meterpreter
+	}
+	return meterpreters
+}
+
+// GetConsole is used to get console by ID.
+func (mgr *IOManager) GetConsole(id string) (*IOObject, error) {
+	mgr.rwm.RLock()
+	defer mgr.rwm.RUnlock()
+	if console, ok := mgr.consoles[id]; ok {
+		return console, nil
+	}
+	return nil, errors.Errorf("console %s is not exist", id)
+}
+
+// GetShell is used to get shell by ID.
+func (mgr *IOManager) GetShell(id uint64) (*IOObject, error) {
+	mgr.rwm.RLock()
+	defer mgr.rwm.RUnlock()
+	if shell, ok := mgr.shells[id]; ok {
+		return shell, nil
+	}
+	return nil, errors.Errorf("shell %d is not exist", id)
+}
+
+// GetConsole is used to get console by ID.
+func (mgr *IOManager) GetMeterpreter(id uint64) (*IOObject, error) {
+	mgr.rwm.RLock()
+	defer mgr.rwm.RUnlock()
+	if meterpreter, ok := mgr.meterpreters[id]; ok {
+		return meterpreter, nil
+	}
+	return nil, errors.Errorf("meterpreter %d is not exist", id)
+}
+
 // NewConsole is used to create a new console and wrap it to IOObject,
 // all users can read or write. It will create a new under console.
 func (mgr *IOManager) NewConsole(ctx context.Context, workspace string) (*IOObject, error) {
@@ -391,6 +459,31 @@ func (mgr *IOManager) NewConsoleWithLocker(ctx context.Context, workspace, token
 	if err != nil {
 		return nil, err
 	}
+	return mgr.createConsoleIOObject(console, token)
+}
+
+// NewConsoleWithID is used to wrap an existing console and wrap it to IOObject,
+// all users can read or write. It will not create a new under console.
+// usually it used to wrap an idle console.
+func (mgr *IOManager) NewConsoleWithID(ctx context.Context, id string) (*IOObject, error) {
+	return mgr.NewConsoleWithIDAndLocker(ctx, id, "")
+}
+
+// NewConsoleWithIDAndLocker is used to create a new console with id and lock write.
+// Only the creator can write it. It will not create a new under console.
+func (mgr *IOManager) NewConsoleWithIDAndLocker(ctx context.Context, id, token string) (*IOObject, error) {
+	if mgr.shuttingDown() {
+		return nil, ErrIOManagerClosed
+	}
+	err := mgr.checkConsoleID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	console := mgr.ctx.NewConsoleWithID(id, mgr.interval)
+	return mgr.createConsoleIOObject(console, token)
+}
+
+func (mgr *IOManager) createConsoleIOObject(console *Console, token string) (*IOObject, error) {
 	obj := &IOObject{
 		object: console,
 		now:    mgr.now,
@@ -423,16 +516,17 @@ func (mgr *IOManager) NewConsoleWithLocker(ctx context.Context, workspace, token
 	return obj, nil
 }
 
-// NewConsoleWithID is used to create a new console, All user can read or write.
-// It will not create a new under console.
-func (mgr *IOManager) NewConsoleWithID() {
-	// TODO check is exist
-}
-
-// NewConsoleWithIDAndLocker is used to create a new console with id and lock write.
-// Only the creator can write it. It will not create a new under console.
-func (mgr *IOManager) NewConsoleWithIDAndLocker() {
-	// TODO check is exist
+func (mgr *IOManager) checkConsoleID(ctx context.Context, id string) error {
+	consoles, err := mgr.ctx.ConsoleList(ctx)
+	if err != nil {
+		return err
+	}
+	for _, console := range consoles {
+		if console.ID == id {
+			return nil
+		}
+	}
+	return errors.Errorf("console %s is not exist", id)
 }
 
 // ConsoleLock is used to lock write for console that only one user
@@ -475,19 +569,19 @@ func (mgr *IOManager) ConsoleSessionKill() {
 
 // NewShell is used to create a new shell with IO status.
 func (mgr *IOManager) NewShell() {
-	// TODO check is exist
+
 }
 
 // NewShellAndLockWrite is used to create a new shell with IO status and lock write.
 // Only the creator can write it.
 func (mgr *IOManager) NewShellAndLockWrite() {
-	// TODO check is exist
+
 }
 
 // NewShellAndLockRW is used to create a new shell and lock read and write.
 // Only the creator can read and write it.
 func (mgr *IOManager) NewShellAndLockRW() {
-	// TODO check is exist
+
 }
 
 // ShellLockWrite is used to lock write for shell that only one user
@@ -538,19 +632,19 @@ func (mgr *IOManager) ShellWrite() {
 
 // NewMeterpreter is used to create a new meterpreter with IO status.
 func (mgr *IOManager) NewMeterpreter() {
-	// TODO check is exist
+
 }
 
 // NewMeterpreterAndLockWrite is used to create a new meterpreter with IO status and lock write.
 // Only the creator can write it.
 func (mgr *IOManager) NewMeterpreterAndLockWrite() {
-	// TODO check is exist
+
 }
 
 // NewMeterpreterAndLockRW is used to create a new meterpreter and lock read and write.
 // Only the creator can read and write it.
 func (mgr *IOManager) NewMeterpreterAndLockRW() {
-	// TODO check is exist
+
 }
 
 // MeterpreterLockWrite is used to lock write for meterpreter that only one user

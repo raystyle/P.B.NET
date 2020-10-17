@@ -510,3 +510,9 @@ func TestIOObject(t *testing.T) {
 
 	testsuite.IsDestroyed(t, client)
 }
+
+func TestIOObject_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+}
