@@ -470,6 +470,8 @@ func (mgr *IOManager) GetMeterpreter(id uint64) (*IOObject, error) {
 	return nil, errors.Errorf("meterpreter %d is not exist", id)
 }
 
+// ------------------------------------------about console-----------------------------------------
+
 // NewConsole is used to create a new console and wrap it to IOObject,
 // all users can read or write. It will create a new under console.
 func (mgr *IOManager) NewConsole(ctx context.Context, workspace string) (*IOObject, error) {
@@ -671,6 +673,8 @@ func (mgr *IOManager) ConsoleDestroy(id, token string) error {
 	return console.ToConsole().Destroy()
 }
 
+// -------------------------------------------about shell------------------------------------------
+
 // NewShell is used to create a new shell with IO status.
 func (mgr *IOManager) NewShell() {
 
@@ -733,6 +737,8 @@ func (mgr *IOManager) ShellRead() {
 func (mgr *IOManager) ShellWrite() {
 
 }
+
+// ----------------------------------------about meterpreter---------------------------------------
 
 // NewMeterpreter is used to create a new meterpreter with IO status.
 func (mgr *IOManager) NewMeterpreter() {

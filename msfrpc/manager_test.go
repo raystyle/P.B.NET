@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -37,7 +38,7 @@ func TestIOReader_Read(t *testing.T) {
 	// wait read
 	time.Sleep(100 * time.Millisecond)
 
-	t.Run("common", func(t *testing.T) {
+	t.Run("offset = 0", func(t *testing.T) {
 		output := reader.Read(0)
 		require.Equal(t, testdata, output)
 	})
@@ -364,8 +365,22 @@ func TestIOReader_Parallel(t *testing.T) {
 }
 
 var (
-	testIOManagerOptions = &IOManagerOptions{
-		Interval: 25 * time.Millisecond,
+	testIOManagerHandlers = &IOEventHandlers{
+		OnConsoleRead:         func(string) {},
+		OnConsoleClean:        func(string) {},
+		OnConsoleClosed:       func(string) {},
+		OnConsoleLocked:       func(string, string) {},
+		OnConsoleUnlocked:     func(string, string) {},
+		OnShellRead:           func(uint64) {},
+		OnShellClean:          func(uint64) {},
+		OnShellClosed:         func(uint64) {},
+		OnShellLocked:         func(uint64, string) {},
+		OnShellUnlocked:       func(uint64, string) {},
+		OnMeterpreterRead:     func(uint64) {},
+		OnMeterpreterClean:    func(uint64) {},
+		OnMeterpreterClosed:   func(uint64) {},
+		OnMeterpreterLocked:   func(uint64, string) {},
+		OnMeterpreterUnlocked: func(uint64, string) {},
 	}
 	testUserToken      = "test-user-token"
 	testAnotherToken   = "test-another-token"
@@ -427,7 +442,7 @@ func TestIOObject(t *testing.T) {
 			unlocked = true
 		},
 	}
-	manager := NewIOManager(client, &handlers, testIOManagerOptions)
+	manager := NewIOManager(client, &handlers, nil)
 
 	console, err := manager.NewConsole(ctx, defaultWorkspace)
 	require.NoError(t, err)
@@ -610,7 +625,7 @@ func TestIOObject_Parallel(t *testing.T) {
 			unlocked = true
 		},
 	}
-	manager := NewIOManager(client, &handlers, testIOManagerOptions)
+	manager := NewIOManager(client, &handlers, nil)
 
 	t.Run("part", func(t *testing.T) {
 		console, err := manager.NewConsole(ctx, defaultWorkspace)
@@ -721,6 +736,52 @@ func TestIOObject_Parallel(t *testing.T) {
 		require.True(t, closed)
 		require.True(t, locked)
 		require.True(t, unlocked)
+	})
+
+	err := manager.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestIOManager_NewConsoleWithLocker(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+
+	ctx := context.Background()
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	t.Run("success", func(t *testing.T) {
+		console, err := manager.NewConsoleWithLocker(ctx, defaultWorkspace, testUserToken)
+		require.NoError(t, err)
+
+		err = manager.ConsoleDestroy(console.ToConsole().ID(), testUserToken)
+		require.NoError(t, err)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchClientSend(func() {
+			console, err := manager.NewConsoleWithLocker(ctx, defaultWorkspace, testUserToken)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, console)
+		})
+	})
+
+	t.Run("call after close", func(t *testing.T) {
+		err := manager.Close()
+		require.NoError(t, err)
+
+		console, err := manager.NewConsoleWithLocker(ctx, defaultWorkspace, testUserToken)
+		require.Equal(t, ErrIOManagerClosed, err)
+		require.Nil(t, console)
 	})
 
 	err := manager.Close()
