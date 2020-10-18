@@ -418,7 +418,7 @@ func (mgr *IOManager) Consoles() map[string]*IOObject {
 	return consoles
 }
 
-// Shells is used to get shells that IOManager has attached.
+// Shells is used to get shell sessions that IOManager has attached.
 func (mgr *IOManager) Shells() map[uint64]*IOObject {
 	mgr.rwm.RLock()
 	defer mgr.rwm.RUnlock()
@@ -429,7 +429,7 @@ func (mgr *IOManager) Shells() map[uint64]*IOObject {
 	return shells
 }
 
-// Meterpreters is used to get meterpreters that IOManager has attached.
+// Meterpreters is used to get meterpreter sessions that IOManager has attached.
 func (mgr *IOManager) Meterpreters() map[uint64]*IOObject {
 	mgr.rwm.RLock()
 	defer mgr.rwm.RUnlock()
@@ -440,7 +440,7 @@ func (mgr *IOManager) Meterpreters() map[uint64]*IOObject {
 	return meterpreters
 }
 
-// GetConsole is used to get console by ID.
+// GetConsole is used to get console by id.
 func (mgr *IOManager) GetConsole(id string) (*IOObject, error) {
 	mgr.rwm.RLock()
 	defer mgr.rwm.RUnlock()
@@ -450,7 +450,7 @@ func (mgr *IOManager) GetConsole(id string) (*IOObject, error) {
 	return nil, errors.Errorf("console %s is not exist", id)
 }
 
-// GetShell is used to get shell by ID.
+// GetShell is used to get shell session by id.
 func (mgr *IOManager) GetShell(id uint64) (*IOObject, error) {
 	mgr.rwm.RLock()
 	defer mgr.rwm.RUnlock()
@@ -460,7 +460,7 @@ func (mgr *IOManager) GetShell(id uint64) (*IOObject, error) {
 	return nil, errors.Errorf("shell %d is not exist", id)
 }
 
-// GetMeterpreter is used to get console by ID.
+// GetMeterpreter is used to get meterpreter session by id.
 func (mgr *IOManager) GetMeterpreter(id uint64) (*IOObject, error) {
 	mgr.rwm.RLock()
 	defer mgr.rwm.RUnlock()
@@ -688,12 +688,12 @@ func (mgr *IOManager) ConsoleDestroy(id, token string) error {
 
 // -------------------------------------------about shell------------------------------------------
 
-// NewShell is used to wrap an existing shell and wrap it to IOObject.
+// NewShell is used to wrap an existing shell session and wrap it to IOObject.
 func (mgr *IOManager) NewShell(ctx context.Context, id uint64) (*IOObject, error) {
 	return mgr.NewShellWithLocker(ctx, id, "")
 }
 
-// NewShellWithLocker is used to wrap an existing shell and wrap it to IOObject with locker.
+// NewShellWithLocker is used to wrap an existing shell session and wrap it to IOObject with locker.
 func (mgr *IOManager) NewShellWithLocker(ctx context.Context, id uint64, token string) (*IOObject, error) {
 	if mgr.shuttingDown() {
 		return nil, ErrIOManagerClosed
@@ -827,57 +827,92 @@ func (mgr *IOManager) ShellStop(id uint64, token string) error {
 
 // ----------------------------------------about meterpreter---------------------------------------
 
-// NewMeterpreter is used to create a new meterpreter with IO status.
-func (mgr *IOManager) NewMeterpreter() {
-
+// NewMeterpreter is used to wrap an existing meterpreter session and wrap it to IOObject.
+func (mgr *IOManager) NewMeterpreter(ctx context.Context, id uint64) (*IOObject, error) {
+	return mgr.NewMeterpreterWithLocker(ctx, id, "")
 }
 
-// NewMeterpreterAndLockWrite is used to create a new meterpreter with IO status and lock write.
-// Only the creator can write it.
-func (mgr *IOManager) NewMeterpreterAndLockWrite() {
-
+// NewMeterpreterWithLocker is used to wrap an existing meterpreter session and wrap it to IOObject with locker.
+func (mgr *IOManager) NewMeterpreterWithLocker(ctx context.Context, id uint64, token string) (*IOObject, error) {
+	if mgr.shuttingDown() {
+		return nil, ErrIOManagerClosed
+	}
+	err := mgr.checkSessionID(ctx, "meterpreter", id)
+	if err != nil {
+		return nil, err
+	}
+	meterpreter := mgr.ctx.NewMeterpreter(id, mgr.interval)
+	obj := &IOObject{
+		object: meterpreter,
+		now:    mgr.now,
+	}
+	onRead := func() {
+		mgr.handlers.OnMeterpreterRead(id)
+	}
+	onClean := func() {
+		mgr.handlers.OnMeterpreterClean(id)
+	}
+	onClose := func() {
+		mgr.handlers.OnMeterpreterClosed(id)
+		mgr.trackMeterpreter(obj, false)
+	}
+	obj.reader = newIOReader(mgr.ctx.logger, meterpreter, onRead, onClean, onClose)
+	onLock := func(token string) {
+		mgr.handlers.OnMeterpreterLocked(id, token)
+	}
+	onUnlock := func(token string) {
+		mgr.handlers.OnMeterpreterUnlocked(id, token)
+	}
+	obj.onLock = onLock
+	obj.onUnlock = onUnlock
+	if token != "" {
+		obj.locker = token
+		obj.lockAt = mgr.now()
+	}
+	// must track first.
+	if !mgr.trackMeterpreter(obj, true) {
+		// if track failed must deference reader,
+		// otherwise it will occur cycle reference
+		obj.reader = nil
+		return nil, ErrIOManagerClosed
+	}
+	obj.reader.ReadLoop()
+	return obj, nil
 }
 
-// NewMeterpreterAndLockRW is used to create a new meterpreter and lock read and write.
-// Only the creator can read and write it.
-func (mgr *IOManager) NewMeterpreterAndLockRW() {
-
+// MeterpreterLock is used to lock meterpreter that only one user
+// can operate this meterpreter, other user can only read.
+func (mgr *IOManager) MeterpreterLock(id uint64, token string) error {
+	meterpreter, err := mgr.GetMeterpreter(id)
+	if err != nil {
+		return err
+	}
+	if meterpreter.Lock(token) {
+		return nil
+	}
+	return ErrAnotherUserLocked
 }
 
-// MeterpreterLockWrite is used to lock write for meterpreter that only one user
-// can write to this meterpreter.
-func (mgr *IOManager) MeterpreterLockWrite() {
-
+// MeterpreterUnLock is used to unlock meterpreter.
+func (mgr *IOManager) MeterpreterUnLock(id uint64, token string) error {
+	meterpreter, err := mgr.GetMeterpreter(id)
+	if err != nil {
+		return err
+	}
+	if meterpreter.Unlock(token) {
+		return nil
+	}
+	return ErrAnotherUserLocked
 }
 
-// MeterpreterUnlockWrite is used to unlock write for meterpreter that all user
-// can write to this meterpreter.
-func (mgr *IOManager) MeterpreterUnlockWrite() {
-
-}
-
-// MeterpreterLockRW is used to lock read and write for meterpreter that only one user
-// can read or write to this meterpreter. (single mode)
-func (mgr *IOManager) MeterpreterLockRW() {
-
-}
-
-// MeterpreterUnLockRW is used to unlock read and write for meterpreter that all user
-// can read or write to this meterpreter. (common mode)
-func (mgr *IOManager) MeterpreterUnLockRW() {
-
-}
-
-// MeterpreterForceUnlockWrite is used to unlock write for meterpreter that all user
-// can write to this meterpreter, it will not check the token.
-func (mgr *IOManager) MeterpreterForceUnlockWrite() {
-
-}
-
-// MeterpreterForceUnLockRW is used to unlock write for meterpreter that all user
-// can write to this meterpreter, it will not check the token.
-func (mgr *IOManager) MeterpreterForceUnLockRW() {
-
+// MeterpreterForceUnlock is used to force unlock meterpreter, it will not check the token.
+func (mgr *IOManager) MeterpreterForceUnlock(id uint64, token string) error {
+	meterpreter, err := mgr.GetMeterpreter(id)
+	if err != nil {
+		return err
+	}
+	meterpreter.ForceUnlock(token)
+	return nil
 }
 
 // MeterpreterRead is used to read data from meterpreter.
