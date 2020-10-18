@@ -1204,6 +1204,107 @@ func TestIOManager_NewConsoleWithID(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
+func TestIOManager_Console_Full(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+	ctx := context.Background()
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	console, err := manager.NewConsole(ctx, defaultWorkspace)
+	require.NoError(t, err)
+	id := console.ToConsole().ID()
+
+	t.Run("not exist", func(t *testing.T) {
+		err = manager.ConsoleLock("-1", testUserToken)
+		require.Error(t, err)
+		err = manager.ConsoleUnlock("-1", testUserToken)
+		require.Error(t, err)
+		err = manager.ConsoleForceUnlock("-1", testUserToken)
+		require.Error(t, err)
+		_, err = manager.ConsoleRead("-1", 0)
+		require.Error(t, err)
+		err = manager.ConsoleWrite("-1", testUserToken, nil)
+		require.Error(t, err)
+		err = manager.ConsoleClean("-1", testUserToken)
+		require.Error(t, err)
+		err = manager.ConsoleClose("-1", testUserToken)
+		require.Error(t, err)
+		err = manager.ConsoleDetach(ctx, "-1", testUserToken)
+		require.Error(t, err)
+		err = manager.ConsoleInterrupt(ctx, "-1", testUserToken)
+		require.Error(t, err)
+		err = manager.ConsoleDestroy("-1", testUserToken)
+		require.Error(t, err)
+	})
+
+	t.Run("lock", func(t *testing.T) {
+		err := manager.ConsoleLock(id, testUserToken)
+		require.NoError(t, err)
+		defer func() {
+			err = manager.ConsoleUnlock(id, testUserToken)
+			require.NoError(t, err)
+		}()
+
+		err = manager.ConsoleLock(id, testUserToken)
+		require.NoError(t, err)
+		err = manager.ConsoleLock(id, testAnotherToken)
+		require.Equal(t, ErrAnotherUserLocked, err)
+	})
+
+	t.Run("unlock", func(t *testing.T) {
+		err := manager.ConsoleLock(id, testUserToken)
+		require.NoError(t, err)
+		defer func() {
+			err = manager.ConsoleUnlock(id, testUserToken)
+			require.NoError(t, err)
+		}()
+
+		err = manager.ConsoleUnlock(id, testAnotherToken)
+		require.Equal(t, ErrInvalidLockToken, err)
+	})
+
+	t.Run("detach", func(t *testing.T) {
+		err := manager.ConsoleLock(id, testUserToken)
+		require.NoError(t, err)
+		defer func() {
+			err = manager.ConsoleUnlock(id, testUserToken)
+			require.NoError(t, err)
+		}()
+
+		err = manager.ConsoleDetach(ctx, id, testUserToken)
+		require.NoError(t, err)
+		err = manager.ConsoleDetach(ctx, id, testAnotherToken)
+		require.Equal(t, ErrAnotherUserLocked, err)
+	})
+
+	t.Run("interrupt", func(t *testing.T) {
+		err := manager.ConsoleLock(id, testUserToken)
+		require.NoError(t, err)
+		defer func() {
+			err = manager.ConsoleUnlock(id, testUserToken)
+			require.NoError(t, err)
+		}()
+
+		err = manager.ConsoleInterrupt(ctx, id, testUserToken)
+		require.NoError(t, err)
+		err = manager.ConsoleInterrupt(ctx, id, testAnotherToken)
+		require.Equal(t, ErrAnotherUserLocked, err)
+	})
+
+	err = manager.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
 func TestIOManager_Shell(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

@@ -193,6 +193,9 @@ func (obj *IOObject) Lock(token string) bool {
 		obj.onLock(token)
 		return true
 	}
+	if obj.locker == token {
+		return true
+	}
 	return false
 }
 
