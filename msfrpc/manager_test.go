@@ -865,7 +865,7 @@ func TestIOManager_NewConsole(t *testing.T) {
 		testsuite.IsDestroyed(t, manager)
 	})
 
-	t.Run("failed to destroy", func(t *testing.T) {
+	t.Run("failed to destroy console", func(t *testing.T) {
 		patch := func(interface{}, context.Context, string, time.Duration) (*Console, error) {
 			fakeConsole := Console{
 				ctx: client,
@@ -939,7 +939,7 @@ func TestIOManager_NewConsoleWithID(t *testing.T) {
 
 		fmt.Println(string(console.Read(0)))
 
-		err = manager.ConsoleDestroy(id, testUserToken)
+		err = console.Close(testUserToken)
 		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, console)
@@ -951,9 +951,35 @@ func TestIOManager_NewConsoleWithID(t *testing.T) {
 		require.Nil(t, console)
 	})
 
+	t.Run("already tracked", func(t *testing.T) {
+		console, err := manager.NewConsoleWithID(ctx, id)
+		require.NoError(t, err)
+
+		_, err = manager.NewConsoleWithID(ctx, id)
+		require.EqualError(t, err, fmt.Sprintf("console %s is already being tracked", id))
+
+		err = console.Close("")
+		require.NoError(t, err)
+	})
+
+	t.Run("failed to close console", func(t *testing.T) {
+		var c *Console
+		patch := func(interface{}) error {
+			return monkey.Error
+		}
+		pg := monkey.PatchInstanceMethod(c, "Close", patch)
+		defer pg.Unpatch()
+
+		_, err = manager.NewConsoleWithID(ctx, id)
+		require.NoError(t, err)
+
+		_, err = manager.NewConsoleWithID(ctx, id)
+		require.EqualError(t, err, fmt.Sprintf("console %s is already being tracked", id))
+	})
+
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchClientSend(func() {
-			console, err := manager.NewConsoleWithID(ctx, id)
+			console, err := manager.NewConsoleWithID(ctx, "999")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, console)
 		})
@@ -963,7 +989,7 @@ func TestIOManager_NewConsoleWithID(t *testing.T) {
 		err := manager.Close()
 		require.NoError(t, err)
 
-		console, err := manager.NewConsoleWithID(ctx, id)
+		console, err := manager.NewConsoleWithID(ctx, "999")
 		require.Equal(t, ErrIOManagerClosed, err)
 		require.Nil(t, console)
 	})
@@ -972,12 +998,12 @@ func TestIOManager_NewConsoleWithID(t *testing.T) {
 		err := manager.Close()
 		require.NoError(t, err)
 
-		obj, err := manager.createConsoleIOObject(console, testUserToken)
+		console, err := manager.createConsoleIOObject(new(Console), testUserToken)
 		require.Equal(t, ErrIOManagerClosed, err)
-		require.Nil(t, obj)
+		require.Nil(t, console)
 	})
 
-	err = console.Close()
+	err = console.Destroy()
 	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, console)
@@ -1087,16 +1113,42 @@ func TestIOManager_NewShell(t *testing.T) {
 		shell, err := manager.NewShellWithLocker(ctx, id, testUserToken)
 		require.NoError(t, err)
 
-		err = manager.ShellStop(id, testUserToken)
+		err = shell.Close(testUserToken)
 		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, shell)
 	})
 
-	t.Run("invalid session id", func(t *testing.T) {
+	t.Run("shell session is not exist", func(t *testing.T) {
 		shell, err := manager.NewShell(ctx, 999)
 		require.EqualError(t, err, "shell session 999 is not exist")
 		require.Nil(t, shell)
+	})
+
+	t.Run("already tracked", func(t *testing.T) {
+		shell, err := manager.NewShell(ctx, id)
+		require.NoError(t, err)
+
+		_, err = manager.NewShell(ctx, id)
+		require.EqualError(t, err, fmt.Sprintf("shell %d is already being tracked", id))
+
+		err = shell.Close("")
+		require.NoError(t, err)
+	})
+
+	t.Run("failed to close shell", func(t *testing.T) {
+		var s *Shell
+		patch := func(interface{}) error {
+			return monkey.Error
+		}
+		pg := monkey.PatchInstanceMethod(s, "Close", patch)
+		defer pg.Unpatch()
+
+		_, err := manager.NewShell(ctx, id)
+		require.NoError(t, err)
+
+		_, err = manager.NewShell(ctx, id)
+		require.EqualError(t, err, fmt.Sprintf("shell %d is already being tracked", id))
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -1116,7 +1168,10 @@ func TestIOManager_NewShell(t *testing.T) {
 		require.Nil(t, shell)
 	})
 
-	err := manager.Close()
+	err := client.SessionStop(ctx, id)
+	require.NoError(t, err)
+
+	err = manager.Close()
 	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, manager)
