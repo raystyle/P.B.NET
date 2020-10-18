@@ -603,8 +603,7 @@ func (mgr *IOManager) ConsoleUnlock(id, token string) error {
 	return ErrInvalidLockToken
 }
 
-// ConsoleForceUnlock is used to unlock write for console that all user
-// can write to this console, it will not check the token.
+// ConsoleForceUnlock is used to force unlock console, it will not check the token.
 func (mgr *IOManager) ConsoleForceUnlock(id, token string) error {
 	console, err := mgr.GetConsole(id)
 	if err != nil {
@@ -623,7 +622,7 @@ func (mgr *IOManager) ConsoleRead(id string, offset int) ([]byte, error) {
 	return console.Read(offset), nil
 }
 
-// ConsoleWrite is used to write data to console, it will check token.
+// ConsoleWrite is used to write data to console.
 func (mgr *IOManager) ConsoleWrite(id, token string, data []byte) error {
 	console, err := mgr.GetConsole(id)
 	if err != nil {
@@ -674,7 +673,7 @@ func (mgr *IOManager) ConsoleInterrupt(ctx context.Context, id, token string) er
 	return console.ToConsole().Interrupt(ctx)
 }
 
-// ConsoleDestroy is used to destroy under console, it will close io object first.
+// ConsoleDestroy is used to destroy the under console, it will close io object first.
 func (mgr *IOManager) ConsoleDestroy(id, token string) error {
 	console, err := mgr.GetConsole(id)
 	if err != nil {
@@ -742,50 +741,88 @@ func (mgr *IOManager) NewShellWithLocker(ctx context.Context, id uint64, token s
 	return obj, nil
 }
 
-// ShellLockWrite is used to lock write for shell that only one user
-// can write to this shell.
-func (mgr *IOManager) ShellLockWrite() {
-
+// ShellLock is used to lock shell that only one user
+// can operate this shell, other user can only read.
+func (mgr *IOManager) ShellLock(id uint64, token string) error {
+	shell, err := mgr.GetShell(id)
+	if err != nil {
+		return err
+	}
+	if shell.Lock(token) {
+		return nil
+	}
+	return ErrAnotherUserLocked
 }
 
-// ShellUnlockWrite is used to unlock write for shell that all user
-// can write to this shell.
-func (mgr *IOManager) ShellUnlockWrite() {
-
+// ShellUnLock is used to unlock shell.
+func (mgr *IOManager) ShellUnLock(id uint64, token string) error {
+	shell, err := mgr.GetShell(id)
+	if err != nil {
+		return err
+	}
+	if shell.Unlock(token) {
+		return nil
+	}
+	return ErrAnotherUserLocked
 }
 
-// ShellLockRW is used to lock read and write for shell that only one user
-// can read or write to this shell. (single mode)
-func (mgr *IOManager) ShellLockRW() {
-
+// ShellForceUnlock is used to force unlock shell, it will not check the token.
+func (mgr *IOManager) ShellForceUnlock(id uint64, token string) error {
+	shell, err := mgr.GetShell(id)
+	if err != nil {
+		return err
+	}
+	shell.ForceUnlock(token)
+	return nil
 }
 
-// ShellUnLockRW is used to unlock read and write for shell that all user
-// can read or write to this shell. (common mode)
-func (mgr *IOManager) ShellUnLockRW() {
-
+// ShellRead is used to read data from shell.
+func (mgr *IOManager) ShellRead(id uint64, offset int) ([]byte, error) {
+	shell, err := mgr.GetShell(id)
+	if err != nil {
+		return nil, err
+	}
+	return shell.Read(offset), nil
 }
 
-// ShellForceUnlockWrite is used to unlock write for shell that all user
-// can write to this shell, it will not check the token.
-func (mgr *IOManager) ShellForceUnlockWrite() {
-
+// ShellWrite is used to write data to shell.
+func (mgr *IOManager) ShellWrite(id uint64, token string, data []byte) error {
+	shell, err := mgr.GetShell(id)
+	if err != nil {
+		return err
+	}
+	return shell.Write(token, data)
 }
 
-// ShellForceUnLockRW is used to unlock write for shell that all user
-// can write to this shell, it will not check the token.
-func (mgr *IOManager) ShellForceUnLockRW() {
-
+// ShellClean is used to clean buffer in under reader.
+func (mgr *IOManager) ShellClean(id uint64, token string) error {
+	shell, err := mgr.GetShell(id)
+	if err != nil {
+		return err
+	}
+	return shell.Clean(token)
 }
 
-// ShellRead is used to read data from shell, it will check token.
-func (mgr *IOManager) ShellRead() {
-
+// ShellClose is used to close shell io object, it will not stop the under session.
+func (mgr *IOManager) ShellClose(id uint64, token string) error {
+	shell, err := mgr.GetShell(id)
+	if err != nil {
+		return err
+	}
+	return shell.Close(token)
 }
 
-// ShellWrite is used to write data to shell, it will check token.
-func (mgr *IOManager) ShellWrite() {
-
+// ShellStop is used to stop the under shell session, it will close io object first.
+func (mgr *IOManager) ShellStop(id uint64, token string) error {
+	shell, err := mgr.GetShell(id)
+	if err != nil {
+		return err
+	}
+	err = shell.Close(token)
+	if err != nil {
+		return err
+	}
+	return shell.ToShell().Stop()
 }
 
 // ----------------------------------------about meterpreter---------------------------------------
@@ -843,12 +880,12 @@ func (mgr *IOManager) MeterpreterForceUnLockRW() {
 
 }
 
-// MeterpreterRead is used to read data from meterpreter, it will check token.
+// MeterpreterRead is used to read data from meterpreter.
 func (mgr *IOManager) MeterpreterRead() {
 
 }
 
-// MeterpreterWrite is used to write data to meterpreter, it will check token.
+// MeterpreterWrite is used to write data to meterpreter.
 func (mgr *IOManager) MeterpreterWrite() {
 
 }
