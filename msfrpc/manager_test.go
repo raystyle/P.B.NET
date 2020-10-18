@@ -978,11 +978,15 @@ func TestIOManager_NewConsoleWithID(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(c, "Close", patch)
 		defer pg.Unpatch()
 
-		_, err = manager.NewConsoleWithID(ctx, id)
+		console, err := manager.NewConsoleWithID(ctx, id)
 		require.NoError(t, err)
 
 		_, err = manager.NewConsoleWithID(ctx, id)
 		require.EqualError(t, err, fmt.Sprintf("console %s is already being tracked", id))
+
+		pg.Unpatch()
+		err = console.Close("")
+		require.NoError(t, err)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -1159,11 +1163,15 @@ func TestIOManager_NewShell(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(s, "Close", patch)
 		defer pg.Unpatch()
 
-		_, err := manager.NewShell(ctx, id)
+		shell, err := manager.NewShell(ctx, id)
 		require.NoError(t, err)
 
 		_, err = manager.NewShell(ctx, id)
 		require.EqualError(t, err, fmt.Sprintf("shell %d is already being tracked", id))
+
+		pg.Unpatch()
+		err = shell.Close("")
+		require.NoError(t, err)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -1271,6 +1279,96 @@ func TestIOManager_Meterpreter(t *testing.T) {
 	testsuite.IsDestroyed(t, meterpreter)
 
 	err = client.SessionStop(ctx, id)
+	require.NoError(t, err)
+
+	err = manager.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestIOManager_NewMeterpreter(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+	ctx := context.Background()
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	id := testCreateMeterpreterSession(t, client, "55603")
+
+	t.Run("success", func(t *testing.T) {
+		meterpreter, err := manager.NewMeterpreterWithLocker(ctx, id, testUserToken)
+		require.NoError(t, err)
+
+		fmt.Println(string(meterpreter.Read(0)))
+
+		err = meterpreter.Close(testUserToken)
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, meterpreter)
+	})
+
+	t.Run("meterpreter session is not exist", func(t *testing.T) {
+		meterpreter, err := manager.NewMeterpreter(ctx, 999)
+		require.EqualError(t, err, "meterpreter session 999 is not exist")
+		require.Nil(t, meterpreter)
+	})
+
+	t.Run("already tracked", func(t *testing.T) {
+		meterpreter, err := manager.NewMeterpreter(ctx, id)
+		require.NoError(t, err)
+
+		_, err = manager.NewMeterpreter(ctx, id)
+		require.EqualError(t, err, fmt.Sprintf("meterpreter %d is already being tracked", id))
+
+		err = meterpreter.Close("")
+		require.NoError(t, err)
+	})
+
+	t.Run("failed to close meterpreter", func(t *testing.T) {
+		var m *Meterpreter
+		patch := func(interface{}) error {
+			return monkey.Error
+		}
+		pg := monkey.PatchInstanceMethod(m, "Close", patch)
+		defer pg.Unpatch()
+
+		meterpreter, err := manager.NewMeterpreter(ctx, id)
+		require.NoError(t, err)
+
+		_, err = manager.NewMeterpreter(ctx, id)
+		require.EqualError(t, err, fmt.Sprintf("meterpreter %d is already being tracked", id))
+
+		pg.Unpatch()
+		err = meterpreter.Close("")
+		require.NoError(t, err)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchClientSend(func() {
+			meterpreter, err := manager.NewMeterpreter(ctx, id)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, meterpreter)
+		})
+	})
+
+	t.Run("call after close", func(t *testing.T) {
+		err := manager.Close()
+		require.NoError(t, err)
+
+		meterpreter, err := manager.NewMeterpreter(ctx, id)
+		require.Equal(t, ErrIOManagerClosed, err)
+		require.Nil(t, meterpreter)
+	})
+
+	err := client.SessionStop(ctx, id)
 	require.NoError(t, err)
 
 	err = manager.Close()
