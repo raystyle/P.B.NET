@@ -386,6 +386,7 @@ var (
 	testAnotherToken   = "test-another-token"
 	testAdminToken     = "test-admin-token"
 	testConsoleCommand = []byte("version\r\n")
+	testShellCommand   = []byte("whoami\r\n")
 )
 
 func testReadDataFromIOObject(obj *IOObject) {
@@ -406,8 +407,8 @@ func TestIOObject(t *testing.T) {
 	defer gm.Compare()
 
 	client := testGenerateClientAndLogin(t)
-
 	ctx := context.Background()
+
 	var (
 		consoleID string
 		read      bool
@@ -589,8 +590,8 @@ func TestIOObject_Parallel(t *testing.T) {
 	defer gm.Compare()
 
 	client := testGenerateClientAndLogin(t)
-
 	ctx := context.Background()
+
 	var (
 		consoleID string
 		bRead     bool
@@ -754,7 +755,6 @@ func TestIOManager_Console(t *testing.T) {
 	defer gm.Compare()
 
 	client := testGenerateClientAndLogin(t)
-
 	ctx := context.Background()
 
 	manager := NewIOManager(client, testIOManagerHandlers, nil)
@@ -826,7 +826,6 @@ func TestIOManager_NewConsole(t *testing.T) {
 	defer gm.Compare()
 
 	client := testGenerateClientAndLogin(t)
-
 	ctx := context.Background()
 
 	manager := NewIOManager(client, testIOManagerHandlers, nil)
@@ -873,13 +872,13 @@ func TestIOManager_NewConsoleWithID(t *testing.T) {
 	defer gm.Compare()
 
 	client := testGenerateClientAndLogin(t)
-
 	ctx := context.Background()
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
 	console, err := client.NewConsole(ctx, defaultWorkspace, minReadInterval)
 	require.NoError(t, err)
 	id := console.ID()
-
-	manager := NewIOManager(client, testIOManagerHandlers, nil)
 
 	t.Run("success", func(t *testing.T) {
 		console, err := manager.NewConsoleWithIDAndLocker(ctx, id, testUserToken)
@@ -921,6 +920,79 @@ func TestIOManager_NewConsoleWithID(t *testing.T) {
 		require.Equal(t, ErrIOManagerClosed, err)
 		require.Nil(t, obj)
 	})
+
+	err = manager.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestIOManager_Shell(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+	ctx := context.Background()
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	id := testCreateShellSession(t, client, "55600")
+	shell, err := manager.NewShell(ctx, id)
+	require.NoError(t, err)
+
+	err = manager.ShellWrite(id, testUserToken, testShellCommand)
+	require.NoError(t, err)
+	err = manager.ShellWrite(id, testAnotherToken, testShellCommand)
+	require.NoError(t, err)
+	data, err := manager.ShellRead(id, 0)
+	require.NoError(t, err)
+	fmt.Println(string(data))
+
+	err = manager.ShellLock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.ShellWrite(id, testUserToken, testShellCommand)
+	require.NoError(t, err)
+	err = manager.ShellWrite(id, testAnotherToken, testShellCommand)
+	require.Equal(t, ErrAnotherUserLocked, err)
+	data, err = manager.ShellRead(id, 0)
+	require.NoError(t, err)
+	fmt.Println(string(data))
+	err = manager.ShellUnlock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.ShellWrite(id, testAnotherToken, testShellCommand)
+	require.NoError(t, err)
+	fmt.Println(string(data))
+
+	err = manager.ShellLock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.ShellClean(id, testAnotherToken)
+	require.Equal(t, ErrAnotherUserLocked, err)
+	err = manager.ShellClean(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.ShellUnlock(id, testUserToken)
+	require.NoError(t, err)
+
+	err = manager.ShellLock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.ShellForceUnlock(id, testAdminToken)
+	require.NoError(t, err)
+
+	err = manager.ShellLock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.ShellClose(id, testAnotherToken)
+	require.Equal(t, ErrAnotherUserLocked, err)
+	err = manager.ShellClose(id, testUserToken)
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, shell)
+
+	err = client.SessionStop(ctx, id)
+	require.NoError(t, err)
 
 	err = manager.Close()
 	require.NoError(t, err)

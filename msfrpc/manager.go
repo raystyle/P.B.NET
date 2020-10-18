@@ -753,8 +753,8 @@ func (mgr *IOManager) ShellLock(id uint64, token string) error {
 	return ErrAnotherUserLocked
 }
 
-// ShellUnLock is used to unlock shell.
-func (mgr *IOManager) ShellUnLock(id uint64, token string) error {
+// ShellUnlock is used to unlock shell.
+func (mgr *IOManager) ShellUnlock(id uint64, token string) error {
 	shell, err := mgr.GetShell(id)
 	if err != nil {
 		return err
@@ -901,8 +901,8 @@ func (mgr *IOManager) MeterpreterLock(id uint64, token string) error {
 	return ErrAnotherUserLocked
 }
 
-// MeterpreterUnLock is used to unlock meterpreter.
-func (mgr *IOManager) MeterpreterUnLock(id uint64, token string) error {
+// MeterpreterUnlock is used to unlock meterpreter.
+func (mgr *IOManager) MeterpreterUnlock(id uint64, token string) error {
 	meterpreter, err := mgr.GetMeterpreter(id)
 	if err != nil {
 		return err
