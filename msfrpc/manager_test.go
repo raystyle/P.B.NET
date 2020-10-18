@@ -826,6 +826,107 @@ func TestIOManager_trackIOObject(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
+func TestIOManager_IOObjects(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	console := &IOObject{object: new(Console)}
+	err := manager.trackConsole(console, true)
+	require.NoError(t, err)
+
+	shell := &IOObject{object: new(Shell)}
+	err = manager.trackShell(shell, true)
+	shell.ToShell().id = 1
+	err = manager.trackShell(shell, true)
+	require.NoError(t, err)
+
+	meterpreter := &IOObject{object: new(Meterpreter)}
+	err = manager.trackMeterpreter(meterpreter, true)
+	require.NoError(t, err)
+	meterpreter.ToMeterpreter().id = 1
+	err = manager.trackMeterpreter(meterpreter, true)
+	require.NoError(t, err)
+	meterpreter.ToMeterpreter().id = 2
+	err = manager.trackMeterpreter(meterpreter, true)
+	require.NoError(t, err)
+
+	consoles := manager.Consoles()
+	require.Len(t, consoles, 1)
+	shells := manager.Shells()
+	require.Len(t, shells, 2)
+	meterpreters := manager.Meterpreters()
+	require.Len(t, meterpreters, 3)
+
+	err = manager.trackConsole(console, false)
+	require.NoError(t, err)
+
+	err = manager.trackShell(shell, false)
+	require.NoError(t, err)
+	shell.ToShell().id = 0
+	err = manager.trackShell(shell, false)
+	require.NoError(t, err)
+
+	err = manager.trackMeterpreter(meterpreter, false)
+	require.NoError(t, err)
+	meterpreter.ToMeterpreter().id = 1
+	err = manager.trackMeterpreter(meterpreter, false)
+	require.NoError(t, err)
+	meterpreter.ToMeterpreter().id = 0
+	err = manager.trackMeterpreter(meterpreter, false)
+	require.NoError(t, err)
+
+	err = manager.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestIOManager_GetIOObject(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	t.Run("console", func(t *testing.T) {
+		console, err := manager.GetConsole("-1")
+		require.EqualError(t, err, "console -1 is not exist")
+		require.Nil(t, console)
+	})
+
+	t.Run("shell", func(t *testing.T) {
+		shell, err := manager.GetShell(999)
+		require.EqualError(t, err, "shell session 999 is not exist")
+		require.Nil(t, shell)
+	})
+
+	t.Run("meterpreter", func(t *testing.T) {
+		meterpreter, err := manager.GetMeterpreter(999)
+		require.EqualError(t, err, "meterpreter session 999 is not exist")
+		require.Nil(t, meterpreter)
+	})
+
+	err := manager.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
 func TestIOManager_Console(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -1221,7 +1322,7 @@ func TestIOManager_NewShell(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = manager.NewShell(ctx, id)
-		require.EqualError(t, err, fmt.Sprintf("shell %d is already being tracked", id))
+		require.EqualError(t, err, fmt.Sprintf("shell session %d is already being tracked", id))
 
 		err = shell.Close("")
 		require.NoError(t, err)
@@ -1239,7 +1340,7 @@ func TestIOManager_NewShell(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = manager.NewShell(ctx, id)
-		require.EqualError(t, err, fmt.Sprintf("shell %d is already being tracked", id))
+		require.EqualError(t, err, fmt.Sprintf("shell session %d is already being tracked", id))
 
 		pg.Unpatch()
 		err = shell.Close("")
@@ -1398,7 +1499,7 @@ func TestIOManager_NewMeterpreter(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = manager.NewMeterpreter(ctx, id)
-		require.EqualError(t, err, fmt.Sprintf("meterpreter %d is already being tracked", id))
+		require.EqualError(t, err, fmt.Sprintf("meterpreter session %d is already being tracked", id))
 
 		err = meterpreter.Close("")
 		require.NoError(t, err)
@@ -1416,7 +1517,7 @@ func TestIOManager_NewMeterpreter(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = manager.NewMeterpreter(ctx, id)
-		require.EqualError(t, err, fmt.Sprintf("meterpreter %d is already being tracked", id))
+		require.EqualError(t, err, fmt.Sprintf("meterpreter session %d is already being tracked", id))
 
 		pg.Unpatch()
 		err = meterpreter.Close("")

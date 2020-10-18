@@ -398,7 +398,7 @@ func (mgr *IOManager) trackShell(shell *IOObject, add bool) error {
 			return ErrIOManagerClosed
 		}
 		if _, ok := mgr.shells[id]; ok {
-			return errors.Errorf("shell %d is already being tracked", id)
+			return errors.Errorf("shell session %d is already being tracked", id)
 		}
 		mgr.shells[id] = shell
 		mgr.counter.Add(1)
@@ -418,7 +418,7 @@ func (mgr *IOManager) trackMeterpreter(meterpreter *IOObject, add bool) error {
 			return ErrIOManagerClosed
 		}
 		if _, ok := mgr.meterpreters[id]; ok {
-			return errors.Errorf("meterpreter %d is already being tracked", id)
+			return errors.Errorf("meterpreter session %d is already being tracked", id)
 		}
 		mgr.meterpreters[id] = meterpreter
 		mgr.counter.Add(1)
@@ -479,7 +479,7 @@ func (mgr *IOManager) GetShell(id uint64) (*IOObject, error) {
 	if shell, ok := mgr.shells[id]; ok {
 		return shell, nil
 	}
-	return nil, errors.Errorf("shell %d is not exist", id)
+	return nil, errors.Errorf("shell session %d is not exist", id)
 }
 
 // GetMeterpreter is used to get meterpreter session by id.
@@ -489,7 +489,7 @@ func (mgr *IOManager) GetMeterpreter(id uint64) (*IOObject, error) {
 	if meterpreter, ok := mgr.meterpreters[id]; ok {
 		return meterpreter, nil
 	}
-	return nil, errors.Errorf("meterpreter %d is not exist", id)
+	return nil, errors.Errorf("meterpreter session %d is not exist", id)
 }
 
 func (mgr *IOManager) checkConsoleID(ctx context.Context, id string) error {
