@@ -408,6 +408,11 @@ func (console *Console) writeLimiter() {
 	}
 }
 
+// ID is used to get the console id.
+func (console *Console) ID() string {
+	return console.id
+}
+
 func (console *Console) Read(b []byte) (int, error) {
 	return console.pr.Read(b)
 }
@@ -440,11 +445,6 @@ func (console *Console) Write(b []byte) (int, error) {
 func (console *Console) Close() error {
 	console.close()
 	return nil
-}
-
-// ID is used to get the console id.
-func (console *Console) ID() string {
-	return console.id
 }
 
 // Detach is used to detach current console.

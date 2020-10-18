@@ -316,8 +316,7 @@ type IOManager struct {
 	inShutdown   int32
 	rwm          sync.RWMutex
 
-	// io object counter
-	counter xsync.Counter
+	counter xsync.Counter // io object counter
 }
 
 // IOManagerOptions contains options about io manager.
@@ -812,6 +811,15 @@ func (mgr *IOManager) ShellClose(id uint64, token string) error {
 	return shell.Close(token)
 }
 
+// ShellCompatibleModules is used to return a list of Post modules that compatible.
+func (mgr *IOManager) ShellCompatibleModules(ctx context.Context, id uint64) ([]string, error) {
+	shell, err := mgr.GetShell(id)
+	if err != nil {
+		return nil, err
+	}
+	return shell.ToShell().CompatibleModules(ctx)
+}
+
 // ShellStop is used to stop the under shell session, it will close io object first.
 func (mgr *IOManager) ShellStop(id uint64, token string) error {
 	shell, err := mgr.GetShell(id)
@@ -916,13 +924,97 @@ func (mgr *IOManager) MeterpreterForceUnlock(id uint64, token string) error {
 }
 
 // MeterpreterRead is used to read data from meterpreter.
-func (mgr *IOManager) MeterpreterRead() {
-
+func (mgr *IOManager) MeterpreterRead(id uint64, offset int) ([]byte, error) {
+	meterpreter, err := mgr.GetMeterpreter(id)
+	if err != nil {
+		return nil, err
+	}
+	return meterpreter.Read(offset), nil
 }
 
 // MeterpreterWrite is used to write data to meterpreter.
-func (mgr *IOManager) MeterpreterWrite() {
+func (mgr *IOManager) MeterpreterWrite(id uint64, token string, data []byte) error {
+	meterpreter, err := mgr.GetMeterpreter(id)
+	if err != nil {
+		return err
+	}
+	return meterpreter.Write(token, data)
+}
 
+// MeterpreterClean is used to clean buffer in under reader.
+func (mgr *IOManager) MeterpreterClean(id uint64, token string) error {
+	meterpreter, err := mgr.GetMeterpreter(id)
+	if err != nil {
+		return err
+	}
+	return meterpreter.Clean(token)
+}
+
+// MeterpreterClose is used to close meterpreter io object, it will not stop the under session.
+func (mgr *IOManager) MeterpreterClose(id uint64, token string) error {
+	meterpreter, err := mgr.GetMeterpreter(id)
+	if err != nil {
+		return err
+	}
+	return meterpreter.Close(token)
+}
+
+// MeterpreterDetach is used to detach meterpreter session.
+func (mgr *IOManager) MeterpreterDetach(ctx context.Context, id uint64, token string) error {
+	meterpreter, err := mgr.GetMeterpreter(id)
+	if err != nil {
+		return err
+	}
+	if !meterpreter.CheckToken(token) {
+		return ErrAnotherUserLocked
+	}
+	return meterpreter.ToMeterpreter().Detach(ctx)
+}
+
+// MeterpreterInterrupt is used to interrupt meterpreter session.
+func (mgr *IOManager) MeterpreterInterrupt(ctx context.Context, id uint64, token string) error {
+	meterpreter, err := mgr.GetMeterpreter(id)
+	if err != nil {
+		return err
+	}
+	if !meterpreter.CheckToken(token) {
+		return ErrAnotherUserLocked
+	}
+	return meterpreter.ToMeterpreter().Interrupt(ctx)
+}
+
+// MeterpreterRunSingle is used to run single command.
+func (mgr *IOManager) MeterpreterRunSingle(ctx context.Context, id uint64, token, cmd string) error {
+	meterpreter, err := mgr.GetMeterpreter(id)
+	if err != nil {
+		return err
+	}
+	if !meterpreter.CheckToken(token) {
+		return ErrAnotherUserLocked
+	}
+	return meterpreter.ToMeterpreter().RunSingle(ctx, cmd)
+}
+
+// MeterpreterCompatibleModules is used to return a list of Post modules that compatible.
+func (mgr *IOManager) MeterpreterCompatibleModules(ctx context.Context, id uint64) ([]string, error) {
+	meterpreter, err := mgr.GetMeterpreter(id)
+	if err != nil {
+		return nil, err
+	}
+	return meterpreter.ToMeterpreter().CompatibleModules(ctx)
+}
+
+// MeterpreterStop is used to stop the under meterpreter session, it will close io object first.
+func (mgr *IOManager) MeterpreterStop(id uint64, token string) error {
+	meterpreter, err := mgr.GetMeterpreter(id)
+	if err != nil {
+		return err
+	}
+	err = meterpreter.Close(token)
+	if err != nil {
+		return err
+	}
+	return meterpreter.ToMeterpreter().Stop()
 }
 
 // Close is used to close IOManager, it will close all io objects.
@@ -937,7 +1029,7 @@ func (mgr *IOManager) close() error {
 	var err error
 	mgr.rwm.Lock()
 	defer mgr.rwm.Unlock()
-	// close all consoles
+	// close all console objects
 	for id, console := range mgr.consoles {
 		e := console.close()
 		if e != nil && err == nil {
@@ -945,7 +1037,7 @@ func (mgr *IOManager) close() error {
 		}
 		delete(mgr.consoles, id)
 	}
-	// close all shells
+	// close all shell objects
 	for id, shell := range mgr.shells {
 		e := shell.close()
 		if e != nil && err == nil {
@@ -953,7 +1045,7 @@ func (mgr *IOManager) close() error {
 		}
 		delete(mgr.shells, id)
 	}
-	// close all meterpreters
+	// close all meterpreter objects
 	for id, meterpreter := range mgr.meterpreters {
 		e := meterpreter.close()
 		if e != nil && err == nil {

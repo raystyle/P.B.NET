@@ -480,6 +480,11 @@ func (shell *Shell) writeLimiter() {
 	}
 }
 
+// ID is used to get the shell session id.
+func (shell *Shell) ID() uint64 {
+	return shell.id
+}
+
 // Read is used to read output from shell session.
 func (shell *Shell) Read(b []byte) (int, error) {
 	return shell.pr.Read(b)
@@ -502,11 +507,6 @@ func (shell *Shell) Write(b []byte) (int, error) {
 func (shell *Shell) Close() error {
 	shell.close()
 	return nil
-}
-
-// ID is used to get the shell session id.
-func (shell *Shell) ID() uint64 {
-	return shell.id
 }
 
 // CompatibleModules is used to return a list of Post modules that compatible.
@@ -650,6 +650,11 @@ func (mp *Meterpreter) writeLimiter() {
 	}
 }
 
+// ID is used to get the meterpreter session id.
+func (mp *Meterpreter) ID() uint64 {
+	return mp.id
+}
+
 // Read is used to read output form meterpreter session.
 func (mp *Meterpreter) Read(b []byte) (int, error) {
 	return mp.pr.Read(b)
@@ -672,11 +677,6 @@ func (mp *Meterpreter) Write(b []byte) (int, error) {
 func (mp *Meterpreter) Close() error {
 	mp.close()
 	return nil
-}
-
-// ID is used to get the meterpreter session id.
-func (mp *Meterpreter) ID() uint64 {
-	return mp.id
 }
 
 // Detach is used to detach current meterpreter session.
