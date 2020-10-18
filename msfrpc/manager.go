@@ -355,13 +355,16 @@ func (mgr *IOManager) shuttingDown() bool {
 	return atomic.LoadInt32(&mgr.inShutdown) != 0
 }
 
-func (mgr *IOManager) trackConsole(console *IOObject, add bool) bool {
+func (mgr *IOManager) trackConsole(console *IOObject, add bool) error {
 	id := console.ToConsole().ID()
 	mgr.rwm.Lock()
 	defer mgr.rwm.Unlock()
 	if add {
 		if mgr.shuttingDown() {
-			return false
+			return ErrIOManagerClosed
+		}
+		if _, ok := mgr.consoles[id]; ok {
+			return errors.Errorf("console %s is already being tracked", id)
 		}
 		mgr.consoles[id] = console
 		mgr.counter.Add(1)
@@ -369,16 +372,19 @@ func (mgr *IOManager) trackConsole(console *IOObject, add bool) bool {
 		delete(mgr.consoles, id)
 		mgr.counter.Done()
 	}
-	return true
+	return nil
 }
 
-func (mgr *IOManager) trackShell(shell *IOObject, add bool) bool {
+func (mgr *IOManager) trackShell(shell *IOObject, add bool) error {
 	id := shell.ToShell().ID()
 	mgr.rwm.Lock()
 	defer mgr.rwm.Unlock()
 	if add {
 		if mgr.shuttingDown() {
-			return false
+			return ErrIOManagerClosed
+		}
+		if _, ok := mgr.shells[id]; ok {
+			return errors.Errorf("shell %d is already being tracked", id)
 		}
 		mgr.shells[id] = shell
 		mgr.counter.Add(1)
@@ -386,16 +392,19 @@ func (mgr *IOManager) trackShell(shell *IOObject, add bool) bool {
 		delete(mgr.shells, id)
 		mgr.counter.Done()
 	}
-	return true
+	return nil
 }
 
-func (mgr *IOManager) trackMeterpreter(meterpreter *IOObject, add bool) bool {
+func (mgr *IOManager) trackMeterpreter(meterpreter *IOObject, add bool) error {
 	id := meterpreter.ToMeterpreter().ID()
 	mgr.rwm.Lock()
 	defer mgr.rwm.Unlock()
 	if add {
 		if mgr.shuttingDown() {
-			return false
+			return ErrIOManagerClosed
+		}
+		if _, ok := mgr.meterpreters[id]; ok {
+			return errors.Errorf("meterpreter %d is already being tracked", id)
 		}
 		mgr.meterpreters[id] = meterpreter
 		mgr.counter.Add(1)
@@ -403,7 +412,7 @@ func (mgr *IOManager) trackMeterpreter(meterpreter *IOObject, add bool) bool {
 		delete(mgr.meterpreters, id)
 		mgr.counter.Done()
 	}
-	return true
+	return nil
 }
 
 // Consoles is used to get consoles that IOManager has attached.
@@ -551,7 +560,7 @@ func (mgr *IOManager) createConsoleIOObject(console *Console, token string) (*IO
 	}
 	onClose := func() {
 		mgr.handlers.OnConsoleClosed(id)
-		mgr.trackConsole(obj, false)
+		_ = mgr.trackConsole(obj, false)
 	}
 	obj.reader = newIOReader(mgr.ctx.logger, console, onRead, onClean, onClose)
 	onLock := func(token string) {
@@ -567,11 +576,17 @@ func (mgr *IOManager) createConsoleIOObject(console *Console, token string) (*IO
 		obj.lockAt = mgr.now()
 	}
 	// must track first.
-	if !mgr.trackConsole(obj, true) {
+	err := mgr.trackConsole(obj, true)
+	if err != nil {
 		// if track failed must deference reader,
 		// otherwise it will occur cycle reference
 		obj.reader = nil
-		return nil, ErrIOManagerClosed
+		// close io object
+		e := console.Close()
+		if e != nil {
+			err = errors.Errorf("%s, appear error when close console: %s", err, e)
+		}
+		return nil, err
 	}
 	obj.reader.ReadLoop()
 	return obj, nil
@@ -714,7 +729,7 @@ func (mgr *IOManager) NewShellWithLocker(ctx context.Context, id uint64, token s
 	}
 	onClose := func() {
 		mgr.handlers.OnShellClosed(id)
-		mgr.trackShell(obj, false)
+		_ = mgr.trackShell(obj, false)
 	}
 	obj.reader = newIOReader(mgr.ctx.logger, shell, onRead, onClean, onClose)
 	onLock := func(token string) {
@@ -730,11 +745,17 @@ func (mgr *IOManager) NewShellWithLocker(ctx context.Context, id uint64, token s
 		obj.lockAt = mgr.now()
 	}
 	// must track first.
-	if !mgr.trackShell(obj, true) {
+	err = mgr.trackShell(obj, true)
+	if err != nil {
 		// if track failed must deference reader,
 		// otherwise it will occur cycle reference
 		obj.reader = nil
-		return nil, ErrIOManagerClosed
+		// close io object
+		e := shell.Close()
+		if e != nil {
+			err = errors.Errorf("%s, appear error when close shell: %s", err, e)
+		}
+		return nil, err
 	}
 	obj.reader.ReadLoop()
 	return obj, nil
@@ -862,7 +883,7 @@ func (mgr *IOManager) NewMeterpreterWithLocker(ctx context.Context, id uint64, t
 	}
 	onClose := func() {
 		mgr.handlers.OnMeterpreterClosed(id)
-		mgr.trackMeterpreter(obj, false)
+		_ = mgr.trackMeterpreter(obj, false)
 	}
 	obj.reader = newIOReader(mgr.ctx.logger, meterpreter, onRead, onClean, onClose)
 	onLock := func(token string) {
@@ -878,11 +899,17 @@ func (mgr *IOManager) NewMeterpreterWithLocker(ctx context.Context, id uint64, t
 		obj.lockAt = mgr.now()
 	}
 	// must track first.
-	if !mgr.trackMeterpreter(obj, true) {
+	err = mgr.trackMeterpreter(obj, true)
+	if err != nil {
 		// if track failed must deference reader,
 		// otherwise it will occur cycle reference
 		obj.reader = nil
-		return nil, ErrIOManagerClosed
+		// close io object
+		e := meterpreter.Close()
+		if e != nil {
+			err = errors.Errorf("%s, appear error when close meterpreter: %s", err, e)
+		}
+		return nil, err
 	}
 	obj.reader.ReadLoop()
 	return obj, nil

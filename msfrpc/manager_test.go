@@ -833,10 +833,14 @@ func TestIOManager_NewConsole(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		console, err := manager.NewConsoleWithLocker(ctx, defaultWorkspace, testUserToken)
 		require.NoError(t, err)
+
+		fmt.Println(string(console.Read(0)))
 		id := console.ToConsole().ID()
 
-		err = client.ConsoleDestroy(ctx, id)
+		err = manager.ConsoleDestroy(id, testUserToken)
 		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, console)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -883,10 +887,13 @@ func TestIOManager_NewConsoleWithID(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		console, err := manager.NewConsoleWithIDAndLocker(ctx, id, testUserToken)
 		require.NoError(t, err)
+
 		fmt.Println(string(console.Read(0)))
 
-		err = client.ConsoleDestroy(ctx, id)
+		err = manager.ConsoleDestroy(id, testUserToken)
 		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, console)
 	})
 
 	t.Run("console is not exist", func(t *testing.T) {
@@ -895,7 +902,7 @@ func TestIOManager_NewConsoleWithID(t *testing.T) {
 		require.Nil(t, console)
 	})
 
-	t.Run("failed to get console list", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchClientSend(func() {
 			console, err := manager.NewConsoleWithID(ctx, id)
 			monkey.IsMonkeyError(t, err)
@@ -920,6 +927,11 @@ func TestIOManager_NewConsoleWithID(t *testing.T) {
 		require.Equal(t, ErrIOManagerClosed, err)
 		require.Nil(t, obj)
 	})
+
+	err = console.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, console)
 
 	err = manager.Close()
 	require.NoError(t, err)
@@ -982,6 +994,12 @@ func TestIOManager_Shell(t *testing.T) {
 	err = manager.ShellForceUnlock(id, testAdminToken)
 	require.NoError(t, err)
 
+	modules, err := manager.ShellCompatibleModules(ctx, id)
+	require.NoError(t, err)
+	for _, module := range modules {
+		fmt.Println(module)
+	}
+
 	err = manager.ShellLock(id, testUserToken)
 	require.NoError(t, err)
 	err = manager.ShellClose(id, testAnotherToken)
@@ -995,6 +1013,61 @@ func TestIOManager_Shell(t *testing.T) {
 	require.NoError(t, err)
 
 	err = manager.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestIOManager_NewShell(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+	ctx := context.Background()
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	id := testCreateShellSession(t, client, "55601")
+
+	t.Run("success", func(t *testing.T) {
+		shell, err := manager.NewShellWithLocker(ctx, id, testUserToken)
+		require.NoError(t, err)
+
+		err = manager.ShellStop(id, testUserToken)
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, shell)
+	})
+
+	t.Run("invalid session id", func(t *testing.T) {
+		shell, err := manager.NewShell(ctx, 999)
+		require.EqualError(t, err, "shell session 999 is not exist")
+		require.Nil(t, shell)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchClientSend(func() {
+			shell, err := manager.NewShell(ctx, id)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, shell)
+		})
+	})
+
+	t.Run("call after close", func(t *testing.T) {
+		err := manager.Close()
+		require.NoError(t, err)
+
+		shell, err := manager.NewShell(ctx, id)
+		require.Equal(t, ErrIOManagerClosed, err)
+		require.Nil(t, shell)
+	})
+
+	err := manager.Close()
 	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, manager)
