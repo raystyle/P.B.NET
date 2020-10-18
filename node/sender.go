@@ -238,9 +238,9 @@ func (sender *sender) Synchronize(
 		wg.Wait()
 	}()
 	// connect and start to synchronize
-	var success bool
+	var ok bool
 	defer func() {
-		if !success {
+		if !ok {
 			client.Close()
 		}
 	}()
@@ -254,7 +254,7 @@ func (sender *sender) Synchronize(
 		const format = "failed to start to synchronize\nlistener: %s\n%s\nerror"
 		return errors.WithMessagef(err, format, listener, guid)
 	}
-	success = true
+	ok = true
 	return nil
 }
 

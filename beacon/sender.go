@@ -305,9 +305,9 @@ func (sender *sender) Synchronize(
 		wg.Wait()
 	}()
 	// connect and start to synchronize
-	var success bool
+	var ok bool
 	defer func() {
-		if !success {
+		if !ok {
 			client.Close()
 		}
 	}()
@@ -331,7 +331,7 @@ func (sender *sender) Synchronize(
 		return errors.Errorf("already connected this node\n%s", guid.Hex())
 	}
 	sender.clients[*guid] = client
-	success = true
+	ok = true
 	return nil
 }
 

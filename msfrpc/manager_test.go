@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"testing"
 	"time"
 
@@ -841,6 +842,54 @@ func TestIOManager_NewConsole(t *testing.T) {
 		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, console)
+	})
+
+	t.Run("failed to track", func(t *testing.T) {
+		manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+		// simulate already track console(new created)
+		for i := 0; i < 999; i++ {
+			manager.consoles[strconv.Itoa(i)] = nil
+		}
+
+		console, err := manager.NewConsole(ctx, defaultWorkspace)
+		require.Error(t, err)
+		require.Nil(t, console)
+
+		for i := 0; i < 999; i++ {
+			delete(manager.consoles, strconv.Itoa(i))
+		}
+		err = manager.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, manager)
+	})
+
+	t.Run("failed to destroy", func(t *testing.T) {
+		patch := func(interface{}, context.Context, string, time.Duration) (*Console, error) {
+			fakeConsole := Console{
+				ctx: client,
+				id:  "-1",
+			}
+			return &fakeConsole, nil
+		}
+		pg := monkey.PatchInstanceMethod(client, "NewConsole", patch)
+		defer pg.Unpatch()
+
+		manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+		// simulate already track console(new created)
+		manager.consoles["-1"] = nil
+
+		console, err := manager.NewConsole(ctx, defaultWorkspace)
+		require.Error(t, err)
+		require.Nil(t, console)
+
+		delete(manager.consoles, "-1")
+		err = manager.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, manager)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {

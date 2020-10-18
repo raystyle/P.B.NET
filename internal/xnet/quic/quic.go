@@ -231,9 +231,9 @@ func DialContext(
 	if err != nil {
 		return nil, err
 	}
-	var success bool
+	var ok bool
 	defer func() {
-		if !success {
+		if !ok {
 			_ = conn.Close()
 		}
 	}()
@@ -255,7 +255,7 @@ func DialContext(
 		return nil, err
 	}
 	defer func() {
-		if !success {
+		if !ok {
 			_ = session.CloseWithError(0, "no error")
 		}
 	}()
@@ -264,7 +264,7 @@ func DialContext(
 		return nil, err
 	}
 	defer func() {
-		if !success {
+		if !ok {
 			_ = stream.Close()
 		}
 	}()
@@ -274,6 +274,6 @@ func DialContext(
 	if err != nil {
 		return nil, err
 	}
-	success = true
+	ok = true
 	return &Conn{rawConn: conn, session: session, stream: stream}, nil
 }

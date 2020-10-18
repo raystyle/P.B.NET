@@ -355,6 +355,20 @@ func (mgr *IOManager) shuttingDown() bool {
 	return atomic.LoadInt32(&mgr.inShutdown) != 0
 }
 
+func (mgr *IOManager) logf(lv logger.Level, format string, log ...interface{}) {
+	if mgr.shuttingDown() {
+		return
+	}
+	mgr.ctx.logger.Printf(lv, "msfrpc-io manager", format, log...)
+}
+
+func (mgr *IOManager) log(lv logger.Level, log ...interface{}) {
+	if mgr.shuttingDown() {
+		return
+	}
+	mgr.ctx.logger.Println(lv, "msfrpc-io manager", log...)
+}
+
 func (mgr *IOManager) trackConsole(console *IOObject, add bool) error {
 	id := console.ToConsole().ID()
 	mgr.rwm.Lock()
@@ -522,7 +536,24 @@ func (mgr *IOManager) NewConsoleWithLocker(ctx context.Context, workspace, token
 	if err != nil {
 		return nil, err
 	}
-	return mgr.createConsoleIOObject(console, token)
+	var ok bool
+	defer func() {
+		// if track failed, close created console.
+		if ok {
+			return
+		}
+		err := console.Destroy()
+		if err != nil {
+			id := console.ID()
+			mgr.logf(logger.Warning, "appear error when close created console %s: %s", id, err)
+		}
+	}()
+	obj, err := mgr.createConsoleIOObject(console, token)
+	if err != nil {
+		return nil, err
+	}
+	ok = true
+	return obj, nil
 }
 
 // NewConsoleWithID is used to wrap an existing console and wrap it to IOObject,
@@ -543,7 +574,23 @@ func (mgr *IOManager) NewConsoleWithIDAndLocker(ctx context.Context, id, token s
 		return nil, err
 	}
 	console := mgr.ctx.NewConsoleWithID(id, mgr.interval)
-	return mgr.createConsoleIOObject(console, token)
+	var ok bool
+	defer func() {
+		// if track failed, close console(not destroy under console).
+		if ok {
+			return
+		}
+		err := console.Close()
+		if err != nil {
+			mgr.logf(logger.Warning, "appear error when close console %s: %s", id, err)
+		}
+	}()
+	obj, err := mgr.createConsoleIOObject(console, token)
+	if err != nil {
+		return nil, err
+	}
+	ok = true
+	return obj, nil
 }
 
 func (mgr *IOManager) createConsoleIOObject(console *Console, token string) (*IOObject, error) {
@@ -581,11 +628,6 @@ func (mgr *IOManager) createConsoleIOObject(console *Console, token string) (*IO
 		// if track failed must deference reader,
 		// otherwise it will occur cycle reference
 		obj.reader = nil
-		// close io object
-		e := console.Close()
-		if e != nil {
-			err = errors.Errorf("%s, appear error when close console: %s", err, e)
-		}
 		return nil, err
 	}
 	obj.reader.ReadLoop()
@@ -717,6 +759,17 @@ func (mgr *IOManager) NewShellWithLocker(ctx context.Context, id uint64, token s
 		return nil, err
 	}
 	shell := mgr.ctx.NewShell(id, mgr.interval)
+	var ok bool
+	defer func() {
+		// if track failed, close shell(not close under shell session)
+		if ok {
+			return
+		}
+		err := shell.Close()
+		if err != nil {
+			mgr.logf(logger.Warning, "appear error when close shell %d: %s", id, err)
+		}
+	}()
 	obj := &IOObject{
 		object: shell,
 		now:    mgr.now,
@@ -750,14 +803,10 @@ func (mgr *IOManager) NewShellWithLocker(ctx context.Context, id uint64, token s
 		// if track failed must deference reader,
 		// otherwise it will occur cycle reference
 		obj.reader = nil
-		// close io object
-		e := shell.Close()
-		if e != nil {
-			err = errors.Errorf("%s, appear error when close shell: %s", err, e)
-		}
 		return nil, err
 	}
 	obj.reader.ReadLoop()
+	ok = true
 	return obj, nil
 }
 
@@ -871,6 +920,17 @@ func (mgr *IOManager) NewMeterpreterWithLocker(ctx context.Context, id uint64, t
 		return nil, err
 	}
 	meterpreter := mgr.ctx.NewMeterpreter(id, mgr.interval)
+	var ok bool
+	defer func() {
+		// if track failed, close meterpreter(not close under meterpreter session)
+		if ok {
+			return
+		}
+		err := meterpreter.Close()
+		if err != nil {
+			mgr.logf(logger.Warning, "appear error when close meterpreter %d: %s", id, err)
+		}
+	}()
 	obj := &IOObject{
 		object: meterpreter,
 		now:    mgr.now,
@@ -904,14 +964,10 @@ func (mgr *IOManager) NewMeterpreterWithLocker(ctx context.Context, id uint64, t
 		// if track failed must deference reader,
 		// otherwise it will occur cycle reference
 		obj.reader = nil
-		// close io object
-		e := meterpreter.Close()
-		if e != nil {
-			err = errors.Errorf("%s, appear error when close meterpreter: %s", err, e)
-		}
 		return nil, err
 	}
 	obj.reader.ReadLoop()
+	ok = true
 	return obj, nil
 }
 
