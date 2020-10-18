@@ -767,7 +767,7 @@ func (mgr *IOManager) NewShellWithLocker(ctx context.Context, id uint64, token s
 		}
 		err := shell.Close()
 		if err != nil {
-			mgr.logf(logger.Warning, "appear error when close shell %d: %s", id, err)
+			mgr.logf(logger.Warning, "appear error when close shell session %d: %s", id, err)
 		}
 	}()
 	obj := &IOObject{
@@ -928,7 +928,7 @@ func (mgr *IOManager) NewMeterpreterWithLocker(ctx context.Context, id uint64, t
 		}
 		err := meterpreter.Close()
 		if err != nil {
-			mgr.logf(logger.Warning, "appear error when close meterpreter %d: %s", id, err)
+			mgr.logf(logger.Warning, "appear error when close meterpreter session %d: %s", id, err)
 		}
 	}()
 	obj := &IOObject{

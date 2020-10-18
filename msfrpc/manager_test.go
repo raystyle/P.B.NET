@@ -383,11 +383,14 @@ var (
 		OnMeterpreterLocked:   func(uint64, string) {},
 		OnMeterpreterUnlocked: func(uint64, string) {},
 	}
-	testUserToken      = "test-user-token"
-	testAnotherToken   = "test-another-token"
-	testAdminToken     = "test-admin-token"
-	testConsoleCommand = []byte("version\r\n")
-	testShellCommand   = []byte("whoami\r\n")
+
+	testUserToken    = "test-user-token"
+	testAnotherToken = "test-another-token"
+	testAdminToken   = "test-admin-token"
+
+	testConsoleCommand     = []byte("version\r\n")
+	testShellCommand       = []byte("whoami\r\n")
+	testMeterpreterCommand = []byte("sysinfo\r\n")
 )
 
 func testReadDataFromIOObject(obj *IOObject) {
@@ -764,6 +767,7 @@ func TestIOManager_Console(t *testing.T) {
 	require.NoError(t, err)
 	id := console.ToConsole().ID()
 
+	// common write and read
 	err = manager.ConsoleWrite(id, testUserToken, testConsoleCommand)
 	require.NoError(t, err)
 	err = manager.ConsoleWrite(id, testAnotherToken, testConsoleCommand)
@@ -772,6 +776,7 @@ func TestIOManager_Console(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Println(string(data))
 
+	// lock and another want write
 	err = manager.ConsoleLock(id, testUserToken)
 	require.NoError(t, err)
 	err = manager.ConsoleWrite(id, testUserToken, testConsoleCommand)
@@ -787,6 +792,7 @@ func TestIOManager_Console(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Println(string(data))
 
+	// clean
 	err = manager.ConsoleLock(id, testUserToken)
 	require.NoError(t, err)
 	err = manager.ConsoleClean(id, testAnotherToken)
@@ -796,11 +802,13 @@ func TestIOManager_Console(t *testing.T) {
 	err = manager.ConsoleUnlock(id, testUserToken)
 	require.NoError(t, err)
 
+	// force unlock
 	err = manager.ConsoleLock(id, testUserToken)
 	require.NoError(t, err)
 	err = manager.ConsoleForceUnlock(id, testAdminToken)
 	require.NoError(t, err)
 
+	// close
 	err = manager.ConsoleLock(id, testUserToken)
 	require.NoError(t, err)
 	err = manager.ConsoleClose(id, testAnotherToken)
@@ -1032,6 +1040,7 @@ func TestIOManager_Shell(t *testing.T) {
 	shell, err := manager.NewShell(ctx, id)
 	require.NoError(t, err)
 
+	// common write and read
 	err = manager.ShellWrite(id, testUserToken, testShellCommand)
 	require.NoError(t, err)
 	err = manager.ShellWrite(id, testAnotherToken, testShellCommand)
@@ -1040,6 +1049,7 @@ func TestIOManager_Shell(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Println(string(data))
 
+	// lock and another want write
 	err = manager.ShellLock(id, testUserToken)
 	require.NoError(t, err)
 	err = manager.ShellWrite(id, testUserToken, testShellCommand)
@@ -1055,6 +1065,7 @@ func TestIOManager_Shell(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Println(string(data))
 
+	// clean
 	err = manager.ShellLock(id, testUserToken)
 	require.NoError(t, err)
 	err = manager.ShellClean(id, testAnotherToken)
@@ -1064,6 +1075,7 @@ func TestIOManager_Shell(t *testing.T) {
 	err = manager.ShellUnlock(id, testUserToken)
 	require.NoError(t, err)
 
+	// force unlock
 	err = manager.ShellLock(id, testUserToken)
 	require.NoError(t, err)
 	err = manager.ShellForceUnlock(id, testAdminToken)
@@ -1075,6 +1087,7 @@ func TestIOManager_Shell(t *testing.T) {
 		fmt.Println(module)
 	}
 
+	// close
 	err = manager.ShellLock(id, testUserToken)
 	require.NoError(t, err)
 	err = manager.ShellClose(id, testAnotherToken)
@@ -1112,6 +1125,8 @@ func TestIOManager_NewShell(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		shell, err := manager.NewShellWithLocker(ctx, id, testUserToken)
 		require.NoError(t, err)
+
+		fmt.Println(string(shell.Read(0)))
 
 		err = shell.Close(testUserToken)
 		require.NoError(t, err)
@@ -1169,6 +1184,93 @@ func TestIOManager_NewShell(t *testing.T) {
 	})
 
 	err := client.SessionStop(ctx, id)
+	require.NoError(t, err)
+
+	err = manager.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestIOManager_Meterpreter(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+	ctx := context.Background()
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	id := testCreateMeterpreterSession(t, client, "55602")
+	meterpreter, err := manager.NewMeterpreter(ctx, id)
+	require.NoError(t, err)
+
+	// common write and read
+	err = manager.MeterpreterWrite(id, testUserToken, testMeterpreterCommand)
+	require.NoError(t, err)
+	err = manager.MeterpreterWrite(id, testAnotherToken, testMeterpreterCommand)
+	require.NoError(t, err)
+	data, err := manager.MeterpreterRead(id, 0)
+	require.NoError(t, err)
+	fmt.Println(string(data))
+
+	// lock and another want write
+	err = manager.MeterpreterLock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.MeterpreterWrite(id, testUserToken, testMeterpreterCommand)
+	require.NoError(t, err)
+	err = manager.MeterpreterWrite(id, testAnotherToken, testMeterpreterCommand)
+	require.Equal(t, ErrAnotherUserLocked, err)
+	data, err = manager.MeterpreterRead(id, 0)
+	require.NoError(t, err)
+	fmt.Println(string(data))
+	err = manager.MeterpreterUnlock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.MeterpreterWrite(id, testAnotherToken, testMeterpreterCommand)
+	require.NoError(t, err)
+	fmt.Println(string(data))
+
+	// clean
+	err = manager.MeterpreterLock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.MeterpreterClean(id, testAnotherToken)
+	require.Equal(t, ErrAnotherUserLocked, err)
+	err = manager.MeterpreterClean(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.MeterpreterUnlock(id, testUserToken)
+	require.NoError(t, err)
+
+	// force unlock
+	err = manager.MeterpreterLock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.MeterpreterForceUnlock(id, testAdminToken)
+	require.NoError(t, err)
+
+	err = manager.MeterpreterRunSingle(ctx, id, testUserToken, string(testMeterpreterCommand))
+	require.NoError(t, err)
+
+	modules, err := manager.MeterpreterCompatibleModules(ctx, id)
+	require.NoError(t, err)
+	for _, module := range modules {
+		fmt.Println(module)
+	}
+
+	// close
+	err = manager.MeterpreterLock(id, testUserToken)
+	require.NoError(t, err)
+	err = manager.MeterpreterClose(id, testAnotherToken)
+	require.Equal(t, ErrAnotherUserLocked, err)
+	err = manager.MeterpreterClose(id, testUserToken)
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, meterpreter)
+
+	err = client.SessionStop(ctx, id)
 	require.NoError(t, err)
 
 	err = manager.Close()
