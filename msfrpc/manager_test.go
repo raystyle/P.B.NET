@@ -754,6 +754,78 @@ func TestIOObject_Parallel(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
+func TestIOManager_log(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	manager.log(logger.Debug, "test log")
+	manager.logf(logger.Debug, "test %s", "log")
+
+	err := manager.Close()
+	require.NoError(t, err)
+
+	manager.log(logger.Debug, "test log")
+	manager.logf(logger.Debug, "test %s", "log")
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestIOManager_trackIOObject(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	console := &IOObject{object: new(Console)}
+	shell := &IOObject{object: new(Shell)}
+	meterpreter := &IOObject{object: new(Meterpreter)}
+
+	// before close
+	err := manager.trackConsole(console, true)
+	require.NoError(t, err)
+	err = manager.trackConsole(console, false)
+	require.NoError(t, err)
+
+	err = manager.trackShell(shell, true)
+	require.NoError(t, err)
+	err = manager.trackShell(shell, false)
+	require.NoError(t, err)
+
+	err = manager.trackMeterpreter(meterpreter, true)
+	require.NoError(t, err)
+	err = manager.trackMeterpreter(meterpreter, false)
+	require.NoError(t, err)
+
+	err = manager.Close()
+	require.NoError(t, err)
+
+	// after manager closed
+	err = manager.trackConsole(console, true)
+	require.Equal(t, ErrIOManagerClosed, err)
+	err = manager.trackShell(shell, true)
+	require.Equal(t, ErrIOManagerClosed, err)
+	err = manager.trackMeterpreter(meterpreter, true)
+	require.Equal(t, ErrIOManagerClosed, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
 func TestIOManager_Console(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
