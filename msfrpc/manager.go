@@ -835,7 +835,7 @@ func (mgr *IOManager) ShellUnlock(id uint64, token string) error {
 	if shell.Unlock(token) {
 		return nil
 	}
-	return ErrAnotherUserLocked
+	return ErrInvalidLockToken
 }
 
 // ShellForceUnlock is used to force unlock shell, it will not check the token.
@@ -996,7 +996,7 @@ func (mgr *IOManager) MeterpreterUnlock(id uint64, token string) error {
 	if meterpreter.Unlock(token) {
 		return nil
 	}
-	return ErrAnotherUserLocked
+	return ErrInvalidLockToken
 }
 
 // MeterpreterForceUnlock is used to force unlock meterpreter, it will not check the token.

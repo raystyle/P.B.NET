@@ -499,12 +499,13 @@ func TestIOObject(t *testing.T) {
 	t.Run("lock after another lock", func(t *testing.T) {
 		ok := console.Lock(testUserToken)
 		require.True(t, ok)
+		defer func() {
+			ok = console.Unlock(testUserToken)
+			require.True(t, ok)
+		}()
 
 		ok = console.Lock(testAnotherToken)
 		require.False(t, ok)
-
-		ok = console.Unlock(testUserToken)
-		require.True(t, ok)
 	})
 
 	t.Run("unlock without lock", func(t *testing.T) {
@@ -515,12 +516,13 @@ func TestIOObject(t *testing.T) {
 	t.Run("unlock with another token", func(t *testing.T) {
 		ok := console.Lock(testUserToken)
 		require.True(t, ok)
+		defer func() {
+			ok = console.Unlock(testUserToken)
+			require.True(t, ok)
+		}()
 
 		ok = console.Unlock(testAnotherToken)
 		require.False(t, ok)
-
-		ok = console.Unlock(testUserToken)
-		require.True(t, ok)
 	})
 
 	t.Run("force unlock", func(t *testing.T) {
@@ -549,12 +551,13 @@ func TestIOObject(t *testing.T) {
 	t.Run("clean after lock", func(t *testing.T) {
 		ok := console.Lock(testUserToken)
 		require.True(t, ok)
+		defer func() {
+			ok = console.Unlock(testUserToken)
+			require.True(t, ok)
+		}()
 
 		err = console.Clean(testAnotherToken)
 		require.Equal(t, ErrAnotherUserLocked, err)
-
-		ok = console.Unlock(testUserToken)
-		require.True(t, ok)
 	})
 
 	t.Run("Close", func(t *testing.T) {
@@ -840,6 +843,7 @@ func TestIOManager_IOObjects(t *testing.T) {
 
 	shell := &IOObject{object: new(Shell)}
 	err = manager.trackShell(shell, true)
+	require.NoError(t, err)
 	shell.ToShell().id = 1
 	err = manager.trackShell(shell, true)
 	require.NoError(t, err)
@@ -1217,7 +1221,7 @@ func TestIOManager_Console_Full(t *testing.T) {
 	require.NoError(t, err)
 	id := console.ToConsole().ID()
 
-	t.Run("not exist", func(t *testing.T) {
+	t.Run("console not exist", func(t *testing.T) {
 		err = manager.ConsoleLock("-1", testUserToken)
 		require.Error(t, err)
 		err = manager.ConsoleUnlock("-1", testUserToken)
@@ -1293,6 +1297,15 @@ func TestIOManager_Console_Full(t *testing.T) {
 		err = manager.ConsoleInterrupt(ctx, id, testAnotherToken)
 		require.Equal(t, ErrAnotherUserLocked, err)
 	})
+	
+	// destroy console
+	err = manager.ConsoleLock(id, testUserToken)
+	require.NoError(t, err)
+	
+	err = manager.ConsoleDestroy(id, testAnotherToken)
+	require.Equal(t, ErrAnotherUserLocked, err)
+	err = manager.ConsoleDestroy(id, testUserToken)
+	require.NoError(t, err)
 
 	err = manager.Close()
 	require.NoError(t, err)
@@ -1466,6 +1479,87 @@ func TestIOManager_NewShell(t *testing.T) {
 	})
 
 	err := client.SessionStop(ctx, id)
+	require.NoError(t, err)
+
+	err = manager.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, manager)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestIOManager_Shell_Full(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+	ctx := context.Background()
+
+	manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+	id := testCreateShellSession(t, client, "55604")
+
+	_, err := manager.NewShell(ctx, id)
+	require.NoError(t, err)
+
+	t.Run("shell not exist", func(t *testing.T) {
+		err = manager.ShellLock(999, testUserToken)
+		require.Error(t, err)
+		err = manager.ShellUnlock(999, testUserToken)
+		require.Error(t, err)
+		err = manager.ShellForceUnlock(999, testUserToken)
+		require.Error(t, err)
+		_, err = manager.ShellRead(999, 0)
+		require.Error(t, err)
+		err = manager.ShellWrite(999, testUserToken, nil)
+		require.Error(t, err)
+		err = manager.ShellClean(999, testUserToken)
+		require.Error(t, err)
+		err = manager.ShellClose(999, testUserToken)
+		require.Error(t, err)
+		_, err = manager.ShellCompatibleModules(ctx, 999)
+		require.Error(t, err)
+		err = manager.ShellStop(999, testUserToken)
+		require.Error(t, err)
+	})
+
+	t.Run("lock", func(t *testing.T) {
+		err := manager.ShellLock(id, testUserToken)
+		require.NoError(t, err)
+		defer func() {
+			err = manager.ShellUnlock(id, testUserToken)
+			require.NoError(t, err)
+		}()
+
+		err = manager.ShellLock(id, testUserToken)
+		require.NoError(t, err)
+		err = manager.ShellLock(id, testAnotherToken)
+		require.Equal(t, ErrAnotherUserLocked, err)
+	})
+
+	t.Run("unlock", func(t *testing.T) {
+		err := manager.ShellLock(id, testUserToken)
+		require.NoError(t, err)
+		defer func() {
+			err = manager.ShellUnlock(id, testUserToken)
+			require.NoError(t, err)
+		}()
+
+		err = manager.ShellUnlock(id, testAnotherToken)
+		require.Equal(t, ErrInvalidLockToken, err)
+	})
+	
+	// stop session
+	err = manager.ShellLock(id, testUserToken)
+	require.NoError(t, err)
+	
+	err = manager.ShellStop(id, testAnotherToken)
+	require.Equal(t, ErrAnotherUserLocked, err)
+	err = manager.ShellStop(id, testUserToken)
 	require.NoError(t, err)
 
 	err = manager.Close()
