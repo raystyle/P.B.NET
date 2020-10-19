@@ -102,7 +102,7 @@ type MonitorOptions struct {
 	EnableDB bool `toml:"enable_db"`
 
 	// DBOptions contains options about database
-	DBOptions *DBConnectOptions `toml:"db_options"`
+	DBOptions *DBConnectOptions `toml:"db_opts" check:"-"`
 }
 
 // NewMonitor is used to create a data monitor.

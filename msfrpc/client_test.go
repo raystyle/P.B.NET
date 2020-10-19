@@ -382,8 +382,8 @@ func TestClient_GetConsole(t *testing.T) {
 	})
 
 	t.Run("not exist", func(t *testing.T) {
-		console, err := client.GetConsole("foo id")
-		require.EqualError(t, err, "console \"foo id\" is not exist")
+		console, err := client.GetConsole("999")
+		require.EqualError(t, err, "console 999 is not exist")
 		require.Nil(t, console)
 	})
 
@@ -411,7 +411,7 @@ func TestClient_GetShell(t *testing.T) {
 
 	t.Run("not exist", func(t *testing.T) {
 		shell, err := client.GetShell(999)
-		require.EqualError(t, err, "shell session \"999\" is not exist")
+		require.EqualError(t, err, "shell session 999 is not exist")
 		require.Nil(t, shell)
 	})
 
@@ -439,7 +439,7 @@ func TestClient_GetMeterpreter(t *testing.T) {
 
 	t.Run("not exist", func(t *testing.T) {
 		meterpreter, err := client.GetMeterpreter(999)
-		require.EqualError(t, err, "meterpreter session \"999\" is not exist")
+		require.EqualError(t, err, "meterpreter session 999 is not exist")
 		require.Nil(t, meterpreter)
 	})
 
@@ -472,7 +472,7 @@ func TestClient_Close(t *testing.T) {
 }
 
 func TestClientOptions(t *testing.T) {
-	data, err := ioutil.ReadFile("testdata/options.toml")
+	data, err := ioutil.ReadFile("testdata/client_opts.toml")
 	require.NoError(t, err)
 
 	// check unnecessary field

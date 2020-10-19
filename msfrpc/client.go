@@ -358,7 +358,7 @@ func (client *Client) GetConsole(id string) (*Console, error) {
 	if console, ok := client.consoles[id]; ok {
 		return console, nil
 	}
-	return nil, errors.Errorf("console \"%s\" is not exist", id)
+	return nil, errors.Errorf("console %s is not exist", id)
 }
 
 // GetShell is used to get shell by id.
@@ -368,7 +368,7 @@ func (client *Client) GetShell(id uint64) (*Shell, error) {
 	if shell, ok := client.shells[id]; ok {
 		return shell, nil
 	}
-	return nil, errors.Errorf("shell session \"%d\" is not exist", id)
+	return nil, errors.Errorf("shell session %d is not exist", id)
 }
 
 // GetMeterpreter is used to get meterpreter by id.
@@ -378,7 +378,7 @@ func (client *Client) GetMeterpreter(id uint64) (*Meterpreter, error) {
 	if meterpreter, ok := client.meterpreters[id]; ok {
 		return meterpreter, nil
 	}
-	return nil, errors.Errorf("meterpreter session \"%d\" is not exist", id)
+	return nil, errors.Errorf("meterpreter session %d is not exist", id)
 }
 
 // Close is used to logout metasploit RPC and destroy all objects.

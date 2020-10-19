@@ -1,0 +1,5 @@
+interval  = "30s"
+enable_db = true
+
+[db_opts]
+  driver = "postgresql"

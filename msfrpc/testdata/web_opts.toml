@@ -1,0 +1,9 @@
+admin_username      = "admin"
+admin_password      = "123456"
+max_conns           = 1000
+max_body_size       = 1024
+max_large_body_size = 10240
+api_only            = true
+
+[server]
+  read_timeout = "30s"

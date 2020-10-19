@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"context"
+	"io/ioutil"
 	"strconv"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/patch/monkey"
+	"project/internal/patch/toml"
 	"project/internal/testsuite"
 )
 
@@ -1333,4 +1335,28 @@ func TestMonitor_AutoReconnect(t *testing.T) {
 	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, client)
+}
+
+func TestMonitorOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/monitor_opts.toml")
+	require.NoError(t, err)
+
+	// check unnecessary field
+	opts := MonitorOptions{}
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, opts)
+
+	for _, testdata := range [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: 30 * time.Second, actual: opts.Interval},
+		{expected: true, actual: opts.EnableDB},
+		{expected: "postgresql", actual: opts.DBOptions.Driver},
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
+	}
 }

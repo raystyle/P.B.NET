@@ -939,7 +939,7 @@ func TestConsole_Detach(t *testing.T) {
 	}
 
 	// generate payload and execute shellcode
-	payloadOpts := &ModuleExecuteOptions{
+	payloadOpts := ModuleExecuteOptions{
 		DataStore: make(map[string]interface{}),
 	}
 	payloadOpts.Format = "raw"

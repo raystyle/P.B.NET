@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"strconv"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/patch/monkey"
+	"project/internal/patch/toml"
 	"project/internal/testsuite"
 )
 
@@ -1137,7 +1139,7 @@ func TestIOManager_NewConsoleWithID(t *testing.T) {
 		require.Nil(t, console)
 	})
 
-	t.Run("already tracked", func(t *testing.T) {
+	t.Run("already being tracked", func(t *testing.T) {
 		console, err := manager.NewConsoleWithID(ctx, id)
 		require.NoError(t, err)
 
@@ -1432,7 +1434,7 @@ func TestIOManager_NewShell(t *testing.T) {
 		require.Nil(t, shell)
 	})
 
-	t.Run("already tracked", func(t *testing.T) {
+	t.Run("already being tracked", func(t *testing.T) {
 		shell, err := manager.NewShell(ctx, id)
 		require.NoError(t, err)
 
@@ -1690,7 +1692,7 @@ func TestIOManager_NewMeterpreter(t *testing.T) {
 		require.Nil(t, meterpreter)
 	})
 
-	t.Run("already tracked", func(t *testing.T) {
+	t.Run("already being tracked", func(t *testing.T) {
 		meterpreter, err := manager.NewMeterpreter(ctx, id)
 		require.NoError(t, err)
 
@@ -1956,4 +1958,26 @@ func TestIOManager_Close(t *testing.T) {
 	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, client)
+}
+
+func TestIOManagerOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/manager_opts.toml")
+	require.NoError(t, err)
+
+	// check unnecessary field
+	opts := IOManagerOptions{}
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, opts)
+
+	for _, testdata := range [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: 30 * time.Second, actual: opts.Interval},
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
+	}
 }
