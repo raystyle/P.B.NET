@@ -1780,6 +1780,12 @@ func TestIOManager_Meterpreter_Full(t *testing.T) {
 		require.Error(t, err)
 		err = manager.MeterpreterClose(999, testUserToken)
 		require.Error(t, err)
+		err = manager.MeterpreterDetach(ctx, 999, testUserToken)
+		require.Error(t, err)
+		err = manager.MeterpreterInterrupt(ctx, 999, testUserToken)
+		require.Error(t, err)
+		err = manager.MeterpreterRunSingle(ctx, 999, testUserToken, testMeterpreterCommandStr)
+		require.Error(t, err)
 		_, err = manager.MeterpreterCompatibleModules(ctx, 999)
 		require.Error(t, err)
 		err = manager.MeterpreterStop(999, testUserToken)
@@ -1868,6 +1874,85 @@ func TestIOManager_Meterpreter_Full(t *testing.T) {
 	testsuite.IsDestroyed(t, manager)
 
 	err = client.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestIOManager_Close(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClientAndLogin(t)
+	ctx := context.Background()
+
+	t.Run("common", func(t *testing.T) {
+		manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+		console, err := client.NewConsole(ctx, defaultWorkspace, minReadInterval)
+		require.NoError(t, err)
+		consoleID := console.ID()
+		shellID := testCreateShellSession(t, client, "55610")
+		meterpreterID := testCreateMeterpreterSession(t, client, "55611")
+
+		_, err = manager.NewConsoleWithID(ctx, consoleID)
+		require.NoError(t, err)
+		_, err = manager.NewShell(ctx, shellID)
+		require.NoError(t, err)
+		_, err = manager.NewMeterpreter(ctx, meterpreterID)
+		require.NoError(t, err)
+
+		err = manager.Close()
+		require.NoError(t, err)
+
+		err = console.Destroy()
+		require.NoError(t, err)
+		err = client.SessionStop(ctx, shellID)
+		require.NoError(t, err)
+		err = client.SessionStop(ctx, meterpreterID)
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, manager)
+	})
+
+	conn := testsuite.NewMockConnWithCloseError()
+	reader := newIOReader(client.logger, conn, nil, nil, nil)
+	object := &IOObject{reader: reader}
+
+	t.Run("close console with error", func(t *testing.T) {
+		manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+		manager.consoles["-1"] = object
+
+		err := manager.Close()
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, manager)
+	})
+
+	t.Run("close shell with error", func(t *testing.T) {
+		manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+		manager.shells[999] = object
+
+		err := manager.Close()
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, manager)
+	})
+
+	t.Run("close meterpreter with error", func(t *testing.T) {
+		manager := NewIOManager(client, testIOManagerHandlers, nil)
+
+		manager.meterpreters[999] = object
+
+		err := manager.Close()
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, manager)
+	})
+
+	err := client.Close()
 	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, client)

@@ -96,11 +96,18 @@ func testCreateSession(t *testing.T, client *Client, typ, port string) uint64 {
 	// check session number
 	sessions, err := client.SessionList(ctx)
 	require.NoError(t, err)
-	require.Len(t, sessions, 1)
-	for id := range sessions {
-		return id
+	var (
+		count int
+		sid   uint64
+	)
+	for id, info := range sessions {
+		if info.Type == typ {
+			count += 1
+			sid = id
+		}
 	}
-	return 0
+	require.Equal(t, count, 1)
+	return sid
 }
 
 func TestClient_SessionList(t *testing.T) {
