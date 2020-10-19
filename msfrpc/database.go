@@ -170,7 +170,7 @@ func (client *Client) DBGetHost(ctx context.Context, opts *DBGetHostOptions) (*D
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	if len(result.Host) == 0 {
-		return nil, errors.Errorf("host: %s doesn't exist", optsCp.Address)
+		return nil, errors.Errorf("host: %s is not exist", optsCp.Address)
 	}
 	return result.Host[0], nil
 }
@@ -203,7 +203,7 @@ func (client *Client) DBDelHost(ctx context.Context, opts *DBDelHostOptions) ([]
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "success" {
-		const format = "host: %s doesn't exist in workspace: %s"
+		const format = "host: %s is not exist in workspace: %s"
 		return nil, errors.Errorf(format, optsCp.Address, optsCp.Workspace)
 	}
 	return result.Deleted, nil
@@ -421,7 +421,7 @@ func (client *Client) DBGetClient(ctx context.Context, opts *DBGetClientOptions)
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	if len(result.Client) == 0 {
-		return nil, errors.Errorf("client: %s doesn't exist", opts.Host)
+		return nil, errors.Errorf("client: %s is not exist", opts.Host)
 	}
 	return result.Client[0], nil
 }

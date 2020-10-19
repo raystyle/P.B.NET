@@ -324,9 +324,10 @@ type IOManager struct {
 
 // IOManagerOptions contains options about io manager.
 type IOManagerOptions struct {
+	// Interval is the IO object read loop interval
 	Interval time.Duration `toml:"interval"`
 
-	// inner usage
+	// Now is used to set lock at time [inner usage]
 	Now func() time.Time `toml:"-" msgpack:"-"`
 }
 

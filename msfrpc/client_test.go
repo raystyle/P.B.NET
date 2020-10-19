@@ -381,9 +381,9 @@ func TestClient_GetConsole(t *testing.T) {
 		require.Equal(t, console, c)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("not exist", func(t *testing.T) {
 		console, err := client.GetConsole("foo id")
-		require.EqualError(t, err, "console \"foo id\" doesn't exist")
+		require.EqualError(t, err, "console \"foo id\" is not exist")
 		require.Nil(t, console)
 	})
 
@@ -409,9 +409,9 @@ func TestClient_GetShell(t *testing.T) {
 		require.Equal(t, shell, s)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("not exist", func(t *testing.T) {
 		shell, err := client.GetShell(999)
-		require.EqualError(t, err, "shell \"999\" doesn't exist")
+		require.EqualError(t, err, "shell session \"999\" is not exist")
 		require.Nil(t, shell)
 	})
 
@@ -437,9 +437,9 @@ func TestClient_GetMeterpreter(t *testing.T) {
 		require.Equal(t, meterpreter, m)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("not exist", func(t *testing.T) {
 		meterpreter, err := client.GetMeterpreter(999)
-		require.EqualError(t, err, "meterpreter \"999\" doesn't exist")
+		require.EqualError(t, err, "meterpreter session \"999\" is not exist")
 		require.Nil(t, meterpreter)
 	})
 

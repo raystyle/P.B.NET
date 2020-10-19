@@ -62,7 +62,7 @@ const (
 	ErrInvalidToken           = "Invalid Authentication Token"
 	ErrInvalidTokenFriendly   = "invalid authentication token"
 	ErrInvalidWorkspace       = "Invalid workspace"
-	ErrInvalidWorkspaceFormat = "workspace %s doesn't exist"
+	ErrInvalidWorkspaceFormat = "workspace %s is not exist"
 	ErrDBNotLoaded            = "Database Not Loaded"
 	ErrDBNotLoadedFriendly    = "database not loaded"
 	ErrDBActiveRecord         = "ActiveRecord::ConnectionNotEstablished"

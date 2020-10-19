@@ -1507,7 +1507,7 @@ func TestIOManager_Shell_Full(t *testing.T) {
 	_, err := manager.NewShell(ctx, id)
 	require.NoError(t, err)
 
-	t.Run("shell not exist", func(t *testing.T) {
+	t.Run("shell session not exist", func(t *testing.T) {
 		err = manager.ShellLock(999, testUserToken)
 		require.Error(t, err)
 		err = manager.ShellUnlock(999, testUserToken)
@@ -1765,7 +1765,7 @@ func TestIOManager_Meterpreter_Full(t *testing.T) {
 	_, err := manager.NewMeterpreter(ctx, id)
 	require.NoError(t, err)
 
-	t.Run("meterpreter not exist", func(t *testing.T) {
+	t.Run("meterpreter session not exist", func(t *testing.T) {
 		err = manager.MeterpreterLock(999, testUserToken)
 		require.Error(t, err)
 		err = manager.MeterpreterUnlock(999, testUserToken)

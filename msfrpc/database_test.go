@@ -204,7 +204,7 @@ func TestClient_DBReportHost(t *testing.T) {
 		defer func() { testDBHost.Workspace = "" }()
 
 		err := client.DBReportHost(ctx, testDBHost)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 	})
 
 	t.Run("database active record", func(t *testing.T) {
@@ -267,7 +267,7 @@ func TestClient_DBHosts(t *testing.T) {
 
 	t.Run("invalid workspace", func(t *testing.T) {
 		hosts, err := client.DBHosts(ctx, "foo")
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, hosts)
 	})
 
@@ -339,7 +339,7 @@ func TestClient_DBGetHost(t *testing.T) {
 			Address: "9.9.9.9",
 		}
 		host, err := client.DBGetHost(ctx, &opts)
-		require.EqualError(t, err, "host: 9.9.9.9 doesn't exist")
+		require.EqualError(t, err, "host: 9.9.9.9 is not exist")
 		require.Nil(t, host)
 	})
 
@@ -349,7 +349,7 @@ func TestClient_DBGetHost(t *testing.T) {
 			Address:   "1.2.3.4",
 		}
 		host, err := client.DBGetHost(ctx, &opts)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, host)
 	})
 
@@ -428,7 +428,7 @@ func TestClient_DBDelHost(t *testing.T) {
 			Address: "3.3.3.3",
 		}
 		hosts, err := client.DBDelHost(ctx, &opts)
-		const errStr = "host: 3.3.3.3 doesn't exist in workspace: default"
+		const errStr = "host: 3.3.3.3 is not exist in workspace: default"
 		require.EqualError(t, err, errStr)
 		require.Nil(t, hosts)
 	})
@@ -438,7 +438,7 @@ func TestClient_DBDelHost(t *testing.T) {
 			Workspace: "foo",
 		}
 		hosts, err := client.DBDelHost(ctx, &opts)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, hosts)
 	})
 
@@ -511,7 +511,7 @@ func TestClient_DBReportService(t *testing.T) {
 		defer func() { testDBService.Workspace = "" }()
 
 		err := client.DBReportService(ctx, testDBService)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 	})
 
 	t.Run("database active record", func(t *testing.T) {
@@ -585,7 +585,7 @@ func TestClient_DBServices(t *testing.T) {
 		defer func() { opts.Workspace = "" }()
 
 		services, err := client.DBServices(ctx, opts)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, services)
 	})
 
@@ -661,7 +661,7 @@ func TestClient_DBGetService(t *testing.T) {
 		defer func() { opts.Workspace = "" }()
 
 		services, err := client.DBGetService(ctx, opts)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, services)
 	})
 
@@ -753,7 +753,7 @@ func TestClient_DBDelService(t *testing.T) {
 		defer func() { opts.Workspace = "" }()
 
 		services, err := client.DBDelService(ctx, opts)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, services)
 	})
 
@@ -821,7 +821,7 @@ func TestClient_DBReportClient(t *testing.T) {
 		defer func() { testDBClient.Workspace = "" }()
 
 		err := client.DBReportClient(ctx, testDBClient)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 	})
 
 	t.Run("database active record", func(t *testing.T) {
@@ -891,7 +891,7 @@ func TestClient_DBClients(t *testing.T) {
 		defer func() { opts.Workspace = "" }()
 
 		clients, err := client.DBClients(ctx, opts)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, clients)
 	})
 
@@ -963,7 +963,7 @@ func TestClient_DBGetClient(t *testing.T) {
 			UAString: testDBClient.UAString,
 		}
 		client, err := client.DBGetClient(ctx, &opts)
-		require.EqualError(t, err, "client: 9.9.9.9 doesn't exist")
+		require.EqualError(t, err, "client: 9.9.9.9 is not exist")
 		require.Nil(t, client)
 	})
 
@@ -972,7 +972,7 @@ func TestClient_DBGetClient(t *testing.T) {
 		defer func() { opts.Workspace = "" }()
 
 		client, err := client.DBGetClient(ctx, opts)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, client)
 	})
 
@@ -1065,7 +1065,7 @@ func TestClient_DBDelClient(t *testing.T) {
 		defer func() { opts.Workspace = "" }()
 
 		clients, err := client.DBDelClient(ctx, opts)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, clients)
 	})
 
@@ -1187,7 +1187,7 @@ func TestClient_DBCreds(t *testing.T) {
 
 	t.Run("invalid workspace", func(t *testing.T) {
 		creds, err := client.DBCreds(ctx, "foo")
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, creds)
 	})
 
@@ -1251,7 +1251,7 @@ func TestClient_DBDelCreds(t *testing.T) {
 
 	t.Run("invalid workspace", func(t *testing.T) {
 		creds, err := client.DBDelCreds(ctx, "foo")
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, creds)
 	})
 
@@ -1320,7 +1320,7 @@ func TestClient_DBReportLoot(t *testing.T) {
 		defer func() { testDBLoot.Workspace = "" }()
 
 		err := client.DBReportLoot(ctx, testDBLoot)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 	})
 
 	t.Run("database active record", func(t *testing.T) {
@@ -1390,7 +1390,7 @@ func TestClient_DBLoots(t *testing.T) {
 		defer func() { opts.Workspace = "" }()
 
 		loots, err := client.DBLoots(ctx, opts)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, loots)
 	})
 
@@ -1515,7 +1515,7 @@ func TestClient_DBGetWorkspace(t *testing.T) {
 
 	t.Run("invalid workspace name", func(t *testing.T) {
 		workspace, err := client.DBGetWorkspace(ctx, "foo")
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, workspace)
 	})
 
@@ -1678,7 +1678,7 @@ func TestClient_DBDelWorkspace(t *testing.T) {
 
 	t.Run("invalid workspace", func(t *testing.T) {
 		err := client.DBDelWorkspace(ctx, "foo")
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 	})
 
 	t.Run("database active record", func(t *testing.T) {
@@ -1758,7 +1758,7 @@ func TestClient_DBSetWorkspace(t *testing.T) {
 
 	t.Run("invalid workspace", func(t *testing.T) {
 		err := client.DBSetWorkspace(ctx, "foo")
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 	})
 
 	t.Run("database active record", func(t *testing.T) {
@@ -1933,7 +1933,7 @@ func TestClient_DBEvent(t *testing.T) {
 			Workspace: "foo",
 		}
 		events, err := client.DBEvent(ctx, &opts)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 		require.Nil(t, events)
 	})
 
@@ -2021,7 +2021,7 @@ func TestClient_DBImportData(t *testing.T) {
 			Data:      "foo data",
 		}
 		err := client.DBImportData(ctx, &opts)
-		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.EqualError(t, err, "workspace foo is not exist")
 	})
 
 	t.Run("invalid data", func(t *testing.T) {

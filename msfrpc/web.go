@@ -24,35 +24,52 @@ import (
 	"project/internal/xreflect"
 )
 
-const minRequestBodySize = 1024 * 1024
+const (
+	defaultAdminUsername    = "admin"
+	minRequestBodySize      = 4 * 1024 * 1024
+	minRequestLargeBodySize = 64 * 1024 * 1024
+)
 
-// WebServerOptions contains options about web server.
-type WebServerOptions struct {
-	option.HTTPServer
-	MaxConns int
-	// incoming request body size
-	MaxBodySize int64
-	// about Console, Shell and Meterpreter IO interval
-	IOInterval time.Duration
+// WebOptions contains options about web server.
+type WebOptions struct {
+	// AdminUsername is the administrator username,
+	// if it is empty, use the default admin username
+	AdminUsername string `toml:"admin_username"`
+
+	// AdminPassword is the administrator password,
+	// if it is empty, program will generate a random value
+	AdminPassword string `toml:"admin_password"`
+
+	// MaxConns is the web server maximum connections
+	MaxConns int `toml:"max_conns"`
+
+	// MaxBodySize is the incoming request maximum body size
+	MaxBodySize int64 `toml:"max_body_size"`
+
+	// MaxLargeBodySize is the incoming large request maximum
+	// body size, like upload a file, or some else.
+	MaxLargeBodySize int64 `toml:"max_large_body_size"`
+
+	// HFS is used to use custom file system
+	HFS http.FileSystem `toml:"-" msgpack:"-"`
+
+	// APIOnly is used to not start Web UI
+	APIOnly bool `toml:"api_only"`
+
+	// Server contains options about http server.
+	Server option.HTTPServer `toml:"server" check:"-"`
 }
 
-// WebServer is provide a web UI.
-type WebServer struct {
+// Web is provide a web UI and API server.
+type Web struct {
 	maxConns int
-
-	server *http.Server
-
-	handler *webHandler
+	server   *http.Server
+	handler  *webHandler
 }
 
-// NewWebServer is used to create a web server.
-func (client *Client) NewWebServer(
-	username string,
-	password string,
-	hfs http.FileSystem,
-	opts *WebServerOptions,
-) (*WebServer, error) {
-	httpServer, err := opts.HTTPServer.Apply()
+// NewWeb is used to create a web server, password is the common user password.
+func NewWeb(client *Client, password string, opts *WebOptions) (*Web, error) {
+	httpServer, err := opts.Server.Apply()
 	if err != nil {
 		return nil, err
 	}
@@ -79,6 +96,7 @@ func (client *Client) NewWebServer(
 		HandleMethodNotAllowed: true,
 		PanicHandler:           wh.handlePanic,
 	}
+	hfs := opts.HFS
 	// set resource handler
 	for _, path := range []string{
 		"css", "js", "fonts", "img",
@@ -214,7 +232,7 @@ func (client *Client) NewWebServer(
 	// set web server
 	httpServer.Handler = router
 	httpServer.ErrorLog = logger.Wrap(logger.Warning, "msfrpc-web", client.logger)
-	web := WebServer{
+	web := Web{
 		server:  httpServer,
 		handler: &wh,
 	}
@@ -225,7 +243,7 @@ func (client *Client) NewWebServer(
 }
 
 // Callbacks is used to return callbacks for monitor.
-func (web *WebServer) Callbacks() *MonitorCallbacks {
+func (web *Web) Callbacks() *MonitorCallbacks {
 	return &MonitorCallbacks{
 		OnToken:      web.handler.onToken,
 		OnJob:        web.handler.onJob,
@@ -238,7 +256,7 @@ func (web *WebServer) Callbacks() *MonitorCallbacks {
 }
 
 // Serve is used to start web server.
-func (web *WebServer) Serve(listener net.Listener) error {
+func (web *Web) Serve(listener net.Listener) error {
 	l := netutil.LimitListener(listener, web.maxConns)
 	switch listener.(type) {
 	case *virtualconn.Listener:
@@ -249,7 +267,7 @@ func (web *WebServer) Serve(listener net.Listener) error {
 }
 
 // Close is used to close web server.
-func (web *WebServer) Close() error {
+func (web *Web) Close() error {
 	return web.server.Close()
 }
 

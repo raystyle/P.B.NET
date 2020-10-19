@@ -245,7 +245,7 @@ func TestClient_AuthTokenRemove(t *testing.T) {
 		err = client.AuthTokenRemove(ctx, testInvalidToken)
 		require.NoError(t, err)
 
-		// doesn't exist
+		// not exist
 		err = client.AuthTokenRemove(ctx, testInvalidToken)
 		require.NoError(t, err)
 

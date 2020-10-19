@@ -94,8 +94,14 @@ type Monitor struct {
 
 // MonitorOptions contains options about basic and database monitor.
 type MonitorOptions struct {
-	Interval  time.Duration     `toml:"interval"`
-	EnableDB  bool              `toml:"enable_db"`
+	// Interval is the watch interval
+	Interval time.Duration `toml:"interval"`
+
+	// EnableDB is used to enable database monitor
+	// include hosts, credentials and loots
+	EnableDB bool `toml:"enable_db"`
+
+	// DBOptions contains options about database
 	DBOptions *DBConnectOptions `toml:"db_options"`
 }
 
@@ -730,7 +736,7 @@ next:
 	}
 }
 
-// delete doesn't exist workspace.
+// delete workspaces that not exist.
 func (monitor *Monitor) workspaceCleaner() {
 	defer monitor.wg.Done()
 	defer func() {

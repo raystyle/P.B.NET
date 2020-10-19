@@ -102,7 +102,7 @@ func testCreateSession(t *testing.T, client *Client, typ, port string) uint64 {
 	)
 	for id, info := range sessions {
 		if info.Type == typ {
-			count += 1
+			count++
 			sid = id
 		}
 	}

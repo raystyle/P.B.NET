@@ -21,7 +21,7 @@ import (
 )
 
 // Client is used to connect metasploit-framework RPC service.
-// It provide a lot of API for interactive msf.
+// It provide a lot of API for interactive with MSF.
 type Client struct {
 	username string
 	password string
@@ -59,12 +59,23 @@ type Client struct {
 
 // ClientOptions contains options about NewClient().
 type ClientOptions struct {
-	DisableTLS bool                 `toml:"disable_tls"`
-	TLSVerify  bool                 `toml:"tls_verify"`
-	Handler    string               `toml:"handler"` // custom URI
-	Transport  option.HTTPTransport `toml:"transport" check:"-"`
-	Timeout    time.Duration        `toml:"timeout"`
-	Token      string               `toml:"token"` // permanent token
+	// DisableTLS is used to "http" scheme
+	DisableTLS bool `toml:"disable_tls"`
+
+	// TLSVerify is used to enable TLS verify
+	TLSVerify bool `toml:"tls_verify"`
+
+	// Handler is the MSFRPCD web url, if it is empty, use "api"
+	Handler string `toml:"handler"`
+
+	// Timeout is the request timeout
+	Timeout time.Duration `toml:"timeout"`
+
+	// Token is a permanent token, if use it, client not need to login.
+	Token string `toml:"token"`
+
+	// Transport contains options about http transport.
+	Transport option.HTTPTransport `toml:"transport" check:"-"`
 }
 
 type bufEncoder struct {
@@ -347,7 +358,7 @@ func (client *Client) GetConsole(id string) (*Console, error) {
 	if console, ok := client.consoles[id]; ok {
 		return console, nil
 	}
-	return nil, errors.Errorf("console \"%s\" doesn't exist", id)
+	return nil, errors.Errorf("console \"%s\" is not exist", id)
 }
 
 // GetShell is used to get shell by id.
@@ -357,7 +368,7 @@ func (client *Client) GetShell(id uint64) (*Shell, error) {
 	if shell, ok := client.shells[id]; ok {
 		return shell, nil
 	}
-	return nil, errors.Errorf("shell \"%d\" doesn't exist", id)
+	return nil, errors.Errorf("shell session \"%d\" is not exist", id)
 }
 
 // GetMeterpreter is used to get meterpreter by id.
@@ -367,7 +378,7 @@ func (client *Client) GetMeterpreter(id uint64) (*Meterpreter, error) {
 	if meterpreter, ok := client.meterpreters[id]; ok {
 		return meterpreter, nil
 	}
-	return nil, errors.Errorf("meterpreter \"%d\" doesn't exist", id)
+	return nil, errors.Errorf("meterpreter session \"%d\" is not exist", id)
 }
 
 // Close is used to logout metasploit RPC and destroy all objects.
