@@ -95,11 +95,12 @@ type testOptions struct {
 	BA  testOptionsB
 	BB  *testOptionsB
 
-	Skip1 func()
-	Skip2 chan string
-	Skip3 complex64
-	Skip4 complex128
-	Skip5 unsafe.Pointer
+	Skip1 chan string
+	Skip2 func()
+	Skip3 net.Conn
+	Skip4 complex64
+	Skip5 complex128
+	Skip6 unsafe.Pointer
 
 	unexported int
 
@@ -376,15 +377,6 @@ func TestCheckOptions(t *testing.T) {
 	t.Run("empty structure tag value", func(t *testing.T) {
 		opts := struct {
 			A string `check:""`
-		}{}
-		result := checkOptions("", opts)
-		require.NotZero(t, result)
-		t.Log("result:", result)
-	})
-
-	t.Run("panic occurred", func(t *testing.T) {
-		opts := struct {
-			P io.Writer
 		}{}
 		result := checkOptions("", opts)
 		require.NotZero(t, result)

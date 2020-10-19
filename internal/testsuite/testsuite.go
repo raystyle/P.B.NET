@@ -205,7 +205,7 @@ func walkOptions(father string, typ reflect.Type, value reflect.Value) string {
 			}
 		}
 		switch fieldType.Type.Kind() {
-		case reflect.Struct, reflect.Ptr, reflect.Interface:
+		case reflect.Struct, reflect.Ptr:
 			var f string
 			if father == "" {
 				f = typ.Name() + "." + fieldType.Name
@@ -216,8 +216,8 @@ func walkOptions(father string, typ reflect.Type, value reflect.Value) string {
 			if result != "" {
 				return result
 			}
-		case reflect.Chan, reflect.Func, reflect.Complex64,
-			reflect.Complex128, reflect.UnsafePointer:
+		case reflect.Chan, reflect.Func, reflect.Interface,
+			reflect.Complex64, reflect.Complex128, reflect.UnsafePointer:
 			continue
 		default:
 			if !fieldValue.IsZero() {
