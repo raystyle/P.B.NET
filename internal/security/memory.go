@@ -126,3 +126,9 @@ func (b *Bytes) Put(bytes []byte) {
 	}
 	b.cache.Put(&bytes)
 }
+
+func (b *Bytes) String() string {
+	bytes := b.Get()
+	defer b.Put(bytes)
+	return string(bytes)
+}

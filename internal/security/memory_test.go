@@ -70,6 +70,11 @@ func TestBytes(t *testing.T) {
 		require.True(t, equal)
 	})
 
+	t.Run("string", func(t *testing.T) {
+		sb := NewBytes([]byte("test"))
+		require.Equal(t, "test", sb.String())
+	})
+
 	t.Run("parallel", func(t *testing.T) {
 		wg := sync.WaitGroup{}
 		wg.Add(100)
