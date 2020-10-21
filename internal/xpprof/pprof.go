@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"golang.org/x/net/netutil"
@@ -18,12 +19,27 @@ import (
 	"project/internal/httptool"
 	"project/internal/logger"
 	"project/internal/nettool"
+	"project/internal/option"
 	"project/internal/security"
 	"project/internal/xpanic"
 	"project/internal/xsync"
 )
 
-// Server is a pprof tool with http server.
+const (
+	defaultTimeout        = 15 * time.Second
+	defaultMaxConnections = 1000
+)
+
+// Options contains options about pprof http server.
+type Options struct {
+	Username string            `toml:"username"`
+	Password string            `toml:"password"`
+	Timeout  time.Duration     `toml:"timeout"`
+	MaxConns int               `toml:"max_conns"`
+	Server   option.HTTPServer `toml:"server" check:"-"`
+}
+
+// Server is a pprof tool over http server.
 type Server struct {
 	logger   logger.Logger
 	https    bool
@@ -38,12 +54,12 @@ type Server struct {
 	addressesRWM sync.RWMutex
 }
 
-// NewHTTPServer is used to create a pprof tool with http server.
+// NewHTTPServer is used to create a pprof tool over http server.
 func NewHTTPServer(lg logger.Logger, opts *Options) (*Server, error) {
 	return newServer(lg, opts, false)
 }
 
-// NewHTTPSServer is used to create a pprof tool with https server.
+// NewHTTPSServer is used to create a pprof tool over https server.
 func NewHTTPSServer(lg logger.Logger, opts *Options) (*Server, error) {
 	return newServer(lg, opts, true)
 }
@@ -138,9 +154,10 @@ func (s *Server) deleteListenerAddress(addr *net.Addr) {
 
 // ListenAndServe is used to listen a listener and serve.
 func (s *Server) ListenAndServe(network, address string) error {
-	err := CheckNetwork(network)
-	if err != nil {
-		return err
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return errors.Errorf("unsupported network: %s", network)
 	}
 	listener, err := net.Listen(network, address)
 	if err != nil {

@@ -1,0 +1,7 @@
+username  = "admin"
+password  = "123456"
+timeout   = "1m"
+max_conns = 1000
+
+[server]
+  read_timeout = "30s"

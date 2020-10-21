@@ -9,12 +9,14 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
 	"project/internal/option"
 	"project/internal/patch/monkey"
+	"project/internal/patch/toml"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testtls"
 )
@@ -303,4 +305,30 @@ func TestHandler_authenticate(t *testing.T) {
 	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, server)
+}
+
+func TestOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/options.toml")
+	require.NoError(t, err)
+
+	// check unnecessary field
+	opts := Options{}
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, opts)
+
+	for _, testdata := range [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "admin", actual: opts.Username},
+		{expected: "123456", actual: opts.Password},
+		{expected: time.Minute, actual: opts.Timeout},
+		{expected: 1000, actual: opts.MaxConns},
+		{expected: 30 * time.Second, actual: opts.Server.ReadTimeout},
+	} {
+		require.Equal(t, testdata.expected, testdata.actual)
+	}
 }
