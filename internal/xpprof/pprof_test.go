@@ -7,12 +7,14 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
 	"project/internal/option"
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testtls"
 )
@@ -115,6 +117,105 @@ func TestHTTPSServer(t *testing.T) {
 	require.NoError(t, err)
 
 	testFetch(t, URL, transport, server)
+}
+
+func TestHTTPServerWithoutPassword(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, err := NewHTTPServer(logger.Test, nil)
+	require.NoError(t, err)
+	go func() {
+		err := server.ListenAndServe(testNetwork, testAddress)
+		require.NoError(t, err)
+	}()
+	testsuite.WaitProxyServerServe(t, server, 1)
+
+	addresses := server.Addresses()
+
+	t.Log("pprof http address:\n", addresses)
+	t.Log("pprof http info:\n", server.Info())
+
+	URL := fmt.Sprintf("http://%s/debug/pprof/", addresses[0])
+
+	testFetch(t, URL, nil, server)
+}
+
+func TestNewServer(t *testing.T) {
+	opts := Options{}
+	opts.Server.TLSConfig.ClientCAs = []string{"foo"}
+	_, err := NewHTTPServer(nil, &opts)
+	require.Error(t, err)
+}
+
+func TestServer_ListenAndServe(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, err := NewHTTPServer(logger.Test, nil)
+	require.NoError(t, err)
+
+	err = server.ListenAndServe("foo", "localhost:0")
+	require.Error(t, err)
+	err = server.ListenAndServe("tcp", "foo")
+	require.Error(t, err)
+
+	err = server.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, server)
+}
+
+func TestServer_Serve(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, err := NewHTTPServer(logger.Test, nil)
+	require.NoError(t, err)
+
+	listener := testsuite.NewMockListenerWithAcceptError()
+	err = server.Serve(listener)
+	testsuite.IsMockListenerAcceptFatal(t, err)
+
+	listener = testsuite.NewMockListenerWithAcceptPanic()
+	err = server.Serve(listener)
+	testsuite.IsMockListenerAcceptPanic(t, err)
+
+	err = server.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, server)
+}
+
+func TestServer_Close(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, err := NewHTTPSServer(logger.Test, nil)
+	require.NoError(t, err)
+
+	err = server.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, server)
+}
+
+func TestHandler_ServeHTTP(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	patch := func(string, string) []string {
+		panic(monkey.Panic)
+	}
+	pg := monkey.Patch(strings.Split, patch)
+	defer pg.Unpatch()
+
+	server := testGenerateHTTPServer(t)
+	addresses := server.Addresses()
+
+	URL := fmt.Sprintf("http://admin:123456@%s/debug/pprof/", addresses[0])
+
+	testFetch(t, URL, nil, server)
 }
 
 func TestHandler_authenticate(t *testing.T) {
