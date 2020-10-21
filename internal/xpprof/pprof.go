@@ -102,7 +102,7 @@ func newServer(lg logger.Logger, opts *Options, https bool) (*Server, error) {
 	}
 	// pprof http server
 	srv.handler = handler
-	srv.server.Handler = mux
+	srv.server.Handler = handler
 	srv.server.ErrorLog = logger.Wrap(logger.Error, logSrc, lg)
 	srv.server.ConnState = func(conn net.Conn, state http.ConnState) {
 		switch state {
@@ -195,7 +195,7 @@ func (s *Server) Addresses() []net.Addr {
 	return addresses
 }
 
-// Info is used to get http proxy server information.
+// Info is used to get pprof http server information.
 //
 // "address: tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001"
 // "address: tcp 127.0.0.1:1999 auth: admin:123456"
@@ -236,7 +236,7 @@ func (s *Server) Info() string {
 	return buf.String()
 }
 
-// Close is used to close HTTP proxy server.
+// Close is used to close pprof http server.
 func (s *Server) Close() error {
 	err := s.server.Close()
 	s.handler.Close()
