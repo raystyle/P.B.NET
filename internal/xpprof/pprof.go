@@ -2,10 +2,14 @@ package xpprof
 
 import (
 	"bytes"
+	"crypto/subtle"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -88,11 +92,13 @@ func newServer(lg logger.Logger, opts *Options, https bool) (*Server, error) {
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	handler.mux = mux
-	if opts.Username != "" {
-		handler.username = security.NewBytes([]byte(opts.Username))
+	if opts.Username != "" { // escape
+		username := url.User(opts.Username).String()
+		handler.username = security.NewBytes([]byte(username))
 	}
-	if opts.Password != "" {
-		handler.password = security.NewBytes([]byte(opts.Password))
+	if opts.Password != "" { // escape
+		password := url.User(opts.Password).String()
+		handler.password = security.NewBytes([]byte(password))
 	}
 	// pprof http server
 	srv.handler = handler
@@ -155,13 +161,6 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 		}
 	}()
 
-	defer func() {
-		if r := recover(); r != nil {
-			err = xpanic.Error(r, "Server.Serve")
-			s.log(logger.Fatal, err)
-		}
-	}()
-
 	listener = netutil.LimitListener(listener, s.maxConns)
 	defer func() { _ = listener.Close() }()
 
@@ -170,7 +169,7 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 	s.addListenerAddress(&address)
 	defer s.deleteListenerAddress(&address)
 
-	s.logf(logger.Info, "start listener (%s %s)", network, address)
+	s.logf(logger.Info, "serve over listener (%s %s)", network, address)
 	defer s.logf(logger.Info, "listener closed (%s %s)", network, address)
 
 	if s.https {
@@ -182,6 +181,65 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 	if nettool.IsNetClosingError(err) || err == http.ErrServerClosed {
 		return nil
 	}
+	return err
+}
+
+// Addresses is used to get listener addresses.
+func (s *Server) Addresses() []net.Addr {
+	s.addressesRWM.RLock()
+	defer s.addressesRWM.RUnlock()
+	addresses := make([]net.Addr, 0, len(s.addresses))
+	for address := range s.addresses {
+		addresses = append(addresses, *address)
+	}
+	return addresses
+}
+
+// Info is used to get http proxy server information.
+//
+// "address: tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001"
+// "address: tcp 127.0.0.1:1999 auth: admin:123456"
+func (s *Server) Info() string {
+	buf := new(bytes.Buffer)
+	addresses := s.Addresses()
+	l := len(addresses)
+	if l > 0 {
+		buf.WriteString("address: ")
+		for i := 0; i < l; i++ {
+			if i > 0 {
+				buf.WriteString(", ")
+			}
+			network := addresses[i].Network()
+			address := addresses[i].String()
+			_, _ = fmt.Fprintf(buf, "%s %s", network, address)
+		}
+	}
+	username := s.handler.username
+	password := s.handler.password
+	var (
+		user string
+		pass string
+	)
+	if username != nil {
+		user = username.String()
+	}
+	if password != nil {
+		pass = password.String()
+	}
+	if user != "" || pass != "" {
+		format := "auth: %s:%s"
+		if buf.Len() > 0 {
+			format = " " + format
+		}
+		_, _ = fmt.Fprintf(buf, format, user, pass)
+	}
+	return buf.String()
+}
+
+// Close is used to close HTTP proxy server.
+func (s *Server) Close() error {
+	err := s.server.Close()
+	s.handler.Close()
 	return err
 }
 
@@ -218,7 +276,71 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.log(logger.Fatal, r, xpanic.Print(rec, "server.ServeHTTP()"))
 		}
 	}()
-	// authenticate
-
+	if !h.authenticate(w, r) {
+		return
+	}
+	h.log(logger.Info, r, "handle request")
 	h.mux.ServeHTTP(w, r)
+}
+
+func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
+	if h.username == nil && h.password == nil {
+		return true
+	}
+	authInfo := strings.Split(r.Header.Get("Authorization"), " ")
+	if len(authInfo) != 2 {
+		h.failedToAuth(w)
+		return false
+	}
+	authMethod := authInfo[0]
+	authBase64 := authInfo[1]
+	switch authMethod {
+	case "Basic":
+		auth, err := base64.StdEncoding.DecodeString(authBase64)
+		if err != nil {
+			h.log(logger.Exploit, r, "invalid basic base64 data:", err)
+			h.failedToAuth(w)
+			return false
+		}
+		userPass := strings.Split(string(auth), ":")
+		if len(userPass) < 2 {
+			userPass = append(userPass, "")
+		}
+		user := []byte(userPass[0])
+		pass := []byte(userPass[1])
+		var (
+			eUser []byte
+			ePass []byte
+		)
+		if h.username != nil {
+			eUser = h.username.Get()
+			defer h.username.Put(eUser)
+		}
+		if h.password != nil {
+			ePass = h.password.Get()
+			defer h.password.Put(ePass)
+		}
+		userErr := subtle.ConstantTimeCompare(eUser, user) != 1
+		passErr := subtle.ConstantTimeCompare(ePass, pass) != 1
+		if userErr || passErr {
+			userInfo := fmt.Sprintf("%s:%s", user, pass)
+			h.log(logger.Exploit, r, "invalid username or password:", userInfo)
+			h.failedToAuth(w)
+			return false
+		}
+		return true
+	default:
+		h.log(logger.Exploit, r, "unsupported authenticate method:", authMethod)
+		h.failedToAuth(w)
+		return false
+	}
+}
+
+func (h *handler) failedToAuth(w http.ResponseWriter) {
+	w.Header().Set("WWW-Authenticate", "Basic")
+	w.WriteHeader(http.StatusUnauthorized)
+}
+
+func (h *handler) Close() {
+	h.counter.Wait()
 }
