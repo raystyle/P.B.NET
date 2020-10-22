@@ -341,7 +341,7 @@ func (sender *sender) Disconnect(guid *guid.GUID) error {
 		client.Close()
 		return nil
 	}
-	return errors.Errorf("client doesn't exist\n%s", guid)
+	return errors.Errorf("client is not exist\n%s", guid)
 }
 
 // Send is used to send message to Controller.

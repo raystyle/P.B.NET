@@ -180,7 +180,7 @@ func (c *Client) add(tag string, server *Server) error {
 		c.servers[tag] = server
 		return nil
 	}
-	return errors.New("already exists")
+	return errors.New("is already exists")
 }
 
 // Delete is used to delete a DNS server.
@@ -191,7 +191,7 @@ func (c *Client) Delete(tag string) error {
 		delete(c.servers, tag)
 		return nil
 	}
-	return errors.Errorf("dns server %s doesn't exist", tag)
+	return errors.Errorf("dns server %s is not exist", tag)
 }
 
 // Servers is used to get all DNS Servers.
@@ -391,7 +391,7 @@ func (c *Client) useSelectedServer(ctx context.Context, domain string, opts *Opt
 		}
 		return resolve(ctx, server.Address, domain, opts)
 	}
-	return nil, errors.Errorf("dns server: \"%s\" doesn't exist", opts.ServerTag)
+	return nil, errors.Errorf("dns server: \"%s\" is not exist", opts.ServerTag)
 }
 
 func (c *Client) useRandomServer(ctx context.Context, domain string, opts *Options) ([]string, error) {

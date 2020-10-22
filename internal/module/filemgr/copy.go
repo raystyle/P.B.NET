@@ -228,7 +228,7 @@ retry:
 		ct.skipDirs = append(ct.skipDirs, stats.SrcAbs)
 		return nil
 	}
-	// destination already exists
+	// destination is already exists
 	if dstStat != nil {
 		if dstStat.IsDir() {
 			return nil

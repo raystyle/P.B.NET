@@ -64,7 +64,7 @@ func TestIsExist(t *testing.T) {
 		require.True(t, exist)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		exist, err := IsExist("not")
 		require.NoError(t, err)
 		require.False(t, exist)
@@ -78,7 +78,7 @@ func TestIsExist(t *testing.T) {
 }
 
 func TestIsNotExist(t *testing.T) {
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		notExist, err := IsNotExist("not")
 		require.NoError(t, err)
 		require.True(t, notExist)

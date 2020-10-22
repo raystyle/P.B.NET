@@ -131,7 +131,7 @@ func (p *Pool) AddPublicRootCACert(cert []byte) error {
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
 	if certIsExist(p.pubRootCACerts, certCopy) {
-		return errors.New("this public root ca certificate already exists")
+		return errors.New("this public root ca certificate is already exists")
 	}
 	p.pubRootCACerts = append(p.pubRootCACerts, certCopy)
 	return nil
@@ -149,7 +149,7 @@ func (p *Pool) AddPublicClientCACert(cert []byte) error {
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
 	if certIsExist(p.pubClientCACerts, certCopy) {
-		return errors.New("this public client ca certificate already exists")
+		return errors.New("this public client ca certificate is already exists")
 	}
 	p.pubClientCACerts = append(p.pubClientCACerts, certCopy)
 	return nil
@@ -164,7 +164,7 @@ func (p *Pool) AddPublicClientPair(cert, pri []byte) error {
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
 	if pairIsExist(p.pubClientCerts, pair) {
-		return errors.New("this public client certificate already exists")
+		return errors.New("this public client certificate is already exists")
 	}
 	p.pubClientCerts = append(p.pubClientCerts, pair)
 	return nil
@@ -179,7 +179,7 @@ func (p *Pool) AddPrivateRootCAPair(cert, pri []byte) error {
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
 	if pairIsExist(p.priRootCACerts, pair) {
-		return errors.New("this private root ca certificate already exists")
+		return errors.New("this private root ca certificate is already exists")
 	}
 	p.priRootCACerts = append(p.priRootCACerts, pair)
 	return nil
@@ -194,7 +194,7 @@ func (p *Pool) AddPrivateRootCACert(cert []byte) error {
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
 	if pairIsExist(p.priRootCACerts, pair) {
-		return errors.New("this private root ca certificate already exists")
+		return errors.New("this private root ca certificate is already exists")
 	}
 	p.priRootCACerts = append(p.priRootCACerts, pair)
 	return nil
@@ -209,7 +209,7 @@ func (p *Pool) AddPrivateClientCAPair(cert, pri []byte) error {
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
 	if pairIsExist(p.priClientCACerts, pair) {
-		return errors.New("this private client ca certificate already exists")
+		return errors.New("this private client ca certificate is already exists")
 	}
 	p.priClientCACerts = append(p.priClientCACerts, pair)
 	return nil
@@ -224,7 +224,7 @@ func (p *Pool) AddPrivateClientCACert(cert []byte) error {
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
 	if pairIsExist(p.priClientCACerts, pair) {
-		return errors.New("this private client ca certificate already exists")
+		return errors.New("this private client ca certificate is already exists")
 	}
 	p.priClientCACerts = append(p.priClientCACerts, pair)
 	return nil
@@ -239,7 +239,7 @@ func (p *Pool) AddPrivateClientPair(cert, pri []byte) error {
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
 	if pairIsExist(p.priClientCerts, pair) {
-		return errors.New("this private client certificate already exists")
+		return errors.New("this private client certificate is already exists")
 	}
 	p.priClientCerts = append(p.priClientCerts, pair)
 	return nil

@@ -26,7 +26,7 @@ func TestManager_Add(t *testing.T) {
 		require.EqualError(t, err, "empty module tag")
 	})
 
-	t.Run("already exists", func(t *testing.T) {
+	t.Run("is already exists", func(t *testing.T) {
 		const tag = "test1"
 
 		module := testsuite.NewMockModule()
@@ -34,7 +34,7 @@ func TestManager_Add(t *testing.T) {
 		err := manager.Add(tag, module)
 		require.NoError(t, err)
 		err = manager.Add(tag, module)
-		require.EqualError(t, err, "module test1 already exists")
+		require.EqualError(t, err, "module test1 is already exists")
 	})
 
 	t.Run("add after close", func(t *testing.T) {
@@ -71,9 +71,9 @@ func TestManager_Delete(t *testing.T) {
 		require.EqualError(t, err, "empty module tag")
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		err := manager.Delete("tag")
-		require.EqualError(t, err, "module tag doesn't exist")
+		require.EqualError(t, err, "module tag is not exist")
 	})
 
 	manager.Close()
@@ -105,9 +105,9 @@ func TestManager_Get(t *testing.T) {
 		require.Nil(t, module)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		module, err := manager.Get("tag")
-		require.EqualError(t, err, "module tag doesn't exist")
+		require.EqualError(t, err, "module tag is not exist")
 		require.Nil(t, module)
 	})
 

@@ -143,7 +143,7 @@ func (syncer *Syncer) add(tag string, client *Client) error {
 		syncer.clients[tag] = client
 		return nil
 	}
-	return errors.New("already exists")
+	return errors.New("is already exists")
 }
 
 // Delete is used to delete syncer client.
@@ -154,7 +154,7 @@ func (syncer *Syncer) Delete(tag string) error {
 		delete(syncer.clients, tag)
 		return nil
 	}
-	return errors.Errorf("time syncer client \"%s\" doesn't exist", tag)
+	return errors.Errorf("time syncer client \"%s\" is not exist", tag)
 }
 
 // Clients is used to get all time syncer clients.

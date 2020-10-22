@@ -1307,7 +1307,7 @@ func TestMoveTask_Process(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("destination directory already exists", func(t *testing.T) {
+	t.Run("destination directory is already exists", func(t *testing.T) {
 		testCreateMoveSrcMulti(t)
 		defer testRemoveMoveDir(t)
 

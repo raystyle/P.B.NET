@@ -98,8 +98,8 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	srv.logSrc = logSrc
 	// initialize http handler
 	handler := &handler{
-		logSrc:      logSrc,
 		logger:      lg,
+		logSrc:      logSrc,
 		timeout:     timeout,
 		transport:   transport,
 		dialContext: opts.DialContext,
@@ -320,7 +320,7 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 	}
 	failedToAuth := func() {
 		w.Header().Set("Proxy-Authenticate", "Basic")
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(http.StatusProxyAuthRequired)
 	}
 	authMethod := authInfo[0]
 	authBase64 := authInfo[1]

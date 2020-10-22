@@ -65,7 +65,7 @@ func TestClient_Add(t *testing.T) {
 		err := client.add(tag, server)
 		require.NoError(t, err)
 		err = client.add(tag, server)
-		require.EqualError(t, err, "already exists")
+		require.EqualError(t, err, "is already exists")
 	})
 
 	testsuite.IsDestroyed(t, client)
@@ -88,7 +88,7 @@ func TestClient_Delete(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		err := client.Delete("foo tag")
 		require.Error(t, err)
 		t.Log(err)

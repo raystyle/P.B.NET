@@ -56,7 +56,7 @@ func (m *Manager) Add(tag string, module Module) error {
 		m.modules[tag] = module
 		return nil
 	}
-	return errors.Errorf("module %s already exists", tag)
+	return errors.Errorf("module %s is already exists", tag)
 }
 
 // Delete is used to delete a module by tag.
@@ -71,7 +71,7 @@ func (m *Manager) Delete(tag string) error {
 		delete(m.modules, tag)
 		return nil
 	}
-	return errors.Errorf("module %s doesn't exist", tag)
+	return errors.Errorf("module %s is not exist", tag)
 }
 
 // Get is used to get a module by tag.
@@ -84,7 +84,7 @@ func (m *Manager) Get(tag string) (Module, error) {
 	if module, ok := m.modules[tag]; ok {
 		return module, nil
 	}
-	return nil, errors.Errorf("module %s doesn't exist", tag)
+	return nil, errors.Errorf("module %s is not exist", tag)
 }
 
 // Start is used to start a module by tag.

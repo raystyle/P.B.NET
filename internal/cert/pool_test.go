@@ -384,7 +384,7 @@ func TestPool_DeletePublicRootCACert(t *testing.T) {
 		testsuite.IsDestroyed(t, pool)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		pool := NewPool()
 		err := pool.AddPublicRootCACert(pair.Certificate.Raw)
 		require.NoError(t, err)
@@ -427,7 +427,7 @@ func TestPool_DeletePublicClientCACert(t *testing.T) {
 		testsuite.IsDestroyed(t, pool)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		pool := NewPool()
 		err := pool.AddPublicClientCACert(pair.Certificate.Raw)
 		require.NoError(t, err)
@@ -470,7 +470,7 @@ func TestPool_DeletePublicClientCert(t *testing.T) {
 		testsuite.IsDestroyed(t, pool)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		pool := NewPool()
 		err := pool.AddPublicClientPair(pair.Encode())
 		require.NoError(t, err)
@@ -513,7 +513,7 @@ func TestPool_DeletePrivateRootCACert(t *testing.T) {
 		testsuite.IsDestroyed(t, pool)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		pool := NewPool()
 		err := pool.AddPrivateRootCACert(pair.Certificate.Raw)
 		require.NoError(t, err)
@@ -556,7 +556,7 @@ func TestPool_DeletePrivateClientCACert(t *testing.T) {
 		testsuite.IsDestroyed(t, pool)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		pool := NewPool()
 		err := pool.AddPrivateClientCACert(pair.Certificate.Raw)
 		require.NoError(t, err)
@@ -599,7 +599,7 @@ func TestPool_DeletePrivateClientPair(t *testing.T) {
 		testsuite.IsDestroyed(t, pool)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		pool := NewPool()
 		err := pool.AddPrivateClientPair(pair.Encode())
 		require.NoError(t, err)

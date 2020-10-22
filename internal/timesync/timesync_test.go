@@ -99,7 +99,7 @@ func TestSyncer_Add(t *testing.T) {
 		err := syncer.add(tag, client)
 		require.NoError(t, err)
 		err = syncer.add(tag, client)
-		require.EqualError(t, err, "already exists")
+		require.EqualError(t, err, "is already exists")
 	})
 
 	testsuite.IsDestroyed(t, syncer)
@@ -125,9 +125,9 @@ func TestSyncer_Delete(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		err := syncer.Delete("foo tag")
-		require.EqualError(t, err, "time syncer client \"foo tag\" doesn't exist")
+		require.EqualError(t, err, "time syncer client \"foo tag\" is not exist")
 	})
 
 	testsuite.IsDestroyed(t, syncer)

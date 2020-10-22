@@ -324,7 +324,7 @@ func (server *server) GetConn(tag *guid.GUID) (*xnet.Conn, error) {
 	if conn, ok := server.conns[*tag]; ok {
 		return conn, nil
 	}
-	return nil, errors.Errorf("conn doesn't exist\n%s", tag)
+	return nil, errors.Errorf("conn is not exist\n%s", tag)
 }
 
 func (server *server) CloseConn(tag *guid.GUID) error {
@@ -333,7 +333,7 @@ func (server *server) CloseConn(tag *guid.GUID) error {
 	if conn, ok := server.conns[*tag]; ok {
 		return conn.Close()
 	}
-	return errors.Errorf("connection doesn't exist\n%s", tag)
+	return errors.Errorf("connection is not exist\n%s", tag)
 }
 
 // CtrlConns is used to get all connections that Controller connected.
@@ -355,7 +355,7 @@ func (server *server) CloseCtrlConn(tag *guid.GUID) error {
 		conn.Close()
 		return nil
 	}
-	return errors.Errorf("controller connection doesn't exist\n%s", tag)
+	return errors.Errorf("controller connection is not exist\n%s", tag)
 }
 
 // NodeConns is used to get all connections that Node connected.
@@ -377,7 +377,7 @@ func (server *server) CloseNodeConn(tag *guid.GUID) error {
 		conn.Close()
 		return nil
 	}
-	return errors.Errorf("node connection doesn't exist\n%s", tag)
+	return errors.Errorf("node connection is not exist\n%s", tag)
 }
 
 // BeaconConns is used to get all connections that Beacon connected.
@@ -399,7 +399,7 @@ func (server *server) CloseBeaconConn(tag *guid.GUID) error {
 		conn.Close()
 		return nil
 	}
-	return errors.Errorf("beacon connection doesn't exist\n%s", tag)
+	return errors.Errorf("beacon connection is not exist\n%s", tag)
 }
 
 // Close is used to close all listeners and connections.

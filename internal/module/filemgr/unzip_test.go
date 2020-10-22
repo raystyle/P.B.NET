@@ -1140,7 +1140,7 @@ func TestUnZipTask_Process(t *testing.T) {
 		})
 	})
 
-	t.Run("destination directory already exists", func(t *testing.T) {
+	t.Run("destination directory is already exists", func(t *testing.T) {
 		testCreateUnZipMultiZip(t)
 		defer testRemoveUnZipDir(t)
 

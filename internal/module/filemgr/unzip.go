@@ -289,7 +289,7 @@ retry:
 		ut.skipDirs = append(ut.skipDirs, src)
 		return nil
 	}
-	// destination already exists
+	// destination is already exists
 	if dstStat != nil {
 		if dstStat.IsDir() {
 			return nil

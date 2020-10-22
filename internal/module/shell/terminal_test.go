@@ -91,7 +91,7 @@ func TestTerminal(t *testing.T) {
 		"  cd\n",
 		"  cd ..\n",
 		"cd shell\n",
-		`cd "doesn't exist"` + "\n",
+		`cd "is not exist"` + "\n",
 
 		// about environment variable
 		"  set\n",
@@ -118,7 +118,7 @@ func TestTerminal(t *testing.T) {
 		"cd ../..\n",
 		"dir\n",
 		"ls\n",
-		`dir "doesn't exist"` + "\n",
+		`dir "is not exist"` + "\n",
 
 		// about execute
 		"ping",

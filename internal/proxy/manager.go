@@ -79,7 +79,7 @@ func (m *Manager) add(server *Server) error {
 		m.servers[server.Tag] = server
 		return nil
 	}
-	return errors.New("already exists")
+	return errors.New("is already exists")
 }
 
 func (m *Manager) addSocks(server *Server) error {
@@ -135,7 +135,7 @@ func (m *Manager) Delete(tag string) error {
 		delete(m.servers, tag)
 		return server.Close()
 	}
-	return errors.Errorf("proxy server %s doesn't exist", tag)
+	return errors.Errorf("proxy server %s is not exist", tag)
 }
 
 // Get is used to get proxy server.
@@ -148,7 +148,7 @@ func (m *Manager) Get(tag string) (*Server, error) {
 	if server, ok := m.servers[tag]; ok {
 		return server, nil
 	}
-	return nil, errors.Errorf("proxy server %s doesn't exist", tag)
+	return nil, errors.Errorf("proxy server %s is not exist", tag)
 }
 
 // Servers is used to get all proxy servers.

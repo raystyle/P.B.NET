@@ -99,7 +99,7 @@ func TestPool_Add(t *testing.T) {
 			Address: "localhost:1080",
 			Options: string(opts),
 		}
-		const errStr = "failed to add proxy client socks5: already exists"
+		const errStr = "failed to add proxy client socks5: is already exists"
 		err = pool.Add(client)
 		require.EqualError(t, err, errStr)
 	})
@@ -214,9 +214,9 @@ func TestPool_Delete(t *testing.T) {
 		require.Len(t, clients, testReserveClientNum)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		err := pool.Delete("foo")
-		require.EqualError(t, err, "proxy client foo doesn't exist")
+		require.EqualError(t, err, "proxy client foo is not exist")
 	})
 
 	t.Run("empty tag", func(t *testing.T) {
@@ -256,9 +256,9 @@ func TestPool_Get(t *testing.T) {
 		require.NotNil(t, pc)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		pc, err := pool.Get("foo")
-		require.EqualError(t, err, "proxy client foo doesn't exist")
+		require.EqualError(t, err, "proxy client foo is not exist")
 		require.Nil(t, pc)
 	})
 

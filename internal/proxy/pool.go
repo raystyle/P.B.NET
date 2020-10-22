@@ -83,7 +83,7 @@ func (p *Pool) add(client *Client) error {
 		p.clients[client.Tag] = client
 		return nil
 	}
-	return errors.New("already exists")
+	return errors.New("is already exists")
 }
 
 func (p *Pool) addSocks(client *Client) error {
@@ -180,7 +180,7 @@ func (p *Pool) Delete(tag string) error {
 		delete(p.clients, tag)
 		return nil
 	}
-	return errors.Errorf("proxy client %s doesn't exist", tag)
+	return errors.Errorf("proxy client %s is not exist", tag)
 }
 
 // Get is used to get a proxy client.
@@ -191,7 +191,7 @@ func (p *Pool) Get(tag string) (*Client, error) {
 	if client, ok := p.clients[tag]; ok {
 		return client, nil
 	}
-	return nil, errors.Errorf("proxy client %s doesn't exist", tag)
+	return nil, errors.Errorf("proxy client %s is not exist", tag)
 }
 
 // Clients is used to get all proxy clients.

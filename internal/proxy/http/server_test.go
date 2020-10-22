@@ -153,7 +153,7 @@ func TestServer_Authenticate(t *testing.T) {
 	client := http.Client{}
 	defer client.CloseIdleConnections()
 
-	t.Run("no authenticate method", func(t *testing.T) {
+	t.Run("no authenticate header", func(t *testing.T) {
 		resp, err := client.Get("http://" + address)
 		require.NoError(t, err)
 		_, err = io.Copy(ioutil.Discard, resp.Body)

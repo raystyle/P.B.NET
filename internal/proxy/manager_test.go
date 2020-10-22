@@ -79,7 +79,7 @@ func TestManager_Add(t *testing.T) {
 			Mode:    ModeSocks5,
 			Options: string(opts),
 		}
-		const errStr = "failed to add proxy server socks5: already exists"
+		const errStr = "failed to add proxy server socks5: is already exists"
 		err = manager.Add(server)
 		require.EqualError(t, err, errStr)
 	})
@@ -157,9 +157,9 @@ func TestManager_Delete(t *testing.T) {
 		require.EqualError(t, err, "empty proxy server tag")
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		err := manager.Delete("foo")
-		require.EqualError(t, err, "proxy server foo doesn't exist")
+		require.EqualError(t, err, "proxy server foo is not exist")
 	})
 
 	err := manager.Close()
@@ -191,9 +191,9 @@ func TestManager_Get(t *testing.T) {
 		require.Nil(t, ps)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("is not exist", func(t *testing.T) {
 		ps, err := manager.Get("foo")
-		require.EqualError(t, err, "proxy server foo doesn't exist")
+		require.EqualError(t, err, "proxy server foo is not exist")
 		require.Nil(t, ps)
 	})
 
