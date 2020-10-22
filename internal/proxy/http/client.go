@@ -306,8 +306,6 @@ func checkStatusCode(code string) error {
 		return nil
 	case http.StatusProxyAuthRequired:
 		return errors.New("proxy server require authentication")
-	case http.StatusUnauthorized:
-		return errors.New("invalid username or password")
 	case http.StatusBadGateway:
 		return errors.New("proxy server failed to connect target")
 	default:

@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"project/internal/httptool"
 	"project/internal/logger"
 	"project/internal/nettool"
+	"project/internal/security"
 	"project/internal/xpanic"
 	"project/internal/xsync"
 )
@@ -110,11 +112,13 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	if opts.DialContext != nil {
 		transport.DialContext = opts.DialContext
 	}
-	if opts.Username != "" {
-		handler.username = []byte(opts.Username)
+	if opts.Username != "" { // escape
+		username := url.User(opts.Username).String()
+		handler.username = security.NewBytes([]byte(username))
 	}
-	if opts.Password != "" {
-		handler.password = []byte(opts.Password)
+	if opts.Password != "" { // escape
+		password := url.User(opts.Password).String()
+		handler.password = security.NewBytes([]byte(password))
 	}
 	handler.ctx, handler.cancel = context.WithCancel(context.Background())
 	// http proxy server
@@ -263,8 +267,8 @@ type handler struct {
 	// secondary proxy
 	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
 
-	username []byte
-	password []byte
+	username *security.Bytes
+	password *security.Bytes
 
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -309,18 +313,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
-	if len(h.username) == 0 && len(h.password) == 0 {
+	if h.username == nil && h.password == nil {
 		return true
 	}
 	authInfo := strings.Split(r.Header.Get("Proxy-Authorization"), " ")
 	if len(authInfo) != 2 {
-		w.Header().Set("Proxy-Authenticate", "Basic")
-		w.WriteHeader(http.StatusProxyAuthRequired)
+		h.failedToAuth(w)
 		return false
-	}
-	failedToAuth := func() {
-		w.Header().Set("Proxy-Authenticate", "Basic")
-		w.WriteHeader(http.StatusProxyAuthRequired)
 	}
 	authMethod := authInfo[0]
 	authBase64 := authInfo[1]
@@ -329,7 +328,7 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 		auth, err := base64.StdEncoding.DecodeString(authBase64)
 		if err != nil {
 			h.log(logger.Exploit, r, "invalid basic base64 data:", err)
-			failedToAuth()
+			h.failedToAuth(w)
 			return false
 		}
 		userPass := strings.Split(string(auth), ":")
@@ -338,19 +337,37 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 		}
 		user := []byte(userPass[0])
 		pass := []byte(userPass[1])
-		if subtle.ConstantTimeCompare(h.username, user) != 1 ||
-			subtle.ConstantTimeCompare(h.password, pass) != 1 {
+		var (
+			eUser []byte
+			ePass []byte
+		)
+		if h.username != nil {
+			eUser = h.username.Get()
+			defer h.username.Put(eUser)
+		}
+		if h.password != nil {
+			ePass = h.password.Get()
+			defer h.password.Put(ePass)
+		}
+		userErr := subtle.ConstantTimeCompare(eUser, user) != 1
+		passErr := subtle.ConstantTimeCompare(ePass, pass) != 1
+		if userErr || passErr {
 			userInfo := fmt.Sprintf("%s:%s", user, pass)
 			h.log(logger.Exploit, r, "invalid username or password:", userInfo)
-			failedToAuth()
+			h.failedToAuth(w)
 			return false
 		}
 		return true
 	default:
 		h.log(logger.Exploit, r, "unsupported authenticate method:", authMethod)
-		failedToAuth()
+		h.failedToAuth(w)
 		return false
 	}
+}
+
+func (h *handler) failedToAuth(w http.ResponseWriter) {
+	w.Header().Set("Proxy-Authenticate", "Basic")
+	w.WriteHeader(http.StatusProxyAuthRequired)
 }
 
 func (h *handler) handleConnectRequest(w http.ResponseWriter, r *http.Request) {

@@ -133,7 +133,7 @@ func TestNewHTTPProxyClientWithAuthenticate(t *testing.T) {
 		testsuite.IsDestroyed(t, client)
 	})
 
-	t.Run("not write password", func(t *testing.T) {
+	t.Run("no password", func(t *testing.T) {
 		client, err := NewHTTPClient("tcp", address, nil)
 		require.NoError(t, err)
 
