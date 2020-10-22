@@ -111,7 +111,7 @@ func generateSessionKey(password []byte) error {
 		return err
 	}
 	if exist {
-		const format = "session key file \"%s\" already exists\n"
+		const format = "session key file \"%s\" is already exists\n"
 		return errors.Errorf(format, controller.SessionKeyFilePath)
 	}
 	key, err := controller.GenerateSessionKey(password)

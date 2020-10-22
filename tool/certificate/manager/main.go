@@ -49,7 +49,7 @@ func initialize() {
 	exist, err := system.IsExist(certmgr.CertPoolFilePath)
 	checkError(err, true)
 	if exist {
-		const format = "certificate pool file \"%s\" already exists\n"
+		const format = "certificate pool file \"%s\" is already exists\n"
 		fmt.Printf(format, certmgr.CertPoolFilePath)
 		os.Exit(1)
 	}

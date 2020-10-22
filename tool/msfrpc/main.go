@@ -34,7 +34,7 @@ type config struct {
 		Address  string `toml:"address"`
 		Username string `toml:"username"`
 		Password string `toml:"password"`
-		msfrpc.Options
+		msfrpc.ClientOptions
 	} `toml:"msfrpc"`
 
 	Database msfrpc.DBConnectOptions `toml:"database"`
@@ -168,8 +168,8 @@ type program struct {
 
 	log       *os.File
 	listener  net.Listener
-	msfrpc    *msfrpc.MSFRPC
-	webServer *msfrpc.WebServer
+	msfrpc    *msfrpc.Client
+	webServer *msfrpc.Web
 	monitor   *msfrpc.Monitor
 
 	wg sync.WaitGroup
@@ -192,8 +192,8 @@ func newProgram(config *config) (*program, error) {
 	address := config.MSFRPC.Address
 	username := config.MSFRPC.Username
 	password := config.MSFRPC.Password
-	options := config.MSFRPC.Options
-	MSFRPC, err := msfrpc.NewMSFRPC(address, username, password, mLogger, &options)
+	options := config.MSFRPC.ClientOptions
+	MSFRPC, err := msfrpc.NewClient(address, username, password, mLogger, &options)
 	if err != nil {
 		return nil, err
 	}
@@ -227,14 +227,13 @@ func newProgram(config *config) (*program, error) {
 	webCfg.Options.TLSConfig.Certificates = certs
 
 	// create web server
-	webOpts := msfrpc.WebServerOptions{
-		HTTPServer:  webCfg.Options,
+	webOpts := msfrpc.WebOptions{
+		// HTTPServer:  webCfg.Options,
 		MaxConns:    webCfg.MaxConns,
 		MaxBodySize: config.Advance.MaxBodySize,
-		IOInterval:  config.Advance.IOInterval,
+		HFS:         http.Dir(webCfg.Directory),
 	}
-	fs := http.Dir(webCfg.Directory)
-	webServer, err := MSFRPC.NewWebServer(webCfg.Username, webCfg.Password, fs, &webOpts)
+	webServer, err := msfrpc.NewWeb(MSFRPC, webCfg.Password, &webOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -265,8 +264,12 @@ func (p *program) Start(s service.Service) error {
 	// start monitor
 	callbacks := p.webServer.Callbacks()
 	interval := p.config.Advance.MonitorInterval
-	p.monitor = p.msfrpc.NewMonitor(callbacks, interval, &p.config.Database)
-	p.monitor.StartDatabaseMonitors()
+	opts := msfrpc.MonitorOptions{
+		Interval:  interval,
+		EnableDB:  true,
+		DBOptions: &p.config.Database,
+	}
+	p.monitor = msfrpc.NewMonitor(p.msfrpc, callbacks, &opts)
 	// start web server
 	p.wg.Add(1)
 	go func() {
