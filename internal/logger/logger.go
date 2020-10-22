@@ -74,7 +74,7 @@ func Parse(level string) (Level, error) {
 // source usually like: class name + "-" + instance tag
 //
 // [2018-11-27 00:00:00] [info] <main> controller is running
-// [2018-11-27 00:00:00] [info] <socks5-test> start listener
+// [2018-11-27 00:00:00] [info] <socks5-test> test log
 func Prefix(time time.Time, level Level, src string) *bytes.Buffer {
 	var lv string
 	switch level {

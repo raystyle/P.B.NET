@@ -749,7 +749,7 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP := testGenerateHTTP(t)
 		HTTP.Request.URL = "http://localhost/"
 		HTTP.DNSOpts.Mode = dns.ModeSystem
-		HTTP.ProxyTag = "doesn't exist"
+		HTTP.ProxyTag = "is not exist"
 
 		data, err := HTTP.Marshal()
 		require.NoError(t, err)

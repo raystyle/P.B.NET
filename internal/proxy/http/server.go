@@ -186,7 +186,7 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 	s.addListenerAddress(&address)
 	defer s.deleteListenerAddress(&address)
 
-	s.logf(logger.Info, "start listener (%s %s)", network, address)
+	s.logf(logger.Info, "serve over listener (%s %s)", network, address)
 	defer s.logf(logger.Info, "listener closed (%s %s)", network, address)
 
 	if s.https {
