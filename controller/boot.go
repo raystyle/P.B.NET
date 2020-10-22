@@ -67,7 +67,7 @@ func (boot *boot) Delete(tag string) error {
 		client.Stop()
 		return nil
 	}
-	return errors.Errorf("boot: %s doesn't exist", tag)
+	return errors.Errorf("boot: %s is not exist", tag)
 }
 
 func (boot *boot) Clients() map[string]*bootClient {

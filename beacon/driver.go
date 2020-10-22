@@ -121,13 +121,13 @@ func (driver *driver) DeleteNodeListener(guid *guid.GUID, index uint64) error {
 	// check Node GUID is exist
 	listeners, ok := driver.nodeListeners[*guid]
 	if !ok {
-		return errors.New("node doesn't exist")
+		return errors.New("node is not exist")
 	}
 	if _, ok := listeners[index]; ok {
 		delete(listeners, index)
 		return nil
 	}
-	return errors.New("node listener doesn't exist")
+	return errors.New("node listener is not exist")
 }
 
 // DeleteAllNodeListener is used to delete Node's all listeners.

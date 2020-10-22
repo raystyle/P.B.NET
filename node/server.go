@@ -166,7 +166,7 @@ func (server *server) addListener(l *messages.Listener) (*xnet.Listener, error) 
 	server.rwm.Lock()
 	defer server.rwm.Unlock()
 	if _, ok := server.listeners[l.Tag]; ok {
-		return nil, errors.Errorf("listener %s already exists", l.Tag)
+		return nil, errors.Errorf("listener %s is already exists", l.Tag)
 	}
 	failed := func(err error) error {
 		return errors.WithMessagef(err, "failed to add listener %s", l.Tag)
@@ -296,7 +296,7 @@ func (server *server) GetListener(tag string) (*xnet.Listener, error) {
 	if listener, ok := server.listeners[tag]; ok {
 		return listener, nil
 	}
-	return nil, errors.Errorf("listener %s doesn't exist", tag)
+	return nil, errors.Errorf("listener %s is not exist", tag)
 }
 
 func (server *server) CloseListener(tag string) error {
@@ -305,7 +305,7 @@ func (server *server) CloseListener(tag string) error {
 	if listener, ok := server.listeners[tag]; ok {
 		return listener.Close()
 	}
-	return errors.Errorf("listener %s doesn't exist", tag)
+	return errors.Errorf("listener %s is not exist", tag)
 }
 
 func (server *server) Conns() map[guid.GUID]*xnet.Conn {

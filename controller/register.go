@@ -162,9 +162,9 @@ func (ctrl *Ctrl) ConfirmTrustNode(ctx context.Context, reply *ReplyNodeRegister
 func (ctrl *Ctrl) checkNodeExists(guid *guid.GUID) error {
 	_, err := ctrl.database.SelectNode(guid)
 	if err == nil {
-		return errors.Errorf("node already exists\n%s", guid.Print())
+		return errors.Errorf("node is already exists\n%s", guid.Print())
 	}
-	if err.Error() == fmt.Sprintf("node %s doesn't exist", guid.Hex()) {
+	if err.Error() == fmt.Sprintf("node %s is not exist", guid.Hex()) {
 		return nil
 	}
 	return err
@@ -397,9 +397,9 @@ func (ctrl *Ctrl) refuseRegisterNode(
 func (ctrl *Ctrl) checkBeaconExists(guid *guid.GUID) error {
 	_, err := ctrl.database.SelectBeacon(guid)
 	if err == nil {
-		return errors.Errorf("beacon already exists\n%s", guid.Print())
+		return errors.Errorf("beacon is already exists\n%s", guid.Print())
 	}
-	if err.Error() == fmt.Sprintf("beacon %s doesn't exist", guid.Hex()) {
+	if err.Error() == fmt.Sprintf("beacon %s is not exist", guid.Hex()) {
 		return nil
 	}
 	return err

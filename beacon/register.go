@@ -158,7 +158,7 @@ func (register *register) AddBootstrap(b *messages.Bootstrap) error {
 	register.bootstrapsRWM.Lock()
 	defer register.bootstrapsRWM.Unlock()
 	if _, ok := register.bootstraps[b.Tag]; ok {
-		return errors.Errorf("bootstrap %s already exists", b.Tag)
+		return errors.Errorf("bootstrap %s is already exists", b.Tag)
 	}
 	boot, err := bootstrap.Load(register.context, b.Mode, b.Config,
 		register.ctx.global.CertPool,
@@ -179,7 +179,7 @@ func (register *register) DeleteBootstrap(tag string) error {
 		delete(register.bootstraps, tag)
 		return nil
 	}
-	return errors.Errorf("bootstrap %s doesn't exist", tag)
+	return errors.Errorf("bootstrap %s is not exist", tag)
 }
 
 func (register *register) Bootstraps() map[string]bootstrap.Bootstrap {

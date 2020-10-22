@@ -608,7 +608,7 @@ func (mgr *actionMgr) Load(id string) (interface{}, error) {
 		delete(mgr.actions, id)
 		return action.object, nil
 	}
-	return nil, errors.New("this action doesn't exist")
+	return nil, errors.Errorf("action %s is not exist", id)
 }
 
 func (mgr *actionMgr) Close() {

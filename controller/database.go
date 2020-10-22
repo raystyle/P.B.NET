@@ -258,7 +258,7 @@ func (db *database) DeleteZone(m *mZone) (err error) {
 	err = db.db.Delete(&mZone{ID: m.ID}).Error
 	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
-			err = fmt.Errorf("zone %s doesn't exist", m.Name)
+			err = fmt.Errorf("zone %s is not exist", m.Name)
 		}
 		return
 	}
@@ -277,7 +277,7 @@ func (db *database) SelectNode(guid *guid.GUID) (*mNode, error) {
 	err := db.db.Find(node, "guid = ?", g).Error
 	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
-			err = errors.Errorf("node %s doesn't exist", guid.Hex())
+			err = errors.Errorf("node %s is not exist", guid.Hex())
 		}
 		return nil, err
 	}
@@ -321,7 +321,7 @@ func (db *database) InsertNode(node *mNode, info *mNodeInfo) (err error) {
 			Find(&zone, "name = ?", info.Zone).Error
 		if err != nil {
 			if gorm.IsRecordNotFoundError(err) {
-				err = fmt.Errorf("zone %s doesn't exist", info.Zone)
+				err = fmt.Errorf("zone %s is not exist", info.Zone)
 			}
 			return
 		}
@@ -383,7 +383,7 @@ func (db *database) SelectNodeListener(guid *guid.GUID) ([]*mNodeListener, error
 	err := db.db.Find(&listeners, "guid = ?", g).Error
 	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
-			err = fmt.Errorf("node %s doesn't exist", guid.Hex())
+			err = fmt.Errorf("node %s is not exist", guid.Hex())
 		}
 		return nil, err
 	}
@@ -417,7 +417,7 @@ func (db *database) SelectBeacon(guid *guid.GUID) (*mBeacon, error) {
 	err := db.db.Find(beacon, "guid = ?", guid[:]).Error
 	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
-			err = errors.Errorf("beacon %s doesn't exist", guid.Hex())
+			err = errors.Errorf("beacon %s is not exist", guid.Hex())
 		}
 		return nil, err
 	}

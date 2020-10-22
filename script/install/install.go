@@ -133,7 +133,7 @@ func verifyModule() bool {
 }
 
 func downloadModule() bool {
-	log.Println(logger.Info, "download module if it doesn't exist")
+	log.Println(logger.Info, "download module if it is not exist")
 	output, code, err := exec.Run("go", "build", "./...")
 	if code != 0 {
 		log.Println(logger.Error, output)
