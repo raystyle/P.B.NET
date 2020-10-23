@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/nettool"
+	"project/internal/security"
 	"project/internal/xpanic"
 )
 
@@ -22,13 +23,11 @@ type Client struct {
 	disableExt bool // socks4, disable resolve domain name
 
 	// options
-	username []byte
-	password []byte
-	userID   []byte
+	username *security.Bytes
+	password *security.Bytes
+	userID   *security.Bytes
 	timeout  time.Duration
-
 	protocol string // "socks5", "socks4a", "socks4"
-	info     string
 }
 
 // NewSocks5Client is used to create a socks5 client.
@@ -59,15 +58,19 @@ func newClient(network, address string, opts *Options, socks4, disableExt bool) 
 		address:    address,
 		socks4:     socks4,
 		disableExt: disableExt,
-		username:   []byte(opts.Username),
-		password:   []byte(opts.Password),
-		userID:     []byte(opts.UserID),
 		timeout:    opts.Timeout,
+	}
+	if opts.Username != "" || opts.Password != "" {
+		client.username = security.NewBytes([]byte(opts.Username))
+		client.password = security.NewBytes([]byte(opts.Password))
+	}
+	if opts.UserID != "" {
+		client.userID = security.NewBytes([]byte(opts.UserID))
 	}
 	if client.timeout < 1 {
 		client.timeout = defaultDialTimeout
 	}
-	// switch protocol
+	// select protocol
 	switch {
 	case !client.socks4:
 		client.protocol = "socks5"
@@ -76,22 +79,6 @@ func newClient(network, address string, opts *Options, socks4, disableExt bool) 
 	default:
 		client.protocol = "socks4a"
 	}
-	// info
-	buf := new(bytes.Buffer)
-	const format = "%-7s %s %s"
-	_, _ = fmt.Fprintf(buf, format, client.protocol, client.network, client.address)
-	if client.protocol == "socks5" {
-		if opts.Username != "" {
-			const format = " auth: %s:%s"
-			_, _ = fmt.Fprintf(buf, format, client.username, client.password)
-		}
-	} else {
-		if opts.UserID != "" {
-			const format = " user id: %s"
-			_, _ = fmt.Fprintf(buf, format, client.userID)
-		}
-	}
-	client.info = buf.String()
 	return &client, nil
 }
 
@@ -245,5 +232,19 @@ func (c *Client) Server() (string, string) {
 // socks5  tcp 127.0.0.1:1080 auth: admin:123456
 // socks4a tcp 127.0.0.1:1080 user id: test
 func (c *Client) Info() string {
-	return c.info
+	buf := new(bytes.Buffer)
+	const format = "%-7s %s %s"
+	_, _ = fmt.Fprintf(buf, format, c.protocol, c.network, c.address)
+	if c.protocol == "socks5" {
+		if c.username != nil {
+			const format = " auth: %s:%s"
+			_, _ = fmt.Fprintf(buf, format, c.username, c.password)
+		}
+	} else {
+		if c.userID != nil {
+			const format = " user id: %s"
+			_, _ = fmt.Fprintf(buf, format, c.userID)
+		}
+	}
+	return buf.String()
 }

@@ -31,7 +31,7 @@ type Options struct {
 
 	// secondary proxy
 	// internal/proxy.client.DialContext()
-	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-"`
+	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-" msgpack:"-"`
 }
 
 // CheckNetwork is used to check network is supported.

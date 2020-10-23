@@ -69,7 +69,6 @@ func (c *Client) connectSocks4(conn net.Conn, host string, port uint16) error {
 		copy(hostData, host)
 		socks4aExt = true
 	}
-
 	// handshake
 	buffer := bytes.Buffer{}
 	buffer.WriteByte(version4)
@@ -80,8 +79,12 @@ func (c *Client) connectSocks4(conn net.Conn, host string, port uint16) error {
 	} else {
 		buffer.Write(hostData) // IPv4
 	}
-	// user id
-	buffer.Write(c.userID)
+	// write user id
+	if c.userID != nil {
+		userID := c.userID.Get()
+		defer c.userID.Put(userID)
+		buffer.Write(userID)
+	}
 	buffer.WriteByte(0x00) // NULL
 	// write domain
 	if socks4aExt {
@@ -92,7 +95,6 @@ func (c *Client) connectSocks4(conn net.Conn, host string, port uint16) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to write socks4 request data")
 	}
-
 	// read response, version4, reply, port, ip
 	reply := make([]byte, 1+1+2+net.IPv4len)
 	_, err = io.ReadFull(conn, reply)
@@ -211,7 +213,12 @@ func (conn *conn) checkUserID() bool {
 		userID = append(userID, buffer[0])
 	}
 	// compare user id
-	if subtle.ConstantTimeCompare(conn.ctx.userID, userID) != 1 {
+	if conn.ctx.userID == nil {
+		return true
+	}
+	uid := conn.ctx.userID.Get()
+	defer conn.ctx.userID.Put(uid)
+	if subtle.ConstantTimeCompare(uid, userID) != 1 {
 		conn.logf(logger.Exploit, "invalid user id: %s", userID)
 		return false
 	}

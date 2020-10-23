@@ -38,7 +38,7 @@ type Server struct {
 	// options
 	username *security.Bytes
 	password *security.Bytes
-	userID   []byte
+	userID   *security.Bytes
 	timeout  time.Duration
 	maxConns int
 
@@ -108,7 +108,7 @@ func newServer(tag string, lg logger.Logger, opts *Options, socks4, disableExt b
 		srv.password = security.NewBytes([]byte(opts.Password))
 	}
 	if opts.UserID != "" {
-		srv.userID = []byte(opts.UserID)
+		srv.userID = security.NewBytes([]byte(opts.UserID))
 	}
 	if srv.timeout < 1 {
 		srv.timeout = defaultConnectTimeout

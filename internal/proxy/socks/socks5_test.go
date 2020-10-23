@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/security"
 	"project/internal/testsuite"
 )
 
@@ -159,8 +160,8 @@ func TestClient_authenticate(t *testing.T) {
 
 	t.Run("failed to write", func(t *testing.T) {
 		client := Client{
-			username: []byte("user"),
-			password: []byte("pass"),
+			username: security.NewBytes([]byte("user")),
+			password: security.NewBytes([]byte("pass")),
 		}
 		conn := testsuite.NewMockConnWithWriteError()
 
@@ -172,8 +173,8 @@ func TestClient_authenticate(t *testing.T) {
 
 	t.Run("failed to read response", func(t *testing.T) {
 		client := Client{
-			username: []byte("user"),
-			password: []byte("pass"),
+			username: security.NewBytes([]byte("user")),
+			password: security.NewBytes([]byte("pass")),
 		}
 		conn := testsuite.NewMockConnWithReadError()
 
@@ -185,12 +186,14 @@ func TestClient_authenticate(t *testing.T) {
 
 	t.Run("invalid response 0", func(t *testing.T) {
 		client := &Client{
-			username: []byte("user"),
-			password: []byte("pass"),
+			username: security.NewBytes([]byte("user")),
+			password: security.NewBytes([]byte("pass")),
 		}
 
 		testClientAuthenticate(t, client, func(server net.Conn) {
-			size := int64(1 + 1 + len(client.username) + 1 + len(client.password))
+			username := client.username.String()
+			password := client.password.String()
+			size := int64(1 + 1 + len(username) + 1 + len(password))
 			_, err := io.CopyN(ioutil.Discard, server, size)
 			require.NoError(t, err)
 
@@ -205,12 +208,14 @@ func TestClient_authenticate(t *testing.T) {
 
 	t.Run("invalid response 1", func(t *testing.T) {
 		client := &Client{
-			username: []byte("user"),
-			password: []byte("pass"),
+			username: security.NewBytes([]byte("user")),
+			password: security.NewBytes([]byte("pass")),
 		}
 
 		testClientAuthenticate(t, client, func(server net.Conn) {
-			size := int64(1 + 1 + len(client.username) + 1 + len(client.password))
+			username := client.username.String()
+			password := client.password.String()
+			size := int64(1 + 1 + len(username) + 1 + len(password))
 			_, err := io.CopyN(ioutil.Discard, server, size)
 			require.NoError(t, err)
 

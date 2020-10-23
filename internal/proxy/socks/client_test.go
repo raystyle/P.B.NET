@@ -10,22 +10,6 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestNewSocksClient(t *testing.T) {
-	const (
-		network = "foo"
-		address = "localhost:0"
-	)
-
-	_, err := NewSocks5Client(network, address, nil)
-	require.Error(t, err)
-
-	_, err = NewSocks4aClient(network, address, nil)
-	require.Error(t, err)
-
-	_, err = NewSocks4Client(network, address, nil)
-	require.Error(t, err)
-}
-
 func TestSocks5Client(t *testing.T) {
 	testsuite.InitHTTPServers(t)
 
@@ -228,6 +212,22 @@ func TestSocks4aClientFailure(t *testing.T) {
 
 		testsuite.ProxyClientWithUnreachableTarget(t, server, client)
 	})
+}
+
+func TestNewSocksClient(t *testing.T) {
+	const (
+		network = "foo"
+		address = "localhost:0"
+	)
+
+	_, err := NewSocks5Client(network, address, nil)
+	require.Error(t, err)
+
+	_, err = NewSocks4aClient(network, address, nil)
+	require.Error(t, err)
+
+	_, err = NewSocks4Client(network, address, nil)
+	require.Error(t, err)
 }
 
 func TestClient_Connect(t *testing.T) {

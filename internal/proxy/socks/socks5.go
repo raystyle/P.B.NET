@@ -74,7 +74,7 @@ func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
 	// request authentication
 	buf := bytes.Buffer{}
 	buf.WriteByte(version5)
-	if len(c.username) == 0 {
+	if c.username == nil {
 		buf.WriteByte(1)
 		buf.WriteByte(notRequired)
 	} else {
@@ -133,18 +133,22 @@ func (c *Client) authenticate(conn net.Conn, am uint8) error {
 	switch am {
 	case notRequired:
 	case usernamePassword:
-		username := c.username
-		password := c.password
-		if len(username) == 0 {
-			return errors.New("empty username")
+		if c.username == nil {
+			return errors.New("remote socks5 server require authenticate")
 		}
 		// https://www.ietf.org/rfc/rfc1929.txt
 		buf := bytes.Buffer{}
 		buf.WriteByte(usernamePasswordVersion)
-		buf.WriteByte(byte(len(username)))
-		buf.Write(username)
-		buf.WriteByte(byte(len(password)))
-		buf.Write(password)
+		// get username and password
+		user := c.username.Get()
+		defer c.username.Put(user)
+		pass := c.password.Get()
+		defer c.password.Put(pass)
+		// write it
+		buf.WriteByte(byte(len(user)))
+		buf.Write(user)
+		buf.WriteByte(byte(len(pass)))
+		buf.Write(pass)
 		_, err := conn.Write(buf.Bytes())
 		if err != nil {
 			return errors.Wrap(err, "failed to write socks5 username password")
@@ -155,10 +159,10 @@ func (c *Client) authenticate(conn net.Conn, am uint8) error {
 			return errors.Wrap(err, "failed to read socks5 username password reply")
 		}
 		if response[0] != usernamePasswordVersion {
-			return errors.New("invalid username/password version")
+			return errors.New("invalid username password version")
 		}
 		if response[1] != statusSucceeded {
-			return errors.New("invalid username/password")
+			return errors.New("invalid username or password")
 		}
 	case noAcceptableMethods:
 		return errors.New("no acceptable authentication methods")
