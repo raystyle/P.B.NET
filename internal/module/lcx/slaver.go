@@ -221,7 +221,8 @@ func (s *Slaver) serve() {
 			}
 			continue
 		}
-		s.newConn(conn).Serve()
+		c := s.newConn(conn)
+		c.Serve()
 		s.online = true
 	}
 }
@@ -245,10 +246,7 @@ func (s *Slaver) connectToListener() (net.Conn, error) {
 }
 
 func (s *Slaver) newConn(c net.Conn) *sConn {
-	return &sConn{
-		slaver: s,
-		local:  c,
-	}
+	return &sConn{ctx: s, local: c}
 }
 
 func (s *Slaver) trackConn(conn *sConn, add bool) bool {
@@ -266,35 +264,35 @@ func (s *Slaver) trackConn(conn *sConn, add bool) bool {
 }
 
 type sConn struct {
-	slaver *Slaver
-	local  net.Conn
+	ctx   *Slaver
+	local net.Conn
 }
 
 func (c *sConn) log(lv logger.Level, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log...)
 	_, _ = logger.Conn(c.local).WriteTo(buf)
-	c.slaver.log(lv, buf)
+	c.ctx.log(lv, buf)
 }
 
 func (c *sConn) Serve() {
 	done := make(chan struct{}, 3)
-	c.slaver.wg.Add(1)
+	c.ctx.wg.Add(1)
 	go c.serve(done)
 	select {
 	case <-done:
-	case <-c.slaver.ctx.Done():
+	case <-c.ctx.ctx.Done():
 	}
 }
 
 func (c *sConn) serve(done chan<- struct{}) {
-	defer c.slaver.wg.Done()
+	defer c.ctx.wg.Done()
 
 	// send done signal
 	defer func() {
 		select {
 		case done <- struct{}{}:
-		case <-c.slaver.ctx.Done():
+		case <-c.ctx.ctx.Done():
 		}
 	}()
 
@@ -316,22 +314,22 @@ func (c *sConn) serve(done chan<- struct{}) {
 	var ok bool
 	defer func() {
 		if ok {
-			c.slaver.log(logger.Info, c.slaver.Status(), "connection closed")
+			c.ctx.log(logger.Info, c.ctx.Status(), "connection closed")
 		} else {
-			c.slaver.log(logger.Info, c.slaver.Status())
+			c.ctx.log(logger.Info, c.ctx.Status())
 		}
 	}()
 
-	if !c.slaver.trackConn(c, true) {
+	if !c.ctx.trackConn(c, true) {
 		return
 	}
-	defer c.slaver.trackConn(c, false)
+	defer c.ctx.trackConn(c, false)
 
 	// connect the target
-	ctx, cancel := context.WithTimeout(c.slaver.ctx, c.slaver.opts.ConnectTimeout)
+	ctx, cancel := context.WithTimeout(c.ctx.ctx, c.ctx.opts.ConnectTimeout)
 	defer cancel()
-	network := c.slaver.dstNetwork
-	address := c.slaver.dstAddress
+	network := c.ctx.dstNetwork
+	address := c.ctx.dstAddress
 	remote, err := new(net.Dialer).DialContext(ctx, network, address)
 	if err != nil {
 		c.log(logger.Error, "failed to connect target:", err)
@@ -346,10 +344,10 @@ func (c *sConn) serve(done chan<- struct{}) {
 	}()
 
 	// print current status
-	c.slaver.log(logger.Info, c.slaver.Status())
+	c.ctx.log(logger.Info, c.ctx.Status())
 
 	// start another goroutine to copy
-	c.slaver.wg.Add(1)
+	c.ctx.wg.Add(1)
 	go c.serveRemote(done, remote)
 
 	// read one byte for block it, prevent slaver burst connect listener.
@@ -359,7 +357,7 @@ func (c *sConn) serve(done chan<- struct{}) {
 	if err != nil {
 		return
 	}
-	_ = remote.SetWriteDeadline(time.Now().Add(c.slaver.opts.ConnectTimeout))
+	_ = remote.SetWriteDeadline(time.Now().Add(c.ctx.opts.ConnectTimeout))
 	_, err = remote.Write(oneByte)
 	if err != nil {
 		c.log(logger.Error, "failed to write to remote connection:", err)
@@ -369,7 +367,7 @@ func (c *sConn) serve(done chan<- struct{}) {
 	// send done signal
 	select {
 	case done <- struct{}{}:
-	case <-c.slaver.ctx.Done():
+	case <-c.ctx.ctx.Done():
 		return
 	}
 
@@ -382,7 +380,7 @@ func (c *sConn) serve(done chan<- struct{}) {
 }
 
 func (c *sConn) serveRemote(done chan<- struct{}, remote net.Conn) {
-	defer c.slaver.wg.Done()
+	defer c.ctx.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			c.log(logger.Fatal, xpanic.Print(r, "sConn.serveRemote"))
@@ -396,7 +394,7 @@ func (c *sConn) serveRemote(done chan<- struct{}, remote net.Conn) {
 	if err != nil {
 		return
 	}
-	_ = c.local.SetWriteDeadline(time.Now().Add(c.slaver.opts.ConnectTimeout))
+	_ = c.local.SetWriteDeadline(time.Now().Add(c.ctx.opts.ConnectTimeout))
 	_, err = c.local.Write(oneByte)
 	if err != nil {
 		c.log(logger.Error, "failed to write to listener connection:", err)
@@ -406,7 +404,7 @@ func (c *sConn) serveRemote(done chan<- struct{}, remote net.Conn) {
 	// send done signal
 	select {
 	case done <- struct{}{}:
-	case <-c.slaver.ctx.Done():
+	case <-c.ctx.ctx.Done():
 		return
 	}
 

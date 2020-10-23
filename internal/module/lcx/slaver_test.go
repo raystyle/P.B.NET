@@ -171,8 +171,8 @@ func TestSlaver_Stop(t *testing.T) {
 		slaver.ctx, slaver.cancel = context.WithCancel(context.Background())
 
 		conn := &sConn{
-			slaver: slaver,
-			local:  testsuite.NewMockConnWithCloseError(),
+			ctx:   slaver,
+			local: testsuite.NewMockConnWithCloseError(),
 		}
 		slaver.trackConn(conn, true)
 
@@ -391,14 +391,14 @@ func TestSConn_Serve(t *testing.T) {
 			// block
 			done <- struct{}{}
 			done <- struct{}{}
-			c.slaver.wg.Add(1)
+			c.ctx.wg.Add(1)
 			go c.serve(done)
 
 			time.Sleep(time.Second)
 			go slaver.Stop()
 			go listener.Stop()
 
-			<-c.slaver.ctx.Done()
+			<-c.ctx.ctx.Done()
 		}
 		pg := monkey.PatchInstanceMethod(conn, "Serve", patch)
 		defer pg.Unpatch()
@@ -429,14 +429,14 @@ func TestSConn_Serve(t *testing.T) {
 			done := make(chan struct{}, 2)
 			// block
 			done <- struct{}{}
-			c.slaver.wg.Add(1)
+			c.ctx.wg.Add(1)
 			go c.serve(done)
 
 			time.Sleep(time.Second)
 			go slaver.Stop()
 			go listener.Stop()
 
-			<-c.slaver.ctx.Done()
+			<-c.ctx.ctx.Done()
 		}
 		pg := monkey.PatchInstanceMethod(conn, "Serve", patch)
 		defer pg.Unpatch()
@@ -465,10 +465,10 @@ func TestSConn_Serve(t *testing.T) {
 		conn := new(sConn)
 		patch1 := func(c *sConn) {
 			done := make(chan struct{})
-			c.slaver.wg.Add(1)
+			c.ctx.wg.Add(1)
 			go c.serve(done)
 
-			<-c.slaver.ctx.Done()
+			<-c.ctx.ctx.Done()
 		}
 		pg1 := monkey.PatchInstanceMethod(conn, "Serve", patch1)
 		defer pg1.Unpatch()
@@ -564,8 +564,8 @@ func TestSlaver_Parallel(t *testing.T) {
 	}
 	track := func() {
 		conn := &sConn{
-			slaver: slaver,
-			local:  testsuite.NewMockConn(),
+			ctx:   slaver,
+			local: testsuite.NewMockConn(),
 		}
 		slaver.trackConn(conn, true)
 	}

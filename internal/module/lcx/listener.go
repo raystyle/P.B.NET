@@ -280,8 +280,9 @@ func (l *Listener) serve(iListener, lListener net.Listener) {
 		_, _ = logger.Conn(local).WriteTo(buf)
 		_, _ = fmt.Fprint(buf, "\n", l.Status())
 		l.log(logger.Info, buf)
-		// copy
-		l.newConn(remote, local).Serve()
+		// serve
+		c := l.newConn(remote, local)
+		c.Serve()
 	}
 }
 
@@ -315,11 +316,7 @@ func (l *Listener) accept(listener net.Listener) net.Conn {
 }
 
 func (l *Listener) newConn(remote, local net.Conn) *lConn {
-	return &lConn{
-		listener: l,
-		remote:   remote,
-		local:    local,
-	}
+	return &lConn{ctx: l, remote: remote, local: local}
 }
 
 func (l *Listener) trackConn(conn *lConn, add bool) bool {
@@ -337,25 +334,25 @@ func (l *Listener) trackConn(conn *lConn, add bool) bool {
 }
 
 type lConn struct {
-	listener *Listener
-	remote   net.Conn // slaver income connection
-	local    net.Conn // user income connection
+	ctx    *Listener
+	remote net.Conn // slaver income connection
+	local  net.Conn // user income connection
 }
 
 func (c *lConn) log(lv logger.Level, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log...)
 	_, _ = logger.Conn(c.remote).WriteTo(buf)
-	c.listener.log(lv, buf)
+	c.ctx.log(lv, buf)
 }
 
 func (c *lConn) Serve() {
-	c.listener.wg.Add(1)
+	c.ctx.wg.Add(1)
 	go c.serve()
 }
 
 func (c *lConn) serve() {
-	defer c.listener.wg.Done()
+	defer c.ctx.wg.Done()
 
 	const title = "lConn.serve"
 	defer func() {
@@ -379,23 +376,23 @@ func (c *lConn) serve() {
 		buf := new(bytes.Buffer)
 		_, _ = fmt.Fprintln(buf, "connection closed")
 		_, _ = logger.Conn(c.local).WriteTo(buf)
-		_, _ = fmt.Fprint(buf, "\n", c.listener.Status())
-		c.listener.log(logger.Info, buf)
+		_, _ = fmt.Fprint(buf, "\n", c.ctx.Status())
+		c.ctx.log(logger.Info, buf)
 	}()
 
-	if !c.listener.trackConn(c, true) {
+	if !c.ctx.trackConn(c, true) {
 		return
 	}
-	defer c.listener.trackConn(c, false)
+	defer c.ctx.trackConn(c, false)
 
 	// reset deadline
 	_ = c.remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
 
 	// started copy
-	c.listener.wg.Add(1)
+	c.ctx.wg.Add(1)
 	go func() {
-		defer c.listener.wg.Done()
+		defer c.ctx.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				c.log(logger.Fatal, xpanic.Print(r, title))

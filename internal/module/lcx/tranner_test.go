@@ -171,8 +171,8 @@ func TestTranner_Stop(t *testing.T) {
 		tranner.listener = testsuite.NewMockListenerWithCloseError()
 
 		conn := &tConn{
-			tranner: tranner,
-			local:   testsuite.NewMockConnWithCloseError(),
+			ctx:   tranner,
+			local: testsuite.NewMockConnWithCloseError(),
 		}
 		tranner.trackConn(conn, true)
 
@@ -412,8 +412,8 @@ func TestTranner_Parallel(t *testing.T) {
 	}
 	track := func() {
 		conn := &tConn{
-			tranner: tranner,
-			local:   testsuite.NewMockConn(),
+			ctx:   tranner,
+			local: testsuite.NewMockConn(),
 		}
 		tranner.trackConn(conn, true)
 	}

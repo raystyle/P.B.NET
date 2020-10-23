@@ -204,9 +204,9 @@ func TestListener_Stop(t *testing.T) {
 		listener.lListener = testsuite.NewMockListenerWithCloseError()
 
 		conn := &lConn{
-			listener: listener,
-			remote:   testsuite.NewMockConnWithCloseError(),
-			local:    testsuite.NewMockConnWithCloseError(),
+			ctx:    listener,
+			remote: testsuite.NewMockConnWithCloseError(),
+			local:  testsuite.NewMockConnWithCloseError(),
 		}
 		listener.trackConn(conn, true)
 
@@ -409,9 +409,9 @@ func TestListener_Parallel(t *testing.T) {
 	}
 	track := func() {
 		conn := &lConn{
-			listener: listener,
-			remote:   testsuite.NewMockConn(),
-			local:    testsuite.NewMockConn(),
+			ctx:    listener,
+			remote: testsuite.NewMockConn(),
+			local:  testsuite.NewMockConn(),
 		}
 		listener.trackConn(conn, true)
 	}

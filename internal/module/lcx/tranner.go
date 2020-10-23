@@ -241,15 +241,13 @@ func (t *Tranner) serve(listener net.Listener) {
 			return
 		}
 		delay = 0
-		t.newConn(conn).Serve()
+		c := t.newConn(conn)
+		c.Serve()
 	}
 }
 
 func (t *Tranner) newConn(c net.Conn) *tConn {
-	return &tConn{
-		tranner: t,
-		local:   c,
-	}
+	return &tConn{ctx: t, local: c}
 }
 
 func (t *Tranner) trackConn(conn *tConn, add bool) bool {
@@ -267,24 +265,24 @@ func (t *Tranner) trackConn(conn *tConn, add bool) bool {
 }
 
 type tConn struct {
-	tranner *Tranner
-	local   net.Conn
+	ctx   *Tranner
+	local net.Conn
 }
 
 func (c *tConn) log(lv logger.Level, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log...)
 	_, _ = logger.Conn(c.local).WriteTo(buf)
-	c.tranner.log(lv, buf)
+	c.ctx.log(lv, buf)
 }
 
 func (c *tConn) Serve() {
-	c.tranner.wg.Add(1)
+	c.ctx.wg.Add(1)
 	go c.serve()
 }
 
 func (c *tConn) serve() {
-	defer c.tranner.wg.Done()
+	defer c.ctx.wg.Done()
 
 	const title = "tConn.serve"
 	defer func() {
@@ -306,23 +304,23 @@ func (c *tConn) serve() {
 			buf := new(bytes.Buffer)
 			_, _ = fmt.Fprintln(buf, "connection closed")
 			_, _ = logger.Conn(c.local).WriteTo(buf)
-			_, _ = fmt.Fprint(buf, "\n", c.tranner.Status())
-			c.tranner.log(logger.Info, buf)
+			_, _ = fmt.Fprint(buf, "\n", c.ctx.Status())
+			c.ctx.log(logger.Info, buf)
 		} else {
-			c.tranner.log(logger.Info, c.tranner.Status())
+			c.ctx.log(logger.Info, c.ctx.Status())
 		}
 	}()
 
-	if !c.tranner.trackConn(c, true) {
+	if !c.ctx.trackConn(c, true) {
 		return
 	}
-	defer c.tranner.trackConn(c, false)
+	defer c.ctx.trackConn(c, false)
 
 	// connect the target
-	ctx, cancel := context.WithTimeout(c.tranner.ctx, c.tranner.opts.ConnectTimeout)
+	ctx, cancel := context.WithTimeout(c.ctx.ctx, c.ctx.opts.ConnectTimeout)
 	defer cancel()
-	network := c.tranner.dstNetwork
-	address := c.tranner.dstAddress
+	network := c.ctx.dstNetwork
+	address := c.ctx.dstAddress
 	remote, err := new(net.Dialer).DialContext(ctx, network, address)
 	if err != nil {
 		c.log(logger.Error, "failed to connect target:", err)
@@ -340,17 +338,17 @@ func (c *tConn) serve() {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, "income connection")
 	_, _ = logger.Conn(c.local).WriteTo(buf)
-	_, _ = fmt.Fprint(buf, "\n", c.tranner.Status())
-	c.tranner.log(logger.Info, buf)
+	_, _ = fmt.Fprint(buf, "\n", c.ctx.Status())
+	c.ctx.log(logger.Info, buf)
 
 	// reset deadline
 	_ = remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
 
 	// started copy
-	c.tranner.wg.Add(1)
+	c.ctx.wg.Add(1)
 	go func() {
-		defer c.tranner.wg.Done()
+		defer c.ctx.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				c.log(logger.Fatal, xpanic.Print(r, title))
