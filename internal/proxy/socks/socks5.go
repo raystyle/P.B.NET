@@ -215,88 +215,88 @@ var (
 	v5ReplyAddressNotSupport = []byte{version5, addrNotSupport, reserve, ipv4, 0, 0, 0, 0, 0, 0}
 )
 
-func (c *conn) serveSocks5() {
+func (conn *conn) serveSocks5() {
 	buf := make([]byte, 4)
 	// read version
-	_, err := io.ReadFull(c.local, buf[:1])
+	_, err := io.ReadFull(conn.local, buf[:1])
 	if err != nil {
-		c.log(logger.Error, "failed to read socks5 version:", err)
+		conn.log(logger.Error, "failed to read socks5 version:", err)
 		return
 	}
 	if buf[0] != version5 {
-		c.log(logger.Error, "unexpected socks5 version")
+		conn.log(logger.Error, "unexpected socks5 version")
 		return
 	}
 	// read authentication methods
-	_, err = io.ReadFull(c.local, buf[:1])
+	_, err = io.ReadFull(conn.local, buf[:1])
 	if err != nil {
 		const msg = "failed to read the number of the authentication methods:"
-		c.log(logger.Error, msg, err)
+		conn.log(logger.Error, msg, err)
 		return
 	}
 	l := int(buf[0])
 	if l == 0 {
-		c.log(logger.Error, "no authentication method")
+		conn.log(logger.Error, "no authentication method")
 		return
 	}
 	if l > len(buf) {
 		buf = make([]byte, l)
 	}
-	_, err = io.ReadFull(c.local, buf[:l])
+	_, err = io.ReadFull(conn.local, buf[:l])
 	if err != nil {
-		c.log(logger.Error, "failed to read authentication methods:", err)
+		conn.log(logger.Error, "failed to read authentication methods:", err)
 		return
 	}
-	if !c.authenticate() {
+	if !conn.authenticate() {
 		return
 	}
-	target := c.receiveTarget()
+	target := conn.receiveTarget()
 	if target == "" {
 		return
 	}
 	// connect target
-	c.log(logger.Info, "connect:", target)
-	ctx, cancel := context.WithTimeout(c.server.ctx, c.server.timeout)
+	conn.log(logger.Info, "connect:", target)
+	ctx, cancel := context.WithTimeout(conn.ctx.ctx, conn.ctx.timeout)
 	defer cancel()
-	remote, err := c.server.dialContext(ctx, "tcp", target)
+	remote, err := conn.ctx.dialContext(ctx, "tcp", target)
 	if err != nil {
-		c.log(logger.Error, "failed to connect target:", err)
-		_, _ = c.local.Write(v5ReplyConnectRefused)
+		conn.log(logger.Error, "failed to connect target:", err)
+		_, _ = conn.local.Write(v5ReplyConnectRefused)
 		return
 	}
 	// write reply
-	_, err = c.local.Write(v5ReplySucceeded)
+	_, err = conn.local.Write(v5ReplySucceeded)
 	if err != nil {
-		c.log(logger.Error, "failed to write reply:", err)
+		conn.log(logger.Error, "failed to write reply:", err)
 		_ = remote.Close()
 		return
 	}
-	c.remote = remote
+	conn.remote = remote
 }
 
-func (c *conn) authenticate() bool {
+func (conn *conn) authenticate() bool {
 	var err error
-	if c.server.username != nil {
-		_, err = c.local.Write([]byte{version5, usernamePassword})
+	if conn.ctx.username != nil {
+		_, err = conn.local.Write([]byte{version5, usernamePassword})
 		if err != nil {
-			c.log(logger.Error, "failed to write authentication methods:", err)
+			conn.log(logger.Error, "failed to write authentication methods:", err)
 			return false
 		}
 		buf := make([]byte, 16)
 		// read username and password version
-		_, err = io.ReadFull(c.local, buf[:1])
+		_, err = io.ReadFull(conn.local, buf[:1])
 		if err != nil {
-			c.log(logger.Error, "failed to read username password version:", err)
+			conn.log(logger.Error, "failed to read username password version:", err)
 			return false
 		}
 		if buf[0] != usernamePasswordVersion {
-			c.log(logger.Error, "unexpected username password version")
+			conn.log(logger.Error, "unexpected username password version")
 			return false
 		}
 		// read username length
-		_, err = io.ReadFull(c.local, buf[:1])
+		_, err = io.ReadFull(conn.local, buf[:1])
 		if err != nil {
-			c.log(logger.Error, "failed to read username length:", err)
+			conn.log(logger.Error, "failed to read username length:", err)
 			return false
 		}
 		l := int(buf[0])
@@ -304,17 +304,17 @@ func (c *conn) authenticate() bool {
 			buf = make([]byte, l)
 		}
 		// read username
-		_, err = io.ReadFull(c.local, buf[:l])
+		_, err = io.ReadFull(conn.local, buf[:l])
 		if err != nil {
-			c.log(logger.Error, "failed to read username:", err)
+			conn.log(logger.Error, "failed to read username:", err)
 			return false
 		}
 		username := make([]byte, l)
 		copy(username, buf[:l])
 		// read password length
-		_, err = io.ReadFull(c.local, buf[:1])
+		_, err = io.ReadFull(conn.local, buf[:1])
 		if err != nil {
-			c.log(logger.Error, "failed to read password length:", err)
+			conn.log(logger.Error, "failed to read password length:", err)
 			return false
 		}
 		l = int(buf[0])
@@ -322,32 +322,38 @@ func (c *conn) authenticate() bool {
 			buf = make([]byte, l)
 		}
 		// read password
-		_, err = io.ReadFull(c.local, buf[:l])
+		_, err = io.ReadFull(conn.local, buf[:l])
 		if err != nil {
-			c.log(logger.Error, "failed to read password:", err)
+			conn.log(logger.Error, "failed to read password:", err)
 			return false
 		}
 		password := make([]byte, l)
 		copy(password, buf[:l])
 		// write username password version
-		_, err = c.local.Write([]byte{usernamePasswordVersion})
+		_, err = conn.local.Write([]byte{usernamePasswordVersion})
 		if err != nil {
-			c.log(logger.Error, "failed to write username password version:", err)
+			conn.log(logger.Error, "failed to write username password version:", err)
 			return false
 		}
-		if subtle.ConstantTimeCompare(c.server.username, username) != 1 ||
-			subtle.ConstantTimeCompare(c.server.password, password) != 1 {
-			const format = "invalid username password: %s %s"
-			c.logf(logger.Exploit, format, username, password)
-			_, _ = c.local.Write([]byte{statusFailed})
+		// compare
+		eUser := conn.ctx.username.Get()
+		defer conn.ctx.username.Put(eUser)
+		ePass := conn.ctx.password.Get()
+		defer conn.ctx.password.Put(ePass)
+		userErr := subtle.ConstantTimeCompare(eUser, username) != 1
+		passErr := subtle.ConstantTimeCompare(ePass, password) != 1
+		if userErr || passErr {
+			const format = "invalid username or password: %s:%s"
+			conn.logf(logger.Exploit, format, username, password)
+			_, _ = conn.local.Write([]byte{statusFailed})
 			return false
 		}
-		_, err = c.local.Write([]byte{statusSucceeded})
+		_, err = conn.local.Write([]byte{statusSucceeded})
 	} else {
-		_, err = c.local.Write([]byte{version5, notRequired})
+		_, err = conn.local.Write([]byte{version5, notRequired})
 	}
 	if err != nil {
-		c.log(logger.Error, "failed to write authentication reply:", err)
+		conn.log(logger.Error, "failed to write authentication reply:", err)
 		return false
 	}
 	return true
@@ -355,71 +361,71 @@ func (c *conn) authenticate() bool {
 
 // receiveTarget receive connect target
 // version | cmd | reserve | address type
-func (c *conn) receiveTarget() string {
+func (conn *conn) receiveTarget() string {
 	buf := make([]byte, 4+net.IPv4len+2) // 4 + 4(ipv4) + 2(port)
-	_, err := io.ReadFull(c.local, buf[:4])
+	_, err := io.ReadFull(conn.local, buf[:4])
 	if err != nil {
-		c.log(logger.Error, "failed to read version cmd address type:", err)
+		conn.log(logger.Error, "failed to read version cmd address type:", err)
 		return ""
 	}
 	if buf[0] != version5 {
-		c.log(logger.Error, "unexpected socks5 version")
+		conn.log(logger.Error, "unexpected socks5 version")
 		return ""
 	}
 	if buf[1] != connect {
-		c.log(logger.Error, "unknown command:", buf[1])
-		_, _ = c.local.Write([]byte{version5, cmdNotSupport, reserve})
+		conn.log(logger.Error, "unknown command:", buf[1])
+		_, _ = conn.local.Write([]byte{version5, cmdNotSupport, reserve})
 		return ""
 	}
 	if buf[2] != reserve { // reserve
-		c.log(logger.Exploit, "non-zero reserved field")
-		_, _ = c.local.Write([]byte{version5, noReserve, reserve})
+		conn.log(logger.Exploit, "non-zero reserved field")
+		_, _ = conn.local.Write([]byte{version5, noReserve, reserve})
 		return ""
 	}
 	// read host
 	var host string
 	switch buf[3] {
 	case ipv4:
-		_, err = io.ReadFull(c.local, buf[:net.IPv4len])
+		_, err = io.ReadFull(conn.local, buf[:net.IPv4len])
 		if err != nil {
-			c.log(logger.Error, "failed to read IPv4 address:", err)
+			conn.log(logger.Error, "failed to read IPv4 address:", err)
 			return ""
 		}
 		host = net.IP(buf[:net.IPv4len]).String()
 	case ipv6:
 		buf = make([]byte, net.IPv6len)
-		_, err = io.ReadFull(c.local, buf[:net.IPv6len])
+		_, err = io.ReadFull(conn.local, buf[:net.IPv6len])
 		if err != nil {
-			c.log(logger.Error, "failed to read IPv6 address:", err)
+			conn.log(logger.Error, "failed to read IPv6 address:", err)
 			return ""
 		}
 		host = net.IP(buf[:net.IPv6len]).String()
 	case fqdn:
 		// get FQDN length
-		_, err = io.ReadFull(c.local, buf[:1])
+		_, err = io.ReadFull(conn.local, buf[:1])
 		if err != nil {
-			c.log(logger.Error, "failed to read FQDN length:", err)
+			conn.log(logger.Error, "failed to read FQDN length:", err)
 			return ""
 		}
 		l := int(buf[0])
 		if l > len(buf) {
 			buf = make([]byte, l)
 		}
-		_, err = io.ReadFull(c.local, buf[:l])
+		_, err = io.ReadFull(conn.local, buf[:l])
 		if err != nil {
-			c.log(logger.Error, "failed to read FQDN:", err)
+			conn.log(logger.Error, "failed to read FQDN:", err)
 			return ""
 		}
 		host = string(buf[:l])
 	default:
-		c.log(logger.Error, "invalid address type:", buf[3])
-		_, _ = c.local.Write(v5ReplyAddressNotSupport)
+		conn.log(logger.Error, "invalid address type:", buf[3])
+		_, _ = conn.local.Write(v5ReplyAddressNotSupport)
 		return ""
 	}
 	// get port
-	_, err = io.ReadFull(c.local, buf[:2])
+	_, err = io.ReadFull(conn.local, buf[:2])
 	if err != nil {
-		c.log(logger.Error, "failed to read port:", err)
+		conn.log(logger.Error, "failed to read port:", err)
 		return ""
 	}
 	port := convert.BEBytesToUint16(buf[:2])

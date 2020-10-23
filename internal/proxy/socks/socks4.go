@@ -113,26 +113,26 @@ var (
 	v4ReplyRefused   = []byte{0x00, v4Refused, 0, 0, 0, 0, 0, 0}
 )
 
-func (c *conn) serveSocks4() {
+func (conn *conn) serveSocks4() {
 	// 10 = version(1) + cmd(1) + port(2) + address(4) + 2xNULL(2) maybe
 	// 16 = domain name
 	buf := make([]byte, 10+16) // prepare
-	_, err := io.ReadFull(c.local, buf[:8])
+	_, err := io.ReadFull(conn.local, buf[:8])
 	if err != nil {
-		c.log(logger.Error, "failed to read socks4 request:", err)
+		conn.log(logger.Error, "failed to read socks4 request:", err)
 		return
 	}
 	// check version
 	if buf[0] != version4 {
-		c.log(logger.Error, "unexpected socks4 version")
+		conn.log(logger.Error, "unexpected socks4 version")
 		return
 	}
 	// command
 	if buf[1] != connect {
-		c.log(logger.Error, "unknown command:", buf[1])
+		conn.log(logger.Error, "unknown command:", buf[1])
 		return
 	}
-	if !c.checkUserID() {
+	if !conn.checkUserID() {
 		return
 	}
 	// address
@@ -142,7 +142,7 @@ func (c *conn) serveSocks4() {
 		ip     bool
 		host   string
 	)
-	if c.server.disableExt {
+	if conn.ctx.disableExt {
 		ip = true
 	} else {
 		// check is domain, 0.0.0.x is domain mode
@@ -158,9 +158,9 @@ func (c *conn) serveSocks4() {
 	if domain { // read domain
 		var domainName []byte
 		for {
-			_, err = c.local.Read(buf[:1])
+			_, err = conn.local.Read(buf[:1])
 			if err != nil {
-				c.log(logger.Error, "failed to read domain name:", err)
+				conn.log(logger.Error, "failed to read domain name:", err)
 				return
 			}
 			// find 0x00(end)
@@ -173,35 +173,35 @@ func (c *conn) serveSocks4() {
 	}
 	address := nettool.JoinHostPort(host, port)
 	// connect target
-	c.log(logger.Info, "connect:", address)
-	ctx, cancel := context.WithTimeout(c.server.ctx, c.server.timeout)
+	conn.log(logger.Info, "connect:", address)
+	ctx, cancel := context.WithTimeout(conn.ctx.ctx, conn.ctx.timeout)
 	defer cancel()
-	remote, err := c.server.dialContext(ctx, "tcp", address)
+	remote, err := conn.ctx.dialContext(ctx, "tcp", address)
 	if err != nil {
-		c.log(logger.Error, "failed to connect target:", err)
-		_, _ = c.local.Write(v4ReplyRefused)
+		conn.log(logger.Error, "failed to connect target:", err)
+		_, _ = conn.local.Write(v4ReplyRefused)
 		return
 	}
 	// write reply
-	_, err = c.local.Write(v4ReplySucceeded)
+	_, err = conn.local.Write(v4ReplySucceeded)
 	if err != nil {
-		c.log(logger.Error, "failed to write reply", err)
+		conn.log(logger.Error, "failed to write reply", err)
 		_ = remote.Close()
 		return
 	}
-	c.remote = remote
+	conn.remote = remote
 }
 
-func (c *conn) checkUserID() bool {
+func (conn *conn) checkUserID() bool {
 	var (
 		userID []byte
 		err    error
 	)
 	buffer := make([]byte, 1)
 	for {
-		_, err = c.local.Read(buffer)
+		_, err = conn.local.Read(buffer)
 		if err != nil {
-			c.log(logger.Error, "failed to read user id:", err)
+			conn.log(logger.Error, "failed to read user id:", err)
 			return false
 		}
 		// find 0x00(end)
@@ -211,8 +211,8 @@ func (c *conn) checkUserID() bool {
 		userID = append(userID, buffer[0])
 	}
 	// compare user id
-	if subtle.ConstantTimeCompare(c.server.userID, userID) != 1 {
-		c.logf(logger.Exploit, "invalid user id: %s", userID)
+	if subtle.ConstantTimeCompare(conn.ctx.userID, userID) != 1 {
+		conn.logf(logger.Exploit, "invalid user id: %s", userID)
 		return false
 	}
 	return true

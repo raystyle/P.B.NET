@@ -396,8 +396,8 @@ func testServerServeSocks5(t *testing.T, server *Server, write func(net.Conn)) {
 	testsuite.PipeWithReaderWriter(t,
 		func(c net.Conn) {
 			conn := &conn{
-				server: server,
-				local:  c,
+				ctx:   server,
+				local: c,
 			}
 			conn.serveSocks5()
 		},
@@ -416,8 +416,8 @@ func TestServer_serveSocks5(t *testing.T) {
 
 	t.Run("failed to read request", func(t *testing.T) {
 		conn := &conn{
-			server: server,
-			local:  testsuite.NewMockConnWithReadError(),
+			ctx:   server,
+			local: testsuite.NewMockConnWithReadError(),
 		}
 		conn.serveSocks5()
 	})
@@ -539,8 +539,8 @@ func testConnAuthenticate(t *testing.T, server *Server, write func(net.Conn)) {
 	testsuite.PipeWithReaderWriter(t,
 		func(c net.Conn) {
 			conn := &conn{
-				server: server,
-				local:  c,
+				ctx:   server,
+				local: c,
 			}
 			ok := conn.authenticate()
 			require.False(t, ok)
@@ -561,8 +561,8 @@ func TestConn_authenticate(t *testing.T) {
 
 	t.Run("failed to write auth methods", func(t *testing.T) {
 		conn := &conn{
-			server: server,
-			local:  testsuite.NewMockConnWithWriteError(),
+			ctx:   server,
+			local: testsuite.NewMockConnWithWriteError(),
 		}
 		ok := conn.authenticate()
 		require.False(t, ok)
@@ -570,8 +570,8 @@ func TestConn_authenticate(t *testing.T) {
 
 	t.Run("failed to read user pass", func(t *testing.T) {
 		conn := &conn{
-			server: server,
-			local:  testsuite.NewMockConnWithReadError(),
+			ctx:   server,
+			local: testsuite.NewMockConnWithReadError(),
 		}
 		ok := conn.authenticate()
 		require.False(t, ok)
@@ -717,8 +717,8 @@ func testConnReceiveTarget(t *testing.T, server *Server, write func(net.Conn)) {
 	testsuite.PipeWithReaderWriter(t,
 		func(c net.Conn) {
 			conn := &conn{
-				server: server,
-				local:  c,
+				ctx:   server,
+				local: c,
 			}
 			target := conn.receiveTarget()
 			require.Empty(t, target)
@@ -738,8 +738,8 @@ func TestConn_receiveTarget(t *testing.T) {
 
 	t.Run("failed to read three", func(t *testing.T) {
 		conn := &conn{
-			server: server,
-			local:  testsuite.NewMockConnWithReadError(),
+			ctx:   server,
+			local: testsuite.NewMockConnWithReadError(),
 		}
 		target := conn.receiveTarget()
 		require.Empty(t, target)

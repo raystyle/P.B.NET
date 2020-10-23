@@ -131,10 +131,7 @@ func TestClient_connectSocks4(t *testing.T) {
 func testSocks4ClientWrite(t *testing.T, server *Server, write func(net.Conn)) {
 	testsuite.PipeWithReaderWriter(t,
 		func(c net.Conn) {
-			conn := &conn{
-				server: server,
-				local:  c,
-			}
+			conn := &conn{ctx: server, local: c}
 			conn.serveSocks4()
 		},
 		func(conn net.Conn) {
@@ -152,8 +149,8 @@ func TestConn_serveSocks4(t *testing.T) {
 
 	t.Run("failed to read request", func(t *testing.T) {
 		conn := &conn{
-			server: server,
-			local:  testsuite.NewMockConnWithReadError(),
+			ctx:   server,
+			local: testsuite.NewMockConnWithReadError(),
 		}
 		conn.serveSocks4()
 	})

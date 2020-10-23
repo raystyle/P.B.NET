@@ -1026,8 +1026,8 @@ func TestConn_Serve(t *testing.T) {
 		require.NoError(t, err)
 
 		conn := &conn{
-			server: server,
-			local:  testsuite.NewMockConn(),
+			ctx:   server,
+			local: testsuite.NewMockConn(),
 		}
 		conn.Serve()
 		time.Sleep(250 * time.Millisecond)
@@ -1040,8 +1040,8 @@ func TestConn_Serve(t *testing.T) {
 		require.NoError(t, err)
 
 		conn := &conn{
-			server: server,
-			local:  testsuite.NewMockConnWithSetDeadlinePanic(),
+			ctx:   server,
+			local: testsuite.NewMockConnWithSetDeadlinePanic(),
 		}
 		conn.Serve()
 		time.Sleep(250 * time.Millisecond)
