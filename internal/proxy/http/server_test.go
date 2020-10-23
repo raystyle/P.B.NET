@@ -143,56 +143,6 @@ func TestHTTPProxyServerWithSecondaryProxy(t *testing.T) {
 	require.True(t, secondary)
 }
 
-func TestServer_Authenticate(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	server := testGenerateHTTPProxyServer(t)
-	address := server.Addresses()[0].String()
-
-	client := http.Client{}
-	defer client.CloseIdleConnections()
-
-	t.Run("no authenticate header", func(t *testing.T) {
-		resp, err := client.Get("http://" + address)
-		require.NoError(t, err)
-		_, err = io.Copy(ioutil.Discard, resp.Body)
-		require.NoError(t, err)
-		err = resp.Body.Close()
-		require.NoError(t, err)
-	})
-
-	t.Run("unsupported authenticate method", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
-		require.NoError(t, err)
-		req.Header.Set("Proxy-Authorization", "method not-support")
-		resp, err := client.Do(req)
-		require.NoError(t, err)
-		_, err = io.Copy(ioutil.Discard, resp.Body)
-		require.NoError(t, err)
-		err = resp.Body.Close()
-		require.NoError(t, err)
-	})
-
-	t.Run("invalid username or password", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
-		require.NoError(t, err)
-		userInfo := url.UserPassword("admin1", "123")
-		req.Header.Set("Proxy-Authorization", "Basic "+userInfo.String())
-		resp, err := client.Do(req)
-		require.NoError(t, err)
-		_, err = io.Copy(ioutil.Discard, resp.Body)
-		require.NoError(t, err)
-		err = resp.Body.Close()
-		require.NoError(t, err)
-	})
-
-	err := server.Close()
-	require.NoError(t, err)
-
-	testsuite.IsDestroyed(t, server)
-}
-
 func TestNewServer(t *testing.T) {
 	t.Run("empty tag", func(t *testing.T) {
 		_, err := NewHTTPServer("", nil, nil)
@@ -1071,21 +1021,93 @@ func TestHandler_authenticate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	opts := Options{
-		Username: "admin",
-		Password: "123456",
-	}
-	server, err := NewHTTPServer(testTag, logger.Test, &opts)
-	require.NoError(t, err)
-	w := httptest.NewRecorder()
-	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
-	require.NoError(t, err)
-	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin")) // without ":"
-	req.Header.Set("Proxy-Authorization", auth)
+	server := testGenerateHTTPProxyServer(t)
+	address := server.Addresses()[0].String()
 
-	server.handler.authenticate(w, req)
+	client := http.Client{}
+	defer client.CloseIdleConnections()
 
-	err = server.Close()
+	t.Run("only username", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
+		require.NoError(t, err)
+		userInfo := url.User("admin")
+		auth := base64.StdEncoding.EncodeToString([]byte(userInfo.String()))
+		req.Header.Set("Proxy-Authorization", "Basic "+auth)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusProxyAuthRequired, resp.StatusCode)
+
+		_, err = io.Copy(ioutil.Discard, resp.Body)
+		require.NoError(t, err)
+		err = resp.Body.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid username or password", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
+		require.NoError(t, err)
+		userInfo := url.UserPassword("admin1", "123")
+		auth := base64.StdEncoding.EncodeToString([]byte(userInfo.String()))
+		req.Header.Set("Proxy-Authorization", "Basic "+auth)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusProxyAuthRequired, resp.StatusCode)
+
+		_, err = io.Copy(ioutil.Discard, resp.Body)
+		require.NoError(t, err)
+		err = resp.Body.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid base64 data", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
+		require.NoError(t, err)
+		req.Header.Set("Proxy-Authorization", "Basic foo")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusProxyAuthRequired, resp.StatusCode)
+
+		_, err = io.Copy(ioutil.Discard, resp.Body)
+		require.NoError(t, err)
+		err = resp.Body.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("no authentication header", func(t *testing.T) {
+		resp, err := client.Get("http://" + address)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusProxyAuthRequired, resp.StatusCode)
+
+		_, err = io.Copy(ioutil.Discard, resp.Body)
+		require.NoError(t, err)
+		err = resp.Body.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("unsupported authentication method", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
+		require.NoError(t, err)
+		req.Header.Set("Proxy-Authorization", "method not-support")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusProxyAuthRequired, resp.StatusCode)
+
+		_, err = io.Copy(ioutil.Discard, resp.Body)
+		require.NoError(t, err)
+		err = resp.Body.Close()
+		require.NoError(t, err)
+	})
+
+	err := server.Close()
 	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, server)
