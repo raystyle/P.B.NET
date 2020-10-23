@@ -174,7 +174,7 @@ func TestServer_Authenticate(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("invalid username/password", func(t *testing.T) {
+	t.Run("invalid username or password", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
 		require.NoError(t, err)
 		userInfo := url.UserPassword("admin1", "123")

@@ -15,25 +15,6 @@ import (
 	"project/internal/testsuite/testtls"
 )
 
-func TestNewClient(t *testing.T) {
-	t.Run("unsupported network", func(t *testing.T) {
-		_, err := NewHTTPClient("foo network", "", nil)
-		require.Error(t, err)
-	})
-
-	t.Run("failed to apply tls config", func(t *testing.T) {
-		opts := Options{}
-		opts.TLSConfig.RootCAs = []string{"foo CA"}
-		_, err := NewHTTPSClient("tcp", "", &opts)
-		require.Error(t, err)
-	})
-
-	t.Run("invalid address", func(t *testing.T) {
-		_, err := NewHTTPSClient("tcp", "", nil)
-		require.Error(t, err)
-	})
-}
-
 func TestHTTPProxyClient(t *testing.T) {
 	testsuite.InitHTTPServers(t)
 
@@ -232,6 +213,25 @@ func testFailedToHandleHTTPRequest(t testing.TB, client *Client) {
 	resp, err := httpClient.Get("http://0.0.0.1/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusBadGateway, resp.StatusCode)
+}
+
+func TestNewClient(t *testing.T) {
+	t.Run("unsupported network", func(t *testing.T) {
+		_, err := NewHTTPClient("foo network", "", nil)
+		require.Error(t, err)
+	})
+
+	t.Run("failed to apply tls config", func(t *testing.T) {
+		opts := Options{}
+		opts.TLSConfig.RootCAs = []string{"foo CA"}
+		_, err := NewHTTPSClient("tcp", "", &opts)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid address", func(t *testing.T) {
+		_, err := NewHTTPSClient("tcp", "", nil)
+		require.Error(t, err)
+	})
 }
 
 func TestClient_Connect(t *testing.T) {

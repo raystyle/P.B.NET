@@ -137,28 +137,28 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	return &srv, nil
 }
 
-func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
-	s.logger.Printf(lv, s.logSrc, format, log...)
+func (srv *Server) logf(lv logger.Level, format string, log ...interface{}) {
+	srv.logger.Printf(lv, srv.logSrc, format, log...)
 }
 
-func (s *Server) log(lv logger.Level, log ...interface{}) {
-	s.logger.Println(lv, s.logSrc, log...)
+func (srv *Server) log(lv logger.Level, log ...interface{}) {
+	srv.logger.Println(lv, srv.logSrc, log...)
 }
 
-func (s *Server) addListenerAddress(addr *net.Addr) {
-	s.addressesRWM.Lock()
-	defer s.addressesRWM.Unlock()
-	s.addresses[addr] = struct{}{}
+func (srv *Server) addListenerAddress(addr *net.Addr) {
+	srv.addressesRWM.Lock()
+	defer srv.addressesRWM.Unlock()
+	srv.addresses[addr] = struct{}{}
 }
 
-func (s *Server) deleteListenerAddress(addr *net.Addr) {
-	s.addressesRWM.Lock()
-	defer s.addressesRWM.Unlock()
-	delete(s.addresses, addr)
+func (srv *Server) deleteListenerAddress(addr *net.Addr) {
+	srv.addressesRWM.Lock()
+	defer srv.addressesRWM.Unlock()
+	delete(srv.addresses, addr)
 }
 
 // ListenAndServe is used to listen a listener and serve.
-func (s *Server) ListenAndServe(network, address string) error {
+func (srv *Server) ListenAndServe(network, address string) error {
 	err := CheckNetwork(network)
 	if err != nil {
 		return err
@@ -167,36 +167,36 @@ func (s *Server) ListenAndServe(network, address string) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return s.Serve(listener)
+	return srv.Serve(listener)
 }
 
 // Serve accepts incoming connections on the listener.
-func (s *Server) Serve(listener net.Listener) (err error) {
-	s.handler.counter.Add(1)
-	defer s.handler.counter.Done()
+func (srv *Server) Serve(listener net.Listener) (err error) {
+	srv.handler.counter.Add(1)
+	defer srv.handler.counter.Done()
 
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error(r, "Server.Serve")
-			s.log(logger.Fatal, err)
+			srv.log(logger.Fatal, err)
 		}
 	}()
 
-	listener = netutil.LimitListener(listener, s.maxConns)
+	listener = netutil.LimitListener(listener, srv.maxConns)
 	defer func() { _ = listener.Close() }()
 
 	address := listener.Addr()
 	network := address.Network()
-	s.addListenerAddress(&address)
-	defer s.deleteListenerAddress(&address)
+	srv.addListenerAddress(&address)
+	defer srv.deleteListenerAddress(&address)
 
-	s.logf(logger.Info, "serve over listener (%s %s)", network, address)
-	defer s.logf(logger.Info, "listener closed (%s %s)", network, address)
+	srv.logf(logger.Info, "serve over listener (%s %s)", network, address)
+	defer srv.logf(logger.Info, "listener closed (%s %s)", network, address)
 
-	if s.https {
-		err = s.server.ServeTLS(listener, "", "")
+	if srv.https {
+		err = srv.server.ServeTLS(listener, "", "")
 	} else {
-		err = s.server.Serve(listener)
+		err = srv.server.Serve(listener)
 	}
 
 	if nettool.IsNetClosingError(err) || err == http.ErrServerClosed {
@@ -206,11 +206,11 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 }
 
 // Addresses is used to get listener addresses.
-func (s *Server) Addresses() []net.Addr {
-	s.addressesRWM.RLock()
-	defer s.addressesRWM.RUnlock()
-	addresses := make([]net.Addr, 0, len(s.addresses))
-	for address := range s.addresses {
+func (srv *Server) Addresses() []net.Addr {
+	srv.addressesRWM.RLock()
+	defer srv.addressesRWM.RUnlock()
+	addresses := make([]net.Addr, 0, len(srv.addresses))
+	for address := range srv.addresses {
 		addresses = append(addresses, *address)
 	}
 	return addresses
@@ -220,9 +220,9 @@ func (s *Server) Addresses() []net.Addr {
 //
 // "address: tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001"
 // "address: tcp 127.0.0.1:1999 auth: admin:123456"
-func (s *Server) Info() string {
+func (srv *Server) Info() string {
 	buf := new(bytes.Buffer)
-	addresses := s.Addresses()
+	addresses := srv.Addresses()
 	l := len(addresses)
 	if l > 0 {
 		buf.WriteString("address: ")
@@ -235,22 +235,32 @@ func (s *Server) Info() string {
 			_, _ = fmt.Fprintf(buf, "%s %s", network, address)
 		}
 	}
-	username := s.handler.username
-	password := s.handler.password
-	if username != nil || password != nil {
+	username := srv.handler.username
+	password := srv.handler.password
+	var (
+		user string
+		pass string
+	)
+	if username != nil {
+		user = username.String()
+	}
+	if password != nil {
+		pass = password.String()
+	}
+	if user != "" || pass != "" {
 		format := "auth: %s:%s"
 		if buf.Len() > 0 {
 			format = " " + format
 		}
-		_, _ = fmt.Fprintf(buf, format, username, password)
+		_, _ = fmt.Fprintf(buf, format, user, pass)
 	}
 	return buf.String()
 }
 
 // Close is used to close HTTP proxy server.
-func (s *Server) Close() error {
-	err := s.server.Close()
-	s.handler.Close()
+func (srv *Server) Close() error {
+	err := srv.server.Close()
+	srv.handler.Close()
 	return err
 }
 
