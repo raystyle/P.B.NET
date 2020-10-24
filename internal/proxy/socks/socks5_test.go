@@ -573,7 +573,7 @@ func TestConn_authenticate(t *testing.T) {
 		require.False(t, ok)
 	})
 
-	t.Run("failed to read user pass", func(t *testing.T) {
+	t.Run("failed to read username password", func(t *testing.T) {
 		conn := &conn{
 			ctx:   server,
 			local: testsuite.NewMockConnWithReadError(),
@@ -582,7 +582,7 @@ func TestConn_authenticate(t *testing.T) {
 		require.False(t, ok)
 	})
 
-	t.Run("unexpected user pass version", func(t *testing.T) {
+	t.Run("unexpected username password version", func(t *testing.T) {
 		testConnAuthenticate(t, server, func(client net.Conn) {
 			// receive auth
 			_, err := io.CopyN(ioutil.Discard, client, 2)

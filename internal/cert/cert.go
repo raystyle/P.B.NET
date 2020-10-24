@@ -32,7 +32,7 @@ type Options struct {
 	NotBefore   time.Time      `toml:"not_before"`
 	NotAfter    time.Time      `toml:"not_after"`
 	NamerOpts   *namer.Options `toml:"namer_opts"`
-	Namer       namer.Namer    `toml:"-"`
+	Namer       namer.Namer    `toml:"-" msgpack:"-"`
 }
 
 // Subject contains certificate subject information.

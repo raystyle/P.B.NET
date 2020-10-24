@@ -71,7 +71,7 @@ func (r v5Reply) String() string {
 }
 
 func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
-	// request authentication
+	// request authenticate
 	buf := bytes.Buffer{}
 	buf.WriteByte(version5)
 	if c.username == nil {
