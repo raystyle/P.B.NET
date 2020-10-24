@@ -148,16 +148,16 @@ func NewServer(config *ServerConfig) (*Server, error) {
 }
 
 // Main is used to listen and server proxy server.
-func (server *Server) Main() error {
-	return server.server.ListenAndServe(server.network, server.address)
+func (srv *Server) Main() error {
+	return srv.server.ListenAndServe(srv.network, srv.address)
 }
 
 // Exit is used to close proxy server.
-func (server *Server) Exit() error {
-	return server.server.Close()
+func (srv *Server) Exit() error {
+	return srv.server.Close()
 }
 
 // testAddress is used to get proxy server address.
-func (server *Server) testAddress() string {
-	return server.server.Addresses()[0].String()
+func (srv *Server) testAddress() string {
+	return srv.server.Addresses()[0].String()
 }

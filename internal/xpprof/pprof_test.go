@@ -301,6 +301,7 @@ func TestHandler_authenticate(t *testing.T) {
 
 		resp, err := client.Do(req)
 		require.NoError(t, err)
+
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
 		_, err = io.Copy(ioutil.Discard, resp.Body)
