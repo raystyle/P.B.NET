@@ -179,7 +179,7 @@ func (ctrl *Ctrl) Wait() {
 	<-ctrl.wait
 }
 
-// Exit is used to exit with a error.
+// Exit is used to exit with an error.
 func (ctrl *Ctrl) Exit(err error) {
 	const src = "exit"
 	ctrl.once.Do(func() {

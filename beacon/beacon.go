@@ -143,7 +143,7 @@ func (beacon *Beacon) Wait() {
 	<-beacon.wait
 }
 
-// Exit is used to exit with a error.
+// Exit is used to exit with an error.
 func (beacon *Beacon) Exit(err error) {
 	const src = "exit"
 	beacon.once.Do(func() {

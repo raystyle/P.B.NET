@@ -166,7 +166,7 @@ func (node *Node) Wait() {
 	<-node.wait
 }
 
-// Exit is used to exit with a error.
+// Exit is used to exit with an error.
 func (node *Node) Exit(err error) {
 	const src = "exit"
 	node.once.Do(func() {

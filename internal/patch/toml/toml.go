@@ -15,7 +15,7 @@ func Marshal(v interface{}) ([]byte, error) {
 
 // Unmarshal parses the TOML-encoded data and stores the result in the value.
 // if field in source toml data doesn't exist in destination structure,
-// it will return a error that include the field.
+// it will return an error that include the field.
 func Unmarshal(data []byte, v interface{}) error {
 	decoder := toml.NewDecoder(bytes.NewReader(data)).Strict(true)
 	err := decoder.Decode(v)
