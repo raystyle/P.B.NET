@@ -36,7 +36,7 @@ type WebOptions struct {
 	// if it is empty, use the default admin username
 	AdminUsername string `toml:"admin_username"`
 
-	// AdminPassword is the administrator password,
+	// AdminPassword is the administrator hashed password(bcrypt),
 	// if it is empty, program will generate a random value
 	AdminPassword string `toml:"admin_password"`
 
@@ -53,22 +53,29 @@ type WebOptions struct {
 	// HFS is used to use custom file system
 	HFS http.FileSystem `toml:"-" msgpack:"-"`
 
-	// APIOnly is used to not start Web UI
+	// APIOnly is used to disable Web UI
 	APIOnly bool `toml:"api_only"`
 
 	// Server contains options about http server.
 	Server option.HTTPServer `toml:"server" check:"-"`
+
+	// Users contains common users, key is the username and
+	// value is the hashed password(bcrypt)
+	Users map[string]string
 }
 
 // Web is provide a web UI and API server.
 type Web struct {
 	maxConns int
 	server   *http.Server
-	handler  *webHandler
+	ui       *webUI
+	api      *webAPI
+
+	handler *webHandler
 }
 
 // NewWeb is used to create a web server, password is the common user password.
-func NewWeb(client *Client, password string, opts *WebOptions) (*Web, error) {
+func NewWeb(client *Client, opts *WebOptions) (*Web, error) {
 	httpServer, err := opts.Server.Apply()
 	if err != nil {
 		return nil, err
@@ -269,6 +276,17 @@ func (web *Web) Serve(listener net.Listener) error {
 // Close is used to close web server.
 func (web *Web) Close() error {
 	return web.server.Close()
+}
+
+type webUI struct {
+}
+
+// webAPI contain the actual handler.
+type webAPI struct {
+	ctx *Client
+
+	upgrader    *websocket.Upgrader
+	encoderPool sync.Pool
 }
 
 // shortcut about interface and structure.

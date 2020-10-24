@@ -28,12 +28,13 @@ func TestWebOptions(t *testing.T) {
 		actual   interface{}
 	}{
 		{expected: "admin", actual: opts.AdminUsername},
-		{expected: "123456", actual: opts.AdminPassword},
+		{expected: "bcrypt", actual: opts.AdminPassword},
 		{expected: 1000, actual: opts.MaxConns},
 		{expected: int64(1024), actual: opts.MaxBodySize},
 		{expected: int64(10240), actual: opts.MaxLargeBodySize},
 		{expected: true, actual: opts.APIOnly},
 		{expected: 30 * time.Second, actual: opts.Server.ReadTimeout},
+		{expected: "bcrypt", actual: opts.Users["user"]},
 	} {
 		require.Equal(t, testdata.expected, testdata.actual)
 	}
