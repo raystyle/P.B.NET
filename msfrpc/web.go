@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -13,12 +14,14 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
+	"github.com/pkg/errors"
 	"golang.org/x/net/netutil"
 
 	"project/internal/httptool"
 	"project/internal/logger"
 	"project/internal/option"
 	"project/internal/patch/json"
+	"project/internal/security"
 	"project/internal/virtualconn"
 	"project/internal/xpanic"
 	"project/internal/xreflect"
@@ -275,10 +278,95 @@ func (web *Web) Serve(listener net.Listener) error {
 
 // Close is used to close web server.
 func (web *Web) Close() error {
+	// mux := http.NewServeMux()
+
 	return web.server.Close()
 }
 
+const maxResourceFileSize = 512 * 1024
+
 type webUI struct {
+	favicon  []byte
+	index    []byte
+	errPages map[int][]byte
+	exploit  []byte
+}
+
+func newWebUI(hfs http.FileSystem, mux *http.ServeMux) (*webUI, error) {
+	ui := webUI{}
+	// read favicon.ico
+	faviconFile, err := hfs.Open("favicon.ico")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to open favicon.ico")
+	}
+	favicon, err := security.LimitReadAllWithError(faviconFile, maxResourceFileSize)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read favicon.ico")
+	}
+	// read index.html
+	indexFile, err := hfs.Open("index.html")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to open index.html")
+	}
+	index, err := security.LimitReadAllWithError(indexFile, maxResourceFileSize)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read index.html")
+	}
+	// read exploit.html
+	exploitFile, err := hfs.Open("error/exploit.html")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to open exploit.html")
+	}
+	exploit, err := security.LimitReadAllWithError(exploitFile, maxResourceFileSize)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read exploit.html")
+	}
+	err = ui.loadErrorPages(hfs)
+	if err != nil {
+		return nil, err
+	}
+	ui.favicon = favicon
+	ui.index = index
+	ui.exploit = exploit
+	for _, path := range []string{
+		"/css", "/js", "/img", "/fonts",
+	} {
+		mux.Handle(path, http.FileServer(hfs))
+	}
+	mux.HandleFunc("/favicon.ico", ui.handleFavicon)
+	return &ui, nil
+}
+
+func (ui *webUI) loadErrorPages(hfs http.FileSystem) error {
+	for _, code := range []int{
+		http.StatusForbidden, http.StatusNotFound,
+		http.StatusInternalServerError, http.StatusServiceUnavailable,
+	} {
+		name := strconv.Itoa(code) + ".html"
+		file, err := hfs.Open(name)
+		if err != nil {
+			continue
+		}
+		security.LimitReadAllWithError(file, maxResourceFileSize)
+
+	}
+	return nil
+}
+
+func (ui *webUI) handleFavicon(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (ui *webUI) handleIndex(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (ui *webUI) handleExploit(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (ui *webUI) Close() {
+
 }
 
 // webAPI contain the actual handler.
