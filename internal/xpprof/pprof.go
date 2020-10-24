@@ -347,7 +347,7 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 		}
 		return true
 	default:
-		h.log(logger.Exploit, r, "unsupported authenticate method:", authMethod)
+		h.log(logger.Exploit, r, "unsupported authentication method:", authMethod)
 		h.failedToAuth(w)
 		return false
 	}

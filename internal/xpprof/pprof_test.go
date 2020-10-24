@@ -248,7 +248,7 @@ func TestHandler_authenticate(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("invalid username/password", func(t *testing.T) {
+	t.Run("invalid username or password", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
 		require.NoError(t, err)
 		userInfo := url.UserPassword("admin1", "123")
@@ -257,6 +257,8 @@ func TestHandler_authenticate(t *testing.T) {
 
 		resp, err := client.Do(req)
 		require.NoError(t, err)
+
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
 		_, err = io.Copy(ioutil.Discard, resp.Body)
 		require.NoError(t, err)
@@ -272,28 +274,34 @@ func TestHandler_authenticate(t *testing.T) {
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
 		_, err = io.Copy(ioutil.Discard, resp.Body)
 		require.NoError(t, err)
 		err = resp.Body.Close()
 		require.NoError(t, err)
 	})
 
-	t.Run("no authenticate header", func(t *testing.T) {
+	t.Run("no authentication header", func(t *testing.T) {
 		resp, err := client.Get("http://" + address)
 		require.NoError(t, err)
+
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
 		_, err = io.Copy(ioutil.Discard, resp.Body)
 		require.NoError(t, err)
 		err = resp.Body.Close()
 		require.NoError(t, err)
 	})
 
-	t.Run("unsupported authenticate method", func(t *testing.T) {
+	t.Run("unsupported authentication method", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
 		require.NoError(t, err)
 		req.Header.Set("Authorization", "method not-support")
 
 		resp, err := client.Do(req)
 		require.NoError(t, err)
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
 		_, err = io.Copy(ioutil.Discard, resp.Body)
 		require.NoError(t, err)
