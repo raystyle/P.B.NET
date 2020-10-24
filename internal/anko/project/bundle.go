@@ -521,6 +521,7 @@ func initInternalPatchToml() {
 func initInternalProxy() {
 	env.Packages["project/internal/proxy"] = map[string]reflect.Value{
 		// define constants
+		"EmptyTag":    reflect.ValueOf(proxy.EmptyTag),
 		"ModeBalance": reflect.ValueOf(proxy.ModeBalance),
 		"ModeChain":   reflect.ValueOf(proxy.ModeChain),
 		"ModeDirect":  reflect.ValueOf(proxy.ModeDirect),
@@ -575,6 +576,7 @@ func initInternalProxyDirect() {
 func initInternalProxyHTTP() {
 	env.Packages["project/internal/proxy/http"] = map[string]reflect.Value{
 		// define constants
+		"EmptyTag": reflect.ValueOf(http.EmptyTag),
 
 		// define variables
 
@@ -600,6 +602,7 @@ func initInternalProxyHTTP() {
 func initInternalProxySocks() {
 	env.Packages["project/internal/proxy/socks"] = map[string]reflect.Value{
 		// define constants
+		"EmptyTag": reflect.ValueOf(socks.EmptyTag),
 
 		// define variables
 		"ErrServerClosed": reflect.ValueOf(socks.ErrServerClosed),
@@ -663,6 +666,8 @@ func initInternalSecurity() {
 		"CoverRunes":            reflect.ValueOf(security.CoverRunes),
 		"CoverString":           reflect.ValueOf(security.CoverString),
 		"FlushMemory":           reflect.ValueOf(security.FlushMemory),
+		"LimitReadAll":          reflect.ValueOf(security.LimitReadAll),
+		"LimitReadAllWithError": reflect.ValueOf(security.LimitReadAllWithError),
 		"NewBogo":               reflect.ValueOf(security.NewBogo),
 		"NewBytes":              reflect.ValueOf(security.NewBytes),
 		"NewMemory":             reflect.ValueOf(security.NewMemory),
