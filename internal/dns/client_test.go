@@ -513,8 +513,8 @@ func TestClient_TestServers(t *testing.T) {
 		client := NewClient(certPool, proxyPool)
 		testAddAllDNSServers(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
-		defer cancel()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
 		result, err := client.TestServers(ctx, testDomain, new(Options))
 		require.Error(t, err)
 		require.Empty(t, result)

@@ -663,6 +663,9 @@ func TestOptions(t *testing.T) {
 		{expected: []string{"test5"}, actual: opts.Subject.Province},
 		{expected: []string{"test6"}, actual: opts.Subject.StreetAddress},
 		{expected: []string{"test7"}, actual: opts.Subject.PostalCode},
+		{expected: true, actual: opts.NamerOpts.DisablePrefix},
+		{expected: true, actual: opts.NamerOpts.DisableStem},
+		{expected: true, actual: opts.NamerOpts.DisableSuffix},
 	} {
 		require.Equal(t, testdata.expected, testdata.actual)
 	}

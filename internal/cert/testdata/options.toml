@@ -14,3 +14,8 @@ locality            = ["test4"]
 province            = ["test5"]
 street_address      = ["test6"]
 postal_code         = ["test7"]
+
+[namer_opts]
+  disable_prefix = true
+  disable_stem   = true
+  disable_suffix = true
