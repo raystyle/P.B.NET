@@ -43,7 +43,7 @@ const (
 	ConnSendHeartbeat
 	ConnReplyHeartbeat
 	ConnErrRecvNullFrame
-	ConnErrRecvTooBigFrame
+	ConnErrRecvTooLargeFrame
 	ConnGetAddress
 )
 

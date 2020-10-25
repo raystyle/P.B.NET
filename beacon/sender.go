@@ -27,14 +27,14 @@ import (
 
 // errors
 var (
-	ErrTooBigMessage  = fmt.Errorf("too big message")
-	ErrNoConnections  = fmt.Errorf("sender is not connected to any nodes")
-	ErrFailedToSend   = fmt.Errorf("failed to send")
-	ErrFailedToAck    = fmt.Errorf("failed to acknowledge")
-	ErrFailedToQuery  = fmt.Errorf("failed to query")
-	ErrSendTimeout    = fmt.Errorf("send timeout")
-	ErrSenderMaxConns = fmt.Errorf("sender with max connections")
-	ErrSenderClosed   = fmt.Errorf("sender closed")
+	ErrTooLargeMessage = fmt.Errorf("too large message")
+	ErrNoConnections   = fmt.Errorf("sender is not connected to any nodes")
+	ErrFailedToSend    = fmt.Errorf("failed to send")
+	ErrFailedToAck     = fmt.Errorf("failed to acknowledge")
+	ErrFailedToQuery   = fmt.Errorf("failed to query")
+	ErrSendTimeout     = fmt.Errorf("send timeout")
+	ErrSenderMaxConns  = fmt.Errorf("sender with max connections")
+	ErrSenderClosed    = fmt.Errorf("sender closed")
 )
 
 // sendTask is used to send message to the Controller.
@@ -844,7 +844,7 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 		}
 		// check compressed message size
 		if sw.deflateBuf.Len() > protocol.MaxFrameSize {
-			result.Err = ErrTooBigMessage
+			result.Err = ErrTooLargeMessage
 			return
 		}
 		st.Message = sw.deflateBuf.Bytes()

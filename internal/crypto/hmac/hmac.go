@@ -129,7 +129,7 @@ func New(h func() hash.Hash, key []byte) hash.Hash {
 	hm.inner = h()
 	blockSize := hm.inner.BlockSize()
 	if len(key) > blockSize {
-		// If key is too big, hash it.
+		// If key is too large, hash it.
 		hm.outer.Write(key)
 		key = hm.outer.Sum(nil)
 	}

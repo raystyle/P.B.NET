@@ -27,7 +27,7 @@ import (
 
 // errors
 var (
-	ErrTooBigMessage        = fmt.Errorf("too big message")
+	ErrTooLargeMessage      = fmt.Errorf("too large message")
 	ErrNoConnections        = fmt.Errorf("sender is not connected to any nodes")
 	ErrFailedToSendToNode   = fmt.Errorf("failed to send to node")
 	ErrFailedToSendToBeacon = fmt.Errorf("failed to send to beacon")
@@ -1364,7 +1364,7 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 		}
 		// check compressed message size
 		if sw.deflateBuf.Len() > protocol.MaxFrameSize {
-			result.Err = ErrTooBigMessage
+			result.Err = ErrTooLargeMessage
 			return
 		}
 		st.Message = sw.deflateBuf.Bytes()
@@ -1436,7 +1436,7 @@ func (sw *senderWorker) insertBeaconMessage(st *sendTask, result *protocol.SendR
 		}
 		// check compressed message size
 		if sw.deflateBuf.Len() > protocol.MaxFrameSize {
-			result.Err = ErrTooBigMessage
+			result.Err = ErrTooLargeMessage
 			return
 		}
 		st.Message = sw.deflateBuf.Bytes()
@@ -1594,7 +1594,7 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 		}
 		// check compressed message size
 		if sw.deflateBuf.Len() > protocol.MaxFrameSize {
-			result.Err = ErrTooBigMessage
+			result.Err = ErrTooLargeMessage
 			return
 		}
 		bt.Message = sw.deflateBuf.Bytes()

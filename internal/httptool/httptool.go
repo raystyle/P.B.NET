@@ -12,7 +12,7 @@ const (
 	// post data length in one line
 	bodyLineLength = 64
 
-	// <security> prevent too big resp.Body
+	// <security> prevent too large resp.Body
 	maxBodyLength = 1024
 )
 

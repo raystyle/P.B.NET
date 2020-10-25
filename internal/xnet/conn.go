@@ -68,15 +68,15 @@ const (
 
 // errors
 var (
-	ErrSendTooBigMessage    = errors.New("send too big message")
-	ErrReceiveTooBigMessage = errors.New("receive too big message")
+	ErrSendTooLargeMessage    = errors.New("send too large message")
+	ErrReceiveTooLargeMessage = errors.New("receive too large message")
 )
 
 // Send is used to send one message.
 func (c *Conn) Send(msg []byte) error {
 	size := len(msg)
 	if size > MaxMsgLength {
-		return ErrSendTooBigMessage
+		return ErrSendTooLargeMessage
 	}
 	header := convert.BEUint32ToBytes(uint32(size))
 	_, err := c.Write(append(header, msg...))
@@ -92,7 +92,7 @@ func (c *Conn) Receive() ([]byte, error) {
 	}
 	msgSize := int(convert.BEBytesToUint32(header))
 	if msgSize > MaxMsgLength {
-		return nil, ErrReceiveTooBigMessage
+		return nil, ErrReceiveTooLargeMessage
 	}
 	msg := make([]byte, msgSize)
 	_, err = io.ReadFull(c, msg)

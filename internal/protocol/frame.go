@@ -37,7 +37,7 @@ const (
 var (
 	ErrInvalidFrameSize       = errors.New("invalid frame size")
 	ErrRecvNullFrame          = errors.New("receive null frame")
-	ErrRecvTooBigFrame        = errors.New("receive too big frame")
+	ErrRecvTooLargeFrame      = errors.New("receive too large frame")
 	ErrRecvInvalidFrameIDSize = errors.New("receive invalid frame id size")
 	ErrRecvInvalidFrameID     = errors.New("receive invalid frame id")
 	ErrRecvInvalidReplyID     = errors.New("receive invalid reply id")
@@ -75,8 +75,8 @@ func DestroySlots(slots []*Slot) {
 }
 
 var (
-	errNullFrame   = []byte{ConnErrRecvNullFrame}
-	errTooBigFrame = []byte{ConnErrRecvTooBigFrame}
+	errNullFrame     = []byte{ConnErrRecvNullFrame}
+	errTooLargeFrame = []byte{ConnErrRecvTooLargeFrame}
 )
 
 // HandleConn is used to handle frame
@@ -122,7 +122,7 @@ func HandleConn(conn net.Conn, handler func([]byte)) {
 					return
 				}
 				if bodySize > maxFrameSize {
-					handler(errTooBigFrame)
+					handler(errTooLargeFrame)
 					return
 				}
 			}

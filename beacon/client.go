@@ -376,8 +376,8 @@ func (client *Client) onFrame(frame []byte) {
 	case protocol.ConnErrRecvNullFrame:
 		client.log(logger.Exploit, protocol.ErrRecvNullFrame)
 		client.Close()
-	case protocol.ConnErrRecvTooBigFrame:
-		client.log(logger.Exploit, protocol.ErrRecvTooBigFrame)
+	case protocol.ConnErrRecvTooLargeFrame:
+		client.log(logger.Exploit, protocol.ErrRecvTooLargeFrame)
 		client.Close()
 	case protocol.TestCommand:
 		client.reply(id, data)

@@ -41,7 +41,7 @@ func TestConn(t *testing.T) {
 	testsuite.ConnSC(t, serverC, clientC, true)
 }
 
-func TestConnWithTooBigMessage(t *testing.T) {
+func TestConnWithTooLargeMessage(t *testing.T) {
 	server, client := net.Pipe()
 	serverC := NewConn(server, ModePipe, time.Now())
 	clientC := NewConn(client, ModePipe, time.Now())
@@ -51,11 +51,11 @@ func TestConnWithTooBigMessage(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		_, err := serverC.Receive()
-		require.Equal(t, ErrReceiveTooBigMessage, err)
+		require.Equal(t, ErrReceiveTooLargeMessage, err)
 	}()
 
 	err := clientC.Send(bytes.Repeat([]byte{0}, 256<<10+1))
-	require.Equal(t, ErrSendTooBigMessage, err)
+	require.Equal(t, ErrSendTooLargeMessage, err)
 	_, err = clientC.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF})
 	require.NoError(t, err)
 

@@ -162,8 +162,8 @@ func (c *conn) onFrame(frame []byte) bool {
 	case protocol.ConnErrRecvNullFrame:
 		c.Log(logger.Exploit, protocol.ErrRecvNullFrame)
 		_ = c.Close()
-	case protocol.ConnErrRecvTooBigFrame:
-		c.Log(logger.Exploit, protocol.ErrRecvTooBigFrame)
+	case protocol.ConnErrRecvTooLargeFrame:
+		c.Log(logger.Exploit, protocol.ErrRecvTooLargeFrame)
 		_ = c.Close()
 	case protocol.TestCommand:
 		id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]

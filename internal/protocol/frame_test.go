@@ -92,11 +92,11 @@ func TestHandleConn(t *testing.T) {
 		)
 	})
 
-	t.Run("too big frame", func(t *testing.T) {
+	t.Run("too large frame", func(t *testing.T) {
 		testsuite.PipeWithReaderWriter(t,
 			func(server net.Conn) {
 				HandleConn(server, func(frame []byte) {
-					require.Equal(t, ConnErrRecvTooBigFrame, frame[0])
+					require.Equal(t, ConnErrRecvTooLargeFrame, frame[0])
 				})
 
 				err := server.Close()
