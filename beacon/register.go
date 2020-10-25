@@ -78,9 +78,9 @@ func newRegister(ctx *Beacon, config *Config) (*register, error) {
 		register.first = boot
 	}
 
-	// decrypt the rest bootstraps
-	if len(cfg.RestBoots) != 0 {
-		err := register.loadBootstraps(cfg.RestBoots, cfg.RestKey, false)
+	// decrypt the follow-up bootstraps
+	if len(cfg.FollowUpBoots) != 0 {
+		err := register.loadBootstraps(cfg.FollowUpBoots, cfg.FollowUpKey, false)
 		if err != nil {
 			return nil, err
 		}

@@ -210,7 +210,7 @@ func (c *Client) receiveReply(conn net.Conn) error {
 		reply = reply[:l]
 	}
 	_, err = io.ReadFull(conn, reply)
-	return errors.Wrap(err, "failed to read socks5 rest reply")
+	return errors.Wrap(err, "failed to read the socks5 remaining reply")
 }
 
 var (

@@ -597,7 +597,7 @@ func (srv *server) isHTTPRequest(data []byte, conn *xnet.Conn) bool {
 	if !strings.Contains(rl[2], "HTTP") {
 		return false
 	}
-	// read rest data
+	// read the remaining data
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {

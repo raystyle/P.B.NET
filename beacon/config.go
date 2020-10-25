@@ -63,10 +63,10 @@ type Config struct {
 		SleepRandom uint `toml:"sleep_random" msgpack:"b"`
 
 		// generate from Controller
-		FirstBoot []byte `toml:"-" msgpack:"w"` // type: *messages.Bootstrap
-		FirstKey  []byte `toml:"-" msgpack:"x"` // decrypt the first bootstrap data, AES CBC
-		RestBoots []byte `toml:"-" msgpack:"y"` // type: []*messages.Bootstrap
-		RestKey   []byte `toml:"-" msgpack:"z"` // decrypt rest bootstraps data, AES CBC
+		FirstBoot     []byte `toml:"-" msgpack:"w"` // type: *messages.Bootstrap
+		FirstKey      []byte `toml:"-" msgpack:"x"` // decrypt the first bootstrap data, AES CBC
+		FollowUpBoots []byte `toml:"-" msgpack:"y"` // type: []*messages.Bootstrap
+		FollowUpKey   []byte `toml:"-" msgpack:"z"` // decrypt follow-up bootstraps data, AES CBC
 	} `toml:"register" msgpack:"dd"`
 
 	Sender struct {

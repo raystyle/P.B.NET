@@ -282,7 +282,7 @@ func (c *Client) connect(conn net.Conn, address string) error {
 	for {
 		n, err := conn.Read(buffer)
 		if err != nil {
-			return errors.Wrap(err, "failed to read rest response")
+			return errors.Wrap(err, "failed to read the remaining response")
 		}
 		restResp = append(restResp, buffer[:n]...)
 		if bytes.Contains(restResp, []byte("\r\n\r\n")) {

@@ -312,7 +312,7 @@ func TestClient_Connect(t *testing.T) {
 		)
 	})
 
-	t.Run("failed to read rest response", func(t *testing.T) {
+	t.Run("failed to read remaining response", func(t *testing.T) {
 		testsuite.PipeWithReaderWriter(t,
 			func(cli net.Conn) {
 				_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")

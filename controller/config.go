@@ -83,13 +83,13 @@ type Config struct {
 	} `toml:"-" check:"-"`
 }
 
-// GenerateFirstBootstrap is used to generate the first bootstrap for role config.
+// GenerateFirstBootstrap is used to generate the first bootstrap for role configuration.
 func GenerateFirstBootstrap(b *messages.Bootstrap) ([]byte, []byte, error) {
 	return generateBootstraps(b)
 }
 
-// GenerateRestBootstraps is used to generate rest bootstraps for role config.
-func GenerateRestBootstraps(b ...*messages.Bootstrap) ([]byte, []byte, error) {
+// GenerateFollowUpBootstraps is used to generate the follow-up bootstraps for role configuration.
+func GenerateFollowUpBootstraps(b ...*messages.Bootstrap) ([]byte, []byte, error) {
 	if len(b) == 0 {
 		return nil, nil, nil
 	}
