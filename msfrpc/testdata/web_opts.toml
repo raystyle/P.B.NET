@@ -1,5 +1,6 @@
 admin_username      = "admin"
 admin_password      = "bcrypt"
+disable_tls         = true
 max_conns           = 1000
 max_body_size       = 1024
 max_large_body_size = 10240

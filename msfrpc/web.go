@@ -1,7 +1,6 @@
 package msfrpc
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -19,6 +18,7 @@ import (
 
 	"project/internal/httptool"
 	"project/internal/logger"
+	"project/internal/nettool"
 	"project/internal/option"
 	"project/internal/patch/json"
 	"project/internal/random"
@@ -26,10 +26,12 @@ import (
 	"project/internal/virtualconn"
 	"project/internal/xpanic"
 	"project/internal/xreflect"
+	"project/internal/xsync"
 )
 
 const (
 	defaultAdminUsername    = "admin"
+	defaultMaxConns         = 1000
 	minRequestBodySize      = 4 * 1024 * 1024  // 4MB
 	minRequestLargeBodySize = 64 * 1024 * 1024 // 64MB
 )
@@ -43,6 +45,9 @@ type WebOptions struct {
 	// AdminPassword is the administrator hashed password(bcrypt),
 	// if it is empty, program will generate a random value
 	AdminPassword string `toml:"admin_password"`
+
+	// DisableTLS is used to disable http server use TLS.
+	DisableTLS bool `toml:"disable_tls"`
 
 	// MaxConns is the web server maximum connections
 	MaxConns int `toml:"max_conns"`
@@ -70,10 +75,17 @@ type WebOptions struct {
 
 // Web is provide a web UI and API server.
 type Web struct {
-	maxConns int
-	server   *http.Server
-	ui       *webUI
-	api      *webAPI
+	logger     logger.Logger
+	disableTLS bool
+	maxConns   int
+
+	server *http.Server
+	ui     *webUI
+	api    *webAPI
+
+	// listener addresses
+	addresses    map[*net.Addr]struct{}
+	addressesRWM sync.RWMutex
 }
 
 // NewWeb is used to create a web server, password is the common user password.
@@ -83,30 +95,39 @@ func NewWeb(client *Client, opts *WebOptions) (*Web, error) {
 		return nil, errors.WithStack(err)
 	}
 	mux := http.NewServeMux()
-
-	// web := &Web{}
-
+	web := Web{
+		logger:     client.logger,
+		disableTLS: opts.DisableTLS,
+		maxConns:   opts.MaxConns,
+		server:     server,
+	}
 	if !opts.APIOnly {
 		webUI, err := newWebUI(opts.HFS, mux)
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println(webUI)
+		web.ui = webUI
 	}
-
+	webAPI, err := newWebAPI(client, opts, mux)
+	if err != nil {
+		return nil, err
+	}
+	web.api = webAPI
+	if web.maxConns < 32 {
+		web.maxConns = defaultMaxConns
+	}
+	web.addresses = make(map[*net.Addr]struct{})
 	// set web server
 	server.Handler = mux
 	server.ConnState = func(conn net.Conn, state http.ConnState) {
-
+		switch state {
+		case http.StateNew:
+			webAPI.counter.Add(1)
+		case http.StateHijacked, http.StateClosed:
+			webAPI.counter.Done()
+		}
 	}
-
 	server.ErrorLog = logger.Wrap(logger.Warning, "msfrpc-web", client.logger)
-	web := Web{
-		server: server,
-	}
-	if web.maxConns < 32 {
-		web.maxConns = 1000
-	}
 	return &web, nil
 }
 
@@ -123,20 +144,83 @@ func (web *Web) MonitorCallbacks() *MonitorCallbacks {
 	}
 }
 
-// Serve is used to start web server.
-func (web *Web) Serve(listener net.Listener) error {
-	l := netutil.LimitListener(listener, web.maxConns)
+func (web *Web) logf(lv logger.Level, format string, log ...interface{}) {
+	web.logger.Printf(lv, "msfrpc-web", format, log...)
+}
+
+func (web *Web) log(lv logger.Level, log ...interface{}) {
+	web.logger.Println(lv, "msfrpc-web", log...)
+}
+
+func (web *Web) addListenerAddress(addr *net.Addr) {
+	web.addressesRWM.Lock()
+	defer web.addressesRWM.Unlock()
+	web.addresses[addr] = struct{}{}
+}
+
+func (web *Web) deleteListenerAddress(addr *net.Addr) {
+	web.addressesRWM.Lock()
+	defer web.addressesRWM.Unlock()
+	delete(web.addresses, addr)
+}
+
+// ListenAndServe is used to listen a listener and serve.
+func (web *Web) ListenAndServe(network, address string) error {
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return errors.Errorf("unsupported network: %s", network)
+	}
+	listener, err := net.Listen(network, address)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return web.Serve(listener)
+}
+
+// Serve accepts incoming connections on the listener.
+func (web *Web) Serve(listener net.Listener) (err error) {
+	web.api.counter.Add(1)
+	defer web.api.counter.Done()
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = xpanic.Error(r, "Web.Serve")
+			web.log(logger.Fatal, err)
+		}
+	}()
+
+	listener = netutil.LimitListener(listener, web.maxConns)
+	defer func() { _ = listener.Close() }()
+
+	address := listener.Addr()
+	network := address.Network()
+	web.addListenerAddress(&address)
+	defer web.deleteListenerAddress(&address)
+	web.logf(logger.Info, "serve over listener (%s %s)", network, address)
+	defer web.logf(logger.Info, "listener closed (%s %s)", network, address)
+
 	switch listener.(type) {
 	case *virtualconn.Listener:
-		return web.server.Serve(l)
+		err = web.server.Serve(listener)
 	default:
-		return web.server.ServeTLS(l, "", "")
+		if web.disableTLS {
+			err = web.server.Serve(listener)
+		} else {
+			err = web.server.ServeTLS(listener, "", "")
+		}
 	}
+	if nettool.IsNetClosingError(err) || err == http.ErrServerClosed {
+		return nil
+	}
+	return err
 }
 
 // Close is used to close web server.
 func (web *Web) Close() error {
-	return web.server.Close()
+	err := web.server.Close()
+	web.api.Close()
+	return err
 }
 
 // webUI is used to contains favicon and index data. user can reload it.
@@ -234,6 +318,9 @@ type webAPI struct {
 	wsUpgrader  *websocket.Upgrader // notice event
 
 	inShutdown int32
+
+	// Web use it for prevent cycle reference
+	counter xsync.Counter
 }
 
 func newWebAPI(client *Client, opts *WebOptions, mux *http.ServeMux) (*webAPI, error) {
@@ -286,8 +373,6 @@ func newWebAPI(client *Client, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		WriteBufferSize:  4096,
 	}
 	// set handler
-
-	// register router
 	for path, handler := range map[string]http.HandlerFunc{
 		"/login": wh.handleLogin,
 
@@ -444,21 +529,12 @@ func (api *webAPI) onEvent(event string) {
 
 }
 
-type webHandler struct {
-	ctx *Client
-
-	username    string
-	password    string
-	maxBodySize int64
-	ioInterval  time.Duration
-
-	upgrader    *websocket.Upgrader
-	encoderPool sync.Pool
-}
-
 func (api *webAPI) Close() {
+
+	api.counter.Wait()
+
 	// websocket.IsWebSocketUpgrade()
-	api.ctx = nil
+
 }
 
 func (api *webAPI) readRequest(r *http.Request, req interface{}) error {
