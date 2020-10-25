@@ -363,7 +363,7 @@ func TestClient_ConsoleSessionKill(t *testing.T) {
 		t.Log(output.Data)
 
 		// start a handler
-		for _, command := range []string{
+		for _, command := range [...]string{
 			"use exploit/multi/handler\r\n",
 			"set payload windows/meterpreter/reverse_tcp\r\n",
 			"set LHOST 127.0.0.1\r\n",
@@ -448,7 +448,7 @@ func TestConsole(t *testing.T) {
 
 	go func() { _, _ = io.Copy(os.Stdout, console) }()
 
-	for _, command := range []string{
+	for _, command := range [...]string{
 		"version\r\n",
 		"use exploit/multi/handler\r\n",
 		"set payload windows/meterpreter/reverse_tcp\r\n",
@@ -650,7 +650,7 @@ func TestConsole_read(t *testing.T) {
 
 		go func() { _, _ = io.Copy(os.Stdout, console) }()
 
-		for _, command := range []string{
+		for _, command := range [...]string{
 			"version\r\n",
 			"use exploit/multi/handler\r\n",
 			"set payload windows/meterpreter/reverse_tcp\r\n",
@@ -691,7 +691,7 @@ func TestConsole_read(t *testing.T) {
 
 		go func() { _, _ = io.Copy(os.Stdout, console) }()
 
-		for _, command := range []string{
+		for _, command := range [...]string{
 			"version\r\n",
 			"use exploit/multi/handler\r\n",
 			"set payload windows/meterpreter/reverse_tcp\r\n",
@@ -924,7 +924,7 @@ func TestConsole_Detach(t *testing.T) {
 		t.Skip("only support windows and linux")
 	}
 
-	for _, command := range []string{
+	for _, command := range [...]string{
 		"version\r\n",
 		"use exploit/multi/handler\r\n",
 		"set payload " + payload + "\r\n",
@@ -953,7 +953,7 @@ func TestConsole_Detach(t *testing.T) {
 	go func() { _ = shellcode.Execute("", sc) }()
 	time.Sleep(8 * time.Second)
 
-	for _, command := range []string{
+	for _, command := range [...]string{
 		"sessions\r\n",
 	} {
 		_, err = console.Write([]byte(command))

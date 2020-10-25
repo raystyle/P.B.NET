@@ -107,7 +107,7 @@ func NewWeb(client *Client, opts *WebOptions) (*Web, error) {
 	}
 	hfs := opts.HFS
 	// set resource handler
-	for _, path := range []string{
+	for _, path := range [...]string{
 		"css", "js", "fonts", "img",
 	} {
 		handler := fmt.Sprintf("/%s/*filepath", path)
@@ -296,13 +296,13 @@ func newWebUI(hfs http.FileSystem, mux *http.ServeMux) (*webUI, error) {
 	}
 	mux.HandleFunc("/favicon.ico", ui.handleFavicon)
 	// set index handler
-	for _, name := range []string{
+	for _, name := range [...]string{
 		"", "index.html", "index.htm", "index",
 	} {
 		mux.HandleFunc("/"+name, ui.handleIndex)
 	}
 	// set resource server
-	for _, path := range []string{
+	for _, path := range [...]string{
 		"css", "js", "img", "fonts",
 	} {
 		mux.Handle("/"+path+"/", http.FileServer(hfs))
@@ -314,7 +314,7 @@ func (ui *webUI) Reload() error {
 	const maxResourceFileSize = 512 * 1024
 	// load favicon.ico and index.html
 	res := make(map[string][]byte, 2)
-	for _, name := range []string{
+	for _, name := range [...]string{
 		"favicon.ico", "index.html",
 	} {
 		file, err := ui.hfs.Open(name)

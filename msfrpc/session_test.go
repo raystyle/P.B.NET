@@ -1236,7 +1236,7 @@ func TestMeterpreter(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	for _, command := range []string{
+	for _, command := range [...]string{
 		"sysinfo",
 		"dir",
 		"ipconfig",

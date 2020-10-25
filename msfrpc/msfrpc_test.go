@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 	// check leaks
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	for _, check := range []func(context.Context, *Client) bool{
+	for _, check := range [...]func(context.Context, *Client) bool{
 		testMainCheckSession,
 		testMainCheckJob,
 		testMainCheckConsole,
