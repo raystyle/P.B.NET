@@ -124,7 +124,7 @@ func TestHandleConn(t *testing.T) {
 }
 
 func BenchmarkHandleConn(b *testing.B) {
-	for _, size := range []int{
+	for _, size := range [...]int{
 		128, 2 * 1024, 4 * 1024, 32 * 1024, 1024 * 1024,
 	} {
 		b.Run(fmt.Sprint(size), func(b *testing.B) {
@@ -180,7 +180,7 @@ func benchmarkHandleConn(b *testing.B, size int) {
 }
 
 func BenchmarkHandleConn_Parallel(b *testing.B) {
-	for _, size := range []int{
+	for _, size := range [...]int{
 		128, 2 * 1024, 4 * 1024, 32 * 1024, 1024 * 1024,
 	} {
 		b.Run(fmt.Sprint(size), func(b *testing.B) {

@@ -401,7 +401,7 @@ func TestPool_DeletePublicRootCACert(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		pool := NewPool()
 
-		for _, id := range []int{
+		for _, id := range [...]int{
 			-1, 0, 1,
 		} {
 			err := pool.DeletePublicRootCACert(id)
@@ -444,7 +444,7 @@ func TestPool_DeletePublicClientCACert(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		pool := NewPool()
 
-		for _, id := range []int{
+		for _, id := range [...]int{
 			-1, 0, 1,
 		} {
 			err := pool.DeletePublicClientCACert(id)
@@ -487,7 +487,7 @@ func TestPool_DeletePublicClientCert(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		pool := NewPool()
 
-		for _, id := range []int{
+		for _, id := range [...]int{
 			-1, 0, 1,
 		} {
 			err := pool.DeletePublicClientCert(id)
@@ -530,7 +530,7 @@ func TestPool_DeletePrivateRootCACert(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		pool := NewPool()
 
-		for _, id := range []int{
+		for _, id := range [...]int{
 			-1, 0, 1,
 		} {
 			err := pool.DeletePrivateRootCACert(id)
@@ -573,7 +573,7 @@ func TestPool_DeletePrivateClientCACert(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		pool := NewPool()
 
-		for _, id := range []int{
+		for _, id := range [...]int{
 			-1, 0, 1,
 		} {
 			err := pool.DeletePrivateClientCACert(id)
@@ -616,7 +616,7 @@ func TestPool_DeletePrivateClientPair(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		pool := NewPool()
 
-		for _, id := range []int{
+		for _, id := range [...]int{
 			-1, 0, 1,
 		} {
 			err := pool.DeletePrivateClientCert(id)
@@ -743,7 +743,7 @@ func TestPool_ExportPublicRootCACert(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		pool := NewPool()
 
-		for _, id := range []int{
+		for _, id := range [...]int{
 			-1, 0, 1,
 		} {
 			cert, err := pool.ExportPublicRootCACert(id)
@@ -775,7 +775,7 @@ func TestPool_ExportPublicClientCACert(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		pool := NewPool()
 
-		for _, id := range []int{
+		for _, id := range [...]int{
 			-1, 0, 1,
 		} {
 			cert, err := pool.ExportPublicClientCACert(id)
@@ -808,7 +808,7 @@ func TestPool_ExportPublicClientCert(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		pool := NewPool()
 
-		for _, id := range []int{
+		for _, id := range [...]int{
 			-1, 0, 1,
 		} {
 			cert, key, err := pool.ExportPublicClientPair(id)
@@ -842,7 +842,7 @@ func TestPool_ExportPrivateRootCACert(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		pool := NewPool()
 
-		for _, id := range []int{
+		for _, id := range [...]int{
 			-1, 0, 1,
 		} {
 			cert, key, err := pool.ExportPrivateRootCAPair(id)
@@ -876,7 +876,7 @@ func TestPool_ExportPrivateClientCACert(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		pool := NewPool()
 
-		for _, id := range []int{
+		for _, id := range [...]int{
 			-1, 0, 1,
 		} {
 			cert, key, err := pool.ExportPrivateClientCAPair(id)
@@ -910,7 +910,7 @@ func TestPool_ExportPrivateClientPair(t *testing.T) {
 	t.Run("invalid id", func(t *testing.T) {
 		pool := NewPool()
 
-		for _, id := range []int{
+		for _, id := range [...]int{
 			-1, 0, 1,
 		} {
 			cert, key, err := pool.ExportPrivateClientPair(id)

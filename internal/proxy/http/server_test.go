@@ -1024,7 +1024,7 @@ func TestHandler_authenticate(t *testing.T) {
 	server := testGenerateHTTPProxyServer(t)
 	address := server.Addresses()[0].String()
 
-	client := http.Client{}
+	client := http.Client{Transport: new(http.Transport)}
 	defer client.CloseIdleConnections()
 
 	t.Run("only username", func(t *testing.T) {

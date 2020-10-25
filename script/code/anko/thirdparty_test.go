@@ -88,7 +88,7 @@ func init() {
 	// }
 
 	// delete code
-	for _, item := range []string{
+	for _, item := range [...]string{
 		`		"DecodeDatastoreKey": reflect.ValueOf(msgpack.DecodeDatastoreKey),` + "\n",
 		`		"EncodeDatastoreKey": reflect.ValueOf(msgpack.EncodeDatastoreKey),` + "\n",
 	} {
@@ -177,7 +177,7 @@ func init() {
 	}
 
 	// delete code
-	// for _, item := range []string{
+	// for _, item := range [...]string{
 	// 	`		"DecodeDatastoreKey": reflect.ValueOf(msgpack.DecodeDatastoreKey),` + "\n",
 	// 	`		"EncodeDatastoreKey": reflect.ValueOf(msgpack.EncodeDatastoreKey),` + "\n",
 	// } {

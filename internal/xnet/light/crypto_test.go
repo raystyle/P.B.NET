@@ -35,7 +35,7 @@ func TestCrypto(t *testing.T) {
 }
 
 func BenchmarkCrypto_Encrypt(b *testing.B) {
-	for _, size := range []int{
+	for _, size := range [...]int{
 		128, 2048, 4096, 32768, 1048576,
 	} {
 		b.Run(fmt.Sprint(size), func(b *testing.B) {
@@ -59,7 +59,7 @@ func benchmarkCryptoEncrypt(b *testing.B, size int) {
 }
 
 func BenchmarkCrypto_Decrypt(b *testing.B) {
-	for _, size := range []int{
+	for _, size := range [...]int{
 		128, 2048, 4096, 32768, 1048576,
 	} {
 		b.Run(fmt.Sprint(size), func(b *testing.B) {

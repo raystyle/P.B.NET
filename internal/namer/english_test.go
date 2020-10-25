@@ -18,7 +18,7 @@ import (
 func testGenerateEnglishResource(t *testing.T) []byte {
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
 	writer := zip.NewWriter(buf)
-	for _, name := range []string{
+	for _, name := range [...]string{
 		"prefix.txt",
 		"stem.txt",
 		"suffix.txt",

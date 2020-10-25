@@ -10,7 +10,7 @@ import (
 
 func TestIsDomainName(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
-		for _, domain := range []string{
+		for _, domain := range [...]string{
 			"test.com",
 			"Test-sub.com",
 			"test-sub2.com",
@@ -20,7 +20,7 @@ func TestIsDomainName(t *testing.T) {
 	})
 
 	t.Run("invalid", func(t *testing.T) {
-		for _, domain := range []string{
+		for _, domain := range [...]string{
 			"",
 			string([]byte{255, 254, 12, 35}),
 			"test-",

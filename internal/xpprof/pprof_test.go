@@ -69,9 +69,7 @@ func testFetch(t *testing.T, url string, rt http.RoundTripper, server io.Closer)
 		testsuite.IsDestroyed(t, server)
 	}()
 
-	client := http.Client{
-		Transport: rt,
-	}
+	client := http.Client{Transport: rt}
 	defer client.CloseIdleConnections()
 
 	resp, err := client.Get(url)
@@ -227,7 +225,7 @@ func TestHandler_authenticate(t *testing.T) {
 	server := testGenerateHTTPServer(t)
 	address := server.Addresses()[0].String()
 
-	client := http.Client{}
+	client := http.Client{Transport: new(http.Transport)}
 	defer client.CloseIdleConnections()
 
 	t.Run("only username", func(t *testing.T) {

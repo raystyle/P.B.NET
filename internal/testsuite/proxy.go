@@ -514,9 +514,7 @@ func ProxyClientWithHTTPSTarget(t testing.TB, client proxyClient) {
 		RootCAs:    certPool,
 	}
 	client.HTTP(transport)
-	httpClient := http.Client{
-		Transport: transport,
-	}
+	httpClient := http.Client{Transport: transport}
 	defer httpClient.CloseIdleConnections()
 
 	resp, err := httpClient.Get("https://www.cloudflare.com/")

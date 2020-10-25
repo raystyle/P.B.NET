@@ -26,7 +26,7 @@ var testClientNum = testReserveClientNum + len(testClientTags)
 
 func testGeneratePool(t *testing.T) *Pool {
 	pool := NewPool(testcert.CertPool(t))
-	for i, filename := range []string{
+	for i, filename := range [...]string{
 		"socks/testdata/socks5_client.toml",
 		"socks/testdata/socks4a_client.toml",
 		"socks/testdata/socks4_client.toml",

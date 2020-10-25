@@ -89,7 +89,7 @@ func TestGenerateCertificate(t *testing.T) {
 
 func TestIsDomainName(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
-		for _, domain := range []string{
+		for _, domain := range [...]string{
 			"test.com",
 			"Test-sub.com",
 			"test-sub2.com",
@@ -99,7 +99,7 @@ func TestIsDomainName(t *testing.T) {
 	})
 
 	t.Run("invalid", func(t *testing.T) {
-		for _, domain := range []string{
+		for _, domain := range [...]string{
 			"",
 			string([]byte{255, 254, 12, 35}),
 			"test-",
@@ -204,7 +204,7 @@ func TestGenerateECDSA(t *testing.T) {
 		require.NotNil(t, pri)
 	})
 
-	for _, curve := range []string{
+	for _, curve := range [...]string{
 		"p224", "p256", "p384", "p521",
 	} {
 		t.Run(curve, func(t *testing.T) {
@@ -319,7 +319,7 @@ func TestGenerate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	for _, alg := range []string{
+	for _, alg := range [...]string{
 		"rsa|2048", "ecdsa|p256", "ed25519",
 	} {
 		t.Run(alg, func(t *testing.T) {
@@ -412,7 +412,11 @@ func testGenerate(t *testing.T, ca *Pair) {
 	} else {
 		tlsConfig.RootCAs.AddCert(pair.Certificate)
 	}
-	client := http.Client{Transport: &http.Transport{TLSClientConfig: &tlsConfig}}
+	client := http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tlsConfig,
+		},
+	}
 	defer client.CloseIdleConnections()
 
 	get := func(hostname, port string) {
@@ -518,7 +522,7 @@ func TestParseCertificates(t *testing.T) {
 }
 
 func TestParsePrivateKey(t *testing.T) {
-	for _, file := range []string{
+	for _, file := range [...]string{
 		"pkcs1.key", "pkcs8.key", "ecp.key",
 	} {
 		keyPEMBlock, err := ioutil.ReadFile("testdata/" + file)

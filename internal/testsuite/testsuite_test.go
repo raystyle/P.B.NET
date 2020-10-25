@@ -518,7 +518,7 @@ func TestRunHTTPServer(t *testing.T) {
 		defer func() { _ = server.Close() }()
 		t.Log("http server port:", port)
 
-		client := http.Client{}
+		client := http.Client{Transport: new(http.Transport)}
 		defer client.CloseIdleConnections()
 		resp, err := client.Get(fmt.Sprintf("http://localhost:%s/", port))
 		require.NoError(t, err)

@@ -480,7 +480,7 @@ func TestParseTime(t *testing.T) {
 }
 
 func TestToInterval(t *testing.T) {
-	for _, d := range []int8{
+	for _, d := range [...]int8{
 		1, 0, -1,
 	} {
 		t.Log(toInterval(d))

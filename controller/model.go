@@ -338,7 +338,7 @@ func initializeDatabaseForeignKey(db *gorm.DB) error {
 		onUpdate = "CASCADE"
 	)
 	// add Node foreign key
-	for _, model := range []*gorm.DB{
+	for _, model := range [...]*gorm.DB{
 		db.Model(&mNodeInfo{}),
 		db.Model(&mNodeListener{}),
 		db.Table(tableNodeLog).Model(&mRoleLog{}),
@@ -349,7 +349,7 @@ func initializeDatabaseForeignKey(db *gorm.DB) error {
 		}
 	}
 	// add Beacon foreign key
-	for _, model := range []*gorm.DB{
+	for _, model := range [...]*gorm.DB{
 		db.Model(&mBeaconInfo{}),
 		db.Model(&mBeaconListener{}),
 		db.Table(tableBeaconLog).Model(&mRoleLog{}),

@@ -24,7 +24,7 @@ func TestGenerateRtlEnableDisable(t *testing.T) {
 }
 
 func TestGenerateTestRtlEnableDisable(t *testing.T) {
-	for _, privilege := range []string{
+	for _, privilege := range [...]string{
 		"SESecurity",
 		"SELoadDriver",
 		"SESystemTime",

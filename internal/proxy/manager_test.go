@@ -27,7 +27,7 @@ var testServerNum = len(testServerTags)
 func testGenerateManager(t *testing.T) *Manager {
 	pool := testcert.CertPool(t)
 	manager := NewManager(pool, logger.Test, nil)
-	for i, filename := range []string{
+	for i, filename := range [...]string{
 		"socks/testdata/socks5_client.toml",
 		"socks/testdata/socks4a_client.toml",
 		"socks/testdata/socks4_client.toml",

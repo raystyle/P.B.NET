@@ -539,7 +539,7 @@ func testAddFullTypeProperties(t *testing.T, client *Client, obj *Object) {
 	require.NoError(t, err)
 	Object := &Object{raw: class}
 
-	for _, item := range []*struct {
+	for _, item := range [...]*struct {
 		Name    string
 		Type    uint8
 		IsArray bool

@@ -37,7 +37,7 @@ func newRuntime(e *Env) *runtime {
 		types:  make(map[string]reflect.Type),
 	}
 	// define built in function that use Env.
-	for _, item := range []*struct {
+	for _, item := range [...]*struct {
 		symbol string
 		fn     interface{}
 	}{

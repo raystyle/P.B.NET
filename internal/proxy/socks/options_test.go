@@ -163,7 +163,7 @@ func TestSocks4ClientOptions(t *testing.T) {
 }
 
 func TestCheckNetwork(t *testing.T) {
-	for _, network := range []string{
+	for _, network := range [...]string{
 		"tcp", "tcp4", "tcp6",
 	} {
 		err := CheckNetwork(network)

@@ -21,7 +21,7 @@ import (
 
 // clean testdata directory before test
 func TestMain(m *testing.M) {
-	for _, path := range []string{
+	for _, path := range [...]string{
 		TaskNameCopy,
 		TaskNameMove,
 		TaskNameDelete,

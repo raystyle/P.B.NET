@@ -70,7 +70,7 @@ func TestConfig(t *testing.T) {
 		data []byte
 		err  error
 	)
-	for _, path := range []string{
+	for _, path := range [...]string{
 		"testdata/config.toml",
 		"../controller/testdata/config.toml",
 	} {
