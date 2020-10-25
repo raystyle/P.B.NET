@@ -13,7 +13,6 @@ import (
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
-	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/netutil"
@@ -31,8 +30,8 @@ import (
 
 const (
 	defaultAdminUsername    = "admin"
-	minRequestBodySize      = 4 * 1024 * 1024
-	minRequestLargeBodySize = 64 * 1024 * 1024
+	minRequestBodySize      = 4 * 1024 * 1024  // 4MB
+	minRequestLargeBodySize = 64 * 1024 * 1024 // 64MB
 )
 
 // WebOptions contains options about web server.
@@ -75,8 +74,6 @@ type Web struct {
 	server   *http.Server
 	ui       *webUI
 	api      *webAPI
-
-	handler *webHandler
 }
 
 // NewWeb is used to create a web server, password is the common user password.
@@ -85,7 +82,6 @@ func NewWeb(client *Client, opts *WebOptions) (*Web, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-
 	mux := http.NewServeMux()
 
 	// web := &Web{}
@@ -98,172 +94,15 @@ func NewWeb(client *Client, opts *WebOptions) (*Web, error) {
 		fmt.Println(webUI)
 	}
 
-	// configure web handler.
-	wh := webHandler{
-		ctx:         client,
-		maxBodySize: opts.MaxBodySize,
-	}
-	if wh.maxBodySize < minRequestBodySize { // 1 MB
-		wh.maxBodySize = minRequestBodySize
-	}
-	wh.upgrader = &websocket.Upgrader{
-		HandshakeTimeout: time.Minute,
-		ReadBufferSize:   4096,
-		WriteBufferSize:  4096,
-	}
-	wh.encoderPool.New = func() interface{} {
-		return json.NewEncoder(64)
-	}
-	// configure router
-	router := &httprouter.Router{
-		RedirectTrailingSlash:  true,
-		RedirectFixedPath:      true,
-		HandleMethodNotAllowed: true,
-		PanicHandler:           wh.handlePanic,
-	}
-	hfs := opts.HFS
-	// set resource handler
-	for _, path := range [...]string{
-		"css", "js", "fonts", "img",
-	} {
-		handler := fmt.Sprintf("/%s/*filepath", path)
-		router.ServeFiles(handler, httptool.NewSubHTTPFileSystem(hfs, path))
-	}
-	// favicon.ico
-	router.GET("/favicon.ico", func(w hRW, _ *hR, _ hP) {
-		file, err := hfs.Open("favicon.ico")
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte("404 not found"))
-			return
-		}
-		_, _ = io.Copy(w, file)
-	})
-	// index.html
-	router.GET("/", func(w hRW, _ *hR, _ hP) {
-		file, err := hfs.Open("index.html")
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte("404 not found"))
-			return
-		}
-		_, _ = io.Copy(w, file)
-	})
-	// register router
-	for path, handler := range map[string]httprouter.Handle{
-		"/login": wh.handleLogin,
-
-		"/api/auth/logout":         wh.handleAuthenticationLogout,
-		"/api/auth/token/list":     wh.handleAuthenticationTokenList,
-		"/api/auth/token/generate": wh.handleAuthenticationTokenGenerate,
-		"/api/auth/token/add":      wh.handleAuthenticationTokenAdd,
-		"/api/auth/token/remove":   wh.handleAuthenticationTokenRemove,
-
-		"/api/core/module/status":   wh.handleCoreModuleStatus,
-		"/api/core/module/add_path": wh.handleCoreAddModulePath,
-		"/api/core/module/reload":   wh.handleCoreReloadModules,
-		"/api/core/thread/list":     wh.handleCoreThreadList,
-		"/api/core/thread/kill":     wh.handleCoreThreadKill,
-		"/api/core/global/set":      wh.handleCoreSetGlobal,
-		"/api/core/global/unset":    wh.handleCoreUnsetGlobal,
-		"/api/core/global/get":      wh.handleCoreGetGlobal,
-		"/api/core/save":            wh.handleCoreSave,
-		"/api/core/version":         wh.handleCoreVersion,
-
-		"/api/db/status":            wh.handleDatabaseStatus,
-		"/api/db/host/report":       wh.handleDatabaseReportHost,
-		"/api/db/host/list":         wh.handleDatabaseHosts,
-		"/api/db/host/get":          wh.handleDatabaseGetHost,
-		"/api/db/host/delete":       wh.handleDatabaseDeleteHost,
-		"/api/db/service/report":    wh.handleDatabaseReportService,
-		"/api/db/service/list":      wh.handleDatabaseServices,
-		"/api/db/service/get":       wh.handleDatabaseGetService,
-		"/api/db/service/delete":    wh.handleDatabaseDeleteService,
-		"/api/db/client/report":     wh.handleDatabaseReportClient,
-		"/api/db/client/list":       wh.handleDatabaseClients,
-		"/api/db/client/get":        wh.handleDatabaseGetClient,
-		"/api/db/client/delete":     wh.handleDatabaseDeleteClient,
-		"/api/db/cred/list":         wh.handleDatabaseCredentials,
-		"/api/db/cred/create":       wh.handleDatabaseCreateCredential,
-		"/api/db/cred/delete":       wh.handleDatabaseDeleteCredentials,
-		"/api/db/loot/report":       wh.handleDatabaseReportLoot,
-		"/api/db/loot/list":         wh.handleDatabaseLoots,
-		"/api/db/workspace/list":    wh.handleDatabaseWorkspaces,
-		"/api/db/workspace/get":     wh.handleDatabaseGetWorkspace,
-		"/api/db/workspace/add":     wh.handleDatabaseAddWorkspace,
-		"/api/db/workspace/delete":  wh.handleDatabaseDeleteWorkspace,
-		"/api/db/workspace/set":     wh.handleDatabaseSetWorkspace,
-		"/api/db/workspace/current": wh.handleDatabaseCurrentWorkspace,
-		"/api/db/events":            wh.handleDatabaseEvents,
-		"/api/db/import_data":       wh.handleDatabaseImportData,
-
-		"/api/console/list":           wh.handleConsoleList,
-		"/api/console/create":         wh.handleConsoleCreate,
-		"/api/console/destroy":        wh.handleConsoleDestroy,
-		"/api/console/read":           wh.handleConsoleRead,
-		"/api/console/write":          wh.handleConsoleWrite,
-		"/api/console/session_detach": wh.handleConsoleSessionDetach,
-		"/api/console/session_kill":   wh.handleConsoleSessionKill,
-
-		"/api/plugin/load":   wh.handlePluginLoad,
-		"/api/plugin/unload": wh.handlePluginUnload,
-		"/api/plugin/loaded": wh.handlePluginLoaded,
-
-		"/api/module/exploits":                   wh.handleModuleExploits,
-		"/api/module/auxiliary":                  wh.handleModuleAuxiliary,
-		"/api/module/post":                       wh.handleModulePost,
-		"/api/module/payloads":                   wh.handleModulePayloads,
-		"/api/module/encoders":                   wh.handleModuleEncoders,
-		"/api/module/nops":                       wh.handleModuleNops,
-		"/api/module/evasion":                    wh.handleModuleEvasion,
-		"/api/module/info":                       wh.handleModuleInfo,
-		"/api/module/options":                    wh.handleModuleOptions,
-		"/api/module/payloads/compatible":        wh.handleModuleCompatiblePayloads,
-		"/api/module/payloads/target_compatible": wh.handleModuleTargetCompatiblePayloads,
-		"/api/module/post/session_compatible":    wh.handleModuleCompatibleSessions,
-		"/api/module/evasion/compatible":         wh.handleModuleCompatibleEvasionPayloads,
-		"/api/module/evasion/target_compatible":  wh.handleModuleTargetCompatibleEvasionPayloads,
-		"/api/module/formats/encode":             wh.handleModuleEncodeFormats,
-		"/api/module/formats/executable":         wh.handleModuleExecutableFormats,
-		"/api/module/formats/transform":          wh.handleModuleTransformFormats,
-		"/api/module/formats/encryption":         wh.handleModuleEncryptionFormats,
-		"/api/module/platforms":                  wh.handleModulePlatforms,
-		"/api/module/architectures":              wh.handleModuleArchitectures,
-		"/api/module/encode":                     wh.handleModuleEncode,
-		"/api/module/generate_payload":           wh.handleModuleGeneratePayload,
-		"/api/module/execute":                    wh.handleModuleExecute,
-		"/api/module/check":                      wh.handleModuleCheck,
-		"/api/module/running_status":             wh.handleModuleRunningStatus,
-
-		"/api/job/list": wh.handleJobList,
-		"/api/job/info": wh.handleJobInfo,
-		"/api/job/stop": wh.handleJobStop,
-
-		"/api/session/list":                       wh.handleSessionList,
-		"/api/session/stop":                       wh.handleSessionStop,
-		"/api/session/shell/read":                 wh.handleSessionShellRead,
-		"/api/session/shell/write":                wh.handleSessionShellWrite,
-		"/api/session/upgrade":                    wh.handleSessionUpgrade,
-		"/api/session/meterpreter/read":           wh.handleSessionMeterpreterRead,
-		"/api/session/meterpreter/write":          wh.handleSessionMeterpreterWrite,
-		"/api/session/meterpreter/session_detach": wh.handleSessionMeterpreterSessionDetach,
-		"/api/session/meterpreter/session_kill":   wh.handleSessionMeterpreterSessionKill,
-		"/api/session/meterpreter/run_single":     wh.handleSessionMeterpreterRunSingle,
-		"/api/session/compatible_modules":         wh.handleSessionCompatibleModules,
-	} {
-		router.GET(path, handler)
-		router.POST(path, handler)
-	}
 	// set web server
-	server.Handler = router
+	server.Handler = mux
 	server.ConnState = func(conn net.Conn, state http.ConnState) {
 
 	}
 
 	server.ErrorLog = logger.Wrap(logger.Warning, "msfrpc-web", client.logger)
 	web := Web{
-		server:  server,
-		handler: &wh,
+		server: server,
 	}
 	if web.maxConns < 32 {
 		web.maxConns = 1000
@@ -385,8 +224,8 @@ type webAPI struct {
 	adminUsername *security.Bytes
 	adminPassword *security.Bytes
 
-	maxBodySize      int64
-	maxLargeBodySize int64
+	maxReqBodySize      int64
+	maxLargeReqBodySize int64
 
 	users    map[string]string
 	usersRWM sync.RWMutex
@@ -398,15 +237,19 @@ type webAPI struct {
 }
 
 func newWebAPI(client *Client, opts *WebOptions, mux *http.ServeMux) (*webAPI, error) {
-	api := webAPI{ctx: client}
+	wh := webAPI{
+		ctx:                 client,
+		maxReqBodySize:      opts.MaxBodySize,
+		maxLargeReqBodySize: opts.MaxLargeBodySize,
+	}
 	// set administrator username
 	adminUsername := opts.AdminUsername
 	if adminUsername == "" {
 		adminUsername = defaultAdminUsername
 		const log = "admin username is not set, use the default username:"
-		api.log(logger.Info, log, defaultAdminUsername)
+		wh.log(logger.Info, log, defaultAdminUsername)
 	}
-	api.adminUsername = security.NewBytes([]byte(adminUsername))
+	wh.adminUsername = security.NewBytes([]byte(adminUsername))
 	// set administrator password
 	adminPassword := opts.AdminPassword
 	if adminPassword == "" {
@@ -414,7 +257,7 @@ func newWebAPI(client *Client, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		adminPassword = random.NewRand().String(16)
 		defer security.CoverString(adminPassword)
 		const log = "admin password is not set, use the random password:"
-		api.log(logger.Info, log, adminPassword)
+		wh.log(logger.Info, log, adminPassword)
 	}
 	passwordBytes := []byte(adminPassword)
 	defer security.CoverBytes(passwordBytes)
@@ -422,9 +265,136 @@ func newWebAPI(client *Client, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to generate random admin password")
 	}
-	api.adminPassword = security.NewBytes(hashedPwd)
+	wh.adminPassword = security.NewBytes(hashedPwd)
+	if wh.maxReqBodySize < minRequestBodySize {
+		wh.maxReqBodySize = minRequestBodySize
+	}
+	if wh.maxLargeReqBodySize < minRequestLargeBodySize {
+		wh.maxLargeReqBodySize = minRequestLargeBodySize
+	}
+	if len(opts.Users) != 0 {
+		wh.users = opts.Users
+	} else {
+		wh.users = make(map[string]string)
+	}
+	wh.encoderPool.New = func() interface{} {
+		return json.NewEncoder(64)
+	}
+	wh.wsUpgrader = &websocket.Upgrader{
+		HandshakeTimeout: time.Minute,
+		ReadBufferSize:   4096,
+		WriteBufferSize:  4096,
+	}
+	// set handler
 
-	return &api, nil
+	// register router
+	for path, handler := range map[string]http.HandlerFunc{
+		"/login": wh.handleLogin,
+
+		"/api/auth/logout":         wh.handleAuthenticationLogout,
+		"/api/auth/token/list":     wh.handleAuthenticationTokenList,
+		"/api/auth/token/generate": wh.handleAuthenticationTokenGenerate,
+		"/api/auth/token/add":      wh.handleAuthenticationTokenAdd,
+		"/api/auth/token/remove":   wh.handleAuthenticationTokenRemove,
+
+		"/api/core/module/status":   wh.handleCoreModuleStatus,
+		"/api/core/module/add_path": wh.handleCoreAddModulePath,
+		"/api/core/module/reload":   wh.handleCoreReloadModules,
+		"/api/core/thread/list":     wh.handleCoreThreadList,
+		"/api/core/thread/kill":     wh.handleCoreThreadKill,
+		"/api/core/global/set":      wh.handleCoreSetGlobal,
+		"/api/core/global/unset":    wh.handleCoreUnsetGlobal,
+		"/api/core/global/get":      wh.handleCoreGetGlobal,
+		"/api/core/save":            wh.handleCoreSave,
+		"/api/core/version":         wh.handleCoreVersion,
+
+		"/api/db/status":            wh.handleDatabaseStatus,
+		"/api/db/host/report":       wh.handleDatabaseReportHost,
+		"/api/db/host/list":         wh.handleDatabaseHosts,
+		"/api/db/host/get":          wh.handleDatabaseGetHost,
+		"/api/db/host/delete":       wh.handleDatabaseDeleteHost,
+		"/api/db/service/report":    wh.handleDatabaseReportService,
+		"/api/db/service/list":      wh.handleDatabaseServices,
+		"/api/db/service/get":       wh.handleDatabaseGetService,
+		"/api/db/service/delete":    wh.handleDatabaseDeleteService,
+		"/api/db/client/report":     wh.handleDatabaseReportClient,
+		"/api/db/client/list":       wh.handleDatabaseClients,
+		"/api/db/client/get":        wh.handleDatabaseGetClient,
+		"/api/db/client/delete":     wh.handleDatabaseDeleteClient,
+		"/api/db/cred/list":         wh.handleDatabaseCredentials,
+		"/api/db/cred/create":       wh.handleDatabaseCreateCredential,
+		"/api/db/cred/delete":       wh.handleDatabaseDeleteCredentials,
+		"/api/db/loot/report":       wh.handleDatabaseReportLoot,
+		"/api/db/loot/list":         wh.handleDatabaseLoots,
+		"/api/db/workspace/list":    wh.handleDatabaseWorkspaces,
+		"/api/db/workspace/get":     wh.handleDatabaseGetWorkspace,
+		"/api/db/workspace/add":     wh.handleDatabaseAddWorkspace,
+		"/api/db/workspace/delete":  wh.handleDatabaseDeleteWorkspace,
+		"/api/db/workspace/set":     wh.handleDatabaseSetWorkspace,
+		"/api/db/workspace/current": wh.handleDatabaseCurrentWorkspace,
+		"/api/db/events":            wh.handleDatabaseEvents,
+		"/api/db/import_data":       wh.handleDatabaseImportData,
+
+		"/api/console/list":           wh.handleConsoleList,
+		"/api/console/create":         wh.handleConsoleCreate,
+		"/api/console/destroy":        wh.handleConsoleDestroy,
+		"/api/console/read":           wh.handleConsoleRead,
+		"/api/console/write":          wh.handleConsoleWrite,
+		"/api/console/session_detach": wh.handleConsoleSessionDetach,
+		"/api/console/session_kill":   wh.handleConsoleSessionKill,
+
+		"/api/plugin/load":   wh.handlePluginLoad,
+		"/api/plugin/unload": wh.handlePluginUnload,
+		"/api/plugin/loaded": wh.handlePluginLoaded,
+
+		"/api/module/exploits":                   wh.handleModuleExploits,
+		"/api/module/auxiliary":                  wh.handleModuleAuxiliary,
+		"/api/module/post":                       wh.handleModulePost,
+		"/api/module/payloads":                   wh.handleModulePayloads,
+		"/api/module/encoders":                   wh.handleModuleEncoders,
+		"/api/module/nops":                       wh.handleModuleNops,
+		"/api/module/evasion":                    wh.handleModuleEvasion,
+		"/api/module/info":                       wh.handleModuleInfo,
+		"/api/module/options":                    wh.handleModuleOptions,
+		"/api/module/payloads/compatible":        wh.handleModuleCompatiblePayloads,
+		"/api/module/payloads/target_compatible": wh.handleModuleTargetCompatiblePayloads,
+		"/api/module/post/session_compatible":    wh.handleModuleCompatibleSessions,
+		"/api/module/evasion/compatible":         wh.handleModuleCompatibleEvasionPayloads,
+		"/api/module/evasion/target_compatible":  wh.handleModuleTargetCompatibleEvasionPayloads,
+		"/api/module/formats/encode":             wh.handleModuleEncodeFormats,
+		"/api/module/formats/executable":         wh.handleModuleExecutableFormats,
+		"/api/module/formats/transform":          wh.handleModuleTransformFormats,
+		"/api/module/formats/encryption":         wh.handleModuleEncryptionFormats,
+		"/api/module/platforms":                  wh.handleModulePlatforms,
+		"/api/module/architectures":              wh.handleModuleArchitectures,
+		"/api/module/encode":                     wh.handleModuleEncode,
+		"/api/module/generate_payload":           wh.handleModuleGeneratePayload,
+		"/api/module/execute":                    wh.handleModuleExecute,
+		"/api/module/check":                      wh.handleModuleCheck,
+		"/api/module/running_status":             wh.handleModuleRunningStatus,
+
+		"/api/job/list": wh.handleJobList,
+		"/api/job/info": wh.handleJobInfo,
+		"/api/job/stop": wh.handleJobStop,
+
+		"/api/session/list":                       wh.handleSessionList,
+		"/api/session/stop":                       wh.handleSessionStop,
+		"/api/session/shell/read":                 wh.handleSessionShellRead,
+		"/api/session/shell/write":                wh.handleSessionShellWrite,
+		"/api/session/upgrade":                    wh.handleSessionUpgrade,
+		"/api/session/meterpreter/read":           wh.handleSessionMeterpreterRead,
+		"/api/session/meterpreter/write":          wh.handleSessionMeterpreterWrite,
+		"/api/session/meterpreter/session_detach": wh.handleSessionMeterpreterSessionDetach,
+		"/api/session/meterpreter/session_kill":   wh.handleSessionMeterpreterSessionKill,
+		"/api/session/meterpreter/run_single":     wh.handleSessionMeterpreterRunSingle,
+		"/api/session/compatible_modules":         wh.handleSessionCompatibleModules,
+	} {
+
+		mux.HandleFunc(path, handler)
+
+	}
+
+	return &wh, nil
 }
 
 func (api *webAPI) shuttingDown() bool {
@@ -474,11 +444,6 @@ func (api *webAPI) onEvent(event string) {
 
 }
 
-// shortcut about interface and structure.
-type hRW = http.ResponseWriter
-type hR = http.Request
-type hP = httprouter.Params
-
 type webHandler struct {
 	ctx *Client
 
@@ -491,36 +456,41 @@ type webHandler struct {
 	encoderPool sync.Pool
 }
 
-func (wh *webHandler) Close() {
+func (api *webAPI) Close() {
 	// websocket.IsWebSocketUpgrade()
-	wh.ctx = nil
+	api.ctx = nil
 }
 
-func (wh *webHandler) logf(lv logger.Level, format string, log ...interface{}) {
-	wh.ctx.logger.Printf(lv, "msfrpc-web", format, log...)
-}
-
-func (wh *webHandler) log(lv logger.Level, log ...interface{}) {
-	wh.ctx.logger.Println(lv, "msfrpc-web", log...)
-}
-
-func (wh *webHandler) readRequest(r *hR, req interface{}) error {
-	err := json.NewDecoder(io.LimitReader(r.Body, wh.maxBodySize)).Decode(req)
+func (api *webAPI) readRequest(r *http.Request, req interface{}) error {
+	err := json.NewDecoder(io.LimitReader(r.Body, api.maxReqBodySize)).Decode(req)
 	if err != nil {
 		name := xreflect.GetStructureName(req)
 		buf := httptool.PrintRequest(r)
-		wh.logf(logger.Error, "failed to read request about %s\n%s", name, buf)
+		api.logf(logger.Error, "failed to read request about %s\n%s", name, buf)
 		_, _ = io.Copy(ioutil.Discard, r.Body)
 		return err
 	}
 	return nil
 }
 
-func (wh *webHandler) writeResponse(w hRW, resp interface{}) {
+// readLargeRequest is used to request like upload file
+func (api *webAPI) readLargeRequest(r *http.Request, req interface{}) error {
+	err := json.NewDecoder(io.LimitReader(r.Body, api.maxLargeReqBodySize)).Decode(req)
+	if err != nil {
+		name := xreflect.GetStructureName(req)
+		buf := httptool.PrintRequest(r)
+		api.logf(logger.Error, "failed to read large request about %s\n%s", name, buf)
+		_, _ = io.Copy(ioutil.Discard, r.Body)
+		return err
+	}
+	return nil
+}
+
+func (api *webAPI) writeResponse(w http.ResponseWriter, resp interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	encoder := wh.encoderPool.Get().(*json.Encoder)
-	defer wh.encoderPool.Put(encoder)
+	encoder := api.encoderPool.Get().(*json.Encoder)
+	defer api.encoderPool.Put(encoder)
 	data, err := encoder.Encode(resp)
 	if err != nil {
 		panic(err)
@@ -528,7 +498,7 @@ func (wh *webHandler) writeResponse(w hRW, resp interface{}) {
 	_, _ = w.Write(data)
 }
 
-func (wh *webHandler) writeError(w hRW, err error) {
+func (api *webAPI) writeError(w http.ResponseWriter, err error) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	e := struct {
@@ -537,8 +507,8 @@ func (wh *webHandler) writeError(w hRW, err error) {
 	if err != nil {
 		e.Error = err.Error()
 	}
-	encoder := wh.encoderPool.Get().(*json.Encoder)
-	defer wh.encoderPool.Put(encoder)
+	encoder := api.encoderPool.Get().(*json.Encoder)
+	defer api.encoderPool.Put(encoder)
 	data, err := encoder.Encode(&e)
 	if err != nil {
 		panic(err)
@@ -546,7 +516,7 @@ func (wh *webHandler) writeError(w hRW, err error) {
 	_, _ = w.Write(data)
 }
 
-func (wh *webHandler) handlePanic(w hRW, _ *hR, e interface{}) {
+func (api *webAPI) handlePanic(w http.ResponseWriter, _ *http.Request, e interface{}) {
 	w.WriteHeader(http.StatusInternalServerError)
 
 	// if is super user return the panic
@@ -556,17 +526,17 @@ func (wh *webHandler) handlePanic(w hRW, _ *hR, e interface{}) {
 	sessions.NewSession(nil, "")
 }
 
-func (wh *webHandler) handleLogin(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// upgrade to websocket connection, server can push message to client
-	conn, err := wh.upgrader.Upgrade(w, r, nil)
+	conn, err := api.wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
-		wh.log(logger.Error, "failed to upgrade", err)
+		api.log(logger.Error, "failed to upgrade", err)
 		return
 	}
 	_ = conn.Close()
 }
 
-func (wh *webHandler) checkUser(w hRW, r *hR, _ hP) {
+func (api *webAPI) checkUser(w http.ResponseWriter, r *http.Request) {
 
 }
 
@@ -574,21 +544,21 @@ func (wh *webHandler) checkUser(w hRW, r *hR, _ hP) {
 
 // --------------------------------------about authentication--------------------------------------
 
-func (wh *webHandler) handleAuthenticationLogout(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleAuthenticationLogout(w http.ResponseWriter, r *http.Request) {
 	req := AuthLogoutRequest{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.AuthLogout(req.Token)
-	wh.writeError(w, err)
+	err = api.ctx.AuthLogout(req.Token)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleAuthenticationTokenList(w hRW, r *hR, _ hP) {
-	tokens, err := wh.ctx.AuthTokenList(r.Context())
+func (api *webAPI) handleAuthenticationTokenList(w http.ResponseWriter, r *http.Request) {
+	tokens, err := api.ctx.AuthTokenList(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -596,13 +566,13 @@ func (wh *webHandler) handleAuthenticationTokenList(w hRW, r *hR, _ hP) {
 	}{
 		Tokens: tokens,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleAuthenticationTokenGenerate(w hRW, r *hR, _ hP) {
-	token, err := wh.ctx.AuthTokenGenerate(r.Context())
+func (api *webAPI) handleAuthenticationTokenGenerate(w http.ResponseWriter, r *http.Request) {
+	token, err := api.ctx.AuthTokenGenerate(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -610,70 +580,70 @@ func (wh *webHandler) handleAuthenticationTokenGenerate(w hRW, r *hR, _ hP) {
 	}{
 		Token: token,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleAuthenticationTokenAdd(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleAuthenticationTokenAdd(w http.ResponseWriter, r *http.Request) {
 	req := AuthTokenAddRequest{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.AuthTokenAdd(r.Context(), req.Token)
-	wh.writeError(w, err)
+	err = api.ctx.AuthTokenAdd(r.Context(), req.Token)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleAuthenticationTokenRemove(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleAuthenticationTokenRemove(w http.ResponseWriter, r *http.Request) {
 	req := AuthTokenRemoveRequest{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.AuthTokenRemove(r.Context(), req.Token)
-	wh.writeError(w, err)
+	err = api.ctx.AuthTokenRemove(r.Context(), req.Token)
+	api.writeError(w, err)
 }
 
 // -------------------------------------------about core-------------------------------------------
 
-func (wh *webHandler) handleCoreModuleStatus(w hRW, r *hR, _ hP) {
-	status, err := wh.ctx.CoreModuleStats(r.Context())
+func (api *webAPI) handleCoreModuleStatus(w http.ResponseWriter, r *http.Request) {
+	status, err := api.ctx.CoreModuleStats(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, status)
+	api.writeResponse(w, status)
 }
 
-func (wh *webHandler) handleCoreAddModulePath(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleCoreAddModulePath(w http.ResponseWriter, r *http.Request) {
 	req := CoreAddModulePathRequest{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	status, err := wh.ctx.CoreAddModulePath(r.Context(), req.Path)
+	status, err := api.ctx.CoreAddModulePath(r.Context(), req.Path)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, status)
+	api.writeResponse(w, status)
 }
 
-func (wh *webHandler) handleCoreReloadModules(w hRW, r *hR, _ hP) {
-	status, err := wh.ctx.CoreReloadModules(r.Context())
+func (api *webAPI) handleCoreReloadModules(w http.ResponseWriter, r *http.Request) {
+	status, err := api.ctx.CoreReloadModules(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, status)
+	api.writeResponse(w, status)
 }
 
-func (wh *webHandler) handleCoreThreadList(w hRW, r *hR, _ hP) {
-	list, err := wh.ctx.CoreThreadList(r.Context())
+func (api *webAPI) handleCoreThreadList(w http.ResponseWriter, r *http.Request) {
+	list, err := api.ctx.CoreThreadList(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -681,52 +651,52 @@ func (wh *webHandler) handleCoreThreadList(w hRW, r *hR, _ hP) {
 	}{
 		Threads: list,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleCoreThreadKill(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleCoreThreadKill(w http.ResponseWriter, r *http.Request) {
 	req := CoreThreadKillRequest{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.CoreThreadKill(r.Context(), req.ID)
-	wh.writeError(w, err)
+	err = api.ctx.CoreThreadKill(r.Context(), req.ID)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleCoreSetGlobal(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleCoreSetGlobal(w http.ResponseWriter, r *http.Request) {
 	req := CoreSetGRequest{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.CoreSetG(r.Context(), req.Name, req.Value)
-	wh.writeError(w, err)
+	err = api.ctx.CoreSetG(r.Context(), req.Name, req.Value)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleCoreUnsetGlobal(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleCoreUnsetGlobal(w http.ResponseWriter, r *http.Request) {
 	req := CoreUnsetGRequest{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.CoreUnsetG(r.Context(), req.Name)
-	wh.writeError(w, err)
+	err = api.ctx.CoreUnsetG(r.Context(), req.Name)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleCoreGetGlobal(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleCoreGetGlobal(w http.ResponseWriter, r *http.Request) {
 	req := CoreGetGRequest{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	value, err := wh.ctx.CoreGetG(r.Context(), req.Name)
+	value, err := api.ctx.CoreGetG(r.Context(), req.Name)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -734,57 +704,57 @@ func (wh *webHandler) handleCoreGetGlobal(w hRW, r *hR, _ hP) {
 	}{
 		Value: value,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleCoreSave(w hRW, r *hR, _ hP) {
-	err := wh.ctx.CoreSave(r.Context())
-	wh.writeError(w, err)
+func (api *webAPI) handleCoreSave(w http.ResponseWriter, r *http.Request) {
+	err := api.ctx.CoreSave(r.Context())
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleCoreVersion(w hRW, r *hR, _ hP) {
-	version, err := wh.ctx.CoreVersion(r.Context())
+func (api *webAPI) handleCoreVersion(w http.ResponseWriter, r *http.Request) {
+	version, err := api.ctx.CoreVersion(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, version)
+	api.writeResponse(w, version)
 }
 
 // -----------------------------------------about database-----------------------------------------
 
-func (wh *webHandler) handleDatabaseStatus(w hRW, r *hR, _ hP) {
-	status, err := wh.ctx.DBStatus(r.Context())
+func (api *webAPI) handleDatabaseStatus(w http.ResponseWriter, r *http.Request) {
+	status, err := api.ctx.DBStatus(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, status)
+	api.writeResponse(w, status)
 }
 
-func (wh *webHandler) handleDatabaseReportHost(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseReportHost(w http.ResponseWriter, r *http.Request) {
 	req := DBReportHost{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.DBReportHost(r.Context(), &req)
-	wh.writeError(w, err)
+	err = api.ctx.DBReportHost(r.Context(), &req)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseHosts(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseHosts(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Workspace string `json:"workspace"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	hosts, err := wh.ctx.DBHosts(r.Context(), req.Workspace)
+	hosts, err := api.ctx.DBHosts(r.Context(), req.Workspace)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -792,56 +762,56 @@ func (wh *webHandler) handleDatabaseHosts(w hRW, r *hR, _ hP) {
 	}{
 		Hosts: hosts,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDatabaseGetHost(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseGetHost(w http.ResponseWriter, r *http.Request) {
 	req := DBGetHostOptions{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	host, err := wh.ctx.DBGetHost(r.Context(), &req)
+	host, err := api.ctx.DBGetHost(r.Context(), &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, &host)
+	api.writeResponse(w, &host)
 }
 
-func (wh *webHandler) handleDatabaseDeleteHost(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseDeleteHost(w http.ResponseWriter, r *http.Request) {
 	req := DBDelHostOptions{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	_, err = wh.ctx.DBDelHost(r.Context(), &req)
-	wh.writeError(w, err)
+	_, err = api.ctx.DBDelHost(r.Context(), &req)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseReportService(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseReportService(w http.ResponseWriter, r *http.Request) {
 	req := DBReportService{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.DBReportService(r.Context(), &req)
-	wh.writeError(w, err)
+	err = api.ctx.DBReportService(r.Context(), &req)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseServices(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseServices(w http.ResponseWriter, r *http.Request) {
 	req := DBServicesOptions{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	services, err := wh.ctx.DBServices(r.Context(), &req)
+	services, err := api.ctx.DBServices(r.Context(), &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -849,19 +819,19 @@ func (wh *webHandler) handleDatabaseServices(w hRW, r *hR, _ hP) {
 	}{
 		Services: services,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDatabaseGetService(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseGetService(w http.ResponseWriter, r *http.Request) {
 	req := DBGetServiceOptions{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	services, err := wh.ctx.DBGetService(r.Context(), &req)
+	services, err := api.ctx.DBGetService(r.Context(), &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -869,41 +839,41 @@ func (wh *webHandler) handleDatabaseGetService(w hRW, r *hR, _ hP) {
 	}{
 		Services: services,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDatabaseDeleteService(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseDeleteService(w http.ResponseWriter, r *http.Request) {
 	req := DBDelServiceOptions{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	_, err = wh.ctx.DBDelService(r.Context(), &req)
-	wh.writeError(w, err)
+	_, err = api.ctx.DBDelService(r.Context(), &req)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseReportClient(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseReportClient(w http.ResponseWriter, r *http.Request) {
 	req := DBReportClient{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.DBReportClient(r.Context(), &req)
-	wh.writeError(w, err)
+	err = api.ctx.DBReportClient(r.Context(), &req)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseClients(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseClients(w http.ResponseWriter, r *http.Request) {
 	req := DBClientsOptions{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	clients, err := wh.ctx.DBClients(r.Context(), &req)
+	clients, err := api.ctx.DBClients(r.Context(), &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -911,47 +881,47 @@ func (wh *webHandler) handleDatabaseClients(w hRW, r *hR, _ hP) {
 	}{
 		Clients: clients,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDatabaseGetClient(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseGetClient(w http.ResponseWriter, r *http.Request) {
 	req := DBGetClientOptions{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	client, err := wh.ctx.DBGetClient(r.Context(), &req)
+	client, err := api.ctx.DBGetClient(r.Context(), &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, client)
+	api.writeResponse(w, client)
 }
 
-func (wh *webHandler) handleDatabaseDeleteClient(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseDeleteClient(w http.ResponseWriter, r *http.Request) {
 	req := DBDelClientOptions{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	_, err = wh.ctx.DBDelClient(r.Context(), &req)
-	wh.writeError(w, err)
+	_, err = api.ctx.DBDelClient(r.Context(), &req)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseCredentials(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseCredentials(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Workspace string `json:"workspace"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	creds, err := wh.ctx.DBCreds(r.Context(), req.Workspace)
+	creds, err := api.ctx.DBCreds(r.Context(), req.Workspace)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -959,63 +929,63 @@ func (wh *webHandler) handleDatabaseCredentials(w hRW, r *hR, _ hP) {
 	}{
 		Creds: creds,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDatabaseCreateCredential(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseCreateCredential(w http.ResponseWriter, r *http.Request) {
 	req := DBCreateCredentialOptions{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	_, err = wh.ctx.DBCreateCredential(r.Context(), &req)
-	wh.writeError(w, err)
+	_, err = api.ctx.DBCreateCredential(r.Context(), &req)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseDeleteCredentials(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseDeleteCredentials(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Workspace string `json:"workspace"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	_, err = wh.ctx.DBDelCreds(r.Context(), req.Workspace)
-	wh.writeError(w, err)
+	_, err = api.ctx.DBDelCreds(r.Context(), req.Workspace)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseReportLoot(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseReportLoot(w http.ResponseWriter, r *http.Request) {
 	req := DBReportLoot{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.DBReportLoot(r.Context(), &req)
-	wh.writeError(w, err)
+	err = api.ctx.DBReportLoot(r.Context(), &req)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseLoots(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseLoots(w http.ResponseWriter, r *http.Request) {
 	req := DBLootsOptions{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	loots, err := wh.ctx.DBLoots(r.Context(), &req)
+	loots, err := api.ctx.DBLoots(r.Context(), &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, loots)
+	api.writeResponse(w, loots)
 }
 
-func (wh *webHandler) handleDatabaseWorkspaces(w hRW, r *hR, _ hP) {
-	workspaces, err := wh.ctx.DBWorkspaces(r.Context())
+func (api *webAPI) handleDatabaseWorkspaces(w http.ResponseWriter, r *http.Request) {
+	workspaces, err := api.ctx.DBWorkspaces(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1023,84 +993,84 @@ func (wh *webHandler) handleDatabaseWorkspaces(w hRW, r *hR, _ hP) {
 	}{
 		Workspaces: workspaces,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDatabaseGetWorkspace(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseGetWorkspace(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Name string `json:"name"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	workspace, err := wh.ctx.DBGetWorkspace(r.Context(), req.Name)
+	workspace, err := api.ctx.DBGetWorkspace(r.Context(), req.Name)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, workspace)
+	api.writeResponse(w, workspace)
 }
 
-func (wh *webHandler) handleDatabaseAddWorkspace(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseAddWorkspace(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Name string `json:"name"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.DBAddWorkspace(r.Context(), req.Name)
-	wh.writeError(w, err)
+	err = api.ctx.DBAddWorkspace(r.Context(), req.Name)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseDeleteWorkspace(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseDeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Name string `json:"name"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.DBDelWorkspace(r.Context(), req.Name)
-	wh.writeError(w, err)
+	err = api.ctx.DBDelWorkspace(r.Context(), req.Name)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseSetWorkspace(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseSetWorkspace(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Name string `json:"name"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.DBSetWorkspace(r.Context(), req.Name)
-	wh.writeError(w, err)
+	err = api.ctx.DBSetWorkspace(r.Context(), req.Name)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseCurrentWorkspace(w hRW, r *hR, _ hP) {
-	result, err := wh.ctx.DBCurrentWorkspace(r.Context())
+func (api *webAPI) handleDatabaseCurrentWorkspace(w http.ResponseWriter, r *http.Request) {
+	result, err := api.ctx.DBCurrentWorkspace(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, result)
+	api.writeResponse(w, result)
 }
 
-func (wh *webHandler) handleDatabaseEvents(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseEvents(w http.ResponseWriter, r *http.Request) {
 	req := DBEventOptions{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	events, err := wh.ctx.DBEvent(r.Context(), &req)
+	events, err := api.ctx.DBEvent(r.Context(), &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1108,26 +1078,26 @@ func (wh *webHandler) handleDatabaseEvents(w hRW, r *hR, _ hP) {
 	}{
 		Events: events,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDatabaseImportData(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleDatabaseImportData(w http.ResponseWriter, r *http.Request) {
 	req := DBImportDataOptions{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.DBImportData(r.Context(), &req)
-	wh.writeError(w, err)
+	err = api.ctx.DBImportData(r.Context(), &req)
+	api.writeError(w, err)
 }
 
 // ------------------------------------------about console-----------------------------------------
 
-func (wh *webHandler) handleConsoleList(w hRW, r *hR, _ hP) {
-	consoles, err := wh.ctx.ConsoleList(r.Context())
+func (api *webAPI) handleConsoleList(w http.ResponseWriter, r *http.Request) {
+	consoles, err := api.ctx.ConsoleList(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1135,133 +1105,134 @@ func (wh *webHandler) handleConsoleList(w hRW, r *hR, _ hP) {
 	}{
 		Console: consoles,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleConsoleCreate(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleConsoleCreate(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Workspace  string        `json:"workspace"`
 		IOInterval time.Duration `json:"io_interval"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	if req.IOInterval < 1 {
-		req.IOInterval = wh.ioInterval
+		req.IOInterval = minReadInterval
 	}
-	console, err := wh.ctx.NewConsole(r.Context(), req.Workspace, req.IOInterval)
+
+	console, err := api.ctx.NewConsole(r.Context(), req.Workspace, req.IOInterval)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	_ = console.Close()
 }
 
-func (wh *webHandler) handleConsoleDestroy(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleConsoleDestroy(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID string `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	// first check is in web handler
-	err = wh.ctx.ConsoleDestroy(r.Context(), req.ID)
-	wh.writeError(w, err)
+	err = api.ctx.ConsoleDestroy(r.Context(), req.ID)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleConsoleRead(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleConsoleRead(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID string `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	// first check is in web handler
-	err = wh.ctx.ConsoleSessionDetach(r.Context(), req.ID)
-	wh.writeError(w, err)
+	err = api.ctx.ConsoleSessionDetach(r.Context(), req.ID)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleConsoleWrite(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleConsoleWrite(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID string `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	// first check is in web handler
-	err = wh.ctx.ConsoleSessionKill(r.Context(), req.ID)
-	wh.writeError(w, err)
+	err = api.ctx.ConsoleSessionKill(r.Context(), req.ID)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleConsoleSessionDetach(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleConsoleSessionDetach(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID string `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	// first check is in web handler
-	err = wh.ctx.ConsoleSessionDetach(r.Context(), req.ID)
-	wh.writeError(w, err)
+	err = api.ctx.ConsoleSessionDetach(r.Context(), req.ID)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleConsoleSessionKill(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleConsoleSessionKill(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID string `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	// first check is in web handler
-	err = wh.ctx.ConsoleSessionKill(r.Context(), req.ID)
-	wh.writeError(w, err)
+	err = api.ctx.ConsoleSessionKill(r.Context(), req.ID)
+	api.writeError(w, err)
 }
 
 // ------------------------------------------about plugin------------------------------------------
 
-func (wh *webHandler) handlePluginLoad(w hRW, r *hR, _ hP) {
+func (api *webAPI) handlePluginLoad(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Name    string            `json:"name"`
 		Options map[string]string `json:"options"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.PluginLoad(r.Context(), req.Name, req.Options)
-	wh.writeError(w, err)
+	err = api.ctx.PluginLoad(r.Context(), req.Name, req.Options)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handlePluginUnload(w hRW, r *hR, _ hP) {
+func (api *webAPI) handlePluginUnload(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Name string `json:"name"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.PluginUnload(r.Context(), req.Name)
-	wh.writeError(w, err)
+	err = api.ctx.PluginUnload(r.Context(), req.Name)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handlePluginLoaded(w hRW, r *hR, _ hP) {
-	plugins, err := wh.ctx.PluginLoaded(r.Context())
+func (api *webAPI) handlePluginLoaded(w http.ResponseWriter, r *http.Request) {
+	plugins, err := api.ctx.PluginLoaded(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1269,15 +1240,15 @@ func (wh *webHandler) handlePluginLoaded(w hRW, r *hR, _ hP) {
 	}{
 		Plugins: plugins,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
 // ------------------------------------------about module------------------------------------------
 
-func (wh *webHandler) handleModuleExploits(w hRW, r *hR, _ hP) {
-	modules, err := wh.ctx.ModuleExploits(r.Context())
+func (api *webAPI) handleModuleExploits(w http.ResponseWriter, r *http.Request) {
+	modules, err := api.ctx.ModuleExploits(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1285,13 +1256,13 @@ func (wh *webHandler) handleModuleExploits(w hRW, r *hR, _ hP) {
 	}{
 		Modules: modules,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleAuxiliary(w hRW, r *hR, _ hP) {
-	modules, err := wh.ctx.ModuleAuxiliary(r.Context())
+func (api *webAPI) handleModuleAuxiliary(w http.ResponseWriter, r *http.Request) {
+	modules, err := api.ctx.ModuleAuxiliary(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1299,13 +1270,13 @@ func (wh *webHandler) handleModuleAuxiliary(w hRW, r *hR, _ hP) {
 	}{
 		Modules: modules,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModulePost(w hRW, r *hR, _ hP) {
-	modules, err := wh.ctx.ModulePost(r.Context())
+func (api *webAPI) handleModulePost(w http.ResponseWriter, r *http.Request) {
+	modules, err := api.ctx.ModulePost(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1313,13 +1284,13 @@ func (wh *webHandler) handleModulePost(w hRW, r *hR, _ hP) {
 	}{
 		Modules: modules,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModulePayloads(w hRW, r *hR, _ hP) {
-	modules, err := wh.ctx.ModulePayloads(r.Context())
+func (api *webAPI) handleModulePayloads(w http.ResponseWriter, r *http.Request) {
+	modules, err := api.ctx.ModulePayloads(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1327,13 +1298,13 @@ func (wh *webHandler) handleModulePayloads(w hRW, r *hR, _ hP) {
 	}{
 		Modules: modules,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleEncoders(w hRW, r *hR, _ hP) {
-	modules, err := wh.ctx.ModuleEncoders(r.Context())
+func (api *webAPI) handleModuleEncoders(w http.ResponseWriter, r *http.Request) {
+	modules, err := api.ctx.ModuleEncoders(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1341,13 +1312,13 @@ func (wh *webHandler) handleModuleEncoders(w hRW, r *hR, _ hP) {
 	}{
 		Modules: modules,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleNops(w hRW, r *hR, _ hP) {
-	modules, err := wh.ctx.ModuleNops(r.Context())
+func (api *webAPI) handleModuleNops(w http.ResponseWriter, r *http.Request) {
+	modules, err := api.ctx.ModuleNops(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1355,13 +1326,13 @@ func (wh *webHandler) handleModuleNops(w hRW, r *hR, _ hP) {
 	}{
 		Modules: modules,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleEvasion(w hRW, r *hR, _ hP) {
-	modules, err := wh.ctx.ModuleEvasion(r.Context())
+func (api *webAPI) handleModuleEvasion(w http.ResponseWriter, r *http.Request) {
+	modules, err := api.ctx.ModuleEvasion(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1369,57 +1340,57 @@ func (wh *webHandler) handleModuleEvasion(w hRW, r *hR, _ hP) {
 	}{
 		Modules: modules,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleInfo(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleModuleInfo(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Type string `json:"type"`
 		Name string `json:"name"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	info, err := wh.ctx.ModuleInfo(r.Context(), req.Type, req.Name)
+	info, err := api.ctx.ModuleInfo(r.Context(), req.Type, req.Name)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, info)
+	api.writeResponse(w, info)
 }
 
-func (wh *webHandler) handleModuleOptions(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleModuleOptions(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Type string `json:"type"`
 		Name string `json:"name"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	opts, err := wh.ctx.ModuleOptions(r.Context(), req.Type, req.Name)
+	opts, err := api.ctx.ModuleOptions(r.Context(), req.Type, req.Name)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, opts)
+	api.writeResponse(w, opts)
 }
 
-func (wh *webHandler) handleModuleCompatiblePayloads(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleModuleCompatiblePayloads(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Name string `json:"name"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	payloads, err := wh.ctx.ModuleCompatiblePayloads(r.Context(), req.Name)
+	payloads, err := api.ctx.ModuleCompatiblePayloads(r.Context(), req.Name)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1427,22 +1398,22 @@ func (wh *webHandler) handleModuleCompatiblePayloads(w hRW, r *hR, _ hP) {
 	}{
 		Payloads: payloads,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleTargetCompatiblePayloads(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleModuleTargetCompatiblePayloads(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Name   string `json:"name"`
 		Target uint64 `json:"target"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	payloads, err := wh.ctx.ModuleTargetCompatiblePayloads(r.Context(), req.Name, req.Target)
+	payloads, err := api.ctx.ModuleTargetCompatiblePayloads(r.Context(), req.Name, req.Target)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1450,21 +1421,21 @@ func (wh *webHandler) handleModuleTargetCompatiblePayloads(w hRW, r *hR, _ hP) {
 	}{
 		Payloads: payloads,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleCompatibleSessions(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleModuleCompatibleSessions(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Name string `json:"name"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	cSessions, err := wh.ctx.ModuleCompatibleSessions(r.Context(), req.Name)
+	cSessions, err := api.ctx.ModuleCompatibleSessions(r.Context(), req.Name)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1472,21 +1443,21 @@ func (wh *webHandler) handleModuleCompatibleSessions(w hRW, r *hR, _ hP) {
 	}{
 		Sessions: cSessions,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleCompatibleEvasionPayloads(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleModuleCompatibleEvasionPayloads(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Name string `json:"name"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	payloads, err := wh.ctx.ModuleCompatibleEvasionPayloads(r.Context(), req.Name)
+	payloads, err := api.ctx.ModuleCompatibleEvasionPayloads(r.Context(), req.Name)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1494,22 +1465,22 @@ func (wh *webHandler) handleModuleCompatibleEvasionPayloads(w hRW, r *hR, _ hP) 
 	}{
 		Payloads: payloads,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleTargetCompatibleEvasionPayloads(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleModuleTargetCompatibleEvasionPayloads(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Name   string `json:"name"`
 		Target uint64 `json:"target"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	payloads, err := wh.ctx.ModuleTargetCompatibleEvasionPayloads(r.Context(), req.Name, req.Target)
+	payloads, err := api.ctx.ModuleTargetCompatibleEvasionPayloads(r.Context(), req.Name, req.Target)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1517,13 +1488,13 @@ func (wh *webHandler) handleModuleTargetCompatibleEvasionPayloads(w hRW, r *hR, 
 	}{
 		Payloads: payloads,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleEncodeFormats(w hRW, r *hR, _ hP) {
-	formats, err := wh.ctx.ModuleEncodeFormats(r.Context())
+func (api *webAPI) handleModuleEncodeFormats(w http.ResponseWriter, r *http.Request) {
+	formats, err := api.ctx.ModuleEncodeFormats(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1531,13 +1502,13 @@ func (wh *webHandler) handleModuleEncodeFormats(w hRW, r *hR, _ hP) {
 	}{
 		Formats: formats,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleExecutableFormats(w hRW, r *hR, _ hP) {
-	formats, err := wh.ctx.ModuleExecutableFormats(r.Context())
+func (api *webAPI) handleModuleExecutableFormats(w http.ResponseWriter, r *http.Request) {
+	formats, err := api.ctx.ModuleExecutableFormats(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1545,13 +1516,13 @@ func (wh *webHandler) handleModuleExecutableFormats(w hRW, r *hR, _ hP) {
 	}{
 		Formats: formats,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleTransformFormats(w hRW, r *hR, _ hP) {
-	formats, err := wh.ctx.ModuleTransformFormats(r.Context())
+func (api *webAPI) handleModuleTransformFormats(w http.ResponseWriter, r *http.Request) {
+	formats, err := api.ctx.ModuleTransformFormats(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1559,12 +1530,12 @@ func (wh *webHandler) handleModuleTransformFormats(w hRW, r *hR, _ hP) {
 	}{
 		Formats: formats,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
-func (wh *webHandler) handleModuleEncryptionFormats(w hRW, r *hR, _ hP) {
-	formats, err := wh.ctx.ModuleEncryptionFormats(r.Context())
+func (api *webAPI) handleModuleEncryptionFormats(w http.ResponseWriter, r *http.Request) {
+	formats, err := api.ctx.ModuleEncryptionFormats(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1572,13 +1543,13 @@ func (wh *webHandler) handleModuleEncryptionFormats(w hRW, r *hR, _ hP) {
 	}{
 		Formats: formats,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModulePlatforms(w hRW, r *hR, _ hP) {
-	platforms, err := wh.ctx.ModulePlatforms(r.Context())
+func (api *webAPI) handleModulePlatforms(w http.ResponseWriter, r *http.Request) {
+	platforms, err := api.ctx.ModulePlatforms(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1586,13 +1557,13 @@ func (wh *webHandler) handleModulePlatforms(w hRW, r *hR, _ hP) {
 	}{
 		Platforms: platforms,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleArchitectures(w hRW, r *hR, _ hP) {
-	architectures, err := wh.ctx.ModuleArchitectures(r.Context())
+func (api *webAPI) handleModuleArchitectures(w http.ResponseWriter, r *http.Request) {
+	architectures, err := api.ctx.ModuleArchitectures(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1600,23 +1571,23 @@ func (wh *webHandler) handleModuleArchitectures(w hRW, r *hR, _ hP) {
 	}{
 		Architectures: architectures,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleEncode(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleModuleEncode(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Data    string               `json:"data"`
 		Encoder string               `json:"encoder"`
 		Options *ModuleEncodeOptions `json:"options"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	data, err := wh.ctx.ModuleEncode(r.Context(), req.Data, req.Encoder, req.Options)
+	data, err := api.ctx.ModuleEncode(r.Context(), req.Data, req.Encoder, req.Options)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1624,22 +1595,22 @@ func (wh *webHandler) handleModuleEncode(w hRW, r *hR, _ hP) {
 	}{
 		Data: data,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleGeneratePayload(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleModuleGeneratePayload(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Name    string                `json:"name"`
 		Options *ModuleExecuteOptions `json:"options"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	result, err := wh.ctx.ModuleExecute(r.Context(), "payload", req.Name, req.Options)
+	result, err := api.ctx.ModuleExecute(r.Context(), "payload", req.Name, req.Options)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1647,23 +1618,23 @@ func (wh *webHandler) handleModuleGeneratePayload(w hRW, r *hR, _ hP) {
 	}{
 		Payload: result.Payload,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleExecute(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleModuleExecute(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Type    string                 `json:"type"`
 		Name    string                 `json:"name"`
 		Options map[string]interface{} `json:"options"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	result, err := wh.ctx.ModuleExecute(r.Context(), req.Type, req.Name, req.Options)
+	result, err := api.ctx.ModuleExecute(r.Context(), req.Type, req.Name, req.Options)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1673,43 +1644,43 @@ func (wh *webHandler) handleModuleExecute(w hRW, r *hR, _ hP) {
 		JobID: result.JobID,
 		UUID:  result.UUID,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleCheck(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleModuleCheck(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Type    string                 `json:"type"`
 		Name    string                 `json:"name"`
 		Options map[string]interface{} `json:"options"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	result, err := wh.ctx.ModuleCheck(r.Context(), req.Type, req.Name, req.Options)
+	result, err := api.ctx.ModuleCheck(r.Context(), req.Type, req.Name, req.Options)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, result)
+	api.writeResponse(w, result)
 }
 
-func (wh *webHandler) handleModuleRunningStatus(w hRW, r *hR, _ hP) {
-	status, err := wh.ctx.ModuleRunningStats(r.Context())
+func (api *webAPI) handleModuleRunningStatus(w http.ResponseWriter, r *http.Request) {
+	status, err := api.ctx.ModuleRunningStats(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, status)
+	api.writeResponse(w, status)
 }
 
 // -------------------------------------------about job--------------------------------------------
 
-func (wh *webHandler) handleJobList(w hRW, r *hR, _ hP) {
-	jobs, err := wh.ctx.JobList(r.Context())
+func (api *webAPI) handleJobList(w http.ResponseWriter, r *http.Request) {
+	jobs, err := api.ctx.JobList(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1717,45 +1688,45 @@ func (wh *webHandler) handleJobList(w hRW, r *hR, _ hP) {
 	}{
 		Jobs: jobs,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleJobInfo(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleJobInfo(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID string `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	info, err := wh.ctx.JobInfo(r.Context(), req.ID)
+	info, err := api.ctx.JobInfo(r.Context(), req.ID)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, info)
+	api.writeResponse(w, info)
 }
 
-func (wh *webHandler) handleJobStop(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleJobStop(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID string `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.JobStop(r.Context(), req.ID)
-	wh.writeError(w, err)
+	err = api.ctx.JobStop(r.Context(), req.ID)
+	api.writeError(w, err)
 }
 
 // -----------------------------------------about session------------------------------------------
 
-func (wh *webHandler) handleSessionList(w hRW, r *hR, _ hP) {
-	list, err := wh.ctx.SessionList(r.Context())
+func (api *webAPI) handleSessionList(w http.ResponseWriter, r *http.Request) {
+	list, err := api.ctx.SessionList(r.Context())
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1763,35 +1734,35 @@ func (wh *webHandler) handleSessionList(w hRW, r *hR, _ hP) {
 	}{
 		Sessions: list,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleSessionStop(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleSessionStop(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID uint64 `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	// first check is in web handler
-	err = wh.ctx.SessionStop(r.Context(), req.ID)
-	wh.writeError(w, err)
+	err = api.ctx.SessionStop(r.Context(), req.ID)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleSessionShellRead(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleSessionShellRead(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID uint64 `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	result, err := wh.ctx.SessionShellRead(r.Context(), req.ID)
+	result, err := api.ctx.SessionShellRead(r.Context(), req.ID)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1799,25 +1770,25 @@ func (wh *webHandler) handleSessionShellRead(w hRW, r *hR, _ hP) {
 	}{
 		Data: result.Data,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleSessionShellWrite(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleSessionShellWrite(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID   uint64 `json:"id"`
 		Data string `json:"data"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	// check
-	_, err = wh.ctx.SessionShellWrite(r.Context(), req.ID, req.Data)
-	wh.writeError(w, err)
+	_, err = api.ctx.SessionShellWrite(r.Context(), req.ID, req.Data)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleSessionUpgrade(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleSessionUpgrade(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID      uint64                 `json:"id"`
 		Host    string                 `json:"host"`
@@ -1825,15 +1796,15 @@ func (wh *webHandler) handleSessionUpgrade(w hRW, r *hR, _ hP) {
 		Options map[string]interface{} `json:"options"`
 		Wait    time.Duration          `json:"wait"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	result, err := wh.ctx.SessionUpgrade(r.Context(),
+	result, err := api.ctx.SessionUpgrade(r.Context(),
 		req.ID, req.Host, req.Port, req.Options, req.Wait)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1841,21 +1812,21 @@ func (wh *webHandler) handleSessionUpgrade(w hRW, r *hR, _ hP) {
 	}{
 		JobID: result.JobID,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleSessionMeterpreterRead(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleSessionMeterpreterRead(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID uint64 `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	data, err := wh.ctx.SessionMeterpreterRead(r.Context(), req.ID)
+	data, err := api.ctx.SessionMeterpreterRead(r.Context(), req.ID)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1863,77 +1834,77 @@ func (wh *webHandler) handleSessionMeterpreterRead(w hRW, r *hR, _ hP) {
 	}{
 		Data: data,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleSessionMeterpreterWrite(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleSessionMeterpreterWrite(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID   uint64 `json:"id"`
 		Data string `json:"data"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.SessionMeterpreterWrite(r.Context(), req.ID, req.Data)
-	wh.writeError(w, err)
+	err = api.ctx.SessionMeterpreterWrite(r.Context(), req.ID, req.Data)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleSessionMeterpreterSessionDetach(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleSessionMeterpreterSessionDetach(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID uint64 `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	// check exist
-	err = wh.ctx.SessionMeterpreterSessionDetach(r.Context(), req.ID)
-	wh.writeError(w, err)
+	err = api.ctx.SessionMeterpreterSessionDetach(r.Context(), req.ID)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleSessionMeterpreterSessionKill(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleSessionMeterpreterSessionKill(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID uint64 `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	// check exist
-	err = wh.ctx.SessionMeterpreterSessionKill(r.Context(), req.ID)
-	wh.writeError(w, err)
+	err = api.ctx.SessionMeterpreterSessionKill(r.Context(), req.ID)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleSessionMeterpreterRunSingle(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleSessionMeterpreterRunSingle(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID      uint64 `json:"id"`
 		Command string `json:"command"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	err = wh.ctx.SessionMeterpreterRunSingle(r.Context(), req.ID, req.Command)
-	wh.writeError(w, err)
+	err = api.ctx.SessionMeterpreterRunSingle(r.Context(), req.ID, req.Command)
+	api.writeError(w, err)
 }
 
-func (wh *webHandler) handleSessionCompatibleModules(w hRW, r *hR, _ hP) {
+func (api *webAPI) handleSessionCompatibleModules(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		ID uint64 `json:"id"`
 	}{}
-	err := wh.readRequest(r, &req)
+	err := api.readRequest(r, &req)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
-	modules, err := wh.ctx.SessionCompatibleModules(r.Context(), req.ID)
+	modules, err := api.ctx.SessionCompatibleModules(r.Context(), req.ID)
 	if err != nil {
-		wh.writeError(w, err)
+		api.writeError(w, err)
 		return
 	}
 	resp := struct {
@@ -1941,5 +1912,5 @@ func (wh *webHandler) handleSessionCompatibleModules(w hRW, r *hR, _ hP) {
 	}{
 		Modules: modules,
 	}
-	wh.writeResponse(w, &resp)
+	api.writeResponse(w, &resp)
 }
