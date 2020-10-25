@@ -233,7 +233,7 @@ func newProgram(config *config) (*program, error) {
 		MaxBodySize: config.Advance.MaxBodySize,
 		HFS:         http.Dir(webCfg.Directory),
 	}
-	webServer, err := msfrpc.NewWeb(MSFRPC, webCfg.Password, &webOpts)
+	webServer, err := msfrpc.NewWeb(MSFRPC, &webOpts)
 	if err != nil {
 		return nil, err
 	}

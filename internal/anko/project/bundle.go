@@ -660,6 +660,7 @@ func initInternalSecurity() {
 		// define constants
 
 		// define variables
+		"ErrHasRemainingData": reflect.ValueOf(security.ErrHasRemainingData),
 
 		// define functions
 		"CoverBytes":            reflect.ValueOf(security.CoverBytes),
@@ -667,11 +668,11 @@ func initInternalSecurity() {
 		"CoverString":           reflect.ValueOf(security.CoverString),
 		"FlushMemory":           reflect.ValueOf(security.FlushMemory),
 		"LimitReadAll":          reflect.ValueOf(security.LimitReadAll),
-		"LimitReadAllWithError": reflect.ValueOf(security.LimitReadAllWithError),
 		"NewBogo":               reflect.ValueOf(security.NewBogo),
 		"NewBytes":              reflect.ValueOf(security.NewBytes),
 		"NewMemory":             reflect.ValueOf(security.NewMemory),
 		"PaddingMemory":         reflect.ValueOf(security.PaddingMemory),
+		"ReadAll":               reflect.ValueOf(security.ReadAll),
 		"SwitchThread":          reflect.ValueOf(security.SwitchThread),
 		"SwitchThreadAsync":     reflect.ValueOf(security.SwitchThreadAsync),
 		"WaitSwitchThreadAsync": reflect.ValueOf(security.WaitSwitchThreadAsync),

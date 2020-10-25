@@ -344,7 +344,7 @@ func (h *HTTP) do(req *http.Request, client *http.Client, maxBodySize int64) ([]
 		_, _ = io.Copy(ioutil.Discard, resp.Body)
 		_ = resp.Body.Close()
 	}()
-	return security.LimitReadAllWithError(resp.Body, maxBodySize)
+	return security.ReadAll(resp.Body, maxBodySize)
 }
 
 func (h *HTTP) resolve(info []byte) []*Listener {

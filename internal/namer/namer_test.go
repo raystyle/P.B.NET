@@ -11,6 +11,7 @@ import (
 
 	"project/internal/patch/monkey"
 	"project/internal/patch/toml"
+	"project/internal/security"
 	"project/internal/testsuite"
 )
 
@@ -44,17 +45,17 @@ func TestLoadWordsFromZipFile(t *testing.T) {
 	})
 
 	t.Run("failed to read file data", func(t *testing.T) {
-		patch := func(reader io.Reader) ([]byte, error) {
+		patch := func(io.Reader, int64) ([]byte, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(ioutil.ReadAll, patch)
+		pg := monkey.Patch(security.ReadAll, patch)
 		defer pg.Unpatch()
 
 		zipFile, err := zip.NewReader(reader, size)
 		require.NoError(t, err)
 
 		sb, err := loadWordsFromZipFile(zipFile.File[0])
-		monkey.IsMonkeyError(t, err)
+		monkey.IsExistMonkeyError(t, err)
 		require.Nil(t, sb)
 	})
 }

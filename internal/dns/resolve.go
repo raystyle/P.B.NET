@@ -258,5 +258,5 @@ func dialDoH(ctx context.Context, server string, question []byte, opts *Options)
 	if maxBodySize < 1 {
 		maxBodySize = defaultMaxBodySize
 	}
-	return security.LimitReadAllWithError(resp.Body, maxBodySize)
+	return security.ReadAll(resp.Body, maxBodySize)
 }

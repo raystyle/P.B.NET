@@ -35,9 +35,9 @@ func loadWordsFromZipFile(file *zip.File) (*security.Bytes, error) {
 		return nil, errors.WithStack(err)
 	}
 	defer func() { _ = rc.Close() }()
-	data, err := security.LimitReadAllWithError(rc, 16*1024)
+	data, err := security.ReadAll(rc, 16*1024)
 	if err != nil {
-		return nil, errors.Wrap(err, "maybe zip file is too large")
+		return nil, errors.Errorf("%s, maybe zip file is too large", err)
 	}
 	defer security.CoverBytes(data)
 	return security.NewBytes(data), nil

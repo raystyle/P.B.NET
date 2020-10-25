@@ -6,12 +6,8 @@ import (
 	"io/ioutil"
 )
 
-// LimitReadAll is used to read all with limited size.
-// if out of size it will not return an error.
-func LimitReadAll(r io.Reader, size int64) ([]byte, error) {
-	lr := io.LimitReader(r, size)
-	return ioutil.ReadAll(lr)
-}
+// ErrHasRemainingData is an error that reader is not read finish.
+var ErrHasRemainingData = errors.New("has remaining data in reader")
 
 type limitedReader struct {
 	r io.Reader // underlying reader
@@ -26,7 +22,7 @@ func (l *limitedReader) Read(p []byte) (n int, err error) {
 		if err == io.EOF && n == 0 {
 			return 0, io.EOF
 		}
-		return 0, errors.New("limit read all is not finished")
+		return 0, ErrHasRemainingData
 	}
 	if int64(len(p)) > l.n {
 		p = p[0:l.n]
@@ -36,9 +32,16 @@ func (l *limitedReader) Read(p []byte) (n int, err error) {
 	return
 }
 
-// LimitReadAllWithError is used to read all with limited size.
-// if out of size it will not return an error.
-func LimitReadAllWithError(r io.Reader, size int64) ([]byte, error) {
+// ReadAll is used to read all with limited size.
+// if read out of size, it will return an ErrHasRemainingData.
+func ReadAll(r io.Reader, size int64) ([]byte, error) {
 	lr := limitedReader{r: r, n: size}
 	return ioutil.ReadAll(&lr)
+}
+
+// LimitReadAll is used to read all with limited size.
+// if read out of size, it will not return an error.
+func LimitReadAll(r io.Reader, size int64) ([]byte, error) {
+	lr := io.LimitReader(r, size)
+	return ioutil.ReadAll(lr)
 }

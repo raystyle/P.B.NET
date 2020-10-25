@@ -299,7 +299,7 @@ func newWebUI(hfs http.FileSystem, mux *http.ServeMux) (*webUI, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open favicon.ico")
 	}
-	favicon, err := security.LimitReadAllWithError(faviconFile, maxResourceFileSize)
+	favicon, err := security.ReadAll(faviconFile, maxResourceFileSize)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read favicon.ico")
 	}
@@ -308,7 +308,7 @@ func newWebUI(hfs http.FileSystem, mux *http.ServeMux) (*webUI, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open index.html")
 	}
-	index, err := security.LimitReadAllWithError(indexFile, maxResourceFileSize)
+	index, err := security.ReadAll(indexFile, maxResourceFileSize)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read index.html")
 	}
@@ -317,7 +317,7 @@ func newWebUI(hfs http.FileSystem, mux *http.ServeMux) (*webUI, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open exploit.html")
 	}
-	exploit, err := security.LimitReadAllWithError(exploitFile, maxResourceFileSize)
+	exploit, err := security.ReadAll(exploitFile, maxResourceFileSize)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read exploit.html")
 	}
@@ -347,7 +347,7 @@ func (ui *webUI) loadErrorPages(hfs http.FileSystem) error {
 		if err != nil {
 			continue
 		}
-		security.LimitReadAllWithError(file, maxResourceFileSize)
+		security.ReadAll(file, maxResourceFileSize)
 
 	}
 	return nil
