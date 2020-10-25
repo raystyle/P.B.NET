@@ -1,7 +1,10 @@
 package msfrpc
 
 import (
+	"fmt"
 	"io/ioutil"
+	"net"
+	"net/http"
 	"testing"
 	"time"
 
@@ -10,6 +13,22 @@ import (
 	"project/internal/patch/toml"
 	"project/internal/testsuite"
 )
+
+func TestWebUI(t *testing.T) {
+	mux := http.NewServeMux()
+
+	hfs := http.Dir("testdata/web")
+	webUI, err := newWebUI(hfs, mux)
+	require.NoError(t, err)
+
+	server := http.Server{Handler: mux}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:8181")
+	require.NoError(t, err)
+	server.Serve(listener)
+
+	fmt.Println(webUI)
+}
 
 func TestWebOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/web_opts.toml")

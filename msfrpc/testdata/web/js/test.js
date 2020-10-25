@@ -1,1 +1,1 @@
-test javascript
+let test = "javascript"
