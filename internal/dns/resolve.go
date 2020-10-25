@@ -19,6 +19,7 @@ import (
 	"project/internal/convert"
 	"project/internal/nettool"
 	"project/internal/random"
+	"project/internal/security"
 )
 
 const (
@@ -257,5 +258,5 @@ func dialDoH(ctx context.Context, server string, question []byte, opts *Options)
 	if maxBodySize < 1 {
 		maxBodySize = defaultMaxBodySize
 	}
-	return ioutil.ReadAll(io.LimitReader(resp.Body, maxBodySize))
+	return security.LimitReadAllWithError(resp.Body, maxBodySize)
 }

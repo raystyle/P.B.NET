@@ -334,7 +334,7 @@ func (h *HTTP) decryptOptions() *HTTP {
 	return HTTP
 }
 
-func (h *HTTP) do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
+func (h *HTTP) do(req *http.Request, client *http.Client, maxBodySize int64) ([]byte, error) {
 	defer coverHTTPRequest(req)
 	resp, err := client.Do(req)
 	if err != nil {
@@ -344,7 +344,7 @@ func (h *HTTP) do(req *http.Request, client *http.Client, length int64) ([]byte,
 		_, _ = io.Copy(ioutil.Discard, resp.Body)
 		_ = resp.Body.Close()
 	}()
-	return ioutil.ReadAll(io.LimitReader(resp.Body, length))
+	return security.LimitReadAllWithError(resp.Body, maxBodySize)
 }
 
 func (h *HTTP) resolve(info []byte) []*Listener {

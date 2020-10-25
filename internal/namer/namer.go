@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bufio"
 	"bytes"
-	"io/ioutil"
 
 	"github.com/pkg/errors"
 
@@ -36,9 +35,9 @@ func loadWordsFromZipFile(file *zip.File) (*security.Bytes, error) {
 		return nil, errors.WithStack(err)
 	}
 	defer func() { _ = rc.Close() }()
-	data, err := ioutil.ReadAll(rc)
+	data, err := security.LimitReadAllWithError(rc, 16*1024)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.Wrap(err, "maybe zip file is too large")
 	}
 	defer security.CoverBytes(data)
 	return security.NewBytes(data), nil
