@@ -304,6 +304,15 @@ type IOEventHandlers struct {
 	OnMeterpreterUnlocked func(id uint64, token string)
 }
 
+// IOManagerOptions contains options about io manager.
+type IOManagerOptions struct {
+	// Interval is the IO object read loop interval
+	Interval time.Duration `toml:"interval"`
+
+	// Now is used to set lock at time [inner usage]
+	Now func() time.Time `toml:"-" msgpack:"-"`
+}
+
 // IOManager is used to manage Console IO, Shell session IO and Meterpreter session IO.
 // It can lock IO instance for only one user can write data to it, other user can read it
 // with io reader, other user can only destroy it(Console) or kill session(Shell or Meterpreter).
@@ -320,15 +329,6 @@ type IOManager struct {
 	rwm          sync.RWMutex
 
 	counter xsync.Counter // io object counter
-}
-
-// IOManagerOptions contains options about io manager.
-type IOManagerOptions struct {
-	// Interval is the IO object read loop interval
-	Interval time.Duration `toml:"interval"`
-
-	// Now is used to set lock at time [inner usage]
-	Now func() time.Time `toml:"-" msgpack:"-"`
 }
 
 // NewIOManager is used to create a new IO manager.

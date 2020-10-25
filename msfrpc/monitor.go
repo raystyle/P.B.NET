@@ -40,6 +40,19 @@ type MonitorCallbacks struct {
 	OnEvent func(event string)
 }
 
+// MonitorOptions contains options about basic and database monitor.
+type MonitorOptions struct {
+	// Interval is the watch interval
+	Interval time.Duration `toml:"interval"`
+
+	// EnableDB is used to enable database monitor
+	// include hosts, credentials and loots
+	EnableDB bool `toml:"enable_db"`
+
+	// DBOptions contains options about database
+	DBOptions *DBConnectOptions `toml:"db_opts" check:"-"`
+}
+
 // Monitor is used to monitor changes about token list(security),
 // jobs and sessions. If msfrpc connected database, it can monitor
 // hosts, credentials and loots.
@@ -90,19 +103,6 @@ type Monitor struct {
 	context context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
-}
-
-// MonitorOptions contains options about basic and database monitor.
-type MonitorOptions struct {
-	// Interval is the watch interval
-	Interval time.Duration `toml:"interval"`
-
-	// EnableDB is used to enable database monitor
-	// include hosts, credentials and loots
-	EnableDB bool `toml:"enable_db"`
-
-	// DBOptions contains options about database
-	DBOptions *DBConnectOptions `toml:"db_opts" check:"-"`
 }
 
 // NewMonitor is used to create a data monitor.

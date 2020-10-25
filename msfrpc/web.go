@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/csrf"
@@ -14,12 +15,14 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/netutil"
 
 	"project/internal/httptool"
 	"project/internal/logger"
 	"project/internal/option"
 	"project/internal/patch/json"
+	"project/internal/random"
 	"project/internal/security"
 	"project/internal/virtualconn"
 	"project/internal/xpanic"
@@ -63,7 +66,7 @@ type WebOptions struct {
 
 	// Users contains common users, key is the username and
 	// value is the hashed password(bcrypt)
-	Users map[string]string
+	Users map[string]string `toml:"users"`
 }
 
 // Web is provide a web UI and API server.
@@ -78,10 +81,23 @@ type Web struct {
 
 // NewWeb is used to create a web server, password is the common user password.
 func NewWeb(client *Client, opts *WebOptions) (*Web, error) {
-	httpServer, err := opts.Server.Apply()
+	server, err := opts.Server.Apply()
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
+
+	mux := http.NewServeMux()
+
+	// web := &Web{}
+
+	if !opts.APIOnly {
+		webUI, err := newWebUI(opts.HFS, mux)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println(webUI)
+	}
+
 	// configure web handler.
 	wh := webHandler{
 		ctx:         client,
@@ -239,10 +255,14 @@ func NewWeb(client *Client, opts *WebOptions) (*Web, error) {
 		router.POST(path, handler)
 	}
 	// set web server
-	httpServer.Handler = router
-	httpServer.ErrorLog = logger.Wrap(logger.Warning, "msfrpc-web", client.logger)
+	server.Handler = router
+	server.ConnState = func(conn net.Conn, state http.ConnState) {
+
+	}
+
+	server.ErrorLog = logger.Wrap(logger.Warning, "msfrpc-web", client.logger)
 	web := Web{
-		server:  httpServer,
+		server:  server,
 		handler: &wh,
 	}
 	if web.maxConns < 32 {
@@ -251,16 +271,16 @@ func NewWeb(client *Client, opts *WebOptions) (*Web, error) {
 	return &web, nil
 }
 
-// Callbacks is used to return callbacks for monitor.
-func (web *Web) Callbacks() *MonitorCallbacks {
+// MonitorCallbacks is used to return callbacks for monitor.
+func (web *Web) MonitorCallbacks() *MonitorCallbacks {
 	return &MonitorCallbacks{
-		OnToken:      web.handler.onToken,
-		OnJob:        web.handler.onJob,
-		OnSession:    web.handler.onSession,
-		OnHost:       web.handler.onHost,
-		OnCredential: web.handler.onCredential,
-		OnLoot:       web.handler.onLoot,
-		OnEvent:      web.handler.onEvent,
+		OnToken:      web.api.onToken,
+		OnJob:        web.api.onJob,
+		OnSession:    web.api.onSession,
+		OnHost:       web.api.onHost,
+		OnCredential: web.api.onCredential,
+		OnLoot:       web.api.onLoot,
+		OnEvent:      web.api.onEvent,
 	}
 }
 
@@ -358,12 +378,100 @@ func (ui *webUI) handleIndex(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write(data)
 }
 
-// webAPI contain the actual handler.
+// webAPI contain the actual handler, login and handle event.
 type webAPI struct {
 	ctx *Client
 
-	upgrader    *websocket.Upgrader
-	encoderPool sync.Pool
+	adminUsername *security.Bytes
+	adminPassword *security.Bytes
+
+	maxBodySize      int64
+	maxLargeBodySize int64
+
+	users    map[string]string
+	usersRWM sync.RWMutex
+
+	encoderPool sync.Pool           // json encoder
+	wsUpgrader  *websocket.Upgrader // notice event
+
+	inShutdown int32
+}
+
+func newWebAPI(client *Client, opts *WebOptions, mux *http.ServeMux) (*webAPI, error) {
+	api := webAPI{ctx: client}
+	// set administrator username
+	adminUsername := opts.AdminUsername
+	if adminUsername == "" {
+		adminUsername = defaultAdminUsername
+		const log = "admin username is not set, use the default username:"
+		api.log(logger.Info, log, defaultAdminUsername)
+	}
+	api.adminUsername = security.NewBytes([]byte(adminUsername))
+	// set administrator password
+	adminPassword := opts.AdminPassword
+	if adminPassword == "" {
+		// generate a random password
+		adminPassword = random.NewRand().String(16)
+		defer security.CoverString(adminPassword)
+		const log = "admin password is not set, use the random password:"
+		api.log(logger.Info, log, adminPassword)
+	}
+	passwordBytes := []byte(adminPassword)
+	defer security.CoverBytes(passwordBytes)
+	hashedPwd, err := bcrypt.GenerateFromPassword(passwordBytes, 12)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to generate random admin password")
+	}
+	api.adminPassword = security.NewBytes(hashedPwd)
+
+	return &api, nil
+}
+
+func (api *webAPI) shuttingDown() bool {
+	return atomic.LoadInt32(&api.inShutdown) != 0
+}
+
+func (api *webAPI) logf(lv logger.Level, format string, log ...interface{}) {
+	if api.shuttingDown() {
+		return
+	}
+	api.ctx.logger.Printf(lv, "msfrpc-web api", format, log...)
+}
+
+func (api *webAPI) log(lv logger.Level, log ...interface{}) {
+	if api.shuttingDown() {
+		return
+	}
+	api.ctx.logger.Println(lv, "msfrpc-web api", log...)
+}
+
+// callbacks is used to notice that some data is updated.
+func (api *webAPI) onToken(token string, add bool) {
+
+}
+
+func (api *webAPI) onJob(id, name string, active bool) {
+
+}
+
+func (api *webAPI) onSession(id uint64, info *SessionInfo, opened bool) {
+
+}
+
+func (api *webAPI) onHost(workspace string, host *DBHost, add bool) {
+
+}
+
+func (api *webAPI) onCredential(workspace string, cred *DBCred, add bool) {
+
+}
+
+func (api *webAPI) onLoot(workspace string, loot *DBLoot) {
+
+}
+
+func (api *webAPI) onEvent(event string) {
+
 }
 
 // shortcut about interface and structure.
@@ -384,6 +492,7 @@ type webHandler struct {
 }
 
 func (wh *webHandler) Close() {
+	// websocket.IsWebSocketUpgrade()
 	wh.ctx = nil
 }
 
@@ -458,36 +567,6 @@ func (wh *webHandler) handleLogin(w hRW, r *hR, _ hP) {
 }
 
 func (wh *webHandler) checkUser(w hRW, r *hR, _ hP) {
-
-}
-
-// callbacks is used to notice web UI that some data is updated.
-
-func (wh *webHandler) onToken(token string, add bool) {
-
-}
-
-func (wh *webHandler) onJob(id, name string, active bool) {
-
-}
-
-func (wh *webHandler) onSession(id uint64, info *SessionInfo, opened bool) {
-
-}
-
-func (wh *webHandler) onHost(workspace string, host *DBHost, add bool) {
-
-}
-
-func (wh *webHandler) onCredential(workspace string, cred *DBCred, add bool) {
-
-}
-
-func (wh *webHandler) onLoot(workspace string, loot *DBLoot) {
-
-}
-
-func (wh *webHandler) onEvent(event string) {
 
 }
 

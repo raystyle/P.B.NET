@@ -20,6 +20,27 @@ import (
 	"project/internal/xsync"
 )
 
+// ClientOptions contains options about NewClient().
+type ClientOptions struct {
+	// DisableTLS is used to "http" scheme
+	DisableTLS bool `toml:"disable_tls"`
+
+	// TLSVerify is used to enable TLS verify
+	TLSVerify bool `toml:"tls_verify"`
+
+	// Handler is the MSFRPCD web url, if it is empty, use "api"
+	Handler string `toml:"handler"`
+
+	// Timeout is the request timeout
+	Timeout time.Duration `toml:"timeout"`
+
+	// Token is a permanent token, if use it, client not need to login.
+	Token string `toml:"token"`
+
+	// Transport contains options about http transport.
+	Transport option.HTTPTransport `toml:"transport" check:"-"`
+}
+
 // Client is used to connect metasploit-framework RPC service.
 // It provide a lot of API for interactive with MSF.
 type Client struct {
@@ -55,27 +76,6 @@ type Client struct {
 
 	ctx    context.Context
 	cancel context.CancelFunc
-}
-
-// ClientOptions contains options about NewClient().
-type ClientOptions struct {
-	// DisableTLS is used to "http" scheme
-	DisableTLS bool `toml:"disable_tls"`
-
-	// TLSVerify is used to enable TLS verify
-	TLSVerify bool `toml:"tls_verify"`
-
-	// Handler is the MSFRPCD web url, if it is empty, use "api"
-	Handler string `toml:"handler"`
-
-	// Timeout is the request timeout
-	Timeout time.Duration `toml:"timeout"`
-
-	// Token is a permanent token, if use it, client not need to login.
-	Token string `toml:"token"`
-
-	// Transport contains options about http transport.
-	Transport option.HTTPTransport `toml:"transport" check:"-"`
 }
 
 type bufEncoder struct {
