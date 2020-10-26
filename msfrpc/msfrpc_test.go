@@ -212,3 +212,19 @@ func testPatchClientSend(fn func()) {
 	defer pg.Unpatch()
 	fn()
 }
+
+func TestMSFRPC_HijackLogWriter(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client := testGenerateClient(t)
+
+	// TODO msfrpc
+	// client.HijackLogWriter()
+
+	err := client.Close()
+	require.Error(t, err)
+	client.Kill()
+
+	testsuite.IsDestroyed(t, client)
+}

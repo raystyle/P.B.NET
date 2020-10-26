@@ -182,11 +182,6 @@ func NewClient(address, username, password string, lg logger.Logger, opts *Clien
 	return &client, nil
 }
 
-// HijackLogWriter is used to hijack all packages that use log.Print().
-func (client *Client) HijackLogWriter() {
-	logger.HijackLogWriter(logger.Error, "pkg", client.logger)
-}
-
 // SetToken is used to set token to current client.
 func (client *Client) SetToken(token string) {
 	client.tokenRWM.Lock()

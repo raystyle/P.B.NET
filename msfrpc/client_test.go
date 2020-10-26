@@ -69,21 +69,6 @@ func TestNewClient(t *testing.T) {
 	})
 }
 
-func TestClient_HijackLogWriter(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	client := testGenerateClient(t)
-
-	client.HijackLogWriter()
-
-	err := client.Close()
-	require.Error(t, err)
-	client.Kill()
-
-	testsuite.IsDestroyed(t, client)
-}
-
 func TestClient_log(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
