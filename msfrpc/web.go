@@ -89,34 +89,34 @@ type Web struct {
 }
 
 // NewWeb is used to create a web server, password is the common user password.
-func NewWeb(client *Client, opts *WebOptions) (*Web, error) {
+func NewWeb(msfrpc *MSFRPC, opts *WebOptions) (*Web, error) {
 	server, err := opts.Server.Apply()
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.Wrap(err, "failed to create web")
 	}
-	mux := http.NewServeMux()
 	web := Web{
-		logger:     client.logger,
+		logger:     msfrpc.logger,
 		disableTLS: opts.DisableTLS,
 		maxConns:   opts.MaxConns,
 		server:     server,
 	}
+	mux := http.NewServeMux()
 	if !opts.APIOnly {
 		webUI, err := newWebUI(opts.HFS, mux)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithMessage(err, "failed to create web ui")
 		}
 		web.ui = webUI
 	}
-	webAPI, err := newWebAPI(client, opts, mux)
+	webAPI, err := newWebAPI(msfrpc, opts, mux)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessage(err, "failed to create web api")
 	}
 	web.api = webAPI
 	if web.maxConns < 32 {
 		web.maxConns = defaultMaxConns
 	}
-	web.addresses = make(map[*net.Addr]struct{})
+	web.addresses = make(map[*net.Addr]struct{}, 1)
 	// set web server
 	server.Handler = mux
 	server.ConnState = func(conn net.Conn, state http.ConnState) {
@@ -127,7 +127,7 @@ func NewWeb(client *Client, opts *WebOptions) (*Web, error) {
 			webAPI.counter.Done()
 		}
 	}
-	server.ErrorLog = logger.Wrap(logger.Warning, "msfrpc-web", client.logger)
+	server.ErrorLog = logger.Wrap(logger.Warning, "msfrpc-web", msfrpc.logger)
 	return &web, nil
 }
 
@@ -141,6 +141,27 @@ func (web *Web) MonitorCallbacks() *MonitorCallbacks {
 		OnCredential: web.api.onCredential,
 		OnLoot:       web.api.onLoot,
 		OnEvent:      web.api.onEvent,
+	}
+}
+
+// IOEventHandlers is used to return callbacks for monitor.
+func (web *Web) IOEventHandlers() *IOEventHandlers {
+	return &IOEventHandlers{
+		OnConsoleRead:         nil,
+		OnConsoleClean:        nil,
+		OnConsoleClosed:       nil,
+		OnConsoleLocked:       nil,
+		OnConsoleUnlocked:     nil,
+		OnShellRead:           nil,
+		OnShellClean:          nil,
+		OnShellClosed:         nil,
+		OnShellLocked:         nil,
+		OnShellUnlocked:       nil,
+		OnMeterpreterRead:     nil,
+		OnMeterpreterClean:    nil,
+		OnMeterpreterClosed:   nil,
+		OnMeterpreterLocked:   nil,
+		OnMeterpreterUnlocked: nil,
 	}
 }
 
@@ -303,7 +324,8 @@ func (ui *webUI) handleIndex(w http.ResponseWriter, _ *http.Request) {
 
 // webAPI contain the actual handler, login and handle event.
 type webAPI struct {
-	ctx *Client
+	msfrpc *MSFRPC
+	ctx    *Client
 
 	adminUsername *security.Bytes
 	adminPassword *security.Bytes
@@ -323,9 +345,10 @@ type webAPI struct {
 	counter xsync.Counter
 }
 
-func newWebAPI(client *Client, opts *WebOptions, mux *http.ServeMux) (*webAPI, error) {
-	wh := webAPI{
-		ctx:                 client,
+func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, error) {
+	api := webAPI{
+		msfrpc:              msfrpc,
+		ctx:                 msfrpc.client,
 		maxReqBodySize:      opts.MaxBodySize,
 		maxLargeReqBodySize: opts.MaxLargeBodySize,
 	}
@@ -334,9 +357,9 @@ func newWebAPI(client *Client, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	if adminUsername == "" {
 		adminUsername = defaultAdminUsername
 		const log = "admin username is not set, use the default username:"
-		wh.log(logger.Info, log, defaultAdminUsername)
+		api.log(logger.Info, log, defaultAdminUsername)
 	}
-	wh.adminUsername = security.NewBytes([]byte(adminUsername))
+	api.adminUsername = security.NewBytes([]byte(adminUsername))
 	// set administrator password
 	adminPassword := opts.AdminPassword
 	if adminPassword == "" {
@@ -344,7 +367,7 @@ func newWebAPI(client *Client, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		adminPassword = random.NewRand().String(16)
 		defer security.CoverString(adminPassword)
 		const log = "admin password is not set, use the random password:"
-		wh.log(logger.Info, log, adminPassword)
+		api.log(logger.Info, log, adminPassword)
 	}
 	passwordBytes := []byte(adminPassword)
 	defer security.CoverBytes(passwordBytes)
@@ -352,134 +375,131 @@ func newWebAPI(client *Client, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to generate random admin password")
 	}
-	wh.adminPassword = security.NewBytes(hashedPwd)
-	if wh.maxReqBodySize < minRequestBodySize {
-		wh.maxReqBodySize = minRequestBodySize
+	api.adminPassword = security.NewBytes(hashedPwd)
+	if api.maxReqBodySize < minRequestBodySize {
+		api.maxReqBodySize = minRequestBodySize
 	}
-	if wh.maxLargeReqBodySize < minRequestLargeBodySize {
-		wh.maxLargeReqBodySize = minRequestLargeBodySize
+	if api.maxLargeReqBodySize < minRequestLargeBodySize {
+		api.maxLargeReqBodySize = minRequestLargeBodySize
 	}
 	if len(opts.Users) != 0 {
-		wh.users = opts.Users
+		api.users = opts.Users
 	} else {
-		wh.users = make(map[string]string)
+		api.users = make(map[string]string)
 	}
-	wh.encoderPool.New = func() interface{} {
+	api.encoderPool.New = func() interface{} {
 		return json.NewEncoder(64)
 	}
-	wh.wsUpgrader = &websocket.Upgrader{
+	api.wsUpgrader = &websocket.Upgrader{
 		HandshakeTimeout: time.Minute,
 		ReadBufferSize:   4096,
 		WriteBufferSize:  4096,
 	}
 	// set handler
 	for path, handler := range map[string]http.HandlerFunc{
-		"/login": wh.handleLogin,
+		"/login": api.handleLogin,
 
-		"/api/auth/logout":         wh.handleAuthenticationLogout,
-		"/api/auth/token/list":     wh.handleAuthenticationTokenList,
-		"/api/auth/token/generate": wh.handleAuthenticationTokenGenerate,
-		"/api/auth/token/add":      wh.handleAuthenticationTokenAdd,
-		"/api/auth/token/remove":   wh.handleAuthenticationTokenRemove,
+		"/api/auth/logout":         api.handleAuthenticationLogout,
+		"/api/auth/token/list":     api.handleAuthenticationTokenList,
+		"/api/auth/token/generate": api.handleAuthenticationTokenGenerate,
+		"/api/auth/token/add":      api.handleAuthenticationTokenAdd,
+		"/api/auth/token/remove":   api.handleAuthenticationTokenRemove,
 
-		"/api/core/module/status":   wh.handleCoreModuleStatus,
-		"/api/core/module/add_path": wh.handleCoreAddModulePath,
-		"/api/core/module/reload":   wh.handleCoreReloadModules,
-		"/api/core/thread/list":     wh.handleCoreThreadList,
-		"/api/core/thread/kill":     wh.handleCoreThreadKill,
-		"/api/core/global/set":      wh.handleCoreSetGlobal,
-		"/api/core/global/unset":    wh.handleCoreUnsetGlobal,
-		"/api/core/global/get":      wh.handleCoreGetGlobal,
-		"/api/core/save":            wh.handleCoreSave,
-		"/api/core/version":         wh.handleCoreVersion,
+		"/api/core/module/status":   api.handleCoreModuleStatus,
+		"/api/core/module/add_path": api.handleCoreAddModulePath,
+		"/api/core/module/reload":   api.handleCoreReloadModules,
+		"/api/core/thread/list":     api.handleCoreThreadList,
+		"/api/core/thread/kill":     api.handleCoreThreadKill,
+		"/api/core/global/set":      api.handleCoreSetGlobal,
+		"/api/core/global/unset":    api.handleCoreUnsetGlobal,
+		"/api/core/global/get":      api.handleCoreGetGlobal,
+		"/api/core/save":            api.handleCoreSave,
+		"/api/core/version":         api.handleCoreVersion,
 
-		"/api/db/status":            wh.handleDatabaseStatus,
-		"/api/db/host/report":       wh.handleDatabaseReportHost,
-		"/api/db/host/list":         wh.handleDatabaseHosts,
-		"/api/db/host/get":          wh.handleDatabaseGetHost,
-		"/api/db/host/delete":       wh.handleDatabaseDeleteHost,
-		"/api/db/service/report":    wh.handleDatabaseReportService,
-		"/api/db/service/list":      wh.handleDatabaseServices,
-		"/api/db/service/get":       wh.handleDatabaseGetService,
-		"/api/db/service/delete":    wh.handleDatabaseDeleteService,
-		"/api/db/client/report":     wh.handleDatabaseReportClient,
-		"/api/db/client/list":       wh.handleDatabaseClients,
-		"/api/db/client/get":        wh.handleDatabaseGetClient,
-		"/api/db/client/delete":     wh.handleDatabaseDeleteClient,
-		"/api/db/cred/list":         wh.handleDatabaseCredentials,
-		"/api/db/cred/create":       wh.handleDatabaseCreateCredential,
-		"/api/db/cred/delete":       wh.handleDatabaseDeleteCredentials,
-		"/api/db/loot/report":       wh.handleDatabaseReportLoot,
-		"/api/db/loot/list":         wh.handleDatabaseLoots,
-		"/api/db/workspace/list":    wh.handleDatabaseWorkspaces,
-		"/api/db/workspace/get":     wh.handleDatabaseGetWorkspace,
-		"/api/db/workspace/add":     wh.handleDatabaseAddWorkspace,
-		"/api/db/workspace/delete":  wh.handleDatabaseDeleteWorkspace,
-		"/api/db/workspace/set":     wh.handleDatabaseSetWorkspace,
-		"/api/db/workspace/current": wh.handleDatabaseCurrentWorkspace,
-		"/api/db/events":            wh.handleDatabaseEvents,
-		"/api/db/import_data":       wh.handleDatabaseImportData,
+		"/api/db/status":            api.handleDatabaseStatus,
+		"/api/db/host/report":       api.handleDatabaseReportHost,
+		"/api/db/host/list":         api.handleDatabaseHosts,
+		"/api/db/host/get":          api.handleDatabaseGetHost,
+		"/api/db/host/delete":       api.handleDatabaseDeleteHost,
+		"/api/db/service/report":    api.handleDatabaseReportService,
+		"/api/db/service/list":      api.handleDatabaseServices,
+		"/api/db/service/get":       api.handleDatabaseGetService,
+		"/api/db/service/delete":    api.handleDatabaseDeleteService,
+		"/api/db/client/report":     api.handleDatabaseReportClient,
+		"/api/db/client/list":       api.handleDatabaseClients,
+		"/api/db/client/get":        api.handleDatabaseGetClient,
+		"/api/db/client/delete":     api.handleDatabaseDeleteClient,
+		"/api/db/cred/list":         api.handleDatabaseCredentials,
+		"/api/db/cred/create":       api.handleDatabaseCreateCredential,
+		"/api/db/cred/delete":       api.handleDatabaseDeleteCredentials,
+		"/api/db/loot/report":       api.handleDatabaseReportLoot,
+		"/api/db/loot/list":         api.handleDatabaseLoots,
+		"/api/db/workspace/list":    api.handleDatabaseWorkspaces,
+		"/api/db/workspace/get":     api.handleDatabaseGetWorkspace,
+		"/api/db/workspace/add":     api.handleDatabaseAddWorkspace,
+		"/api/db/workspace/delete":  api.handleDatabaseDeleteWorkspace,
+		"/api/db/workspace/set":     api.handleDatabaseSetWorkspace,
+		"/api/db/workspace/current": api.handleDatabaseCurrentWorkspace,
+		"/api/db/events":            api.handleDatabaseEvents,
+		"/api/db/import_data":       api.handleDatabaseImportData,
 
-		"/api/console/list":           wh.handleConsoleList,
-		"/api/console/create":         wh.handleConsoleCreate,
-		"/api/console/destroy":        wh.handleConsoleDestroy,
-		"/api/console/read":           wh.handleConsoleRead,
-		"/api/console/write":          wh.handleConsoleWrite,
-		"/api/console/session_detach": wh.handleConsoleSessionDetach,
-		"/api/console/session_kill":   wh.handleConsoleSessionKill,
+		"/api/console/list":           api.handleConsoleList,
+		"/api/console/create":         api.handleConsoleCreate,
+		"/api/console/destroy":        api.handleConsoleDestroy,
+		"/api/console/read":           api.handleConsoleRead,
+		"/api/console/write":          api.handleConsoleWrite,
+		"/api/console/session_detach": api.handleConsoleSessionDetach,
+		"/api/console/session_kill":   api.handleConsoleSessionKill,
 
-		"/api/plugin/load":   wh.handlePluginLoad,
-		"/api/plugin/unload": wh.handlePluginUnload,
-		"/api/plugin/loaded": wh.handlePluginLoaded,
+		"/api/plugin/load":   api.handlePluginLoad,
+		"/api/plugin/unload": api.handlePluginUnload,
+		"/api/plugin/loaded": api.handlePluginLoaded,
 
-		"/api/module/exploits":                   wh.handleModuleExploits,
-		"/api/module/auxiliary":                  wh.handleModuleAuxiliary,
-		"/api/module/post":                       wh.handleModulePost,
-		"/api/module/payloads":                   wh.handleModulePayloads,
-		"/api/module/encoders":                   wh.handleModuleEncoders,
-		"/api/module/nops":                       wh.handleModuleNops,
-		"/api/module/evasion":                    wh.handleModuleEvasion,
-		"/api/module/info":                       wh.handleModuleInfo,
-		"/api/module/options":                    wh.handleModuleOptions,
-		"/api/module/payloads/compatible":        wh.handleModuleCompatiblePayloads,
-		"/api/module/payloads/target_compatible": wh.handleModuleTargetCompatiblePayloads,
-		"/api/module/post/session_compatible":    wh.handleModuleCompatibleSessions,
-		"/api/module/evasion/compatible":         wh.handleModuleCompatibleEvasionPayloads,
-		"/api/module/evasion/target_compatible":  wh.handleModuleTargetCompatibleEvasionPayloads,
-		"/api/module/formats/encode":             wh.handleModuleEncodeFormats,
-		"/api/module/formats/executable":         wh.handleModuleExecutableFormats,
-		"/api/module/formats/transform":          wh.handleModuleTransformFormats,
-		"/api/module/formats/encryption":         wh.handleModuleEncryptionFormats,
-		"/api/module/platforms":                  wh.handleModulePlatforms,
-		"/api/module/architectures":              wh.handleModuleArchitectures,
-		"/api/module/encode":                     wh.handleModuleEncode,
-		"/api/module/generate_payload":           wh.handleModuleGeneratePayload,
-		"/api/module/execute":                    wh.handleModuleExecute,
-		"/api/module/check":                      wh.handleModuleCheck,
-		"/api/module/running_status":             wh.handleModuleRunningStatus,
+		"/api/module/exploits":                   api.handleModuleExploits,
+		"/api/module/auxiliary":                  api.handleModuleAuxiliary,
+		"/api/module/post":                       api.handleModulePost,
+		"/api/module/payloads":                   api.handleModulePayloads,
+		"/api/module/encoders":                   api.handleModuleEncoders,
+		"/api/module/nops":                       api.handleModuleNops,
+		"/api/module/evasion":                    api.handleModuleEvasion,
+		"/api/module/info":                       api.handleModuleInfo,
+		"/api/module/options":                    api.handleModuleOptions,
+		"/api/module/payloads/compatible":        api.handleModuleCompatiblePayloads,
+		"/api/module/payloads/target_compatible": api.handleModuleTargetCompatiblePayloads,
+		"/api/module/post/session_compatible":    api.handleModuleCompatibleSessions,
+		"/api/module/evasion/compatible":         api.handleModuleCompatibleEvasionPayloads,
+		"/api/module/evasion/target_compatible":  api.handleModuleTargetCompatibleEvasionPayloads,
+		"/api/module/formats/encode":             api.handleModuleEncodeFormats,
+		"/api/module/formats/executable":         api.handleModuleExecutableFormats,
+		"/api/module/formats/transform":          api.handleModuleTransformFormats,
+		"/api/module/formats/encryption":         api.handleModuleEncryptionFormats,
+		"/api/module/platforms":                  api.handleModulePlatforms,
+		"/api/module/architectures":              api.handleModuleArchitectures,
+		"/api/module/encode":                     api.handleModuleEncode,
+		"/api/module/generate_payload":           api.handleModuleGeneratePayload,
+		"/api/module/execute":                    api.handleModuleExecute,
+		"/api/module/check":                      api.handleModuleCheck,
+		"/api/module/running_status":             api.handleModuleRunningStatus,
 
-		"/api/job/list": wh.handleJobList,
-		"/api/job/info": wh.handleJobInfo,
-		"/api/job/stop": wh.handleJobStop,
+		"/api/job/list": api.handleJobList,
+		"/api/job/info": api.handleJobInfo,
+		"/api/job/stop": api.handleJobStop,
 
-		"/api/session/list":                       wh.handleSessionList,
-		"/api/session/stop":                       wh.handleSessionStop,
-		"/api/session/shell/read":                 wh.handleSessionShellRead,
-		"/api/session/shell/write":                wh.handleSessionShellWrite,
-		"/api/session/upgrade":                    wh.handleSessionUpgrade,
-		"/api/session/meterpreter/read":           wh.handleSessionMeterpreterRead,
-		"/api/session/meterpreter/write":          wh.handleSessionMeterpreterWrite,
-		"/api/session/meterpreter/session_detach": wh.handleSessionMeterpreterSessionDetach,
-		"/api/session/meterpreter/session_kill":   wh.handleSessionMeterpreterSessionKill,
-		"/api/session/meterpreter/run_single":     wh.handleSessionMeterpreterRunSingle,
-		"/api/session/compatible_modules":         wh.handleSessionCompatibleModules,
+		"/api/session/list":                       api.handleSessionList,
+		"/api/session/stop":                       api.handleSessionStop,
+		"/api/session/shell/read":                 api.handleSessionShellRead,
+		"/api/session/shell/write":                api.handleSessionShellWrite,
+		"/api/session/upgrade":                    api.handleSessionUpgrade,
+		"/api/session/meterpreter/read":           api.handleSessionMeterpreterRead,
+		"/api/session/meterpreter/write":          api.handleSessionMeterpreterWrite,
+		"/api/session/meterpreter/session_detach": api.handleSessionMeterpreterSessionDetach,
+		"/api/session/meterpreter/session_kill":   api.handleSessionMeterpreterSessionKill,
+		"/api/session/meterpreter/run_single":     api.handleSessionMeterpreterRunSingle,
+		"/api/session/compatible_modules":         api.handleSessionCompatibleModules,
 	} {
-
 		mux.HandleFunc(path, handler)
-
 	}
-
-	return &wh, nil
+	return &api, nil
 }
 
 func (api *webAPI) shuttingDown() bool {
