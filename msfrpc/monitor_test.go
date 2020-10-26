@@ -64,6 +64,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 			sAdd = add
 		}}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -103,6 +104,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 			sAdd = add
 		}}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -124,6 +126,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 
 	t.Run("failed to watch", func(t *testing.T) {
 		monitor := NewMonitor(client, nil, testBasicMonitorOpts)
+
 		monitor.Close()
 
 		monitor.watchToken()
@@ -136,6 +139,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 			panic("test panic")
 		}}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -158,6 +162,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	t.Run("tokens", func(t *testing.T) {
 		callbacks := MonitorCallbacks{OnToken: func(token string, add bool) {}}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -223,6 +228,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 			sActive = active
 		}}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -261,6 +267,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 			sActive = active
 		}}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -295,6 +302,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 			panic("test panic")
 		}}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -322,7 +330,9 @@ func TestMonitor_jobMonitor(t *testing.T) {
 
 		callbacks := MonitorCallbacks{OnJob: func(string, string, bool) {}}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
+		// wait first watch
 		time.Sleep(3 * minWatchInterval)
 
 		jobs := monitor.Jobs()
@@ -370,6 +380,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 			OnSession: func(id uint64, info *SessionInfo, opened bool) {},
 		}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -391,6 +402,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 			},
 		}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -428,6 +440,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 			},
 		}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -465,6 +478,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 			},
 		}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -495,7 +509,9 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 			OnSession: func(uint64, *SessionInfo, bool) {},
 		}
 		monitor := NewMonitor(client, &callbacks, testBasicMonitorOpts)
+		monitor.Start()
 
+		// wait first watch
 		time.Sleep(3 * minWatchInterval)
 
 		sessions := monitor.Sessions()
@@ -566,6 +582,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 			},
 		}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -612,6 +629,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 			},
 		}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -660,6 +678,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 			panic("test panic")
 		}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -691,6 +710,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 
 		callbacks := MonitorCallbacks{OnHost: func(string, *DBHost, bool) {}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -766,6 +786,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 			},
 		}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -814,6 +835,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 			},
 		}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -862,6 +884,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 			panic("test panic")
 		}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -893,6 +916,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 
 		callbacks := MonitorCallbacks{OnCredential: func(string, *DBCred, bool) {}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -963,6 +987,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 			},
 		}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -1008,6 +1033,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 			panic("test panic")
 		}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -1031,6 +1057,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 
 		callbacks := MonitorCallbacks{OnLoot: func(string, *DBLoot) {}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -1106,6 +1133,7 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 		// create monitor
 		callbacks := MonitorCallbacks{OnJob: func(string, string, bool) {}}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
@@ -1141,6 +1169,7 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 
 		callbacks := MonitorCallbacks{}
 		monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+		monitor.Start()
 
 		// wait clean workspace
 		time.Sleep(2 * time.Second)
@@ -1173,6 +1202,7 @@ func TestMonitor_log(t *testing.T) {
 	client.token = "TEST"
 
 	monitor := NewMonitor(client, nil, testDBMonitorOpts)
+	monitor.Start()
 
 	// log before close
 	monitor.logf(logger.Debug, "%s", "foo")
@@ -1216,11 +1246,11 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 
 	t.Run("msfrpcd disconnect", func(t *testing.T) {
 		// mock error
-		monitor.updateMSFErrorCount(true)
+		monitor.updateClientErrorCount(true)
 
 		// 3 times
-		monitor.msfErrorCount = 2
-		monitor.updateMSFErrorCount(true)
+		monitor.clientErrorCount = 2
+		monitor.updateClientErrorCount(true)
 
 		require.Equal(t, "client disconnected", errStr)
 		require.False(t, monitor.ClientAlive())
@@ -1228,10 +1258,10 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 
 	t.Run("msfrpcd reconnected", func(t *testing.T) {
 		// mock error
-		monitor.updateMSFErrorCount(true)
+		monitor.updateClientErrorCount(true)
 
 		// ok
-		monitor.updateMSFErrorCount(false)
+		monitor.updateClientErrorCount(false)
 
 		require.Equal(t, "client reconnected", errStr)
 		require.True(t, monitor.ClientAlive())
@@ -1309,6 +1339,7 @@ func TestMonitor_AutoReconnect(t *testing.T) {
 
 	callbacks := MonitorCallbacks{OnEvent: func(event string) {}}
 	monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
+	monitor.Start()
 
 	t.Run("msfrpcd", func(t *testing.T) {
 		err := client.AuthLogout(client.GetToken())

@@ -64,11 +64,13 @@ type Monitor struct {
 
 	callbacks *MonitorCallbacks
 	interval  time.Duration
+	enableDB  bool
 	dbOptions *DBConnectOptions
 
 	// notice if msfrpc or database disconnect
-	msfErrorCount int
-	dbErrorCount  int
+	clientErrorCount int
+	dbErrorCount     int
+	errorCountMu     sync.Mutex
 
 	// store status
 	clientAlive   atomic.Value
@@ -110,31 +112,35 @@ func NewMonitor(client *Client, callbacks *MonitorCallbacks, opts *MonitorOption
 	if opts == nil {
 		opts = new(MonitorOptions)
 	}
-	interval := opts.Interval
-	if interval < minWatchInterval {
-		interval = minWatchInterval
-	}
 	monitor := &Monitor{
 		ctx:       client,
 		callbacks: callbacks,
-		interval:  interval,
+		interval:  opts.Interval,
+		enableDB:  opts.EnableDB,
 		dbOptions: opts.DBOptions,
+	}
+	if monitor.interval < minWatchInterval {
+		monitor.interval = minWatchInterval
 	}
 	monitor.clientAlive.Store(true)
 	monitor.databaseAlive.Store(true)
 	monitor.context, monitor.cancel = context.WithCancel(context.Background())
+	return monitor
+}
+
+// Start is used to start data monitor.
+func (monitor *Monitor) Start() {
 	monitor.wg.Add(3)
 	go monitor.tokenMonitor()
 	go monitor.jobMonitor()
 	go monitor.sessionMonitor()
-	if opts.EnableDB {
+	if monitor.enableDB {
 		monitor.wg.Add(4)
 		go monitor.hostMonitor()
 		go monitor.credentialMonitor()
 		go monitor.lootMonitor()
 		go monitor.workspaceCleaner()
 	}
-	return monitor
 }
 
 // Tokens is used to get current tokens.
@@ -255,11 +261,13 @@ func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
 	monitor.ctx.logger.Println(lv, "msfrpc-monitor", log...)
 }
 
-func (monitor *Monitor) updateMSFErrorCount(add bool) {
+func (monitor *Monitor) updateClientErrorCount(add bool) {
+	monitor.errorCountMu.Lock()
+	defer monitor.errorCountMu.Unlock()
 	// reset counter
 	if !add {
-		if monitor.msfErrorCount != 0 {
-			monitor.msfErrorCount = 0
+		if monitor.clientErrorCount != 0 {
+			monitor.clientErrorCount = 0
 			monitor.clientAlive.Store(true)
 			const log = "client reconnected"
 			monitor.log(logger.Info, log)
@@ -270,7 +278,7 @@ func (monitor *Monitor) updateMSFErrorCount(add bool) {
 	if monitor.shuttingDown() {
 		return
 	}
-	monitor.msfErrorCount++
+	monitor.clientErrorCount++
 	// if use temporary token, need login again.
 	if monitor.ctx.GetToken()[:4] == "TEMP" {
 		err := monitor.ctx.AuthLogin()
@@ -278,7 +286,7 @@ func (monitor *Monitor) updateMSFErrorCount(add bool) {
 			return
 		}
 	}
-	if monitor.msfErrorCount != 3 { // core! core! core!
+	if monitor.clientErrorCount != 3 { // core! core! core!
 		return
 	}
 	monitor.clientAlive.Store(false)
@@ -288,6 +296,8 @@ func (monitor *Monitor) updateMSFErrorCount(add bool) {
 }
 
 func (monitor *Monitor) updateDBErrorCount(add bool) {
+	monitor.errorCountMu.Lock()
+	defer monitor.errorCountMu.Unlock()
 	// reset counter
 	if !add {
 		if monitor.dbErrorCount != 0 {
@@ -345,10 +355,10 @@ func (monitor *Monitor) watchToken() {
 	tokens, err := monitor.ctx.AuthTokenList(monitor.context)
 	if err != nil {
 		monitor.log(logger.Debug, "failed to watch token:", err)
-		monitor.updateMSFErrorCount(true)
+		monitor.updateClientErrorCount(true)
 		return
 	}
-	monitor.updateMSFErrorCount(false)
+	monitor.updateClientErrorCount(false)
 	l := len(tokens)
 	monitor.tokensRWM.Lock()
 	defer monitor.tokensRWM.Unlock()
