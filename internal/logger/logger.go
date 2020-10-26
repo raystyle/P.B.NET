@@ -257,9 +257,7 @@ func (w *wrapWriter) Write(p []byte) (int, error) {
 	buf := bytes.NewBuffer(make([]byte, 0, l+256))
 	buf.Write(p)
 	if w.trace {
-		buf.WriteString("--------------------------stack trace---------------------------\n")
-		xpanic.PrintStack(buf, 2)
-		buf.WriteString("\n----------------------------------------------------------------")
+		xpanic.PrintStackTrace(buf, 2)
 	}
 	w.logger.Println(w.level, w.src, buf)
 	return l, nil
@@ -287,7 +285,7 @@ func WrapLogger(lv Level, src string, logger Logger) io.Writer {
 	return &w
 }
 
-// HijackLogWriter is used to hijack all packages that use log.Print().
+// HijackLogWriter is used to hijack all packages that call functions like log.Println().
 func HijackLogWriter(lv Level, src string, logger Logger) {
 	w := &wrapWriter{
 		level:  lv,

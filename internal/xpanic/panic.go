@@ -63,15 +63,20 @@ func (f frame) line() int {
 	return line
 }
 
+// PrintStackTrace is used to print stack with line.
+func PrintStackTrace(buf *bytes.Buffer, skip int) {
+	buf.WriteString("--------------------------stack trace---------------------------\n")
+	PrintStack(buf, skip)
+	buf.WriteString("\n----------------------------------------------------------------")
+}
+
 // PrintPanic is used to print panic to a *bytes.Buffer.
 func PrintPanic(panic interface{}, title string, skip int) *bytes.Buffer {
 	buf := new(bytes.Buffer)
 	buf.WriteString(title)
 	buf.WriteString(":\n")
 	_, _ = fmt.Fprintln(buf, panic)
-	buf.WriteString("--------------------------stack trace---------------------------\n")
-	PrintStack(buf, skip) // skip about defer
-	buf.WriteString("\n----------------------------------------------------------------")
+	PrintStackTrace(buf, skip)
 	return buf
 }
 

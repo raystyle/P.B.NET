@@ -113,7 +113,7 @@ func New(cfg *Config) (*Node, error) {
 	return node, nil
 }
 
-// HijackLogWriter is used to hijack all packages that use log.Print().
+// HijackLogWriter is used to hijack all packages that call functions like log.Println().
 func (node *Node) HijackLogWriter() {
 	logger.HijackLogWriter(logger.Error, "pkg", node.logger)
 }
