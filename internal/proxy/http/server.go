@@ -63,14 +63,8 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	if opts == nil {
 		opts = new(Options)
 	}
-	srv := Server{
-		logger:   lg,
-		https:    https,
-		maxConns: opts.MaxConns,
-	}
-	// apply options
-	var err error
-	srv.server, err = opts.Server.Apply()
+	// apply options about http
+	server, err := opts.Server.Apply()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -78,12 +72,12 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	timeout := opts.Timeout
-	if timeout < 1 {
-		timeout = defaultConnectTimeout
+	srv := Server{
+		logger:   lg,
+		https:    https,
+		maxConns: opts.MaxConns,
+		server:   server,
 	}
-	srv.server.ReadTimeout = timeout
-	srv.server.WriteTimeout = timeout
 	if srv.maxConns < 1 {
 		srv.maxConns = defaultMaxConnections
 	}
@@ -98,7 +92,12 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 		logSrc += "-" + tag
 	}
 	srv.logSrc = logSrc
+	srv.addresses = make(map[*net.Addr]struct{}, 1)
 	// initialize http handler
+	timeout := opts.Timeout
+	if timeout < 1 {
+		timeout = defaultConnectTimeout
+	}
 	handler := &handler{
 		logger:      lg,
 		logSrc:      logSrc,
@@ -121,11 +120,12 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 		handler.password = security.NewBytes([]byte(password))
 	}
 	handler.ctx, handler.cancel = context.WithCancel(context.Background())
-	// http proxy server
 	srv.handler = handler
-	srv.server.Handler = handler
-	srv.server.ErrorLog = logger.Wrap(logger.Error, logSrc, lg)
-	srv.server.ConnState = func(conn net.Conn, state http.ConnState) {
+	// set http server
+	server.Handler = handler
+	server.ReadTimeout = timeout
+	server.WriteTimeout = timeout
+	server.ConnState = func(conn net.Conn, state http.ConnState) {
 		switch state {
 		case http.StateNew:
 			handler.counter.Add(1)
@@ -133,7 +133,7 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 			handler.counter.Done()
 		}
 	}
-	srv.addresses = make(map[*net.Addr]struct{})
+	server.ErrorLog = logger.Wrap(logger.Warning, logSrc, lg)
 	return &srv, nil
 }
 
@@ -189,7 +189,6 @@ func (srv *Server) Serve(listener net.Listener) (err error) {
 	network := address.Network()
 	srv.addListenerAddress(&address)
 	defer srv.deleteListenerAddress(&address)
-
 	srv.logf(logger.Info, "serve over listener (%s %s)", network, address)
 	defer srv.logf(logger.Info, "listener closed (%s %s)", network, address)
 
@@ -198,7 +197,6 @@ func (srv *Server) Serve(listener net.Listener) (err error) {
 	} else {
 		err = srv.server.Serve(listener)
 	}
-
 	if nettool.IsNetClosingError(err) || err == http.ErrServerClosed {
 		return nil
 	}

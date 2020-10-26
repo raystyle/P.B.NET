@@ -68,23 +68,17 @@ func newServer(lg logger.Logger, opts *Options, https bool) (*Server, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
+	// apply http server option
+	server, err := opts.Server.Apply()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	srv := Server{
 		logger:   lg,
 		https:    https,
 		maxConns: opts.MaxConns,
+		server:   server,
 	}
-	// apply options
-	var err error
-	srv.server, err = opts.Server.Apply()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	timeout := opts.Timeout
-	if timeout < 1 {
-		timeout = defaultTimeout
-	}
-	srv.server.ReadTimeout = timeout
-	srv.server.WriteTimeout = timeout
 	if srv.maxConns < 1 {
 		srv.maxConns = defaultMaxConnections
 	}
@@ -96,6 +90,7 @@ func newServer(lg logger.Logger, opts *Options, https bool) (*Server, error) {
 		logSrc = "pprof-http"
 	}
 	srv.logSrc = logSrc
+	srv.addresses = make(map[*net.Addr]struct{}, 1)
 	// initialize http handler
 	handler := &handler{
 		logger: lg,
@@ -116,11 +111,16 @@ func newServer(lg logger.Logger, opts *Options, https bool) (*Server, error) {
 		password := url.User(opts.Password).String()
 		handler.password = security.NewBytes([]byte(password))
 	}
-	// pprof http server
 	srv.handler = handler
-	srv.server.Handler = handler
-	srv.server.ErrorLog = logger.Wrap(logger.Error, logSrc, lg)
-	srv.server.ConnState = func(conn net.Conn, state http.ConnState) {
+	// set http server
+	server.Handler = handler
+	timeout := opts.Timeout
+	if timeout < 1 {
+		timeout = defaultTimeout
+	}
+	server.ReadTimeout = timeout
+	server.WriteTimeout = timeout
+	server.ConnState = func(conn net.Conn, state http.ConnState) {
 		switch state {
 		case http.StateNew:
 			handler.counter.Add(1)
@@ -128,7 +128,7 @@ func newServer(lg logger.Logger, opts *Options, https bool) (*Server, error) {
 			handler.counter.Done()
 		}
 	}
-	srv.addresses = make(map[*net.Addr]struct{})
+	server.ErrorLog = logger.Wrap(logger.Warning, logSrc, lg)
 	return &srv, nil
 }
 
@@ -185,7 +185,6 @@ func (srv *Server) Serve(listener net.Listener) (err error) {
 	network := address.Network()
 	srv.addListenerAddress(&address)
 	defer srv.deleteListenerAddress(&address)
-
 	srv.logf(logger.Info, "serve over listener (%s %s)", network, address)
 	defer srv.logf(logger.Info, "listener closed (%s %s)", network, address)
 
@@ -194,7 +193,6 @@ func (srv *Server) Serve(listener net.Listener) (err error) {
 	} else {
 		err = srv.server.Serve(listener)
 	}
-
 	if nettool.IsNetClosingError(err) || err == http.ErrServerClosed {
 		return nil
 	}
