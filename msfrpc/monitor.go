@@ -67,10 +67,10 @@ type Monitor struct {
 	enableDB  bool
 	dbOptions *DBConnectOptions
 
-	// notice if msfrpc or database disconnect
-	clientErrorCount int
-	dbErrorCount     int
-	errorCountMu     sync.Mutex
+	// notice if client or database disconnect
+	clErrorCount int
+	dbErrorCount int
+	errorCountMu sync.Mutex
 
 	// store status
 	clientAlive   atomic.Value
@@ -107,12 +107,12 @@ type Monitor struct {
 	wg      sync.WaitGroup
 }
 
-// NewMonitor is used to create a data monitor.
+// NewMonitor is used to create a monitor.
 func NewMonitor(client *Client, callbacks *MonitorCallbacks, opts *MonitorOptions) *Monitor {
 	if opts == nil {
 		opts = new(MonitorOptions)
 	}
-	monitor := &Monitor{
+	monitor := Monitor{
 		ctx:       client,
 		callbacks: callbacks,
 		interval:  opts.Interval,
@@ -125,10 +125,10 @@ func NewMonitor(client *Client, callbacks *MonitorCallbacks, opts *MonitorOption
 	monitor.clientAlive.Store(true)
 	monitor.databaseAlive.Store(true)
 	monitor.context, monitor.cancel = context.WithCancel(context.Background())
-	return monitor
+	return &monitor
 }
 
-// Start is used to start data monitor.
+// Start is used to start monitor.
 func (monitor *Monitor) Start() {
 	monitor.wg.Add(3)
 	go monitor.tokenMonitor()
@@ -266,8 +266,8 @@ func (monitor *Monitor) updateClientErrorCount(add bool) {
 	defer monitor.errorCountMu.Unlock()
 	// reset counter
 	if !add {
-		if monitor.clientErrorCount != 0 {
-			monitor.clientErrorCount = 0
+		if monitor.clErrorCount != 0 {
+			monitor.clErrorCount = 0
 			monitor.clientAlive.Store(true)
 			const log = "client reconnected"
 			monitor.log(logger.Info, log)
@@ -278,7 +278,7 @@ func (monitor *Monitor) updateClientErrorCount(add bool) {
 	if monitor.shuttingDown() {
 		return
 	}
-	monitor.clientErrorCount++
+	monitor.clErrorCount++
 	// if use temporary token, need login again.
 	if monitor.ctx.GetToken()[:4] == "TEMP" {
 		err := monitor.ctx.AuthLogin()
@@ -286,7 +286,7 @@ func (monitor *Monitor) updateClientErrorCount(add bool) {
 			return
 		}
 	}
-	if monitor.clientErrorCount != 3 { // core! core! core!
+	if monitor.clErrorCount != 3 { // core! core! core!
 		return
 	}
 	monitor.clientAlive.Store(false)

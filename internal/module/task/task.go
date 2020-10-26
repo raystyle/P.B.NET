@@ -192,9 +192,7 @@ func (task *Task) process() error {
 
 // clean will be call once after task finish(include Cancel before Start)
 func (task *Task) clean() {
-	task.cleanOnce.Do(func() {
-		task.task.Clean()
-	})
+	task.cleanOnce.Do(task.task.Clean)
 }
 
 // Pause is used to pause process progress.

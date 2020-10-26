@@ -1249,7 +1249,7 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 		monitor.updateClientErrorCount(true)
 
 		// 3 times
-		monitor.clientErrorCount = 2
+		monitor.clErrorCount = 2
 		monitor.updateClientErrorCount(true)
 
 		require.Equal(t, "client disconnected", errStr)
