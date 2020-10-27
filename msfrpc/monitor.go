@@ -49,8 +49,8 @@ type MonitorOptions struct {
 	// include hosts, credentials and loots
 	EnableDB bool `toml:"enable_db"`
 
-	// DBOptions contains options about database
-	DBOptions *DBConnectOptions `toml:"db_opts" check:"-"`
+	// Database contains options about database
+	Database *DBConnectOptions `toml:"database" check:"-"`
 }
 
 // Monitor is used to monitor changes about token list(security),
@@ -117,7 +117,7 @@ func NewMonitor(client *Client, callbacks *MonitorCallbacks, opts *MonitorOption
 		callbacks: callbacks,
 		interval:  opts.Interval,
 		enableDB:  opts.EnableDB,
-		dbOptions: opts.DBOptions,
+		dbOptions: opts.Database,
 	}
 	if monitor.interval < minWatchInterval {
 		monitor.interval = minWatchInterval

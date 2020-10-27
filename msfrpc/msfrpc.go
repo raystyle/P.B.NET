@@ -20,24 +20,24 @@ type Config struct {
 	Logger logger.Logger `toml:"-" msgpack:"-"`
 
 	Client struct {
-		Address  string         `toml:"address"`
-		Username string         `toml:"username"`
-		Password string         `toml:"password"`
-		Options  *ClientOptions `toml:"options"`
-	} `toml:"client"`
+		Address  string
+		Username string
+		Password string
+		Options  *ClientOptions
+	}
 
-	Monitor *MonitorOptions `toml:"monitor"`
+	Monitor *MonitorOptions
 
-	IOManager *IOManagerOptions `toml:"io_manager"`
+	IOManager *IOManagerOptions
 
 	Web struct {
-		Network string      `toml:"network"`
-		Address string      `toml:"address"`
-		Options *WebOptions `toml:"options"`
-	} `toml:"web"`
+		Network string
+		Address string
+		Options *WebOptions
+	}
 }
 
-// MSFRPC is single program that include Client, Monitor, IO Manager and Web UI.
+// MSFRPC is a single program that contains Client, Monitor, IO Manager and Web.
 type MSFRPC struct {
 	logger    logger.Logger
 	client    *Client
@@ -46,7 +46,7 @@ type MSFRPC struct {
 	web       *Web
 
 	// for database
-	dbOptions DBConnectOptions
+	database *DBConnectOptions
 	// for web server
 	listener net.Listener
 
@@ -66,9 +66,10 @@ func NewMSFRPC(cfg *Config) (*MSFRPC, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create client")
 	}
-	// copy options about database
-	if cfg.Monitor.DBOptions != nil {
-		msfrpc.dbOptions = *cfg.Monitor.DBOptions
+	msfrpc.client = client
+	// copy database configuration
+	if cfg.Monitor.EnableDB && cfg.Monitor.Database != nil {
+		msfrpc.database = cfg.Monitor.Database
 	}
 	web, err := NewWeb(msfrpc, cfg.Web.Options)
 	if err != nil {
@@ -85,10 +86,9 @@ func NewMSFRPC(cfg *Config) (*MSFRPC, error) {
 		}
 		msfrpc.listener = listener
 	}
-	msfrpc.client = client
+	msfrpc.web = web
 	msfrpc.monitor = NewMonitor(client, web.MonitorCallbacks(), cfg.Monitor)
 	msfrpc.ioManager = NewIOManager(client, web.IOEventHandlers(), cfg.IOManager)
-	msfrpc.web = web
 	// wait and exit
 	msfrpc.wait = make(chan struct{}, 2)
 	msfrpc.errCh = make(chan error, 64)
@@ -108,10 +108,10 @@ func (msfrpc *MSFRPC) Main() error {
 		}
 	}
 	// connect database
-	if msfrpc.dbOptions.Driver != "" {
+	if msfrpc.database.Driver != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		err := msfrpc.client.DBConnect(ctx, &msfrpc.dbOptions)
+		err := msfrpc.client.DBConnect(ctx, msfrpc.database)
 		if err != nil {
 			return err
 		}
@@ -231,7 +231,7 @@ func (msfrpc *MSFRPC) Serve(listener net.Listener) error {
 	return msfrpc.web.Serve(listener)
 }
 
-// // Addresses is used to get listener addresses in web server.
+// Addresses is used to get listener addresses in web server.
 func (msfrpc *MSFRPC) Addresses() []net.Addr {
 	return msfrpc.web.Addresses()
 }

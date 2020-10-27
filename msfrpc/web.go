@@ -631,7 +631,7 @@ func (api *webAPI) handlePanic(w http.ResponseWriter, _ *http.Request, e interfa
 
 func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// upgrade to websocket connection, server can push message to client
-	conn, err := api.wsUpgrader.Upgrade(w, r, nil)
+	conn, err := api.wsUpgrader.Upgrade(w, r, r.Header)
 	if err != nil {
 		api.log(logger.Error, "failed to upgrade", err)
 		return

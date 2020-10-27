@@ -224,8 +224,8 @@ func init() {
 	testMSFRPCConfig.Client.Password = testPassword
 
 	testMSFRPCConfig.Monitor = &MonitorOptions{
-		EnableDB:  true,
-		DBOptions: testDBOptions,
+		EnableDB: true,
+		Database: testDBOptions,
 	}
 
 	testMSFRPCConfig.Web.Network = "tcp"

@@ -20,9 +20,9 @@ var (
 		Interval: 25 * time.Millisecond,
 	}
 	testDBMonitorOpts = &MonitorOptions{
-		Interval:  25 * time.Millisecond,
-		EnableDB:  true,
-		DBOptions: testDBOptions,
+		Interval: 25 * time.Millisecond,
+		EnableDB: true,
+		Database: testDBOptions,
 	}
 )
 
@@ -1288,10 +1288,10 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 	}}
 
 	// set invalid port
-	port := testDBMonitorOpts.DBOptions.Port
-	testDBMonitorOpts.DBOptions.Port = 99999
+	port := testDBMonitorOpts.Database.Port
+	testDBMonitorOpts.Database.Port = 99999
 	defer func() {
-		testDBMonitorOpts.DBOptions.Port = port
+		testDBMonitorOpts.Database.Port = port
 	}()
 
 	monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
@@ -1386,7 +1386,7 @@ func TestMonitorOptions(t *testing.T) {
 	}{
 		{expected: 30 * time.Second, actual: opts.Interval},
 		{expected: true, actual: opts.EnableDB},
-		{expected: "postgresql", actual: opts.DBOptions.Driver},
+		{expected: "postgresql", actual: opts.Database.Driver},
 	} {
 		require.Equal(t, testdata.expected, testdata.actual)
 	}
