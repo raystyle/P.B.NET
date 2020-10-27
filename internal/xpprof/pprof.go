@@ -154,10 +154,9 @@ func (srv *Server) deleteListenerAddress(addr *net.Addr) {
 
 // ListenAndServe is used to listen a listener and serve.
 func (srv *Server) ListenAndServe(network, address string) error {
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return errors.Errorf("unsupported network: %s", network)
+	err := nettool.IsTCPNetwork(network)
+	if err != nil {
+		return err
 	}
 	listener, err := net.Listen(network, address)
 	if err != nil {

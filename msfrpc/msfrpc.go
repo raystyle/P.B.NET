@@ -3,11 +3,14 @@ package msfrpc
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 
 	"project/internal/logger"
+	"project/internal/nettool"
 )
 
 // Config contains all configurations about MSFRPC.
@@ -40,7 +43,13 @@ type MSFRPC struct {
 	ioManager *IOManager
 	web       *Web
 
+	// for database
+	dbOptions DBConnectOptions
+	// for web server
+	listener net.Listener
+
 	once  sync.Once
+	wait  chan struct{}
 	errCh chan error
 }
 
@@ -55,27 +64,70 @@ func NewMSFRPC(cfg *Config) (*MSFRPC, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create client")
 	}
+
 	web, err := NewWeb(msfrpc, cfg.Web.Options)
 	if err != nil {
 		return nil, err
 	}
+	if cfg.Web.Address != "" {
+		err := nettool.IsTCPNetwork(cfg.Web.Network)
+		if err != nil {
+			return nil, err
+		}
+		listener, err := net.Listen(cfg.Web.Network, cfg.Web.Address)
+		if err != nil {
+			return nil, err
+		}
+		msfrpc.listener = listener
+	}
 	msfrpc.monitor = NewMonitor(client, web.MonitorCallbacks(), cfg.Monitor)
 	msfrpc.ioManager = NewIOManager(client, web.IOEventHandlers(), cfg.IOManager)
+	// wait and exit
+	msfrpc.wait = make(chan struct{}, 2)
+	msfrpc.errCh = make(chan error, 64)
 	return msfrpc, nil
-}
-
-// HijackLogWriter is used to hijack all packages that call functions like log.Println().
-func (msfrpc *MSFRPC) HijackLogWriter() {
-	logger.HijackLogWriter(logger.Error, "pkg", msfrpc.logger)
 }
 
 // Main is used to run msfrpc, it will block until exit or return error.
 func (msfrpc *MSFRPC) Main() error {
+	const src = "main"
+	defer func() { msfrpc.wait <- struct{}{} }()
+	// logon to msfrpcd
+	token := msfrpc.client.GetToken()
+	if token == "" {
+		err := msfrpc.client.AuthLogin()
+		if err != nil {
+			return err
+		}
+	}
+	// connect database
 
+	// ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	// msfrpc.client.DBConnect(ctx)
+
+	// start web server
+	if msfrpc.listener != nil {
+		errCh := make(chan error, 1)
+		go func() { errCh <- msfrpc.web.Serve(msfrpc.listener) }()
+		select {
+		case err := <-errCh:
+			return errors.Wrap(err, "failed to start web server")
+		case <-time.After(time.Second):
+		}
+		var format string
+		if msfrpc.web.disableTLS {
+			format = "web server: http://%s/"
+		} else {
+			format = "web server: https://%s/"
+		}
+		msfrpc.logger.Printf(logger.Info, src, format, msfrpc.listener.Addr())
+	}
 	msfrpc.monitor.Start()
-
+	msfrpc.logger.Print(logger.Info, src, "start monitor")
+	msfrpc.logger.Print(logger.Info, src, "msfrpc is running")
+	// send signal
+	msfrpc.wait <- struct{}{}
 	// receive error
-	msfrpc.errCh = make(chan error, 64)
 	var errorList []error
 	for err := range msfrpc.errCh {
 		errorList = append(errorList, err)
@@ -90,6 +142,11 @@ func (msfrpc *MSFRPC) Main() error {
 		_, _ = fmt.Fprintf(buf, "id %d: %s\n", i+1, errorList[i])
 	}
 	return errors.New(buf.String())
+}
+
+// Wait is used to wait for Main().
+func (msfrpc *MSFRPC) Wait() {
+	<-msfrpc.wait
 }
 
 // Exit is used to exit msfrpc.
@@ -139,6 +196,26 @@ func (msfrpc *MSFRPC) sendError(err error) {
 	select {
 	case msfrpc.errCh <- err:
 	default:
-		msfrpc.logger.Print(logger.Info, "failed to send error to channel\nerror: %s", err)
+		msfrpc.logger.Print(logger.Error, "exit", "exit error channel blocked\nerror: %s", err)
 	}
+}
+
+// HijackLogWriter is used to hijack all packages that call functions like log.Println().
+func (msfrpc *MSFRPC) HijackLogWriter() {
+	logger.HijackLogWriter(logger.Error, "pkg", msfrpc.logger)
+}
+
+// Serve is used to serve listener to inner web.
+// external program can use internal/virtualconn.Listener for magical.
+func (msfrpc *MSFRPC) Serve(listener net.Listener) error {
+	return msfrpc.web.Serve(listener)
+}
+
+// Reload is used to reload resource about web.
+func (msfrpc *MSFRPC) Reload() error {
+	if msfrpc.web.ui != nil {
+		msfrpc.logger.Print(logger.Info, "msfrpc", "reload resource about web")
+		return msfrpc.web.ui.Reload()
+	}
+	return nil
 }
