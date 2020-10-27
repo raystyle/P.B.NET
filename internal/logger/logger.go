@@ -249,18 +249,34 @@ type wrapWriter struct {
 	level  Level
 	src    string
 	logger Logger
-	trace  bool
+	trace  bool // print stack trace
+	last   bool // reserve the last "\n"
 }
 
 func (w *wrapWriter) Write(p []byte) (int, error) {
 	l := len(p)
 	buf := bytes.NewBuffer(make([]byte, 0, l+256))
 	buf.Write(p)
+	if !w.last {
+		buf.Truncate(buf.Len() - 1)
+	}
 	if w.trace {
+		buf.WriteString("\n")
 		xpanic.PrintStackTrace(buf, 2)
 	}
 	w.logger.Print(w.level, w.src, buf)
 	return l, nil
+}
+
+// WrapLogger is used to wrap a Logger to io.Writer.
+func WrapLogger(lv Level, src string, logger Logger) io.Writer {
+	w := wrapWriter{
+		level:  lv,
+		src:    src,
+		logger: logger,
+		last:   true,
+	}
+	return &w
 }
 
 // Wrap is used to convert Logger to go internal logger.
@@ -275,22 +291,13 @@ func Wrap(lv Level, src string, logger Logger) *log.Logger {
 	return log.New(&w, "", 0)
 }
 
-// WrapLogger is used to wrap a Logger to io.Writer.
-func WrapLogger(lv Level, src string, logger Logger) io.Writer {
-	w := wrapWriter{
-		level:  lv,
-		src:    src,
-		logger: logger,
-	}
-	return &w
-}
-
 // HijackLogWriter is used to hijack all packages that call functions like log.Println().
 func HijackLogWriter(lv Level, src string, logger Logger) {
 	w := &wrapWriter{
 		level:  lv,
 		src:    src,
 		logger: logger,
+		trace:  true,
 	}
 	log.SetFlags(0)
 	log.SetOutput(w)
@@ -316,7 +323,8 @@ func Conn(conn net.Conn) *bytes.Buffer {
 	buf := bytes.NewBuffer(make([]byte, 0, 64))
 	_, _ = fmt.Fprintf(buf, "local:  %s %s\nremote: %s %s ",
 		conn.LocalAddr().Network(), conn.LocalAddr(),
-		conn.RemoteAddr().Network(), conn.RemoteAddr())
+		conn.RemoteAddr().Network(), conn.RemoteAddr(),
+	)
 	return buf
 }
 
