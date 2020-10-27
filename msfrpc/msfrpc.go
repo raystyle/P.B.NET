@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -11,6 +12,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/nettool"
+	"project/internal/xpanic"
 )
 
 // Config contains all configurations about MSFRPC.
@@ -55,7 +57,7 @@ type MSFRPC struct {
 
 // NewMSFRPC is used to create a new msfrpc program.
 func NewMSFRPC(cfg *Config) (*MSFRPC, error) {
-	msfrpc := new(MSFRPC)
+	msfrpc := &MSFRPC{logger: cfg.Logger}
 	address := cfg.Client.Address
 	username := cfg.Client.Username
 	password := cfg.Client.Password
@@ -64,7 +66,10 @@ func NewMSFRPC(cfg *Config) (*MSFRPC, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create client")
 	}
-
+	// copy options about database
+	if cfg.Monitor.DBOptions != nil {
+		msfrpc.dbOptions = *cfg.Monitor.DBOptions
+	}
 	web, err := NewWeb(msfrpc, cfg.Web.Options)
 	if err != nil {
 		return nil, err
@@ -80,8 +85,10 @@ func NewMSFRPC(cfg *Config) (*MSFRPC, error) {
 		}
 		msfrpc.listener = listener
 	}
+	msfrpc.client = client
 	msfrpc.monitor = NewMonitor(client, web.MonitorCallbacks(), cfg.Monitor)
 	msfrpc.ioManager = NewIOManager(client, web.IOEventHandlers(), cfg.IOManager)
+	msfrpc.web = web
 	// wait and exit
 	msfrpc.wait = make(chan struct{}, 2)
 	msfrpc.errCh = make(chan error, 64)
@@ -101,14 +108,26 @@ func (msfrpc *MSFRPC) Main() error {
 		}
 	}
 	// connect database
-
-	// ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
-	// msfrpc.client.DBConnect(ctx)
-
+	if msfrpc.dbOptions.Driver != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		err := msfrpc.client.DBConnect(ctx, &msfrpc.dbOptions)
+		if err != nil {
+			return err
+		}
+	}
 	// start web server
 	if msfrpc.listener != nil {
 		errCh := make(chan error, 1)
-		go func() { errCh <- msfrpc.web.Serve(msfrpc.listener) }()
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					buf := xpanic.Print(r, "MSFRPC.Main")
+					msfrpc.logger.Print(logger.Fatal, src, buf)
+				}
+			}()
+			errCh <- msfrpc.web.Serve(msfrpc.listener)
+		}()
 		select {
 		case err := <-errCh:
 			return errors.Wrap(err, "failed to start web server")
@@ -189,6 +208,7 @@ func (msfrpc *MSFRPC) exit() {
 		msfrpc.sendError(err)
 	}
 	msfrpc.logger.Print(logger.Info, src, "client is closed")
+	msfrpc.logger.Print(logger.Info, src, "msfrpc is exit")
 	close(msfrpc.errCh)
 }
 
@@ -209,6 +229,11 @@ func (msfrpc *MSFRPC) HijackLogWriter() {
 // external program can use internal/virtualconn.Listener for magical.
 func (msfrpc *MSFRPC) Serve(listener net.Listener) error {
 	return msfrpc.web.Serve(listener)
+}
+
+// // Addresses is used to get listener addresses in web server.
+func (msfrpc *MSFRPC) Addresses() []net.Addr {
+	return msfrpc.web.Addresses()
 }
 
 // Reload is used to reload resource about web.

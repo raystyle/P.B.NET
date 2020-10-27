@@ -236,6 +236,17 @@ func (web *Web) Serve(listener net.Listener) (err error) {
 	return err
 }
 
+// Addresses is used to get listener addresses.
+func (web *Web) Addresses() []net.Addr {
+	web.addressesRWM.RLock()
+	defer web.addressesRWM.RUnlock()
+	addresses := make([]net.Addr, 0, len(web.addresses))
+	for address := range web.addresses {
+		addresses = append(addresses, *address)
+	}
+	return addresses
+}
+
 // Close is used to close web server.
 func (web *Web) Close() error {
 	err := web.server.Close()
@@ -549,11 +560,8 @@ func (api *webAPI) onEvent(event string) {
 }
 
 func (api *webAPI) Close() {
-
 	api.counter.Wait()
-
-	// websocket.IsWebSocketUpgrade()
-
+	api.msfrpc = nil
 }
 
 func (api *webAPI) readRequest(r *http.Request, req interface{}) error {
@@ -632,7 +640,7 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *webAPI) checkUser(w http.ResponseWriter, r *http.Request) {
-
+	// websocket.IsWebSocketUpgrade()
 }
 
 // ---------------------------------------Metasploit RPC API---------------------------------------

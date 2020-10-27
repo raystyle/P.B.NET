@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"runtime"
@@ -213,18 +214,49 @@ func testPatchClientSend(fn func()) {
 	fn()
 }
 
+var testMSFRPCConfig = new(Config)
+
+func init() {
+	testMSFRPCConfig.Logger = logger.Test
+
+	testMSFRPCConfig.Client.Address = testAddress
+	testMSFRPCConfig.Client.Username = testUsername
+	testMSFRPCConfig.Client.Password = testPassword
+
+	testMSFRPCConfig.Monitor = &MonitorOptions{
+		EnableDB:  true,
+		DBOptions: testDBOptions,
+	}
+
+	testMSFRPCConfig.Web.Network = "tcp"
+	testMSFRPCConfig.Web.Address = "127.0.0.1:0"
+	testMSFRPCConfig.Web.Options = &WebOptions{
+		AdminUsername: "admin",
+		AdminPassword: "$2a$12$er.iGxcRPUZnmUP.E7JrSOMZsJtoBkqXVIvRQywVaplIplupj7X.G", // "admin"
+		DisableTLS:    true,
+		HFS:           http.Dir("testdata/web"),
+		Users: map[string]string{
+			"test": "$2a$12$ADJFbAyjZ5XkekEXewEOeu8UmKMXDkcmu.RPV/AkP.j7CMeGQKz5u", // "test"
+		},
+	}
+}
+
 func TestMSFRPC_HijackLogWriter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	client := testGenerateClient(t)
+	msfrpc, err := NewMSFRPC(testMSFRPCConfig)
+	require.NoError(t, err)
+	go func() {
+		err := msfrpc.Main()
+		require.NoError(t, err)
+	}()
+	msfrpc.Wait()
 
-	// TODO msfrpc
-	// client.HijackLogWriter()
+	msfrpc.HijackLogWriter()
+	log.Print("hijacked log")
 
-	err := client.Close()
-	require.Error(t, err)
-	client.Kill()
+	msfrpc.Exit()
 
-	testsuite.IsDestroyed(t, client)
+	testsuite.IsDestroyed(t, msfrpc)
 }
