@@ -98,8 +98,40 @@ func TestIPToHost(t *testing.T) {
 	})
 }
 
+func TestIsTCPNetwork(t *testing.T) {
+	t.Run("is", func(t *testing.T) {
+		err := IsTCPNetwork("tcp")
+		require.NoError(t, err)
+		err = IsTCPNetwork("tcp4")
+		require.NoError(t, err)
+		err = IsTCPNetwork("tcp6")
+		require.NoError(t, err)
+	})
+
+	t.Run("not", func(t *testing.T) {
+		err := IsTCPNetwork("foo")
+		require.EqualError(t, err, "invalid tcp network: foo")
+	})
+}
+
+func TestIsUDPNetwork(t *testing.T) {
+	t.Run("is", func(t *testing.T) {
+		err := IsUDPNetwork("udp")
+		require.NoError(t, err)
+		err = IsUDPNetwork("udp4")
+		require.NoError(t, err)
+		err = IsUDPNetwork("udp6")
+		require.NoError(t, err)
+	})
+
+	t.Run("not", func(t *testing.T) {
+		err := IsUDPNetwork("foo")
+		require.EqualError(t, err, "invalid udp network: foo")
+	})
+}
+
 func TestIsNetClosingError(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
+	t.Run("is", func(t *testing.T) {
 		err := errors.New("test error: use of closed network connection")
 		r := IsNetClosingError(err)
 		require.True(t, r)

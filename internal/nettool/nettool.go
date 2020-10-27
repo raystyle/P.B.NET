@@ -63,6 +63,26 @@ func IPToHost(address string) string {
 	return "[" + address + "]"
 }
 
+// IsTCPNetwork is used to check network is TCP.
+func IsTCPNetwork(network string) error {
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+		return nil
+	default:
+		return fmt.Errorf("invalid tcp network: %s", network)
+	}
+}
+
+// IsUDPNetwork is used to check network is UDP.
+func IsUDPNetwork(network string) error {
+	switch network {
+	case "udp", "udp4", "udp6":
+		return nil
+	default:
+		return fmt.Errorf("invalid udp network: %s", network)
+	}
+}
+
 // IsNetClosingError is used to check this error is GOROOT/src/internal/poll.ErrNetClosing.
 func IsNetClosingError(err error) bool {
 	if err == nil {
