@@ -259,7 +259,7 @@ func (w *wrapWriter) Write(p []byte) (int, error) {
 	if w.trace {
 		xpanic.PrintStackTrace(buf, 2)
 	}
-	w.logger.Println(w.level, w.src, buf)
+	w.logger.Print(w.level, w.src, buf)
 	return l, nil
 }
 
