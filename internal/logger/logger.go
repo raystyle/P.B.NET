@@ -250,6 +250,7 @@ type wrapWriter struct {
 	src    string
 	logger Logger
 	trace  bool // print stack trace
+	skip   int
 	last   bool // reserve the last "\n"
 }
 
@@ -262,7 +263,7 @@ func (w *wrapWriter) Write(p []byte) (int, error) {
 	}
 	if w.trace {
 		buf.WriteString("\n")
-		xpanic.PrintStackTrace(buf, 2)
+		xpanic.PrintStackTrace(buf, w.skip)
 	}
 	w.logger.Print(w.level, w.src, buf)
 	return l, nil
@@ -287,6 +288,7 @@ func Wrap(lv Level, src string, logger Logger) *log.Logger {
 		src:    src,
 		logger: logger,
 		trace:  true,
+		skip:   3,
 	}
 	return log.New(&w, "", 0)
 }
@@ -298,6 +300,7 @@ func HijackLogWriter(lv Level, src string, logger Logger) {
 		src:    src,
 		logger: logger,
 		trace:  true,
+		skip:   4,
 	}
 	log.SetFlags(0)
 	log.SetOutput(w)

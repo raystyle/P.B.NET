@@ -82,7 +82,7 @@ func PrintPanic(panic interface{}, title string, skip int) *bytes.Buffer {
 
 // Print is used to print panic and stack to a *bytes.Buffer.
 func Print(panic interface{}, title string) *bytes.Buffer {
-	return PrintPanic(panic, title, 4) // skip about defer
+	return PrintPanic(panic, title, 3)
 }
 
 // Error is used to print panic and stack to a *bytes.Buffer buf and return an error.
@@ -93,7 +93,7 @@ func Error(panic interface{}, title string) error {
 // Log is used to call log.Println to print panic and stack.
 // It used to log in some package without logger.Logger.
 func Log(panic interface{}, title string) *bytes.Buffer {
-	buf := PrintPanic(panic, title, 4) // skip about defer
+	buf := PrintPanic(panic, title, 3)
 	log.Println(buf)
 	return buf
 }
