@@ -1,56 +1,66 @@
 [logger]
-  level = "debug"
+  level = "info"
   file  = "msfrpc.log"
 
-[msfrpc]
-  address     = "127.0.0.1:55553"
-  username    = "msf"
-  password    = "msf"
-  disable_tls = true
-  tls_verify  = true
-  handler     = "api" # custom URI
-  timeout     = "30s"
-  token       = "foo" # permanent token
-
-  [msfrpc.transport]
-    # other options about HTTP transport
-    # see option/common/http_transport.toml
-
-[database]
-  driver   = "postgresql"
-  host     = "127.0.0.1"
-  port     = 5433
+[client]
+  address  = "127.0.0.1:55553"
   username = "msf"
   password = "msf"
-  database = "msf"
 
-  [database.options]
-    # other options about database
-    test = "test"
+  [client.options]
+    disable_tls = true
+    tls_verify  = true
+    handler     = "api" # custom URI
+    timeout     = "30s"
+    token       = "test"    # permanent token
 
-[web_server]
+    [client.options.transport]
+      # other options about HTTP transport
+      # see option/common/http_transport.toml
+
+[monitor]
+  interval  = "250ms"
+  enable_db = true
+
+  [monitor.database]
+    driver   = "postgresql"
+    host     = "127.0.0.1"
+    port     = 5433
+    username = "msf"
+    password = "msf"
+    database = "msf"
+
+    [monitor.database.options]
+      # other options about database
+      test = "test"
+
+[io_manager]
+  interval = "100ms"
+
+[web]
   network   = "tcp"
   address   = "localhost:17417"
-  username  = "msfrpc" # use bcrypt, password = "msfrpc"
-  password  = "$2a$12$hLBEWQL8uY3E9zuyBKQbleN35lvq2yiD0uirEGDIFjxevnayg/dQq"
-  directory = "web"
   cert_file = "cert/server.crt"
   key_file  = "cert/server.key"
-  max_conns = 1000
+  directory = "web"
 
-  [web_server.options]
-    # other options about HTTP server
-    # see option/common/http_server.toml
+  [web.options]
+    admin_username      = "admin" # use bcrypt, password = "msfrpc"
+    admin_password      = "$2a$12$hLBEWQL8uY3E9zuyBKQbleN35lvq2yiD0uirEGDIFjxevnayg/dQq"
+    disable_tls         = true
+    max_conns           = 1000
+    max_body_size       = 4194304  # 4MB
+    max_large_body_size = 67108864 # 64MB
+    api_only            = true
 
-[advance]
-  # max incoming request body size
-  max_body_size = 1048576
-  # IO interval about about Console, Shell and Meterpreter
-  io_interval      = "200ms"
-  # watch data interval about monitor
-  monitor_interval = "250ms"
+    [web.options.server]
+      # other options about HTTP Server
+      # see option/common/http_server.toml
+
+    [web.options.users]
+      "user" = "$2a$12$hLBEWQL8uY3E9zuyBKQbleN35lvq2yiD0uirEGDIFjxevnayg/dQq"
 
 [service]
-  name         = "MSFRPC Web UI"
+  name         = "Metasploit RPC Web UI"
   display_name = "Metasploit RPC Web UI"
-  description  = "Metasploit RPC Web UI"
+  description  = "Metasploit RPC Web UI service"

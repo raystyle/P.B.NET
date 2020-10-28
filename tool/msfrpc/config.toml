@@ -34,6 +34,9 @@
       # other options about database
       test = "test"
 
+[io_manager]
+  interval = "100ms"
+
 [web]
   network   = "tcp"
   address   = "localhost:17417"
