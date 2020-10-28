@@ -1,16 +1,13 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/kardianos/service"
 	"golang.org/x/crypto/bcrypt"
@@ -30,32 +27,25 @@ type config struct {
 		File  string `toml:"file"`
 	} `toml:"logger"`
 
-	MSFRPC struct {
-		Address  string `toml:"address"`
-		Username string `toml:"username"`
-		Password string `toml:"password"`
-		msfrpc.ClientOptions
-	} `toml:"msfrpc"`
+	Client struct {
+		Address  string               `toml:"address"`
+		Username string               `toml:"username"`
+		Password string               `toml:"password"`
+		Options  msfrpc.ClientOptions `toml:"options"`
+	} `toml:"client"`
 
-	Database msfrpc.DBConnectOptions `toml:"database"`
+	Monitor msfrpc.MonitorOptions `toml:"monitor"`
 
-	WebServer struct {
+	IOManager msfrpc.IOManagerOptions `toml:"io_manager"`
+
+	Web struct {
 		Network   string            `toml:"network"`
 		Address   string            `toml:"address"`
-		Username  string            `toml:"username"`
-		Password  string            `toml:"password"`
-		Directory string            `toml:"directory"`
 		CertFile  string            `toml:"cert_file"`
 		KeyFile   string            `toml:"key_file"`
-		MaxConns  int               `toml:"max_conns"`
-		Options   option.HTTPServer `toml:"options" check:"-"`
-	} `toml:"web_server"`
-
-	Advance struct {
-		MaxBodySize     int64         `toml:"max_body_size"`
-		IOInterval      time.Duration `toml:"io_interval"`
-		MonitorInterval time.Duration `toml:"monitor_interval"`
-	} `toml:"advance"`
+		Directory string            `toml:"directory"`
+		Options   msfrpc.WebOptions `toml:"options"`
+	} `toml:"web"`
 
 	Service struct {
 		Name        string `toml:"name"`
@@ -66,21 +56,21 @@ type config struct {
 
 func main() {
 	var (
-		password  string
-		test      bool
 		config    string
 		install   bool
 		uninstall bool
+		genPass   string
+		test      bool
 	)
-	flag.StringVar(&password, "gen", "", "generate password about web server")
-	flag.BoolVar(&test, "test", false, "don't change current path")
 	flag.StringVar(&config, "config", "config.toml", "configuration file path")
 	flag.BoolVar(&install, "install", false, "install service")
 	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
+	flag.StringVar(&genPass, "gen", "", "generate password about web server")
+	flag.BoolVar(&test, "test", false, "a flag for test")
 	flag.Parse()
 
-	if password != "" {
-		generateWebPassword(password)
+	if genPass != "" {
+		generateWebPassword(genPass)
 		return
 	}
 	if !test {
@@ -114,13 +104,9 @@ func main() {
 		}
 		log.Println("uninstall service successfully")
 	default:
-		lg, err := svc.Logger(nil)
-		if err != nil {
-			log.Fatalln(err)
-		}
 		err = svc.Run()
 		if err != nil {
-			_ = lg.Error(err)
+			log.Fatalln(err)
 		}
 	}
 }
@@ -164,15 +150,10 @@ func createService(cfg string) service.Service {
 }
 
 type program struct {
-	config *config
-
-	log       *os.File
-	listener  net.Listener
-	msfrpc    *msfrpc.Client
-	webServer *msfrpc.Web
-	monitor   *msfrpc.Monitor
-
-	wg sync.WaitGroup
+	logFile *os.File
+	logger  logger.Logger
+	msfrpc  *msfrpc.MSFRPC
+	wg      sync.WaitGroup
 }
 
 func newProgram(config *config) (*program, error) {
@@ -188,89 +169,54 @@ func newProgram(config *config) (*program, error) {
 	}
 	mLogger := logger.NewMultiLogger(level, os.Stdout, logFile)
 
-	// create MSFRPC
-	address := config.MSFRPC.Address
-	username := config.MSFRPC.Username
-	password := config.MSFRPC.Password
-	options := config.MSFRPC.ClientOptions
-	MSFRPC, err := msfrpc.NewClient(address, username, password, mLogger, &options)
-	if err != nil {
-		return nil, err
-	}
+	// create MSFRPC configuration
+	msfrpcCfg := msfrpc.Config{Logger: mLogger}
 
-	// start listener for http server
-	webCfg := config.WebServer
-	lAddr, err := net.ResolveTCPAddr(webCfg.Network, webCfg.Address)
-	if err != nil {
-		return nil, err
-	}
-	listener, err := net.ListenTCP(webCfg.Network, lAddr)
-	if err != nil {
-		return nil, err
-	}
+	clientCfg := config.Client
+	msfrpcCfg.Client.Address = clientCfg.Address
+	msfrpcCfg.Client.Username = clientCfg.Username
+	msfrpcCfg.Client.Password = clientCfg.Password
+	msfrpcCfg.Client.Options = &clientCfg.Options
+
+	msfrpcCfg.Monitor = &config.Monitor
+	msfrpcCfg.IOManager = &config.IOManager
+
+	msfrpcCfg.Web.Network = config.Web.Network
+	msfrpcCfg.Web.Address = config.Web.Address
+	msfrpcCfg.Web.Options = &config.Web.Options
 
 	// set server side tls certificate
-	cert, err := ioutil.ReadFile(webCfg.CertFile)
+	cert, err := ioutil.ReadFile(config.Web.CertFile)
 	if err != nil {
 		return nil, err
 	}
-	key, err := ioutil.ReadFile(webCfg.KeyFile)
+	key, err := ioutil.ReadFile(config.Web.KeyFile)
 	if err != nil {
 		return nil, err
 	}
-	certs := webCfg.Options.TLSConfig.Certificates
+	certs := msfrpcCfg.Web.Options.Server.TLSConfig.Certificates
 	kp := option.X509KeyPair{
 		Cert: string(cert),
 		Key:  string(key),
 	}
 	certs = append([]option.X509KeyPair{kp}, certs...)
-	webCfg.Options.TLSConfig.Certificates = certs
+	msfrpcCfg.Web.Options.Server.TLSConfig.Certificates = certs
 
-	// create web server
-	webOpts := msfrpc.WebOptions{
-		// HTTPServer:  webCfg.Options,
-		MaxConns:    webCfg.MaxConns,
-		MaxBodySize: config.Advance.MaxBodySize,
-		HFS:         http.Dir(webCfg.Directory),
-	}
-	webServer, err := msfrpc.NewWeb(MSFRPC, &webOpts)
+	// set web directory
+	msfrpcCfg.Web.Options.HFS = http.Dir("web")
+
+	MSFRPC, err := msfrpc.NewMSFRPC(&msfrpcCfg)
 	if err != nil {
 		return nil, err
 	}
 	return &program{
-		config:    config,
-		log:       logFile,
-		listener:  listener,
-		msfrpc:    MSFRPC,
-		webServer: webServer,
+		logFile: logFile,
+		logger:  mLogger,
+		msfrpc:  MSFRPC,
 	}, nil
 }
 
-func (p *program) Start(s service.Service) error {
-	// login
-	token := p.msfrpc.GetToken()
-	if token == "" {
-		err := p.msfrpc.AuthLogin()
-		if err != nil {
-			return err
-		}
-	}
-	// connect database
-	err := p.msfrpc.DBConnect(context.Background(), &p.config.Database)
-	if err != nil {
-		_ = p.msfrpc.AuthLogout(token)
-		return err
-	}
-	// start monitor
-	callbacks := p.webServer.Callbacks()
-	interval := p.config.Advance.MonitorInterval
-	opts := msfrpc.MonitorOptions{
-		Interval:  interval,
-		EnableDB:  true,
-		DBOptions: &p.config.Database,
-	}
-	p.monitor = msfrpc.NewMonitor(p.msfrpc, callbacks, &opts)
-	// start web server
+func (p *program) Start(service.Service) error {
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -279,23 +225,18 @@ func (p *program) Start(s service.Service) error {
 				xpanic.Log(r, "program.Start")
 			}
 		}()
-		err := p.webServer.Serve(p.listener)
-		if err != nil && err != http.ErrServerClosed {
-			l, e := s.Logger(nil)
-			if e == nil {
-				_ = l.Error(err)
-			}
-			os.Exit(1)
+		p.msfrpc.HijackLogWriter()
+		err := p.msfrpc.Main()
+		if err != nil {
+			p.logger.Print(logger.Fatal, "service", err)
 		}
 	}()
 	return nil
 }
 
 func (p *program) Stop(service.Service) error {
-	_ = p.webServer.Close()
+	p.msfrpc.Exit()
 	p.wg.Wait()
-	p.monitor.Close()
-	_ = p.msfrpc.Close()
-	_ = p.log.Close()
+	_ = p.logFile.Close()
 	return nil
 }
