@@ -203,7 +203,7 @@ func newProgram(config *config) (*program, error) {
 	msfrpcCfg.Web.Options.Server.TLSConfig.Certificates = certs
 
 	// set web directory
-	msfrpcCfg.Web.Options.HFS = http.Dir("web")
+	msfrpcCfg.Web.Options.HFS = http.Dir(config.Web.Directory)
 
 	MSFRPC, err := msfrpc.NewMSFRPC(&msfrpcCfg)
 	if err != nil {
@@ -229,6 +229,7 @@ func (p *program) Start(service.Service) error {
 		err := p.msfrpc.Main()
 		if err != nil {
 			p.logger.Print(logger.Fatal, "service", err)
+			os.Exit(1)
 		}
 	}()
 	return nil

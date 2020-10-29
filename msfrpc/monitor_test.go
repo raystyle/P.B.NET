@@ -1223,7 +1223,7 @@ func TestMonitor_log(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
-func TestMonitor_updateMSFErrorCount(t *testing.T) {
+func TestMonitor_updateClientErrorCount(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1234,7 +1234,7 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 
 	client, err := NewClient(testAddress, username, password, logger.Test, nil)
 	require.NoError(t, err)
-	client.token = "TEST"
+	client.token = "TEST" // skip AuthLogin
 
 	var errStr string
 	callbacks := MonitorCallbacks{OnEvent: func(error string) {
@@ -1252,19 +1252,31 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 		monitor.clErrorCount = 2
 		monitor.updateClientErrorCount(true)
 
-		require.Equal(t, "client disconnected", errStr)
+		require.Equal(t, "msfrpcd disconnected", errStr)
 		require.False(t, monitor.ClientAlive())
 	})
 
 	t.Run("msfrpcd reconnected", func(t *testing.T) {
 		// mock error
+		monitor.clErrorCount = 2
 		monitor.updateClientErrorCount(true)
 
 		// ok
 		monitor.updateClientErrorCount(false)
 
-		require.Equal(t, "client reconnected", errStr)
+		require.Equal(t, "msfrpcd reconnected", errStr)
 		require.True(t, monitor.ClientAlive())
+	})
+
+	t.Run("msfrpcd reconnect failed", func(t *testing.T) {
+		client.token = "TEMP"
+
+		monitor.clErrorCount = 2
+		monitor.updateClientErrorCount(true)
+
+		testPatchClientSend(func() {
+			monitor.updateClientErrorCount(false)
+		})
 	})
 
 	testsuite.IsDestroyed(t, monitor)
@@ -1312,6 +1324,7 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 
 	t.Run("database reconnected", func(t *testing.T) {
 		// mock error
+		monitor.dbErrorCount = 2
 		monitor.updateDBErrorCount(true)
 
 		// ok
@@ -1319,6 +1332,15 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 
 		require.Equal(t, "database reconnected", errStr)
 		require.True(t, monitor.DatabaseAlive())
+	})
+
+	t.Run("database reconnect failed", func(t *testing.T) {
+		monitor.dbErrorCount = 2
+		monitor.updateDBErrorCount(true)
+
+		testPatchClientSend(func() {
+			monitor.updateDBErrorCount(false)
+		})
 	})
 
 	testsuite.IsDestroyed(t, monitor)
@@ -1345,14 +1367,14 @@ func TestMonitor_AutoReconnect(t *testing.T) {
 		err := client.AuthLogout(client.GetToken())
 		require.NoError(t, err)
 
-		time.Sleep(3 * minWatchInterval)
+		time.Sleep(6 * minWatchInterval)
 	})
 
 	t.Run("database", func(t *testing.T) {
 		err := client.DBDisconnect(ctx)
 		require.NoError(t, err)
 
-		time.Sleep(3 * minWatchInterval)
+		time.Sleep(6 * minWatchInterval)
 	})
 
 	monitor.Close()

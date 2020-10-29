@@ -65,7 +65,7 @@ type Monitor struct {
 	callbacks *MonitorCallbacks
 	interval  time.Duration
 	enableDB  bool
-	dbOptions *DBConnectOptions
+	database  *DBConnectOptions
 
 	// notice if client or database disconnect
 	clErrorCount int
@@ -117,7 +117,7 @@ func NewMonitor(client *Client, callbacks *MonitorCallbacks, opts *MonitorOption
 		callbacks: callbacks,
 		interval:  opts.Interval,
 		enableDB:  opts.EnableDB,
-		dbOptions: opts.Database,
+		database:  opts.Database,
 	}
 	if monitor.interval < minWatchInterval {
 		monitor.interval = minWatchInterval
@@ -262,63 +262,71 @@ func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
 }
 
 func (monitor *Monitor) updateClientErrorCount(add bool) {
+	const maxRetryCount = 3
 	monitor.errorCountMu.Lock()
 	defer monitor.errorCountMu.Unlock()
 	// reset counter
 	if !add {
-		if monitor.clErrorCount != 0 {
-			monitor.clErrorCount = 0
+		if monitor.clErrorCount >= maxRetryCount {
 			monitor.clientAlive.Store(true)
-			const log = "client reconnected"
+			const log = "msfrpcd reconnected"
 			monitor.log(logger.Info, log)
 			monitor.callbacks.OnEvent(log)
 		}
+		monitor.clErrorCount = 0
 		return
 	}
 	if monitor.shuttingDown() {
 		return
 	}
-	monitor.clErrorCount++
 	// if use temporary token, need login again.
 	if monitor.ctx.GetToken()[:4] == "TEMP" {
 		err := monitor.ctx.AuthLogin()
 		if err == nil {
 			return
 		}
+		monitor.log(logger.Debug, "failed to reconnect msfrpcd:", err)
 	}
-	if monitor.clErrorCount != 3 { // core! core! core!
+	monitor.clErrorCount++
+	if monitor.clErrorCount != maxRetryCount { // core! core! core!
 		return
 	}
 	monitor.clientAlive.Store(false)
-	const log = "client disconnected"
+	const log = "msfrpcd disconnected"
 	monitor.log(logger.Warning, log)
 	monitor.callbacks.OnEvent(log)
 }
 
 func (monitor *Monitor) updateDBErrorCount(add bool) {
+	const maxRetryCount = 3
 	monitor.errorCountMu.Lock()
 	defer monitor.errorCountMu.Unlock()
 	// reset counter
 	if !add {
-		if monitor.dbErrorCount != 0 {
-			monitor.dbErrorCount = 0
+		if monitor.dbErrorCount >= maxRetryCount {
 			monitor.databaseAlive.Store(true)
 			const log = "database reconnected"
 			monitor.log(logger.Info, log)
 			monitor.callbacks.OnEvent(log)
 		}
+		monitor.dbErrorCount = 0
 		return
 	}
 	if monitor.shuttingDown() {
 		return
 	}
-	monitor.dbErrorCount++
 	// try to reconnect database
-	err := monitor.ctx.DBConnect(monitor.context, monitor.dbOptions)
+	err := monitor.ctx.DBDisconnect(monitor.context)
+	if err != nil {
+		monitor.log(logger.Debug, "failed to disconnect database:", err)
+	}
+	err = monitor.ctx.DBConnect(monitor.context, monitor.database)
 	if err == nil {
 		return
 	}
-	if monitor.dbErrorCount != 3 { // core! core! core!
+	monitor.log(logger.Debug, "failed to reconnect database:", err)
+	monitor.dbErrorCount++
+	if monitor.dbErrorCount != maxRetryCount { // core! core! core!
 		return
 	}
 	monitor.databaseAlive.Store(false)
