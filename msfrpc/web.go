@@ -409,7 +409,7 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	}
 	// set handler
 	for path, handler := range map[string]http.HandlerFunc{
-		"/login": api.handleLogin,
+		"/api/login": api.handleLogin,
 
 		"/api/auth/logout":         api.handleAuthenticationLogout,
 		"/api/auth/token/list":     api.handleAuthenticationTokenList,
@@ -692,6 +692,8 @@ func (api *webAPI) handlePanic(w http.ResponseWriter, _ *http.Request, e interfa
 
 	csrf.Protect(nil, nil)
 	sessions.NewSession(nil, "")
+
+	sessions.NewCookieStore()
 }
 
 func (api *webAPI) checkAdminPermissions(w http.ResponseWriter, r *http.Request) {
@@ -707,13 +709,17 @@ func (api *webAPI) checkUserPermissions(w http.ResponseWriter, r *http.Request) 
 }
 
 func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
+	// httptool.FprintRequest(os.Stdout, r)
+
+	// fmt.Println(httptool.PrintRequest(r))
 	// upgrade to websocket connection, server can push message to client
-	conn, err := api.wsUpgrader.Upgrade(w, r, r.Header)
+	conn, err := api.wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		api.log(logger.Error, "failed to upgrade", err)
 		return
 	}
 	_ = conn.WriteMessage(websocket.TextMessage, []byte("hello client"))
+	fmt.Println("send hello!")
 }
 
 // ---------------------------------------Metasploit RPC API---------------------------------------

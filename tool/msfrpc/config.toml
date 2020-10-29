@@ -1,11 +1,12 @@
 [logger]
   level = "info"
   file  = "msfrpc.log"
+  error = "msfrpc.err"
 
 [client]
-  address  = "127.0.0.1:55553"
-  username = "msf"
-  password = "msf"
+  address  = "127.0.0.1:55553" # msfrpcd address
+  username = "msf"             # msfrpcd username
+  password = "msf"             # msfrpcd password
 
   [client.options]
     disable_tls = false
@@ -59,6 +60,23 @@
 
     [web.options.users]
       "user" = "$2a$12$hLBEWQL8uY3E9zuyBKQbleN35lvq2yiD0uirEGDIFjxevnayg/dQq"
+
+[pprof]
+  enable    = true
+  network   = "tcp"
+  address   = "localhost:17418"
+  cert_file = "cert/server.crt"
+  key_file  = "cert/server.key"
+
+  [pprof.options]
+    username  = "pprof"
+    password  = "pprof"
+    timeout   = "1m"
+    max_conns = 1000
+
+    [pprof.options.server]
+      # other options about HTTP Server
+      # see option/common/http_server.toml
 
 [service]
   name         = "Metasploit RPC Web UI"

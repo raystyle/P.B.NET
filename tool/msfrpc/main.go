@@ -17,6 +17,7 @@ import (
 	"project/internal/patch/toml"
 	"project/internal/system"
 	"project/internal/xpanic"
+	"project/internal/xpprof"
 
 	"project/msfrpc"
 )
@@ -25,6 +26,7 @@ type config struct {
 	Logger struct {
 		Level string `toml:"level"`
 		File  string `toml:"file"`
+		Error string `toml:"error"`
 	} `toml:"logger"`
 
 	Client struct {
@@ -46,6 +48,15 @@ type config struct {
 		Directory string            `toml:"directory"`
 		Options   msfrpc.WebOptions `toml:"options"`
 	} `toml:"web"`
+
+	PPROF struct {
+		Enable   bool           `toml:"enable"`
+		Network  string         `toml:"network"`
+		Address  string         `toml:"address"`
+		CertFile string         `toml:"cert_file"`
+		KeyFile  string         `toml:"key_file"`
+		Options  xpprof.Options `toml:"options"`
+	} `toml:"pprof"`
 
 	Service struct {
 		Name        string `toml:"name"`
@@ -79,32 +90,24 @@ func main() {
 			log.Fatalln(err)
 		}
 	}
-	logFile, err := logger.SetErrorLogger("msfrpc.err")
-	if err != nil {
-		log.Fatalln(err)
-	}
-	defer func() {
-		_ = logFile.Sync()
-		_ = logFile.Close()
-	}()
 
 	// switch operation
 	svc := createService(config)
 	switch {
 	case install:
-		err = svc.Install()
+		err := svc.Install()
 		if err != nil {
 			log.Fatalln("failed to install service:", err)
 		}
 		log.Println("install service successfully")
 	case uninstall:
-		err = svc.Uninstall()
+		err := svc.Uninstall()
 		if err != nil {
 			log.Fatalln("failed to uninstall service:", err)
 		}
 		log.Println("uninstall service successfully")
 	default:
-		err = svc.Run()
+		err := svc.Run()
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -131,6 +134,15 @@ func createService(cfg string) service.Service {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	// set logger about initialize error
+	logFile, err := logger.SetErrorLogger(config.Logger.Error)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer func() {
+		_ = logFile.Sync()
+		_ = logFile.Close()
+	}()
 	// initialize program
 	program, err := newProgram(&config)
 	if err != nil {
@@ -217,6 +229,7 @@ func newProgram(config *config) (*program, error) {
 }
 
 func (p *program) Start(service.Service) error {
+	p.msfrpc.HijackLogWriter()
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -225,7 +238,6 @@ func (p *program) Start(service.Service) error {
 				xpanic.Log(r, "program.Start")
 			}
 		}()
-		p.msfrpc.HijackLogWriter()
 		err := p.msfrpc.Main()
 		if err != nil {
 			p.logger.Print(logger.Fatal, "service", err)
