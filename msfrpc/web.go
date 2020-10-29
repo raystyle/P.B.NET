@@ -1,6 +1,7 @@
 package msfrpc
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
@@ -131,7 +133,7 @@ func NewWeb(msfrpc *MSFRPC, opts *WebOptions) (*Web, error) {
 	return &web, nil
 }
 
-// MonitorCallbacks is used to return callbacks for monitor.
+// MonitorCallbacks is used to return callbacks for Monitor.
 func (web *Web) MonitorCallbacks() *MonitorCallbacks {
 	return &MonitorCallbacks{
 		OnToken:      web.api.onToken,
@@ -144,24 +146,24 @@ func (web *Web) MonitorCallbacks() *MonitorCallbacks {
 	}
 }
 
-// IOEventHandlers is used to return callbacks for monitor.
+// IOEventHandlers is used to return io event handler for IOManager.
 func (web *Web) IOEventHandlers() *IOEventHandlers {
 	return &IOEventHandlers{
-		OnConsoleRead:         nil,
-		OnConsoleClean:        nil,
-		OnConsoleClosed:       nil,
-		OnConsoleLocked:       nil,
-		OnConsoleUnlocked:     nil,
-		OnShellRead:           nil,
-		OnShellClean:          nil,
-		OnShellClosed:         nil,
-		OnShellLocked:         nil,
-		OnShellUnlocked:       nil,
-		OnMeterpreterRead:     nil,
-		OnMeterpreterClean:    nil,
-		OnMeterpreterClosed:   nil,
-		OnMeterpreterLocked:   nil,
-		OnMeterpreterUnlocked: nil,
+		OnConsoleRead:         web.api.onConsoleRead,
+		OnConsoleCleaned:      web.api.onConsoleCleaned,
+		OnConsoleClosed:       web.api.onConsoleClosed,
+		OnConsoleLocked:       web.api.onConsoleLocked,
+		OnConsoleUnlocked:     web.api.onConsoleUnlocked,
+		OnShellRead:           web.api.onShellRead,
+		OnShellCleaned:        web.api.onShellCleaned,
+		OnShellClosed:         web.api.onShellClosed,
+		OnShellLocked:         web.api.onShellLocked,
+		OnShellUnlocked:       web.api.onShellUnlocked,
+		OnMeterpreterRead:     web.api.onMeterpreterRead,
+		OnMeterpreterCleaned:  web.api.onMeterpreterCleaned,
+		OnMeterpreterClosed:   web.api.onMeterpreterClosed,
+		OnMeterpreterLocked:   web.api.onMeterpreterLocked,
+		OnMeterpreterUnlocked: web.api.onMeterpreterUnlocked,
 	}
 }
 
@@ -530,33 +532,96 @@ func (api *webAPI) log(lv logger.Level, log ...interface{}) {
 	api.ctx.logger.Println(lv, "msfrpc-web api", log...)
 }
 
-// callbacks is used to notice that some data is updated.
-func (api *webAPI) onToken(token string, add bool) {
+// ----------------------------------------monitor callbacks---------------------------------------
 
+func (api *webAPI) onToken(token string, add bool) {
+	fmt.Println(token, add)
 }
 
 func (api *webAPI) onJob(id, name string, active bool) {
-
+	fmt.Println(id, name, active)
 }
 
 func (api *webAPI) onSession(id uint64, info *SessionInfo, opened bool) {
-
+	fmt.Println(id, spew.Sdump(info), opened)
 }
 
 func (api *webAPI) onHost(workspace string, host *DBHost, add bool) {
-
+	fmt.Println(workspace, spew.Sdump(host), add)
 }
 
 func (api *webAPI) onCredential(workspace string, cred *DBCred, add bool) {
-
+	fmt.Println(workspace, spew.Sdump(cred), add)
 }
 
 func (api *webAPI) onLoot(workspace string, loot *DBLoot) {
-
+	fmt.Println(workspace, spew.Sdump(loot))
 }
 
 func (api *webAPI) onEvent(event string) {
+	fmt.Println("event:", event)
+}
 
+// ----------------------------------------io event handlers---------------------------------------
+
+func (api *webAPI) onConsoleRead(id string) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onConsoleCleaned(id string) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onConsoleClosed(id string) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onConsoleLocked(id, token string) {
+	fmt.Println("console id:", id, "token:", token)
+}
+
+func (api *webAPI) onConsoleUnlocked(id, token string) {
+	fmt.Println("console id:", id, "token:", token)
+}
+
+func (api *webAPI) onShellRead(id uint64) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onShellCleaned(id uint64) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onShellClosed(id uint64) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onShellLocked(id uint64, token string) {
+	fmt.Println("console id:", id, "token:", token)
+}
+
+func (api *webAPI) onShellUnlocked(id uint64, token string) {
+	fmt.Println("console id:", id, "token:", token)
+}
+
+func (api *webAPI) onMeterpreterRead(id uint64) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onMeterpreterCleaned(id uint64) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onMeterpreterClosed(id uint64) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onMeterpreterLocked(id uint64, token string) {
+	fmt.Println("console id:", id, "token:", token)
+}
+
+func (api *webAPI) onMeterpreterUnlocked(id uint64, token string) {
+	fmt.Println("console id:", id, "token:", token)
 }
 
 func (api *webAPI) Close() {
@@ -629,6 +694,18 @@ func (api *webAPI) handlePanic(w http.ResponseWriter, _ *http.Request, e interfa
 	sessions.NewSession(nil, "")
 }
 
+func (api *webAPI) checkAdminPermissions(w http.ResponseWriter, r *http.Request) {
+	// websocket.IsWebSocketUpgrade()
+	fmt.Println(r.Header)
+	w.WriteHeader(200)
+}
+
+func (api *webAPI) checkUserPermissions(w http.ResponseWriter, r *http.Request) {
+	// websocket.IsWebSocketUpgrade()
+	fmt.Println(r.Header)
+	w.WriteHeader(200)
+}
+
 func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// upgrade to websocket connection, server can push message to client
 	conn, err := api.wsUpgrader.Upgrade(w, r, r.Header)
@@ -636,11 +713,7 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 		api.log(logger.Error, "failed to upgrade", err)
 		return
 	}
-	_ = conn.Close()
-}
-
-func (api *webAPI) checkUser(w http.ResponseWriter, r *http.Request) {
-	// websocket.IsWebSocketUpgrade()
+	_ = conn.WriteMessage(websocket.TextMessage, []byte("hello client"))
 }
 
 // ---------------------------------------Metasploit RPC API---------------------------------------
