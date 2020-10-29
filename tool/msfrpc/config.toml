@@ -50,6 +50,7 @@
     admin_password      = "$2a$12$hLBEWQL8uY3E9zuyBKQbleN35lvq2yiD0uirEGDIFjxevnayg/dQq"
     disable_tls         = false
     max_conns           = 1000
+    timeout             = "1m"
     max_body_size       = 4194304  # 4MB
     max_large_body_size = 67108864 # 64MB
     api_only            = false

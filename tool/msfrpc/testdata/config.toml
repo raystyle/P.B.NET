@@ -1,6 +1,7 @@
 [logger]
   level = "info"
   file  = "msfrpc.log"
+  error = "msfrpc.err"
 
 [client]
   address  = "127.0.0.1:55553"
@@ -10,13 +11,9 @@
   [client.options]
     disable_tls = true
     tls_verify  = true
-    handler     = "api" # custom URI
+    handler     = "api"  # custom URI
     timeout     = "30s"
-    token       = "test"    # permanent token
-
-    [client.options.transport]
-      # other options about HTTP transport
-      # see option/common/http_transport.toml
+    token       = "test" # permanent token
 
 [monitor]
   interval  = "250ms"
@@ -49,16 +46,26 @@
     admin_password      = "$2a$12$hLBEWQL8uY3E9zuyBKQbleN35lvq2yiD0uirEGDIFjxevnayg/dQq"
     disable_tls         = true
     max_conns           = 1000
+    timeout             = "1m"
     max_body_size       = 4194304  # 4MB
     max_large_body_size = 67108864 # 64MB
     api_only            = true
 
-    [web.options.server]
-      # other options about HTTP Server
-      # see option/common/http_server.toml
-
     [web.options.users]
       "user" = "$2a$12$hLBEWQL8uY3E9zuyBKQbleN35lvq2yiD0uirEGDIFjxevnayg/dQq"
+
+[pprof]
+  enable    = true
+  network   = "tcp"
+  address   = "localhost:17418"
+  cert_file = "cert/server.crt"
+  key_file  = "cert/server.key"
+
+  [pprof.options]
+    username  = "pprof"
+    password  = "pprof"
+    timeout   = "1m"
+    max_conns = 1000
 
 [service]
   name         = "Metasploit RPC Web UI"

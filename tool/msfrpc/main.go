@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -162,10 +163,16 @@ func createService(cfg string) service.Service {
 }
 
 type program struct {
-	logFile *os.File
 	logger  logger.Logger
-	msfrpc  *msfrpc.MSFRPC
-	wg      sync.WaitGroup
+	logFile *os.File
+
+	msfrpc *msfrpc.MSFRPC
+
+	// for pprof server
+	pprof    *xpprof.Server
+	listener net.Listener
+
+	wg sync.WaitGroup
 }
 
 func newProgram(config *config) (*program, error) {
@@ -221,15 +228,53 @@ func newProgram(config *config) (*program, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &program{
-		logFile: logFile,
+	program := program{
 		logger:  mLogger,
+		logFile: logFile,
 		msfrpc:  MSFRPC,
-	}, nil
+	}
+	// set pprof server
+	pprof, err := newPPROFServer(mLogger, config)
+	if err != nil {
+		return nil, err
+	}
+	if pprof == nil {
+		return &program, nil
+	}
+	listener, err := net.Listen(config.PPROF.Network, config.PPROF.Address)
+	if err != nil {
+		return nil, err
+	}
+	program.listener = listener
+	program.pprof = pprof
+	return &program, nil
+}
+
+func newPPROFServer(lg logger.Logger, config *config) (*xpprof.Server, error) {
+	cfg := config.PPROF
+	if !cfg.Enable {
+		return nil, nil
+	}
+	cert, err := ioutil.ReadFile(config.PPROF.CertFile)
+	if err != nil {
+		return nil, err
+	}
+	key, err := ioutil.ReadFile(config.PPROF.KeyFile)
+	if err != nil {
+		return nil, err
+	}
+	opts := cfg.Options
+	certs := opts.Server.TLSConfig.Certificates
+	kp := option.X509KeyPair{
+		Cert: string(cert),
+		Key:  string(key),
+	}
+	certs = append([]option.X509KeyPair{kp}, certs...)
+	opts.Server.TLSConfig.Certificates = certs
+	return xpprof.NewHTTPSServer(lg, &opts)
 }
 
 func (p *program) Start(service.Service) error {
-	p.msfrpc.HijackLogWriter()
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
