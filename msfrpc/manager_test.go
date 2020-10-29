@@ -29,9 +29,9 @@ func TestIOReader_Read(t *testing.T) {
 		closed  bool
 	)
 	onRead := func() { read = true }
-	onClean := func() { cleaned = true }
-	onClose := func() { closed = true }
-	reader := newIOReader(logger.Test, r, onRead, onClean, onClose)
+	onCleaned := func() { cleaned = true }
+	onClosed := func() { closed = true }
+	reader := newIOReader(logger.Test, r, onRead, onCleaned, onClosed)
 	reader.ReadLoop()
 
 	testdata := testsuite.Bytes()
@@ -102,9 +102,9 @@ func TestIOReader_Clean(t *testing.T) {
 		closed  bool
 	)
 	onRead := func() { read = true }
-	onClean := func() { cleaned = true }
-	onClose := func() { closed = true }
-	reader := newIOReader(logger.Test, r, onRead, onClean, onClose)
+	onCleaned := func() { cleaned = true }
+	onClosed := func() { closed = true }
+	reader := newIOReader(logger.Test, r, onRead, onCleaned, onClosed)
 	reader.ReadLoop()
 
 	testdata := testsuite.Bytes()
@@ -137,9 +137,9 @@ func TestIOReader_Panic(t *testing.T) {
 		closed  bool
 	)
 	onRead := func() { read = true }
-	onClean := func() { cleaned = true }
-	onClose := func() { closed = true }
-	reader := newIOReader(logger.Test, conn, onRead, onClean, onClose)
+	onCleaned := func() { cleaned = true }
+	onClosed := func() { closed = true }
+	reader := newIOReader(logger.Test, conn, onRead, onCleaned, onClosed)
 	reader.ReadLoop()
 
 	time.Sleep(time.Second)
@@ -170,9 +170,9 @@ func TestIOReader_Parallel(t *testing.T) {
 				closed  bool
 			)
 			onRead := func() { bRead = true }
-			onClean := func() { cleaned = true }
-			onClose := func() { closed = true }
-			reader := newIOReader(logger.Test, r, onRead, onClean, onClose)
+			onCleaned := func() { cleaned = true }
+			onClosed := func() { closed = true }
+			reader := newIOReader(logger.Test, r, onRead, onCleaned, onClosed)
 			reader.ReadLoop()
 
 			write := func() {
@@ -220,12 +220,12 @@ func TestIOReader_Parallel(t *testing.T) {
 				closed  bool
 			)
 			onRead := func() { bRead = true }
-			onClean := func() { cleaned = true }
-			onClose := func() { closed = true }
+			onCleaned := func() { cleaned = true }
+			onClosed := func() { closed = true }
 
 			init := func() {
 				r, w = io.Pipe()
-				reader = newIOReader(logger.Test, r, onRead, onClean, onClose)
+				reader = newIOReader(logger.Test, r, onRead, onCleaned, onClosed)
 				reader.ReadLoop()
 			}
 			write := func() {
@@ -270,9 +270,9 @@ func TestIOReader_Parallel(t *testing.T) {
 				closed  bool
 			)
 			onRead := func() { bRead = true }
-			onClean := func() { cleaned = true }
-			onClose := func() { closed = true }
-			reader := newIOReader(logger.Test, r, onRead, onClean, onClose)
+			onCleaned := func() { cleaned = true }
+			onClosed := func() { closed = true }
+			reader := newIOReader(logger.Test, r, onRead, onCleaned, onClosed)
 			reader.ReadLoop()
 
 			write := func() {
@@ -319,12 +319,12 @@ func TestIOReader_Parallel(t *testing.T) {
 				closed  bool
 			)
 			onRead := func() { bRead = true }
-			onClean := func() { cleaned = true }
-			onClose := func() { closed = true }
+			onCleaned := func() { cleaned = true }
+			onClosed := func() { closed = true }
 
 			init := func() {
 				r, w = io.Pipe()
-				reader = newIOReader(logger.Test, r, onRead, onClean, onClose)
+				reader = newIOReader(logger.Test, r, onRead, onCleaned, onClosed)
 				reader.ReadLoop()
 			}
 			write := func() {
@@ -370,17 +370,17 @@ func TestIOReader_Parallel(t *testing.T) {
 var (
 	testIOManagerHandlers = &IOEventHandlers{
 		OnConsoleRead:         func(string) {},
-		OnConsoleClean:        func(string) {},
+		OnConsoleCleaned:      func(string) {},
 		OnConsoleClosed:       func(string) {},
 		OnConsoleLocked:       func(string, string) {},
 		OnConsoleUnlocked:     func(string, string) {},
 		OnShellRead:           func(uint64) {},
-		OnShellClean:          func(uint64) {},
+		OnShellCleaned:        func(uint64) {},
 		OnShellClosed:         func(uint64) {},
 		OnShellLocked:         func(uint64, string) {},
 		OnShellUnlocked:       func(uint64, string) {},
 		OnMeterpreterRead:     func(uint64) {},
-		OnMeterpreterClean:    func(uint64) {},
+		OnMeterpreterCleaned:  func(uint64) {},
 		OnMeterpreterClosed:   func(uint64) {},
 		OnMeterpreterLocked:   func(uint64, string) {},
 		OnMeterpreterUnlocked: func(uint64, string) {},
@@ -429,7 +429,7 @@ func TestIOObject(t *testing.T) {
 			require.Equal(t, consoleID, id)
 			read = true
 		},
-		OnConsoleClean: func(id string) {
+		OnConsoleCleaned: func(id string) {
 			require.Equal(t, consoleID, id)
 			cleaned = true
 		},
@@ -615,7 +615,7 @@ func TestIOObject_Parallel(t *testing.T) {
 			require.Equal(t, consoleID, id)
 			bRead = true
 		},
-		OnConsoleClean: func(id string) {
+		OnConsoleCleaned: func(id string) {
 			require.Equal(t, consoleID, id)
 			cleaned = true
 		},

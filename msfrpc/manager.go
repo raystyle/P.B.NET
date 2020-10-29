@@ -28,11 +28,11 @@ var (
 // different reader(user) can get the same data, when new data read,
 // it will call onRead() for notice user that can get new data.
 type ioReader struct {
-	logger  logger.Logger
-	rc      io.ReadCloser
-	onRead  func()
-	onClean func()
-	onClose func()
+	logger    logger.Logger
+	rc        io.ReadCloser
+	onRead    func()
+	onCleaned func()
+	onClosed  func()
 
 	// store history output
 	buf *bytes.Buffer
@@ -41,14 +41,14 @@ type ioReader struct {
 	wg sync.WaitGroup
 }
 
-func newIOReader(lg logger.Logger, rc io.ReadCloser, onRead, onClean, onClose func()) *ioReader {
+func newIOReader(lg logger.Logger, rc io.ReadCloser, onRead, onCleaned, onClosed func()) *ioReader {
 	return &ioReader{
-		logger:  lg,
-		rc:      rc,
-		onRead:  onRead,
-		onClean: onClean,
-		onClose: onClose,
-		buf:     bytes.NewBuffer(make([]byte, 0, 64)),
+		logger:    lg,
+		rc:        rc,
+		onRead:    onRead,
+		onCleaned: onCleaned,
+		onClosed:  onClosed,
+		buf:       bytes.NewBuffer(make([]byte, 0, 64)),
 	}
 }
 
@@ -70,14 +70,14 @@ func (reader *ioReader) readLoop() {
 			go reader.readLoop()
 			return
 		}
-		reader.onClose()
+		reader.onClosed()
 		// prevent cycle reference
 		reader.onRead = nil
-		reader.onClose = nil
+		reader.onClosed = nil
 		// must use lock
 		reader.rwm.Lock()
 		defer reader.rwm.Unlock()
-		reader.onClean = nil
+		reader.onCleaned = nil
 	}()
 	var (
 		n   int
@@ -123,21 +123,21 @@ func (reader *ioReader) Read(offset int) []byte {
 
 // Clean is used to clean buffer data.
 func (reader *ioReader) Clean() {
-	cleanFn := reader.clean()
-	if cleanFn != nil {
-		cleanFn()
+	cleanedFn := reader.getOnCleaned()
+	if cleanedFn != nil {
+		cleanedFn()
 	}
 }
 
-func (reader *ioReader) clean() func() {
+func (reader *ioReader) getOnCleaned() func() {
 	reader.rwm.Lock()
 	defer reader.rwm.Unlock()
 	// clean buffer data at once
 	security.CoverBytes(reader.buf.Bytes())
 	// alloc a new buffer
 	reader.buf = bytes.NewBuffer(make([]byte, 0, 64))
-	// must use lock or may be call nil onClean
-	return reader.onClean
+	// must use lock or may be call nil onCleaned
+	return reader.onCleaned
 }
 
 // Close is used to close io reader, it will also close under ReadCloser.
@@ -156,11 +156,11 @@ func (reader *ioReader) close() error {
 // io status contains the status about the IO(console, shell and meterpreter).
 // must use token for write data to io object, usually the admin can unlock it force.
 type IOObject struct {
-	object   io.Writer // *Console, *Shell and *Meterpreter
-	reader   *ioReader
-	now      func() time.Time
-	onLock   func(token string)
-	onUnlock func(token string)
+	object     io.Writer // *Console, *Shell and *Meterpreter
+	reader     *ioReader
+	now        func() time.Time
+	onLocked   func(token string)
+	onUnlocked func(token string)
 
 	// status
 	locker string // user token
@@ -190,7 +190,7 @@ func (obj *IOObject) Lock(token string) bool {
 	if obj.locker == "" {
 		obj.locker = token
 		obj.lockAt = obj.now()
-		obj.onLock(token)
+		obj.onLocked(token)
 		return true
 	}
 	if obj.locker == token {
@@ -208,7 +208,7 @@ func (obj *IOObject) Unlock(token string) bool {
 	}
 	if obj.locker == token {
 		obj.locker = ""
-		obj.onUnlock(token)
+		obj.onUnlocked(token)
 		return true
 	}
 	return false
@@ -220,7 +220,7 @@ func (obj *IOObject) ForceUnlock(token string) {
 	obj.rwm.Lock()
 	defer obj.rwm.Unlock()
 	obj.locker = ""
-	obj.onUnlock(token)
+	obj.onUnlocked(token)
 }
 
 // Locker is used to return locker token for find lock user.
@@ -286,19 +286,19 @@ func (obj *IOObject) close() error {
 // IOEventHandlers contains callbacks about io objects events.
 type IOEventHandlers struct {
 	OnConsoleRead     func(id string)
-	OnConsoleClean    func(id string)
+	OnConsoleCleaned  func(id string)
 	OnConsoleClosed   func(id string)
 	OnConsoleLocked   func(id, token string)
 	OnConsoleUnlocked func(id, token string)
 
 	OnShellRead     func(id uint64)
-	OnShellClean    func(id uint64)
+	OnShellCleaned  func(id uint64)
 	OnShellClosed   func(id uint64)
 	OnShellLocked   func(id uint64, token string)
 	OnShellUnlocked func(id uint64, token string)
 
 	OnMeterpreterRead     func(id uint64)
-	OnMeterpreterClean    func(id uint64)
+	OnMeterpreterCleaned  func(id uint64)
 	OnMeterpreterClosed   func(id uint64)
 	OnMeterpreterLocked   func(id uint64, token string)
 	OnMeterpreterUnlocked func(id uint64, token string)
@@ -607,7 +607,7 @@ func (mgr *IOManager) createConsoleIOObject(console *Console, token string) (*IO
 		mgr.handlers.OnConsoleRead(id)
 	}
 	onClean := func() {
-		mgr.handlers.OnConsoleClean(id)
+		mgr.handlers.OnConsoleCleaned(id)
 	}
 	onClose := func() {
 		mgr.handlers.OnConsoleClosed(id)
@@ -620,8 +620,8 @@ func (mgr *IOManager) createConsoleIOObject(console *Console, token string) (*IO
 	onUnlock := func(token string) {
 		mgr.handlers.OnConsoleUnlocked(id, token)
 	}
-	obj.onLock = onLock
-	obj.onUnlock = onUnlock
+	obj.onLocked = onLock
+	obj.onUnlocked = onUnlock
 	if token != "" {
 		obj.locker = token
 		obj.lockAt = mgr.now()
@@ -782,7 +782,7 @@ func (mgr *IOManager) NewShellWithLocker(ctx context.Context, id uint64, token s
 		mgr.handlers.OnShellRead(id)
 	}
 	onClean := func() {
-		mgr.handlers.OnShellClean(id)
+		mgr.handlers.OnShellCleaned(id)
 	}
 	onClose := func() {
 		mgr.handlers.OnShellClosed(id)
@@ -795,8 +795,8 @@ func (mgr *IOManager) NewShellWithLocker(ctx context.Context, id uint64, token s
 	onUnlock := func(token string) {
 		mgr.handlers.OnShellUnlocked(id, token)
 	}
-	obj.onLock = onLock
-	obj.onUnlock = onUnlock
+	obj.onLocked = onLock
+	obj.onUnlocked = onUnlock
 	if token != "" {
 		obj.locker = token
 		obj.lockAt = mgr.now()
@@ -943,7 +943,7 @@ func (mgr *IOManager) NewMeterpreterWithLocker(ctx context.Context, id uint64, t
 		mgr.handlers.OnMeterpreterRead(id)
 	}
 	onClean := func() {
-		mgr.handlers.OnMeterpreterClean(id)
+		mgr.handlers.OnMeterpreterCleaned(id)
 	}
 	onClose := func() {
 		mgr.handlers.OnMeterpreterClosed(id)
@@ -956,8 +956,8 @@ func (mgr *IOManager) NewMeterpreterWithLocker(ctx context.Context, id uint64, t
 	onUnlock := func(token string) {
 		mgr.handlers.OnMeterpreterUnlocked(id, token)
 	}
-	obj.onLock = onLock
-	obj.onUnlock = onUnlock
+	obj.onLocked = onLock
+	obj.onUnlocked = onUnlock
 	if token != "" {
 		obj.locker = token
 		obj.lockAt = mgr.now()
