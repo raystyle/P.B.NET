@@ -49,7 +49,7 @@ func NewHTTPSClient(network, address string, opts *Options) (*Client, error) {
 }
 
 func newClient(network, address string, opts *Options, https bool) (*Client, error) {
-	err := CheckNetwork(network)
+	err := CheckNetworkAndAddress(network, address)
 	if err != nil {
 		return nil, err
 	}
@@ -75,9 +75,6 @@ func newClient(network, address string, opts *Options, https bool) (*Client, err
 		// set server name
 		if client.tlsConfig.ServerName == "" {
 			colonPos := strings.LastIndex(address, ":")
-			if colonPos == -1 {
-				return nil, errors.New("missing port in address")
-			}
 			hostname := address[:colonPos]
 			c := client.tlsConfig.Clone()
 			c.ServerName = hostname
@@ -117,9 +114,9 @@ func newClient(network, address string, opts *Options, https bool) (*Client, err
 
 // Dial is used to connect to address through proxy.
 func (c *Client) Dial(network, address string) (net.Conn, error) {
-	err := CheckNetwork(network)
+	err := CheckNetworkAndAddress(network, address)
 	if err != nil {
-		const format = "dial: %s proxy client %s connect %s with %s"
+		const format = "dial: %s proxy client %s connect %s with error: %s"
 		return nil, errors.Errorf(format, c.scheme, c.address, address, err)
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
@@ -139,9 +136,9 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 
 // DialContext is used to connect to address through proxy with context.
 func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	err := CheckNetwork(network)
+	err := CheckNetworkAndAddress(network, address)
 	if err != nil {
-		const format = "dial context: %s proxy client %s connect %s with %s"
+		const format = "dial context: %s proxy client %s connect %s with error: %s"
 		return nil, errors.Errorf(format, c.scheme, c.address, address, err)
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
@@ -161,9 +158,9 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 
 // DialTimeout is used to connect to address through proxy with timeout.
 func (c *Client) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
-	err := CheckNetwork(network)
+	err := CheckNetworkAndAddress(network, address)
 	if err != nil {
-		const format = "dial timeout: %s proxy client %s connect %s with %s"
+		const format = "dial timeout: %s proxy client %s connect %s with error: %s"
 		return nil, errors.Errorf(format, c.scheme, c.address, address, err)
 	}
 	if timeout < 1 {
@@ -187,17 +184,16 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 }
 
 // Connect is used to connect to address through proxy with context.
-func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address string) (net.Conn, error) {
-	err := CheckNetwork(network)
-	if err != nil {
-		return nil, err
-	}
+func (c *Client) Connect(ctx context.Context, conn net.Conn, _, address string) (net.Conn, error) {
 	if c.https {
 		conn = tls.Client(conn, c.tlsConfig)
 	}
 	_ = conn.SetDeadline(time.Now().Add(c.timeout))
 	// interrupt
-	var errCh chan error
+	var (
+		errCh chan error
+		err   error
+	)
 	if ctx.Done() != nil {
 		errCh = make(chan error, 2)
 	}

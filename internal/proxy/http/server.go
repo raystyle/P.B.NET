@@ -159,9 +159,9 @@ func (srv *Server) deleteListenerAddress(addr *net.Addr) {
 
 // ListenAndServe is used to listen a listener and serve.
 func (srv *Server) ListenAndServe(network, address string) error {
-	err := CheckNetwork(network)
+	err := nettool.IsTCPNetwork(network)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	listener, err := net.Listen(network, address)
 	if err != nil {

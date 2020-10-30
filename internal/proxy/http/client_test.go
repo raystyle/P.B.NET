@@ -221,16 +221,16 @@ func TestNewClient(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("failed to apply tls config", func(t *testing.T) {
-		opts := Options{}
-		opts.TLSConfig.RootCAs = []string{"foo CA"}
-		_, err := NewHTTPSClient("tcp", "", &opts)
-		require.Error(t, err)
-	})
-
 	t.Run("invalid address", func(t *testing.T) {
 		_, err := NewHTTPSClient("tcp", "", nil)
 		require.EqualError(t, err, "missing port in address")
+	})
+
+	t.Run("failed to apply tls config", func(t *testing.T) {
+		opts := Options{}
+		opts.TLSConfig.RootCAs = []string{"foo CA"}
+		_, err := NewHTTPSClient("tcp", "127.0.0.1:1080", &opts)
+		require.Error(t, err)
 	})
 
 	t.Run("invalid username", func(t *testing.T) {
