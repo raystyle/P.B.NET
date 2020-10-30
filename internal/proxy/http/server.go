@@ -67,22 +67,15 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	// set transport
 	transport, err := opts.Transport.Apply()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	srv := Server{
-		logger:   lg,
-		https:    https,
-		maxConns: opts.MaxConns,
-		server:   server,
-	}
-	if srv.maxConns < 1 {
-		srv.maxConns = defaultMaxConnections
-	}
+	transport.DialContext = opts.DialContext
 	// log source
 	var logSrc string
-	if srv.https {
+	if https {
 		logSrc = "https proxy"
 	} else {
 		logSrc = "http proxy"
@@ -90,9 +83,6 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	if tag != EmptyTag {
 		logSrc += "-" + tag
 	}
-	srv.logSrc = logSrc
-	srv.addresses = make(map[*net.Addr]struct{}, 1)
-	// initialize http handler
 	timeout := opts.Timeout
 	if timeout < 1 {
 		timeout = defaultConnectTimeout
@@ -107,9 +97,6 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	if handler.dialContext == nil {
 		handler.dialContext = new(net.Dialer).DialContext
 	}
-	if opts.DialContext != nil {
-		transport.DialContext = opts.DialContext
-	}
 	if opts.Username != "" {
 		if strings.Contains(opts.Username, ":") { // can not include ":"
 			return nil, errors.New("username can not include character \":\"")
@@ -120,7 +107,6 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 		handler.password = security.NewBytes([]byte(opts.Password))
 	}
 	handler.ctx, handler.cancel = context.WithCancel(context.Background())
-	srv.handler = handler
 	// set http server
 	server.Handler = handler
 	server.ReadTimeout = timeout
@@ -134,6 +120,19 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 		}
 	}
 	server.ErrorLog = logger.Wrap(logger.Warning, logSrc, lg)
+	// set proxy server
+	srv := Server{
+		logger:    lg,
+		https:     https,
+		maxConns:  opts.MaxConns,
+		logSrc:    logSrc,
+		server:    server,
+		handler:   handler,
+		addresses: make(map[*net.Addr]struct{}, 1),
+	}
+	if srv.maxConns < 1 {
+		srv.maxConns = defaultMaxConnections
+	}
 	return &srv, nil
 }
 
@@ -273,7 +272,7 @@ type handler struct {
 	transport *http.Transport
 
 	// secondary proxy
-	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
+	dialContext nettool.DialContext
 
 	username *security.Bytes
 	password *security.Bytes

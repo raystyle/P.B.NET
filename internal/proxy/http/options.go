@@ -1,14 +1,13 @@
 package http
 
 import (
-	"context"
-	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 
+	"project/internal/nettool"
 	"project/internal/option"
 )
 
@@ -34,8 +33,7 @@ type Options struct {
 	Transport option.HTTPTransport `toml:"transport" check:"-"`
 
 	// secondary proxy
-	// internal/proxy.client.DialContext()
-	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-" msgpack:"-"`
+	DialContext nettool.DialContext `toml:"-" msgpack:"-"`
 }
 
 // CheckNetworkAndAddress is used to check network is supported and address is valid.

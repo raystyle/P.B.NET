@@ -1,6 +1,7 @@
 package nettool
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -8,6 +9,9 @@ import (
 	"strings"
 	"time"
 )
+
+// DialContext is a type alias about DialContext function.
+type DialContext = func(ctx context.Context, network, address string) (net.Conn, error)
 
 // ErrEmptyPort is an error of CheckPortString.
 var ErrEmptyPort = errors.New("empty port")
