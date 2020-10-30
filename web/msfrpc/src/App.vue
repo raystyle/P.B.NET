@@ -13,9 +13,10 @@
 </template>
 
 <script>
-export default {
+const App = {
   name: "app"
 }
+export default App
 </script>
 
 <style lang="scss">

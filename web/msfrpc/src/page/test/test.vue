@@ -25,7 +25,7 @@
       </v-tab-item>
     </v-tabs-items>
 
-    <v-btn>Test</v-btn>
+    <v-btn @click="wsf">Test</v-btn>
 
 
     <v-row justify="center">
@@ -42,7 +42,8 @@
         </template>
         <v-card>
           <v-card-title class="headline">Use Google's location service?</v-card-title>
-          <v-card-text>Let Google help apps determine location. This means sending anonymous location data to Google, even when no apps are running.</v-card-text>
+          <v-card-text>Let Google help apps determine location.
+            This means sending anonymous location data to Google, even when no apps are running.</v-card-text>
           <v-card-actions>
             <v-spacer></v-spacer>
             <v-btn color="green darken-1" text @click="dialog = false">Disagree</v-btn>
@@ -51,8 +52,6 @@
         </v-card>
       </v-dialog>
     </v-row>
-
-
 
   </v-card>
 </template>
@@ -78,7 +77,34 @@ export default {
         { tab: 'Ten', content: 'Tab 10 Content' },
       ],
     }
-  }
+  },
+
+  methods: {
+    wsf () {
+      let protocol = window.location.protocol === 'http:'? 'ws:': 'wss:';
+      const url = protocol + "//" + window.location.host + "/api/login"
+      let ws = new WebSocket(url)
+
+      // let ws = new WebSocket("ws://"+window.location.host+"/api/login")
+      // let ws = new WebSocket("wss://127.0.0.1:17417/api/login")
+      // let ws = new WebSocket("wss://127.0.0.1:17417/api/login")
+
+      ws.onopen = function (){
+        console.log("opened")
+      }
+
+      ws.onmessage = function (msg) {
+        console.log(msg.data)
+      }
+
+      ws.onerror = (err) => {
+        console.log(err)
+      }
+
+      // ws.close()
+
+    }
+  },
 }
 </script>
 

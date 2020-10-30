@@ -3,15 +3,16 @@ module.exports = {
         port: "8084",
         proxy: {
             "/api/": {
-                "target": "https://localhost:17417/",
-                "secure": false
-            }
+                target: "https://localhost:17417/",
+                secure: false,
+                changeOrigin: false,
+            },
         },
         overlay: {
             warnings: true,
-            errors: true
+            errors: true,
         },
     },
     lintOnSave: process.env.NODE_ENV !== "production",
-    transpileDependencies: ["vuetify"]
+    transpileDependencies: ["vuetify"],
 }

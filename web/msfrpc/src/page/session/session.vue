@@ -1,28 +1,7 @@
 <template>
   <v-main class="v-main-mt">
-    <div>
+    <div class="d-flex flex-row" style="height: 100%">
 
-
-
-      <v-card class="d-flex" color="grey lighten-2" flat tile>
-
-        <v-card class="pa-2" outlined tile>
-          Flex item
-        </v-card>
-
-        <v-card class="pa-2" outlined tile>
-          Flex item
-        </v-card>
-
-        <v-card class="pa-2 mr-auto" outlined tile>
-          Flex item
-        </v-card>
-
-        <v-card class="pa-2" outlined tile>
-          User
-        </v-card>
-
-      </v-card>
 
 
     </div>
