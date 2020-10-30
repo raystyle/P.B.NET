@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 
 	"project/internal/logger"
 	"project/internal/option"
@@ -27,9 +28,11 @@ const (
 )
 
 func testGenerateHTTPServer(t *testing.T) *Server {
+	password, err := bcrypt.GenerateFromPassword([]byte("123456"), 12)
+	require.NoError(t, err)
 	opts := Options{
 		Username: "admin",
-		Password: "123456",
+		Password: string(password),
 	}
 	server, err := NewHTTPServer(logger.Test, &opts)
 	require.NoError(t, err)
@@ -142,10 +145,28 @@ func TestHTTPServerWithoutPassword(t *testing.T) {
 }
 
 func TestNewServer(t *testing.T) {
-	opts := Options{}
-	opts.Server.TLSConfig.ClientCAs = []string{"foo"}
-	_, err := NewHTTPServer(nil, &opts)
-	require.Error(t, err)
+	t.Run("invalid server options", func(t *testing.T) {
+		opts := Options{}
+		opts.Server.TLSConfig.ClientCAs = []string{"foo"}
+		_, err := NewHTTPServer(nil, &opts)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid username", func(t *testing.T) {
+		opts := Options{
+			Username: "us:er",
+		}
+		_, err := NewHTTPServer(nil, &opts)
+		require.EqualError(t, err, "username can not include character \":\"")
+	})
+
+	t.Run("invalid password", func(t *testing.T) {
+		opts := Options{
+			Password: "foo bcrypt hash",
+		}
+		_, err := NewHTTPServer(nil, &opts)
+		require.EqualError(t, err, "invalid bcrypt hash about password")
+	})
 }
 
 func TestServer_ListenAndServe(t *testing.T) {
@@ -331,7 +352,7 @@ func TestOptions(t *testing.T) {
 		actual   interface{}
 	}{
 		{expected: "admin", actual: opts.Username},
-		{expected: "123456", actual: opts.Password},
+		{expected: "bcrypt", actual: opts.Password},
 		{expected: time.Minute, actual: opts.Timeout},
 		{expected: 1000, actual: opts.MaxConns},
 		{expected: 30 * time.Second, actual: opts.Server.ReadTimeout},

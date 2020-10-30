@@ -1,5 +1,5 @@
 username  = "admin"
-password  = "123456"
+password  = "bcrypt"
 timeout   = "1m"
 max_conns = 1000
 

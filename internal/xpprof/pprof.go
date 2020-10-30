@@ -8,12 +8,12 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/netutil"
 
 	"project/internal/httptool"
@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	defaultTimeout        = 15 * time.Second
-	defaultMaxConnections = 1000
+	defaultTimeout  = 30 * time.Second
+	defaultMaxConns = 1000
 )
 
 // Options contains options about pprof http server.
@@ -80,7 +80,7 @@ func newServer(lg logger.Logger, opts *Options, https bool) (*Server, error) {
 		server:   server,
 	}
 	if srv.maxConns < 1 {
-		srv.maxConns = defaultMaxConnections
+		srv.maxConns = defaultMaxConns
 	}
 	// log source
 	var logSrc string
@@ -103,13 +103,20 @@ func newServer(lg logger.Logger, opts *Options, https bool) (*Server, error) {
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	handler.mux = mux
-	if opts.Username != "" { // escape
-		username := url.User(opts.Username).String()
-		handler.username = security.NewBytes([]byte(username))
+	if opts.Username != "" {
+		if strings.Contains(opts.Username, ":") { // can not include ":"
+			return nil, errors.New("username can not include character \":\"")
+		}
+		handler.username = security.NewBytes([]byte(opts.Username))
 	}
-	if opts.Password != "" { // escape
-		password := url.User(opts.Password).String()
-		handler.password = security.NewBytes([]byte(password))
+	if opts.Password != "" {
+		password := []byte(opts.Password)
+		// validate bcrypt hash
+		err = bcrypt.CompareHashAndPassword(password, []byte("123456"))
+		if err != nil && err != bcrypt.ErrMismatchedHashAndPassword {
+			return nil, errors.New("invalid bcrypt hash about password")
+		}
+		handler.password = security.NewBytes(password)
 	}
 	srv.handler = handler
 	// set http server
@@ -212,7 +219,7 @@ func (srv *Server) Addresses() []net.Addr {
 // Info is used to get pprof http server information.
 //
 // "address: tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001"
-// "address: tcp 127.0.0.1:1999 auth: admin:123456"
+// "address: tcp 127.0.0.1:1999 auth: admin:bcrypt"
 func (srv *Server) Info() string {
 	buf := new(bytes.Buffer)
 	addresses := srv.Addresses()
@@ -263,8 +270,8 @@ type handler struct {
 
 	mux *http.ServeMux
 
-	username *security.Bytes
-	password *security.Bytes
+	username *security.Bytes // raw username
+	password *security.Bytes // bcrypt hash
 
 	counter xsync.Counter
 }
@@ -316,8 +323,8 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 			h.failedToAuth(w)
 			return false
 		}
-		userPass := strings.Split(string(auth), ":")
-		if len(userPass) < 2 {
+		userPass := strings.SplitN(string(auth), ":", 2)
+		if len(userPass) == 1 {
 			userPass = append(userPass, "")
 		}
 		user := []byte(userPass[0])
@@ -335,7 +342,7 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 			defer h.password.Put(ePass)
 		}
 		userErr := subtle.ConstantTimeCompare(eUser, user) != 1
-		passErr := subtle.ConstantTimeCompare(ePass, pass) != 1
+		passErr := ePass != nil && bcrypt.CompareHashAndPassword(ePass, pass) != nil
 		if userErr || passErr {
 			auth := fmt.Sprintf("%s:%s", user, pass)
 			h.log(logger.Exploit, r, "invalid username or password:", auth)
