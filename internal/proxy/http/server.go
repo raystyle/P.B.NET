@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -111,13 +110,14 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	if opts.DialContext != nil {
 		transport.DialContext = opts.DialContext
 	}
-	if opts.Username != "" { // escape
-		username := url.User(opts.Username).String()
-		handler.username = security.NewBytes([]byte(username))
+	if opts.Username != "" {
+		if strings.Contains(opts.Username, ":") { // can not include ":"
+			return nil, errors.New("username can not include character \":\"")
+		}
+		handler.username = security.NewBytes([]byte(opts.Username))
 	}
-	if opts.Password != "" { // escape
-		password := url.User(opts.Password).String()
-		handler.password = security.NewBytes([]byte(password))
+	if opts.Password != "" {
+		handler.password = security.NewBytes([]byte(opts.Password))
 	}
 	handler.ctx, handler.cancel = context.WithCancel(context.Background())
 	srv.handler = handler
@@ -310,9 +310,10 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !h.authenticate(w, r) {
 		return
 	}
-	h.log(logger.Info, r, "handle request")
-	// remove Proxy-Authorization
+	// <security> remove Proxy-Authorization for
+	// prevent log it or remote server watch it.
 	r.Header.Del("Proxy-Authorization")
+	h.log(logger.Info, r, "handle request")
 	if r.Method == http.MethodConnect {
 		h.handleConnectRequest(w, r)
 	} else {
@@ -339,8 +340,8 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 			h.failedToAuth(w)
 			return false
 		}
-		userPass := strings.Split(string(auth), ":")
-		if len(userPass) < 2 {
+		userPass := strings.SplitN(string(auth), ":", 2)
+		if len(userPass) == 1 {
 			userPass = append(userPass, "")
 		}
 		user := []byte(userPass[0])

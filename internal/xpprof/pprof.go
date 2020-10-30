@@ -300,6 +300,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !h.authenticate(w, r) {
 		return
 	}
+	// <security> remove Authorization for prevent log it
+	r.Header.Del("Authorization")
 	h.log(logger.Info, r, "handle request")
 	h.mux.ServeHTTP(w, r)
 }

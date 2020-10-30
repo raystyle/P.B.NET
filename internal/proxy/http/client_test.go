@@ -230,7 +230,15 @@ func TestNewClient(t *testing.T) {
 
 	t.Run("invalid address", func(t *testing.T) {
 		_, err := NewHTTPSClient("tcp", "", nil)
-		require.Error(t, err)
+		require.EqualError(t, err, "missing port in address")
+	})
+
+	t.Run("invalid username", func(t *testing.T) {
+		opts := Options{
+			Username: "user:",
+		}
+		_, err := NewHTTPClient("tcp", "127.0.0.1:1080", &opts)
+		require.EqualError(t, err, "username can not include character \":\"")
 	})
 }
 

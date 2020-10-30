@@ -100,9 +100,15 @@ func newClient(network, address string, opts *Options, https bool) (*Client, err
 	client.scheme = u.Scheme
 	// basic authentication
 	if opts.Username != "" || opts.Password != "" {
+		if strings.Contains(opts.Username, ":") { // can not include ":"
+			return nil, errors.New("username can not include character \":\"")
+		}
+		auth := opts.Username
+		if opts.Password != "" {
+			auth += ":" + opts.Password
+		}
+		client.basicAuth = "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
 		u.User = url.UserPassword(opts.Username, opts.Password)
-		auth := []byte(u.User.String())
-		client.basicAuth = "Basic " + base64.StdEncoding.EncodeToString(auth)
 	}
 	client.proxy = http.ProxyURL(u)
 	client.info = u.String()

@@ -162,6 +162,14 @@ func TestNewServer(t *testing.T) {
 		_, err := NewHTTPServer("transport", nil, &opts)
 		require.Error(t, err)
 	})
+
+	t.Run("invalid username", func(t *testing.T) {
+		opts := Options{
+			Username: "user:",
+		}
+		_, err := NewHTTPServer("username", nil, &opts)
+		require.EqualError(t, err, "username can not include character \":\"")
+	})
 }
 
 func TestServer_ListenAndServe(t *testing.T) {
@@ -1030,8 +1038,7 @@ func TestHandler_authenticate(t *testing.T) {
 	t.Run("only username", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
 		require.NoError(t, err)
-		userInfo := url.User("admin")
-		auth := base64.StdEncoding.EncodeToString([]byte(userInfo.String()))
+		auth := base64.StdEncoding.EncodeToString([]byte("admin"))
 		req.Header.Set("Proxy-Authorization", "Basic "+auth)
 
 		resp, err := client.Do(req)
@@ -1048,8 +1055,7 @@ func TestHandler_authenticate(t *testing.T) {
 	t.Run("invalid username or password", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
 		require.NoError(t, err)
-		userInfo := url.UserPassword("admin1", "123")
-		auth := base64.StdEncoding.EncodeToString([]byte(userInfo.String()))
+		auth := base64.StdEncoding.EncodeToString([]byte("admin1:!23"))
 		req.Header.Set("Proxy-Authorization", "Basic "+auth)
 
 		resp, err := client.Do(req)
