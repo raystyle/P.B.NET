@@ -103,7 +103,7 @@ type HTTPTransport struct {
 // TODO [external] go internal bug: MaxConnsPerHost
 // when set MaxConnsPerHost, use HTTP/2 get test.com will panic, wait golang fix it.
 func (ht *HTTPTransport) Apply() (*http.Transport, error) {
-	tr := &http.Transport{
+	tr := http.Transport{
 		MaxIdleConns:        ht.MaxIdleConns,
 		MaxIdleConnsPerHost: ht.MaxIdleConnsPerHost,
 		// MaxConnsPerHost:        ht.MaxConnsPerHost,
@@ -151,7 +151,7 @@ func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 	if tr.MaxResponseHeaderBytes < 1 {
 		tr.MaxResponseHeaderBytes = httpDefaultMaxResponseHeaderBytes
 	}
-	return tr, nil
+	return &tr, nil
 }
 
 // HTTPServer include options about http.Server.
@@ -167,7 +167,7 @@ type HTTPServer struct {
 
 // Apply is used to create *http.Server.
 func (hs *HTTPServer) Apply() (*http.Server, error) {
-	s := &http.Server{
+	srv := http.Server{
 		ReadTimeout:       hs.ReadTimeout,
 		WriteTimeout:      hs.WriteTimeout,
 		ReadHeaderTimeout: hs.ReadHeaderTimeout,
@@ -178,27 +178,27 @@ func (hs *HTTPServer) Apply() (*http.Server, error) {
 	hs.TLSConfig.ServerSide = true
 	// tls config
 	var err error
-	s.TLSConfig, err = hs.TLSConfig.Apply()
+	srv.TLSConfig, err = hs.TLSConfig.Apply()
 	if err != nil {
 		return nil, err
 	}
 	// timeout
-	if s.ReadTimeout < 0 {
-		s.ReadTimeout = httpDefaultTimeout
+	if srv.ReadTimeout < 0 {
+		srv.ReadTimeout = httpDefaultTimeout
 	}
-	if s.WriteTimeout < 0 {
-		s.WriteTimeout = httpDefaultTimeout
+	if srv.WriteTimeout < 0 {
+		srv.WriteTimeout = httpDefaultTimeout
 	}
-	if s.ReadHeaderTimeout < 1 {
-		s.ReadHeaderTimeout = httpDefaultTimeout
+	if srv.ReadHeaderTimeout < 1 {
+		srv.ReadHeaderTimeout = httpDefaultTimeout
 	}
-	if s.IdleTimeout < 1 {
-		s.IdleTimeout = httpDefaultTimeout
+	if srv.IdleTimeout < 1 {
+		srv.IdleTimeout = httpDefaultTimeout
 	}
 	// max header bytes
-	if s.MaxHeaderBytes < 1 {
-		s.MaxHeaderBytes = httpDefaultMaxHeaderBytes
+	if srv.MaxHeaderBytes < 1 {
+		srv.MaxHeaderBytes = httpDefaultMaxHeaderBytes
 	}
-	s.SetKeepAlivesEnabled(!hs.DisableKeepAlive)
-	return s, nil
+	srv.SetKeepAlivesEnabled(!hs.DisableKeepAlive)
+	return &srv, nil
 }

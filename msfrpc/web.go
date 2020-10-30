@@ -33,7 +33,8 @@ import (
 
 const (
 	defaultAdminUsername    = "admin"
-	defaultMaxConns         = 1000
+	defaultServerTimeout    = 2 * time.Minute
+	defaultServerMaxConns   = 1000
 	minRequestBodySize      = 4 * 1024 * 1024  // 4MB
 	minRequestLargeBodySize = 64 * 1024 * 1024 // 64MB
 )
@@ -53,6 +54,9 @@ type WebOptions struct {
 
 	// MaxConns is the web server maximum connections
 	MaxConns int `toml:"max_conns"`
+
+	// Timeout is the web server timeout
+	Timeout time.Duration `toml:"timeout"`
 
 	// MaxBodySize is the incoming request maximum body size
 	MaxBodySize int64 `toml:"max_body_size"`
@@ -116,11 +120,17 @@ func NewWeb(msfrpc *MSFRPC, opts *WebOptions) (*Web, error) {
 	}
 	web.api = webAPI
 	if web.maxConns < 32 {
-		web.maxConns = defaultMaxConns
+		web.maxConns = defaultServerMaxConns
 	}
 	web.addresses = make(map[*net.Addr]struct{}, 1)
 	// set web server
 	server.Handler = mux
+	timeout := opts.Timeout
+	if timeout < 1 {
+		timeout = defaultServerTimeout
+	}
+	server.ReadTimeout = timeout
+	server.WriteTimeout = timeout
 	server.ConnState = func(conn net.Conn, state http.ConnState) {
 		switch state {
 		case http.StateNew:

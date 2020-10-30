@@ -78,7 +78,7 @@ func main() {
 	flag.BoolVar(&install, "install", false, "install service")
 	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
 	flag.StringVar(&genPass, "gen", "", "generate password about web server")
-	flag.BoolVar(&test, "test", false, "a flag for test")
+	flag.BoolVar(&test, "test", false, "flag for test")
 	flag.Parse()
 
 	if genPass != "" {
@@ -274,18 +274,39 @@ func newPPROFServer(lg logger.Logger, config *config) (*xpprof.Server, error) {
 	return xpprof.NewHTTPSServer(lg, &opts)
 }
 
+func (p *program) log(lv logger.Level, log ...interface{}) {
+	p.logger.Println(lv, "service", log...)
+}
+
 func (p *program) Start(service.Service) error {
+	const title = "program.Start"
+	// start msfrpc
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
-				xpanic.Log(r, "program.Start")
+				xpanic.Log(r, title)
 			}
 		}()
 		err := p.msfrpc.Main()
 		if err != nil {
-			p.logger.Print(logger.Fatal, "service", err)
+			p.log(logger.Fatal, err)
+			os.Exit(1)
+		}
+	}()
+	// start pprof https server
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				xpanic.Log(r, title)
+			}
+		}()
+		err := p.pprof.Serve(p.listener)
+		if err != nil {
+			p.log(logger.Fatal, err)
 			os.Exit(1)
 		}
 	}()
@@ -293,8 +314,17 @@ func (p *program) Start(service.Service) error {
 }
 
 func (p *program) Stop(service.Service) error {
+	err := p.pprof.Close()
+	if err != nil {
+		p.log(logger.Error, "appear error when close pprof server:", err)
+	}
+	p.log(logger.Info, "pprof server is closed")
 	p.msfrpc.Exit()
 	p.wg.Wait()
-	_ = p.logFile.Close()
+	err = p.logFile.Close()
+	if err != nil {
+		p.log(logger.Error, "appear error when close log file:", err)
+	}
+	p.log(logger.Info, "msfrpc service is stopped")
 	return nil
 }
