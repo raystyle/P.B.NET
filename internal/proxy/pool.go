@@ -25,7 +25,7 @@ type Pool struct {
 func NewPool(certPool *cert.Pool) *Pool {
 	pool := Pool{
 		certPool: certPool,
-		clients:  make(map[string]*Client),
+		clients:  make(map[string]*Client, 2),
 	}
 	// add direct proxy client(reserved)
 	dc := &Client{
@@ -42,7 +42,7 @@ func NewPool(certPool *cert.Pool) *Pool {
 func (p *Pool) Add(client *Client) error {
 	err := p.add(client)
 	if err != nil {
-		const format = "failed to add proxy client %s"
+		const format = "failed to add proxy client \"%s\""
 		return errors.WithMessagef(err, format, client.Tag)
 	}
 	return nil
@@ -53,7 +53,7 @@ func (p *Pool) add(client *Client) error {
 		return errors.New("empty tag")
 	}
 	if client.Tag == ModeDirect {
-		return errors.New("direct is the reserve tag")
+		return errors.New("\"direct\" is the reserve tag")
 	}
 	if client.Mode == "" {
 		return errors.New("empty mode")
@@ -83,7 +83,7 @@ func (p *Pool) add(client *Client) error {
 		p.clients[client.Tag] = client
 		return nil
 	}
-	return errors.New("is already exists")
+	return errors.New("already exists")
 }
 
 func (p *Pool) addSocks(client *Client) error {
@@ -172,7 +172,7 @@ func (p *Pool) Delete(tag string) error {
 		return errors.New("empty proxy client tag")
 	}
 	if tag == ModeDirect {
-		return errors.New("direct is the reserve proxy client")
+		return errors.New("\"direct\" is the reserve proxy client")
 	}
 	p.clientsRWM.Lock()
 	defer p.clientsRWM.Unlock()
@@ -180,7 +180,7 @@ func (p *Pool) Delete(tag string) error {
 		delete(p.clients, tag)
 		return nil
 	}
-	return errors.Errorf("proxy client %s is not exist", tag)
+	return errors.Errorf("proxy client \"%s\" is not exist", tag)
 }
 
 // Get is used to get a proxy client.
@@ -191,7 +191,7 @@ func (p *Pool) Get(tag string) (*Client, error) {
 	if client, ok := p.clients[tag]; ok {
 		return client, nil
 	}
-	return nil, errors.Errorf("proxy client %s is not exist", tag)
+	return nil, errors.Errorf("proxy client \"%s\" is not exist", tag)
 }
 
 // Clients is used to get all proxy clients.

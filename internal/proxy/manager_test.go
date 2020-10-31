@@ -71,7 +71,7 @@ func TestManager_Add(t *testing.T) {
 		require.EqualError(t, err, "unknown mode: foo mode")
 	})
 
-	t.Run("exist", func(t *testing.T) {
+	t.Run("already exists", func(t *testing.T) {
 		opts, err := ioutil.ReadFile("socks/testdata/socks5_server.toml")
 		require.NoError(t, err)
 		server := &Server{
@@ -79,7 +79,7 @@ func TestManager_Add(t *testing.T) {
 			Mode:    ModeSocks5,
 			Options: string(opts),
 		}
-		const errStr = "failed to add proxy server socks5: is already exists"
+		const errStr = "failed to add proxy server \"socks5\": already exists"
 		err = manager.Add(server)
 		require.EqualError(t, err, errStr)
 	})
@@ -159,7 +159,7 @@ func TestManager_Delete(t *testing.T) {
 
 	t.Run("is not exist", func(t *testing.T) {
 		err := manager.Delete("foo")
-		require.EqualError(t, err, "proxy server foo is not exist")
+		require.EqualError(t, err, "proxy server \"foo\" is not exist")
 	})
 
 	err := manager.Close()
@@ -193,7 +193,7 @@ func TestManager_Get(t *testing.T) {
 
 	t.Run("is not exist", func(t *testing.T) {
 		ps, err := manager.Get("foo")
-		require.EqualError(t, err, "proxy server foo is not exist")
+		require.EqualError(t, err, "proxy server \"foo\" is not exist")
 		require.Nil(t, ps)
 	})
 

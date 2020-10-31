@@ -36,7 +36,7 @@ func (d Direct) Connect(_ context.Context, conn net.Conn, _, _ string) (net.Conn
 }
 
 // HTTP is a padding function.
-func (d Direct) HTTP(_ *http.Transport) {}
+func (d Direct) HTTP(*http.Transport) {}
 
 // Timeout is used to return timeout.
 func (d Direct) Timeout() time.Duration {

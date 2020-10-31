@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"project/internal/nettool"
 )
 
 // supported modes
@@ -71,7 +73,7 @@ type Server struct {
 	Options string `toml:"options"`
 
 	// secondary proxy
-	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-" msgpack:"-"`
+	DialContext nettool.DialContext `toml:"-" msgpack:"-"`
 
 	now      func() time.Time
 	createAt time.Time
@@ -112,38 +114,36 @@ func (srv *Server) ServeAt() []time.Time {
 }
 
 // balance: general
-// 1. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
+// 1. socks4-c:  socks4, server: tcp 127.0.0.1:6321
 // 2. http-c:    http://admin4:1234564@127.0.0.1:6319
 // 3. https-c:   https://admin5:1234565@127.0.0.1:6323
-// 4. socks5-c:  socks5  tcp 127.0.0.1:6320 auth: admin1:1234561
-// 5. socks4a-c: socks4a tcp 127.0.0.1:6322 user id: admin2
+// 4. socks5-c:  socks5, server: tcp 127.0.0.1:6320, auth: admin1:1234561
+// 5. socks4a-c: socks4a, server: tcp 127.0.0.1:6322, user id: admin2
 //
 // if balance in balance, chain in balance or ...
 //
 // balance: final-balance
 // 1. balance-1:
-//     mode: balance
-//     1. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
-//     2. http-c:    http://admin4:1234564@127.0.0.1:6319
-//     3. https-c:   https://admin5:1234565@127.0.0.1:6323
-//     4. socks5-c:  socks5  tcp 127.0.0.1:6320 auth: admin1:1234561
-//     5. socks4a-c: socks4a tcp 127.0.0.1:6322 user id: admin2
+//      mode: balance
+//      1. socks4-c:  socks4, server: tcp 127.0.1.3:6760, user id: admin3
+//      2. http-c:    http://admin4:1234564@127.0.1.4:6761
+//      3. https-c:   https://admin5:1234565@127.0.1.5:6762
+//      4. socks5-c:  socks5, server: tcp 127.0.1.1:6758, auth: admin1:1234561
+//      5. socks4a-c: socks4a, server: tcp 127.0.1.2:6759, user id: admin2
 // 2. balance-2:
-//     mode: balance
-//     1. socks5-c:  socks5  tcp 127.0.0.1:6320 auth: admin1:1234561
-//     2. socks4a-c: socks4a tcp 127.0.0.1:6322 user id: admin2
-//     3. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
-//     4. http-c:    http://admin4:1234564@127.0.0.1:6319
-//     5. https-c:   https://admin5:1234565@127.0.0.1:6323
+//      mode: balance
+//      1. socks4a-c: socks4a, server: tcp 127.0.1.2:6759, user id: admin2
+//      2. socks4-c:  socks4, server: tcp 127.0.1.3:6760, user id: admin3
+//      3. http-c:    http://admin4:1234564@127.0.1.4:6761
+//      4. https-c:   https://admin5:1234565@127.0.1.5:6762
+//      5. socks5-c:  socks5, server: tcp 127.0.1.1:6758, auth: admin1:1234561
 // 3. balance-3:
-//     mode: balance
-//     1. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
-//     2. http-c:    http://admin4:1234564@127.0.0.1:6319
-//     3. https-c:   https://admin5:1234565@127.0.0.1:6323
-//     4. socks5-c:  socks5  tcp 127.0.0.1:6320 auth: admin1:1234561
-//     5. socks4a-c: socks4a tcp 127.0.0.1:6322 user id: admin2
-// 4. http-c:  http://admin4:1234564@127.0.0.1:6319
-// 5. https-c: https://admin5:1234565@127.0.0.1:6323
+//      mode: balance
+//      1. socks4a-c: socks4a, server: tcp 127.0.1.2:6759, user id: admin2
+//      2. socks4-c:  socks4, server: tcp 127.0.1.3:6760, user id: admin3
+//      3. http-c:    http://admin4:1234564@127.0.1.4:6761
+//      4. https-c:   https://admin5:1234565@127.0.1.5:6762
+//      5. socks5-c:  socks5, server: tcp 127.0.1.1:6758, auth: admin1:1234561
 func printClientsInfo(buf *bytes.Buffer, clients []*Client) {
 	// get max tag length
 	var maxTagLen int

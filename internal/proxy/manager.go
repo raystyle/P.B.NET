@@ -8,7 +8,6 @@ import (
 
 	"project/internal/cert"
 	"project/internal/logger"
-	"project/internal/nettool"
 	"project/internal/patch/toml"
 	"project/internal/proxy/http"
 	"project/internal/proxy/socks"
@@ -35,7 +34,7 @@ func NewManager(pool *cert.Pool, logger logger.Logger, now func() time.Time) *Ma
 		certPool: pool,
 		logger:   logger,
 		now:      now,
-		servers:  make(map[string]*Server),
+		servers:  make(map[string]*Server, 1),
 	}
 }
 
@@ -43,7 +42,7 @@ func NewManager(pool *cert.Pool, logger logger.Logger, now func() time.Time) *Ma
 func (m *Manager) Add(server *Server) error {
 	err := m.add(server)
 	if err != nil {
-		const format = "failed to add proxy server %s"
+		const format = "failed to add proxy server \"%s\""
 		return errors.WithMessagef(err, format, server.Tag)
 	}
 	return nil
@@ -79,7 +78,7 @@ func (m *Manager) add(server *Server) error {
 		m.servers[server.Tag] = server
 		return nil
 	}
-	return errors.New("is already exists")
+	return errors.New("already exists")
 }
 
 func (m *Manager) addSocks(server *Server) error {
@@ -132,10 +131,11 @@ func (m *Manager) Delete(tag string) error {
 	m.rwm.Lock()
 	defer m.rwm.Unlock()
 	if server, ok := m.servers[tag]; ok {
+		err := server.Close()
 		delete(m.servers, tag)
-		return server.Close()
+		return err
 	}
-	return errors.Errorf("proxy server %s is not exist", tag)
+	return errors.Errorf("proxy server \"%s\" is not exist", tag)
 }
 
 // Get is used to get proxy server.
@@ -148,7 +148,7 @@ func (m *Manager) Get(tag string) (*Server, error) {
 	if server, ok := m.servers[tag]; ok {
 		return server, nil
 	}
-	return nil, errors.Errorf("proxy server %s is not exist", tag)
+	return nil, errors.Errorf("proxy server \"%s\" is not exist", tag)
 }
 
 // Servers is used to get all proxy servers.
@@ -172,7 +172,7 @@ func (m *Manager) Close() error {
 	var err error
 	for tag, server := range m.servers {
 		e := server.Close()
-		if e != nil && !nettool.IsNetClosingError(e) && err == nil {
+		if e != nil && err == nil {
 			err = e
 		}
 		delete(m.servers, tag)

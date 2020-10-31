@@ -61,7 +61,7 @@ func TestPool_Add(t *testing.T) {
 	t.Run("reserve tag", func(t *testing.T) {
 		client := &Client{Tag: "direct"}
 		err := pool.add(client)
-		require.EqualError(t, err, "direct is the reserve tag")
+		require.EqualError(t, err, "\"direct\" is the reserve tag")
 	})
 
 	t.Run("empty mode", func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestPool_Add(t *testing.T) {
 		require.EqualError(t, err, "unknown mode: foo mode")
 	})
 
-	t.Run("exist", func(t *testing.T) {
+	t.Run("already exists", func(t *testing.T) {
 		opts, err := ioutil.ReadFile("socks/testdata/socks5_client.toml")
 		require.NoError(t, err)
 		client := &Client{
@@ -99,7 +99,7 @@ func TestPool_Add(t *testing.T) {
 			Address: "localhost:1080",
 			Options: string(opts),
 		}
-		const errStr = "failed to add proxy client socks5: is already exists"
+		const errStr = "failed to add proxy client \"socks5\": already exists"
 		err = pool.Add(client)
 		require.EqualError(t, err, errStr)
 	})
@@ -216,7 +216,7 @@ func TestPool_Delete(t *testing.T) {
 
 	t.Run("is not exist", func(t *testing.T) {
 		err := pool.Delete("foo")
-		require.EqualError(t, err, "proxy client foo is not exist")
+		require.EqualError(t, err, "proxy client \"foo\" is not exist")
 	})
 
 	t.Run("empty tag", func(t *testing.T) {
@@ -226,7 +226,7 @@ func TestPool_Delete(t *testing.T) {
 
 	t.Run("direct", func(t *testing.T) {
 		err := pool.Delete("direct")
-		require.EqualError(t, err, "direct is the reserve proxy client")
+		require.EqualError(t, err, "\"direct\" is the reserve proxy client")
 	})
 
 	clients := pool.Clients()
@@ -258,7 +258,7 @@ func TestPool_Get(t *testing.T) {
 
 	t.Run("is not exist", func(t *testing.T) {
 		pc, err := pool.Get("foo")
-		require.EqualError(t, err, "proxy client foo is not exist")
+		require.EqualError(t, err, "proxy client \"foo\" is not exist")
 		require.Nil(t, pc)
 	})
 
