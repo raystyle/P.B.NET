@@ -318,15 +318,49 @@ func TestServer_Info(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server := testGenerateSocks4Server(t)
-	t.Log("socks4 info:", server.Info())
+	const (
+		tag     = "test"
+		network = "tcp"
+		address = "127.0.0.1:0"
+	)
 
-	err := server.Close()
+	listener, err := net.Listen(network, address)
 	require.NoError(t, err)
-	err = server.Close()
-	require.NoError(t, err)
+	defer func() { _ = listener.Close() }()
+	addr := listener.Addr().String()
 
-	testsuite.IsDestroyed(t, server)
+	infos := []string{
+		"socks5",
+		"socks5, auth: admin:",
+		"socks5, address: [tcp " + addr + "], auth: admin:",
+		"socks4a, user id: admin",
+	}
+	servers := make([]*Server, 0, len(infos))
+
+	server, err := NewSocks5Server(tag, logger.Test, nil)
+	require.NoError(t, err)
+	servers = append(servers, server)
+
+	server, err = NewSocks5Server(tag, logger.Test, &Options{Username: "admin"})
+	require.NoError(t, err)
+	servers = append(servers, server)
+
+	serverA, err := NewSocks5Server(tag, logger.Test, &Options{Username: "admin"})
+	require.NoError(t, err)
+	go func() {
+		err := serverA.Serve(listener)
+		require.NoError(t, err)
+	}()
+	testsuite.WaitProxyServerServe(t, serverA, 1)
+	servers = append(servers, serverA)
+
+	server, err = NewSocks4aServer(tag, logger.Test, &Options{UserID: "admin"})
+	require.NoError(t, err)
+	servers = append(servers, server)
+
+	for i := 0; i < len(infos); i++ {
+		require.Equal(t, infos[i], servers[i].Info())
+	}
 }
 
 func TestServer_ListenAndServe_Parallel(t *testing.T) {

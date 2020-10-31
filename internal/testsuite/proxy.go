@@ -160,6 +160,12 @@ func initHTTPServers(t testing.TB) {
 	fmt.Printf("[debug] HTTPS Server Port: %s\n", HTTPSServerPort)
 }
 
+// WaitProxyServerServe is used to wait proxy server until is serving.
+func WaitProxyServerServe(t *testing.T, server proxyServer, addressNum int) {
+	ok := waitProxyServerServe(server, addressNum)
+	require.True(t, ok, "wait proxy server serve timeout")
+}
+
 func waitProxyServerServe(server proxyServer, addressNum int) bool {
 	for i := 0; i < 300; i++ {
 		if len(server.Addresses()) == addressNum {
@@ -168,12 +174,6 @@ func waitProxyServerServe(server proxyServer, addressNum int) bool {
 		time.Sleep(10 * time.Millisecond)
 	}
 	return false
-}
-
-// WaitProxyServerServe is used to wait proxy server until is serving.
-func WaitProxyServerServe(t *testing.T, server proxyServer, addressNum int) {
-	ok := waitProxyServerServe(server, addressNum)
-	require.True(t, ok, "wait proxy server serve timeout")
 }
 
 // HTTPClient is used to get target and compare result.
@@ -324,15 +324,14 @@ func ProxyClient(t *testing.T, server io.Closer, client proxyClient) {
 	}
 
 	// except mode socks4a, socks4
-	// must use "socks4" to except socks4 and socks4a
-	if IPv6Enabled && !strings.Contains(client.Info(), "socks4") {
+	if IPv6Enabled && strings.Contains(client.Info(), "socks5") {
 		t.Run("IPv6 Only", func(t *testing.T) {
 			proxyClientIPv6Only(t, client)
 		})
 	}
 
-	// must use "socks4 " to except socks4
-	if !strings.Contains(client.Info(), "socks4 ") {
+	// except mode socks4
+	if !strings.Contains(client.Info(), "socks4, ") {
 		t.Run("double stack", func(t *testing.T) {
 			transport := new(http.Transport)
 			client.HTTP(transport)
@@ -391,8 +390,7 @@ func proxyClientIPv4Only(t *testing.T, client proxyClient) {
 	})
 
 	// except mode socks4
-	// must use "socks4 " to except socks4
-	if !strings.Contains(client.Info(), "socks4 ") {
+	if !strings.Contains(client.Info(), "socks4, ") {
 		t.Run("dial with host name", func(t *testing.T) {
 			wg.Add(1)
 			go func() {
@@ -554,12 +552,6 @@ func ProxyClientWithUnreachableProxyServer(t *testing.T, client proxyClient) {
 			_, err := client.DialTimeout(network, address, time.Second)
 			require.Error(t, err)
 			t.Log("DialTimeout:\n", err)
-		})
-
-		t.Run("Connect", func(t *testing.T) {
-			_, err := client.Connect(ctx, nil, network, address)
-			require.Error(t, err)
-			t.Log("Connect:\n", err)
 		})
 	})
 

@@ -76,6 +76,11 @@ func (m *GoroutineMark) compare() int {
 	return m.now - m.then
 }
 
+// IsDestroyed is used to check if the object has been recycled by the GC.
+func IsDestroyed(t testing.TB, object interface{}) {
+	require.True(t, Destroyed(object), "object not destroyed")
+}
+
 // Destroyed is used to check if the object has been recycled by the GC.
 // It not need testing.TB.
 func Destroyed(object interface{}) bool {
@@ -96,11 +101,6 @@ func Destroyed(object interface{}) bool {
 		}
 	}
 	return false
-}
-
-// IsDestroyed is used to check if the object has been recycled by the GC.
-func IsDestroyed(t testing.TB, object interface{}) {
-	require.True(t, Destroyed(object), "object not destroyed")
 }
 
 // MemoryMark contains testing.TB, then and now memory status.

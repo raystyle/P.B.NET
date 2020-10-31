@@ -267,3 +267,33 @@ func TestClient_Connect(t *testing.T) {
 
 	testsuite.IsDestroyed(t, client)
 }
+
+func TestClient_Info(t *testing.T) {
+	const (
+		network = "tcp"
+		address = "127.0.0.1:1080"
+	)
+
+	infos := []string{
+		"socks5, server: tcp 127.0.0.1:1080, auth: admin:",
+		"socks4a, server: tcp 127.0.0.1:1080, user id: admin",
+		"socks4, server: tcp 127.0.0.1:1080",
+	}
+	clients := make([]*Client, 0, len(infos))
+
+	client, err := NewSocks5Client(network, address, &Options{Username: "admin"})
+	require.NoError(t, err)
+	clients = append(clients, client)
+
+	client, err = NewSocks4aClient(network, address, &Options{UserID: "admin"})
+	require.NoError(t, err)
+	clients = append(clients, client)
+
+	client, err = NewSocks4Client(network, address, nil)
+	require.NoError(t, err)
+	clients = append(clients, client)
+
+	for i := 0; i < len(infos); i++ {
+		require.Equal(t, infos[i], clients[i].Info())
+	}
+}

@@ -230,18 +230,19 @@ func (c *Client) Server() (string, string) {
 
 // Info is used to get the socks client information.
 //
+// socks5, server: tcp 127.0.0.1:1080
 // socks5, server: tcp 127.0.0.1:1080, auth: admin:123456
 // socks4a, server: tcp 127.0.0.1:1080, user id: test
 func (c *Client) Info() string {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(buf, "%s, server: %s %s", c.protocol, c.network, c.address)
-	if c.protocol == "socks5" {
-		if c.username != nil {
-			_, _ = fmt.Fprintf(buf, ", auth: %s:%s", c.username, c.password)
-		}
-	} else {
+	if c.socks4 {
 		if c.userID != nil {
 			_, _ = fmt.Fprintf(buf, ", user id: %s", c.userID)
+		}
+	} else {
+		if c.username != nil {
+			_, _ = fmt.Fprintf(buf, ", auth: %s:%s", c.username, c.password)
 		}
 	}
 	return buf.String()

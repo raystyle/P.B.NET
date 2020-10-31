@@ -261,9 +261,9 @@ func (srv *Server) Addresses() []net.Addr {
 // Info is used to get socks server information.
 // "socks5"
 // "socks5, auth: admin:123456"
-// "socks5, address: [tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001]"
-// "socks4a, address: [tcp 127.0.0.1:1999], user id: test"
-// "socks4, address: [tcp 127.0.0.1:1999], auth: admin:123456"
+// "socks5, address: [tcp 127.0.0.1:1999], auth: admin:123456"
+// "socks4a, address: [tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001], user id: test"
+// "socks4, address: [tcp 127.0.0.1:1999]"
 func (srv *Server) Info() string {
 	buf := new(bytes.Buffer)
 	buf.WriteString(srv.protocol)
