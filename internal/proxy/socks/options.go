@@ -1,11 +1,12 @@
 package socks
 
 import (
-	"context"
-	"net"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
+
+	"project/internal/nettool"
 )
 
 const (
@@ -30,16 +31,19 @@ type Options struct {
 	MaxConns int `toml:"max_conns"`
 
 	// secondary proxy
-	// internal/proxy.client.DialContext()
-	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-" msgpack:"-"`
+	DialContext nettool.DialContext `toml:"-" msgpack:"-"`
 }
 
-// CheckNetwork is used to check network is supported.
-func CheckNetwork(network string) error {
+// CheckNetworkAndAddress is used to check network is supported and address is valid.
+func CheckNetworkAndAddress(network, address string) error {
 	switch network {
-	case "tcp", "tcp4", "tcp6":
-		return nil
+	case "tcp", "tcp4", "tcp6",
+		"udp", "udp4", "udp6": // udp is not implemented.
 	default:
 		return errors.Errorf("unsupported network: %s", network)
 	}
+	if !strings.Contains(address, ":") {
+		return errors.New("missing port in address")
+	}
+	return nil
 }

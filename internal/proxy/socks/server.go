@@ -32,7 +32,8 @@ var ErrServerClosed = fmt.Errorf("socks server closed")
 type Server struct {
 	logger     logger.Logger
 	socks4     bool
-	disableExt bool // socks4 can't resolve domain name
+	disableExt bool   // socks4 can't resolve domain name
+	protocol   string // "socks5", "socks4a", "socks4"
 	logSrc     string
 
 	// options
@@ -43,7 +44,7 @@ type Server struct {
 	maxConns int
 
 	// secondary proxy
-	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
+	dialContext nettool.DialContext
 
 	listeners  map[*net.Listener]struct{}
 	conns      map[*conn]struct{}
@@ -84,20 +85,20 @@ func newServer(tag string, lg logger.Logger, opts *Options, socks4, disableExt b
 		timeout:     opts.Timeout,
 		maxConns:    opts.MaxConns,
 		dialContext: opts.DialContext,
-		listeners:   make(map[*net.Listener]struct{}),
-		conns:       make(map[*conn]struct{}),
+		listeners:   make(map[*net.Listener]struct{}, 1),
+		conns:       make(map[*conn]struct{}, 16),
+	}
+	// select protocol
+	switch {
+	case !socks4:
+		srv.protocol = "socks5"
+	case socks4 && disableExt:
+		srv.protocol = "socks4"
+	case socks4 && !disableExt:
+		srv.protocol = "socks4a"
 	}
 	// log source
-	var logSrc string
-	if srv.socks4 {
-		if srv.disableExt {
-			logSrc = "socks4"
-		} else {
-			logSrc = "socks4a"
-		}
-	} else {
-		logSrc = "socks5"
-	}
+	logSrc := srv.protocol
 	if tag != EmptyTag {
 		logSrc += "-" + tag
 	}
@@ -156,9 +157,9 @@ func (srv *Server) ListenAndServe(network, address string) error {
 	if srv.shuttingDown() {
 		return ErrServerClosed
 	}
-	err := CheckNetwork(network)
+	err := nettool.IsTCPNetwork(network)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	listener, err := net.Listen(network, address)
 	if err != nil {
@@ -258,15 +259,18 @@ func (srv *Server) Addresses() []net.Addr {
 }
 
 // Info is used to get socks server information.
-// "address: tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001"
-// "address: tcp 127.0.0.1:1999 user id: test"
-// "address: tcp 127.0.0.1:1999 auth: admin:123456"
+// "socks5"
+// "socks5, auth: admin:123456"
+// "socks5, address: [tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001]"
+// "socks4a, address: [tcp 127.0.0.1:1999], user id: test"
+// "socks4, address: [tcp 127.0.0.1:1999], auth: admin:123456"
 func (srv *Server) Info() string {
 	buf := new(bytes.Buffer)
+	buf.WriteString(srv.protocol)
 	addresses := srv.Addresses()
 	l := len(addresses)
 	if l > 0 {
-		buf.WriteString("address: ")
+		buf.WriteString(", address: [")
 		for i := 0; i < l; i++ {
 			if i > 0 {
 				buf.WriteString(", ")
@@ -275,22 +279,15 @@ func (srv *Server) Info() string {
 			address := addresses[i].String()
 			_, _ = fmt.Fprintf(buf, "%s %s", network, address)
 		}
+		buf.WriteString("]")
 	}
 	if srv.socks4 {
 		if srv.userID != nil {
-			format := "user id: %s"
-			if buf.Len() > 0 {
-				format = " " + format
-			}
-			_, _ = fmt.Fprintf(buf, format, srv.userID)
+			_, _ = fmt.Fprintf(buf, ", user id: %s", srv.userID)
 		}
 	} else {
 		if srv.username != nil {
-			format := "auth: %s:%s"
-			if buf.Len() > 0 {
-				format = " " + format
-			}
-			_, _ = fmt.Fprintf(buf, format, srv.username, srv.password)
+			_, _ = fmt.Fprintf(buf, ", auth: %s:%s", srv.username, srv.password)
 		}
 	}
 	return buf.String()

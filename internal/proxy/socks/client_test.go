@@ -241,8 +241,13 @@ func TestClient_Connect(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	t.Run("foo address", func(t *testing.T) {
-		_, err = client.Connect(ctx, nil, network, "foo")
+	t.Run("invalid network", func(t *testing.T) {
+		_, err = client.Connect(ctx, nil, "foo", "foo")
+		require.Error(t, err)
+	})
+
+	t.Run("invalid address", func(t *testing.T) {
+		_, err = client.Connect(ctx, nil, network, "foo:foo")
 		require.Error(t, err)
 	})
 

@@ -162,13 +162,17 @@ func TestSocks4ClientOptions(t *testing.T) {
 	}
 }
 
-func TestCheckNetwork(t *testing.T) {
+func TestCheckNetworkAndAddress(t *testing.T) {
 	for _, network := range [...]string{
 		"tcp", "tcp4", "tcp6",
+		"udp", "udp4", "udp6",
 	} {
-		err := CheckNetwork(network)
+		err := CheckNetworkAndAddress(network, "127.0.0.1:1")
 		require.NoError(t, err)
 	}
-	err := CheckNetwork("foo network")
+	err := CheckNetworkAndAddress("foo network", "127.0.0.1:1")
 	require.EqualError(t, err, "unsupported network: foo network")
+
+	err = CheckNetworkAndAddress("tcp", "127.0.0.1")
+	require.EqualError(t, err, "missing port in address")
 }
