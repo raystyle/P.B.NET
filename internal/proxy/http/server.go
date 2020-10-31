@@ -258,7 +258,10 @@ func (srv *Server) Info() string {
 func (srv *Server) Close() error {
 	err := srv.server.Close()
 	srv.handler.Close()
-	return err
+	if err != nil && !nettool.IsNetClosingError(err) {
+		return err
+	}
+	return nil
 }
 
 type handler struct {

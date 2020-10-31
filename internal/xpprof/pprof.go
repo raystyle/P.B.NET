@@ -261,7 +261,10 @@ func (srv *Server) Info() string {
 func (srv *Server) Close() error {
 	err := srv.server.Close()
 	srv.handler.Close()
-	return err
+	if err != nil && !nettool.IsNetClosingError(err) {
+		return err
+	}
+	return nil
 }
 
 type handler struct {
@@ -283,6 +286,9 @@ type handler struct {
 // Accept: text/html
 // Connection: keep-alive
 // User-Agent: Mozilla
+//
+// post data...
+// post data...
 func (h *handler) log(lv logger.Level, r *http.Request, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log...)

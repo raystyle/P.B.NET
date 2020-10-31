@@ -215,11 +215,20 @@ func TestServer_Close(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, err := NewHTTPSServer(testTag, logger.Test, nil)
+	server, err := NewHTTPServer(testTag, logger.Test, nil)
 	require.NoError(t, err)
 
+	listener := testsuite.NewMockListenerWithCloseError()
+	go func() {
+		err := server.Serve(listener)
+		require.NoError(t, err)
+	}()
+	testsuite.WaitProxyServerServe(t, server, 1)
+	// wait http server Serve
+	time.Sleep(time.Second)
+
 	err = server.Close()
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	testsuite.IsDestroyed(t, server)
 }
