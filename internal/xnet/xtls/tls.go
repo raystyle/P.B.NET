@@ -10,6 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/nettool"
 	"project/internal/xpanic"
 )
 
@@ -36,9 +37,9 @@ func Dial(
 	address string,
 	config *tls.Config,
 	timeout time.Duration,
-	dialContext func(context.Context, string, string) (net.Conn, error),
+	dial nettool.DialContext,
 ) (*tls.Conn, error) {
-	return DialContext(context.Background(), network, address, config, timeout, dialContext)
+	return DialContext(context.Background(), network, address, config, timeout, dial)
 }
 
 // DialContext is used to dial a connection with context.
@@ -49,8 +50,11 @@ func DialContext(
 	address string,
 	config *tls.Config,
 	timeout time.Duration,
-	dialContext func(context.Context, string, string) (net.Conn, error),
+	dial nettool.DialContext,
 ) (*tls.Conn, error) {
+	if config == nil {
+		config = new(tls.Config)
+	}
 	// set server name
 	if config.ServerName == "" {
 		colonPos := strings.LastIndex(address, ":")
@@ -65,13 +69,13 @@ func DialContext(
 	if timeout < 1 {
 		timeout = defaultDialTimeout
 	}
-	if dialContext == nil {
-		dialContext = new(net.Dialer).DialContext
+	if dial == nil {
+		dial = new(net.Dialer).DialContext
 	}
 	// dial raw connection.
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	rawConn, err := dialContext(dialCtx, network, address)
+	rawConn, err := dial(dialCtx, network, address)
 	if err != nil {
 		return nil, err
 	}

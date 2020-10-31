@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"project/internal/nettool"
 	"project/internal/xnet/light"
 	"project/internal/xnet/quic"
 	"project/internal/xnet/xtls"
@@ -99,15 +100,12 @@ func (l *Listener) String() string {
 	return fmt.Sprintf("%s (%s %s)", l.mode, addr.Network(), addr)
 }
 
-// Dialer is a shortcut.
-type Dialer func(ctx context.Context, network, address string) (net.Conn, error)
-
 // Options contains options about all modes.
 type Options struct {
-	TLSConfig *tls.Config      // tls, quic need it
-	Timeout   time.Duration    // handshake timeout
-	Dialer    Dialer           // for proxy
-	Now       func() time.Time // get connect time
+	TLSConfig   *tls.Config         // tls, quic need it
+	Timeout     time.Duration       // handshake timeout
+	DialContext nettool.DialContext // for proxy
+	Now         func() time.Time    // get connect time
 }
 
 // Listen is used to listen a listener.
@@ -137,11 +135,7 @@ func Listen(mode, network, address string, opts *Options) (*Listener, error) {
 	if now == nil {
 		now = time.Now
 	}
-	return &Listener{
-		Listener: listener,
-		mode:     mode,
-		now:      now,
-	}, nil
+	return &Listener{Listener: listener, mode: mode, now: now}, nil
 }
 
 // Dial is used to dial context with context.Background().
@@ -163,9 +157,9 @@ func DialContext(ctx context.Context, mode, network, address string, opts *Optio
 	case ModeQUIC:
 		conn, err = quic.DialContext(ctx, network, address, opts.TLSConfig, opts.Timeout)
 	case ModeLight:
-		conn, err = light.DialContext(ctx, network, address, opts.Timeout, opts.Dialer)
+		conn, err = light.DialContext(ctx, network, address, opts.Timeout, opts.DialContext)
 	case ModeTLS:
-		conn, err = xtls.DialContext(ctx, network, address, opts.TLSConfig, opts.Timeout, opts.Dialer)
+		conn, err = xtls.DialContext(ctx, network, address, opts.TLSConfig, opts.Timeout, opts.DialContext)
 	case ModeTCP:
 		conn, err = (&net.Dialer{Timeout: opts.Timeout}).DialContext(ctx, network, address)
 	}

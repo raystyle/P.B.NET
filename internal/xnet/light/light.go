@@ -4,6 +4,8 @@ import (
 	"context"
 	"net"
 	"time"
+
+	"project/internal/nettool"
 )
 
 const defaultDialTimeout = 30 * time.Second
@@ -61,13 +63,8 @@ func NewListener(inner net.Listener, timeout time.Duration) net.Listener {
 }
 
 // Dial is used to dial a connection with context.Background().
-func Dial(
-	network string,
-	address string,
-	timeout time.Duration,
-	dialContext func(context.Context, string, string) (net.Conn, error),
-) (*Conn, error) {
-	return DialContext(context.Background(), network, address, timeout, dialContext)
+func Dial(network, address string, timeout time.Duration, dial nettool.DialContext) (*Conn, error) {
+	return DialContext(context.Background(), network, address, timeout, dial)
 }
 
 // DialContext is used to dial a connection with context.
@@ -77,17 +74,17 @@ func DialContext(
 	network string,
 	address string,
 	timeout time.Duration,
-	dialContext func(context.Context, string, string) (net.Conn, error),
+	dial nettool.DialContext,
 ) (*Conn, error) {
 	if timeout < 1 {
 		timeout = defaultDialTimeout
 	}
-	if dialContext == nil {
-		dialContext = new(net.Dialer).DialContext
+	if dial == nil {
+		dial = new(net.Dialer).DialContext
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	conn, err := dialContext(ctx, network, address)
+	conn, err := dial(ctx, network, address)
 	if err != nil {
 		return nil, err
 	}

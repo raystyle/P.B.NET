@@ -224,6 +224,15 @@ func TestFailedToDialContext(t *testing.T) {
 	})
 }
 
+func TestDialContext(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	conn, err := DialContext(context.Background(), "udp", "", nil, time.Second)
+	require.EqualError(t, err, "missing port in address")
+	require.Nil(t, conn)
+}
+
 func TestConn_Close(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

@@ -77,6 +77,15 @@ func testConn(t *testing.T, f func(*testing.T, net.Conn, net.Conn, bool)) {
 	f(t, server, client, false)
 }
 
+func TestDialContext_TLSError(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	conn, err := DialContext(context.Background(), "tcp", "", nil, time.Second, nil)
+	require.EqualError(t, err, "missing port in address")
+	require.Nil(t, conn)
+}
+
 func TestDialContext_Timeout(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

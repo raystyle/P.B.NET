@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -166,12 +167,7 @@ func (l *listener) Close() error {
 }
 
 // Listen is used to create a listener.
-func Listen(
-	network string,
-	address string,
-	config *tls.Config,
-	timeout time.Duration,
-) (net.Listener, error) {
+func Listen(network, address string, config *tls.Config, timeout time.Duration) (net.Listener, error) {
 	addr, err := net.ResolveUDPAddr(network, address)
 	if err != nil {
 		return nil, err
@@ -189,7 +185,9 @@ func Listen(
 		KeepAlive:        true,
 	}
 	if len(config.NextProtos) == 0 {
-		config.NextProtos = []string{defaultNextProto}
+		c := config.Clone()
+		c.NextProtos = []string{defaultNextProto}
+		config = c
 	}
 	quicListener, err := quic.Listen(conn, config, &quicCfg)
 	if err != nil {
@@ -206,12 +204,7 @@ func Listen(
 }
 
 // Dial is used to dial a connection with context.Background().
-func Dial(
-	network string,
-	address string,
-	config *tls.Config,
-	timeout time.Duration,
-) (*Conn, error) {
+func Dial(network, address string, config *tls.Config, timeout time.Duration) (*Conn, error) {
 	return DialContext(context.Background(), network, address, config, timeout)
 }
 
@@ -237,6 +230,27 @@ func DialContext(
 			_ = conn.Close()
 		}
 	}()
+	if config == nil {
+		config = new(tls.Config)
+	}
+	// set server name
+	if config.ServerName == "" {
+		colonPos := strings.LastIndex(address, ":")
+		if colonPos == -1 {
+			return nil, errors.New("missing port in address")
+		}
+		hostname := address[:colonPos]
+		c := config.Clone()
+		c.ServerName = hostname
+		config = c
+	}
+	// set next protocols
+	if len(config.NextProtos) == 0 {
+		c := config.Clone()
+		c.NextProtos = []string{defaultNextProto}
+		config = c
+	}
+	// set quic configuration
 	if timeout < 1 {
 		timeout = defaultTimeout
 	}
@@ -244,9 +258,6 @@ func DialContext(
 		HandshakeTimeout: timeout,
 		MaxIdleTimeout:   5 * timeout,
 		KeepAlive:        true,
-	}
-	if len(config.NextProtos) == 0 {
-		config.NextProtos = []string{defaultNextProto}
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

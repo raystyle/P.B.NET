@@ -77,7 +77,7 @@ func (node *Node) NewClient(
 	if err != nil {
 		return nil, err
 	}
-	opts.Dialer = proxy.DialContext
+	opts.DialContext = proxy.DialContext
 	// resolve domain name
 	dnsOpts := node.clientMgr.GetDNSOptions()
 	result, err := node.global.DNSClient.ResolveContext(ctx, host, dnsOpts)

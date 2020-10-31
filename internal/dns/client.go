@@ -111,7 +111,7 @@ type Options struct {
 	SkipTest bool `toml:"skip_test"`
 
 	// about set proxy
-	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
+	dialContext nettool.DialContext
 	transport   *http.Transport // about DoH
 }
 
