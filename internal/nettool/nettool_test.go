@@ -301,10 +301,46 @@ func TestWaitServerServe(t *testing.T) {
 	t.Run("common", func(t *testing.T) {
 		server := new(mockServer)
 
+		errCh := make(chan error, 1)
 		go func() { // mock
 			server.Serve()
+			errCh <- nil
 		}()
-		WaitServerServe(context.Background(), server, 1)
+		addrs, err := WaitServerServe(context.Background(), errCh, server, 1)
+		require.NoError(t, err)
+		require.Len(t, addrs, 1)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		server := new(mockServer)
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- errors.New("test")
+		}()
+		addrs, err := WaitServerServe(context.Background(), errCh, server, 1)
+		require.EqualError(t, err, "test")
+		require.Nil(t, addrs)
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		server := new(mockServer)
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		addrs, err := WaitServerServe(ctx, nil, server, 1)
+		require.Equal(t, context.DeadlineExceeded, err)
+		require.Nil(t, addrs)
+	})
+
+	t.Run("canceled", func(t *testing.T) {
+		server := new(mockServer)
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		cancel()
+		addrs, err := WaitServerServe(ctx, nil, server, 1)
+		require.Equal(t, context.Canceled, err)
+		require.Nil(t, addrs)
 	})
 
 	t.Run("invalid n", func(t *testing.T) {
@@ -313,14 +349,6 @@ func TestWaitServerServe(t *testing.T) {
 		defer func() {
 			require.NotNil(t, recover())
 		}()
-		WaitServerServe(context.Background(), server, 0)
-	})
-
-	t.Run("cancel", func(t *testing.T) {
-		server := new(mockServer)
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		cancel()
-		WaitServerServe(ctx, server, 1)
+		_, _ = WaitServerServe(context.Background(), nil, server, 0)
 	})
 }

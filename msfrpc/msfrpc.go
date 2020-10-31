@@ -17,7 +17,7 @@ import (
 
 // Config contains all configurations about MSFRPC.
 type Config struct {
-	Logger logger.Logger `toml:"-" msgpack:"-"`
+	Logger logger.Logger
 
 	Client struct {
 		Address  string
@@ -50,6 +50,7 @@ type MSFRPC struct {
 	// for web server
 	listener net.Listener
 
+	// wait and exit
 	once  sync.Once
 	wait  chan struct{}
 	errCh chan error
@@ -128,10 +129,11 @@ func (msfrpc *MSFRPC) Main() error {
 			}()
 			errCh <- msfrpc.web.Serve(msfrpc.listener)
 		}()
-		select {
-		case err := <-errCh:
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, err := nettool.WaitServerServe(ctx, errCh, msfrpc.web, 1)
+		if err != nil {
 			return errors.Wrap(err, "failed to start web server")
-		case <-time.After(time.Second):
 		}
 		var format string
 		if msfrpc.web.disableTLS {
@@ -156,7 +158,7 @@ func (msfrpc *MSFRPC) Main() error {
 		return nil
 	}
 	buf := bytes.NewBuffer(make([]byte, 0, 64*l))
-	_, _ = fmt.Fprintln(buf, "receive errors when exit msfrpc:")
+	_, _ = fmt.Fprintln(buf, "receive error when exit msfrpc:")
 	for i := 0; i < len(errorList); i++ {
 		_, _ = fmt.Fprintf(buf, "id %d: %s\n", i+1, errorList[i])
 	}

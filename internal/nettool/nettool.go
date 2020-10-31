@@ -188,7 +188,7 @@ type Server interface {
 }
 
 // WaitServerServe is used to wait server serve.
-func WaitServerServe(ctx context.Context, server Server, n int) []net.Addr {
+func WaitServerServe(ctx context.Context, errCh <-chan error, srv Server, n int) ([]net.Addr, error) {
 	if n < 1 {
 		panic("n < 1")
 	}
@@ -197,12 +197,16 @@ func WaitServerServe(ctx context.Context, server Server, n int) []net.Addr {
 	for {
 		select {
 		case <-timer.C:
-			addrs := server.Addresses()
+			addrs := srv.Addresses()
 			if len(addrs) >= n {
-				return addrs
+				return addrs, nil
+			}
+		case err := <-errCh:
+			if err != nil {
+				return nil, err
 			}
 		case <-ctx.Done():
-			return nil
+			return nil, ctx.Err()
 		}
 	}
 }
