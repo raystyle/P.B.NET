@@ -2,8 +2,10 @@ package nettool
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -272,4 +274,53 @@ func TestDeadlineConn(t *testing.T) {
 	require.NoError(t, err)
 	err = server.Close()
 	require.NoError(t, err)
+}
+
+type mockServer struct {
+	addresses    []net.Addr
+	addressesRWM sync.RWMutex
+}
+
+func (srv *mockServer) Serve() {
+	srv.addressesRWM.Lock()
+	defer srv.addressesRWM.Unlock()
+	addr := net.TCPAddr{
+		IP:   net.IPv4zero,
+		Port: 1234,
+	}
+	srv.addresses = append(srv.addresses, &addr)
+}
+
+func (srv *mockServer) Addresses() []net.Addr {
+	srv.addressesRWM.RLock()
+	defer srv.addressesRWM.RUnlock()
+	return srv.addresses
+}
+
+func TestWaitServerServe(t *testing.T) {
+	t.Run("common", func(t *testing.T) {
+		server := new(mockServer)
+
+		go func() { // mock
+			server.Serve()
+		}()
+		WaitServerServe(context.Background(), server, 1)
+	})
+
+	t.Run("invalid n", func(t *testing.T) {
+		server := new(mockServer)
+
+		defer func() {
+			require.NotNil(t, recover())
+		}()
+		WaitServerServe(context.Background(), server, 0)
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		server := new(mockServer)
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		cancel()
+		WaitServerServe(ctx, server, 1)
+	})
 }

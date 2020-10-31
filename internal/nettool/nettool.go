@@ -181,3 +181,28 @@ func DeadlineConn(conn net.Conn, deadline time.Duration) net.Conn {
 	}
 	return &dc
 }
+
+// Server implemented method Addresses() []net.Addr.
+type Server interface {
+	Addresses() []net.Addr
+}
+
+// WaitServerServe is used to wait server serve.
+func WaitServerServe(ctx context.Context, server Server, n int) []net.Addr {
+	if n < 1 {
+		panic("n < 1")
+	}
+	timer := time.NewTicker(25 * time.Millisecond)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			addrs := server.Addresses()
+			if len(addrs) >= n {
+				return addrs
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
