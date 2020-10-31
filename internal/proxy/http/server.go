@@ -215,14 +215,19 @@ func (srv *Server) Addresses() []net.Addr {
 
 // Info is used to get http proxy server information.
 //
-// "address: tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001"
-// "address: tcp 127.0.0.1:1999 auth: admin:123456"
+// "https, address: [tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001]"
+// "http, address: [tcp 127.0.0.1:1999], auth: admin:123456"
 func (srv *Server) Info() string {
 	buf := new(bytes.Buffer)
+	if srv.https {
+		buf.WriteString("https")
+	} else {
+		buf.WriteString("http")
+	}
 	addresses := srv.Addresses()
 	l := len(addresses)
 	if l > 0 {
-		buf.WriteString("address: ")
+		buf.WriteString(", address: [")
 		for i := 0; i < l; i++ {
 			if i > 0 {
 				buf.WriteString(", ")
@@ -231,6 +236,7 @@ func (srv *Server) Info() string {
 			address := addresses[i].String()
 			_, _ = fmt.Fprintf(buf, "%s %s", network, address)
 		}
+		buf.WriteString("]")
 	}
 	username := srv.handler.username
 	password := srv.handler.password
@@ -245,11 +251,7 @@ func (srv *Server) Info() string {
 		pass = password.String()
 	}
 	if user != "" || pass != "" {
-		format := "auth: %s:%s"
-		if buf.Len() > 0 {
-			format = " " + format
-		}
-		_, _ = fmt.Fprintf(buf, format, user, pass)
+		_, _ = fmt.Fprintf(buf, ", auth: %s:%s", user, pass)
 	}
 	return buf.String()
 }

@@ -211,6 +211,50 @@ func TestServer_Serve(t *testing.T) {
 	testsuite.IsDestroyed(t, server)
 }
 
+func TestServer_Info(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const (
+		tag     = "test"
+		network = "tcp"
+		address = "127.0.0.1:0"
+	)
+
+	listener, err := net.Listen(network, address)
+	require.NoError(t, err)
+	defer func() { _ = listener.Close() }()
+	addr := listener.Addr().String()
+
+	infos := []string{
+		"http",
+		"https, auth: admin:",
+		"http, address: [tcp " + addr + "], auth: admin:",
+	}
+	servers := make([]*Server, 0, len(infos))
+
+	server, err := NewHTTPServer(tag, logger.Test, nil)
+	require.NoError(t, err)
+	servers = append(servers, server)
+
+	server, err = NewHTTPSServer(tag, logger.Test, &Options{Username: "admin"})
+	require.NoError(t, err)
+	servers = append(servers, server)
+
+	serverA, err := NewHTTPServer(tag, logger.Test, &Options{Username: "admin"})
+	require.NoError(t, err)
+	go func() {
+		err := serverA.Serve(listener)
+		require.NoError(t, err)
+	}()
+	testsuite.WaitProxyServerServe(t, serverA, 1)
+	servers = append(servers, serverA)
+
+	for i := 0; i < len(infos); i++ {
+		require.Equal(t, infos[i], servers[i].Info())
+	}
+}
+
 func TestServer_Close(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
