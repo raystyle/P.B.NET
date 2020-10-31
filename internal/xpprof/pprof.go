@@ -73,24 +73,13 @@ func newServer(lg logger.Logger, opts *Options, https bool) (*Server, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	srv := Server{
-		logger:   lg,
-		https:    https,
-		maxConns: opts.MaxConns,
-		server:   server,
-	}
-	if srv.maxConns < 1 {
-		srv.maxConns = defaultMaxConns
-	}
 	// log source
 	var logSrc string
-	if srv.https {
+	if https {
 		logSrc = "pprof-https"
 	} else {
 		logSrc = "pprof-http"
 	}
-	srv.logSrc = logSrc
-	srv.addresses = make(map[*net.Addr]struct{}, 1)
 	// initialize http handler
 	handler := &handler{
 		logger: lg,
@@ -118,7 +107,6 @@ func newServer(lg logger.Logger, opts *Options, https bool) (*Server, error) {
 		}
 		handler.password = security.NewBytes(password)
 	}
-	srv.handler = handler
 	// set http server
 	server.Handler = handler
 	timeout := opts.Timeout
@@ -136,6 +124,19 @@ func newServer(lg logger.Logger, opts *Options, https bool) (*Server, error) {
 		}
 	}
 	server.ErrorLog = logger.Wrap(logger.Warning, logSrc, lg)
+	// set pprof server
+	srv := Server{
+		logger:    lg,
+		https:     https,
+		maxConns:  opts.MaxConns,
+		logSrc:    logSrc,
+		server:    server,
+		handler:   handler,
+		addresses: make(map[*net.Addr]struct{}, 1),
+	}
+	if srv.maxConns < 1 {
+		srv.maxConns = defaultMaxConns
+	}
 	return &srv, nil
 }
 
@@ -163,7 +164,7 @@ func (srv *Server) deleteListenerAddress(addr *net.Addr) {
 func (srv *Server) ListenAndServe(network, address string) error {
 	err := nettool.IsTCPNetwork(network)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	listener, err := net.Listen(network, address)
 	if err != nil {
@@ -271,7 +272,7 @@ type handler struct {
 	logger logger.Logger
 	logSrc string
 
-	mux *http.ServeMux
+	mux *http.ServeMux // pprof handlers
 
 	username *security.Bytes // raw username
 	password *security.Bytes // bcrypt hash

@@ -85,9 +85,9 @@ type Web struct {
 	disableTLS bool
 	maxConns   int
 
-	server *http.Server
-	ui     *webUI
-	api    *webAPI
+	srv *http.Server
+	api *webAPI
+	ui  *webUI
 
 	// listener addresses
 	addresses    map[*net.Addr]struct{}
@@ -100,30 +100,19 @@ func NewWeb(msfrpc *MSFRPC, opts *WebOptions) (*Web, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create web")
 	}
-	web := Web{
-		logger:     msfrpc.logger,
-		disableTLS: opts.DisableTLS,
-		maxConns:   opts.MaxConns,
-		server:     server,
-	}
 	mux := http.NewServeMux()
-	if !opts.APIOnly {
-		webUI, err := newWebUI(opts.HFS, mux)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to create web ui")
-		}
-		web.ui = webUI
-	}
 	webAPI, err := newWebAPI(msfrpc, opts, mux)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create web api")
 	}
-	web.api = webAPI
-	if web.maxConns < 32 {
-		web.maxConns = defaultServerMaxConns
+	var webUI *webUI
+	if !opts.APIOnly {
+		webUI, err = newWebUI(opts.HFS, mux)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to create web ui")
+		}
 	}
-	web.addresses = make(map[*net.Addr]struct{}, 1)
-	// set web server
+	// set http server
 	server.Handler = mux
 	timeout := opts.Timeout
 	if timeout < 1 {
@@ -140,6 +129,19 @@ func NewWeb(msfrpc *MSFRPC, opts *WebOptions) (*Web, error) {
 		}
 	}
 	server.ErrorLog = logger.Wrap(logger.Warning, "msfrpc-web", msfrpc.logger)
+	// set web server
+	web := Web{
+		logger:     msfrpc.logger,
+		disableTLS: opts.DisableTLS,
+		maxConns:   opts.MaxConns,
+		srv:        server,
+		api:        webAPI,
+		ui:         webUI,
+		addresses:  make(map[*net.Addr]struct{}, 1),
+	}
+	if web.maxConns < 64 {
+		web.maxConns = defaultServerMaxConns
+	}
 	return &web, nil
 }
 
@@ -234,12 +236,12 @@ func (web *Web) Serve(listener net.Listener) (err error) {
 
 	switch listener.(type) {
 	case *virtualconn.Listener:
-		err = web.server.Serve(listener)
+		err = web.srv.Serve(listener)
 	default:
 		if web.disableTLS {
-			err = web.server.Serve(listener)
+			err = web.srv.Serve(listener)
 		} else {
-			err = web.server.ServeTLS(listener, "", "")
+			err = web.srv.ServeTLS(listener, "", "")
 		}
 	}
 	if nettool.IsNetClosingError(err) || err == http.ErrServerClosed {
@@ -261,7 +263,7 @@ func (web *Web) Addresses() []net.Addr {
 
 // Close is used to close web server.
 func (web *Web) Close() error {
-	err := web.server.Close()
+	err := web.srv.Close()
 	web.api.Close()
 	if err != nil && !nettool.IsNetClosingError(err) {
 		return err
