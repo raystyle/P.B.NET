@@ -263,7 +263,10 @@ func (web *Web) Addresses() []net.Addr {
 func (web *Web) Close() error {
 	err := web.server.Close()
 	web.api.Close()
-	return err
+	if err != nil && !nettool.IsNetClosingError(err) {
+		return err
+	}
+	return nil
 }
 
 // webUI is used to contains favicon and index data. user can reload it.

@@ -429,11 +429,20 @@ func initInternalNetTool() {
 		"IPEnabled":             reflect.ValueOf(nettool.IPEnabled),
 		"IPToHost":              reflect.ValueOf(nettool.IPToHost),
 		"IsNetClosingError":     reflect.ValueOf(nettool.IsNetClosingError),
+		"IsTCPNetwork":          reflect.ValueOf(nettool.IsTCPNetwork),
+		"IsUDPNetwork":          reflect.ValueOf(nettool.IsUDPNetwork),
 		"JoinHostPort":          reflect.ValueOf(nettool.JoinHostPort),
 		"SplitHostPort":         reflect.ValueOf(nettool.SplitHostPort),
+		"WaitServerServe":       reflect.ValueOf(nettool.WaitServerServe),
 	}
-	var ()
-	env.PackageTypes["project/internal/nettool"] = map[string]reflect.Type{}
+	var (
+		dialContext nettool.DialContext
+		server      nettool.Server
+	)
+	env.PackageTypes["project/internal/nettool"] = map[string]reflect.Type{
+		"DialContext": reflect.TypeOf(&dialContext).Elem(),
+		"Server":      reflect.TypeOf(&server).Elem(),
+	}
 }
 
 func initInternalOption() {
@@ -581,11 +590,11 @@ func initInternalProxyHTTP() {
 		// define variables
 
 		// define functions
-		"CheckNetwork":   reflect.ValueOf(http.CheckNetwork),
-		"NewHTTPClient":  reflect.ValueOf(http.NewHTTPClient),
-		"NewHTTPSClient": reflect.ValueOf(http.NewHTTPSClient),
-		"NewHTTPSServer": reflect.ValueOf(http.NewHTTPSServer),
-		"NewHTTPServer":  reflect.ValueOf(http.NewHTTPServer),
+		"CheckNetworkAndAddress": reflect.ValueOf(http.CheckNetworkAndAddress),
+		"NewHTTPClient":          reflect.ValueOf(http.NewHTTPClient),
+		"NewHTTPSClient":         reflect.ValueOf(http.NewHTTPSClient),
+		"NewHTTPSServer":         reflect.ValueOf(http.NewHTTPSServer),
+		"NewHTTPServer":          reflect.ValueOf(http.NewHTTPServer),
 	}
 	var (
 		client  http.Client
@@ -608,13 +617,13 @@ func initInternalProxySocks() {
 		"ErrServerClosed": reflect.ValueOf(socks.ErrServerClosed),
 
 		// define functions
-		"CheckNetwork":     reflect.ValueOf(socks.CheckNetwork),
-		"NewSocks4Client":  reflect.ValueOf(socks.NewSocks4Client),
-		"NewSocks4Server":  reflect.ValueOf(socks.NewSocks4Server),
-		"NewSocks4aClient": reflect.ValueOf(socks.NewSocks4aClient),
-		"NewSocks4aServer": reflect.ValueOf(socks.NewSocks4aServer),
-		"NewSocks5Client":  reflect.ValueOf(socks.NewSocks5Client),
-		"NewSocks5Server":  reflect.ValueOf(socks.NewSocks5Server),
+		"CheckNetworkAndAddress": reflect.ValueOf(socks.CheckNetworkAndAddress),
+		"NewSocks4Client":        reflect.ValueOf(socks.NewSocks4Client),
+		"NewSocks4Server":        reflect.ValueOf(socks.NewSocks4Server),
+		"NewSocks4aClient":       reflect.ValueOf(socks.NewSocks4aClient),
+		"NewSocks4aServer":       reflect.ValueOf(socks.NewSocks4aServer),
+		"NewSocks5Client":        reflect.ValueOf(socks.NewSocks5Client),
+		"NewSocks5Server":        reflect.ValueOf(socks.NewSocks5Server),
 	}
 	var (
 		client  socks.Client
@@ -747,11 +756,12 @@ func initInternalXPanic() {
 		// define variables
 
 		// define functions
-		"Error":      reflect.ValueOf(xpanic.Error),
-		"Log":        reflect.ValueOf(xpanic.Log),
-		"Print":      reflect.ValueOf(xpanic.Print),
-		"PrintPanic": reflect.ValueOf(xpanic.PrintPanic),
-		"PrintStack": reflect.ValueOf(xpanic.PrintStack),
+		"Error":           reflect.ValueOf(xpanic.Error),
+		"Log":             reflect.ValueOf(xpanic.Log),
+		"Print":           reflect.ValueOf(xpanic.Print),
+		"PrintPanic":      reflect.ValueOf(xpanic.PrintPanic),
+		"PrintStack":      reflect.ValueOf(xpanic.PrintStack),
+		"PrintStackTrace": reflect.ValueOf(xpanic.PrintStackTrace),
 	}
 	var ()
 	env.PackageTypes["project/internal/xpanic"] = map[string]reflect.Type{}
