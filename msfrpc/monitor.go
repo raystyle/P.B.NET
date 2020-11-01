@@ -316,11 +316,7 @@ func (monitor *Monitor) updateDBErrorCount(add bool) {
 		return
 	}
 	// try to reconnect database
-	err := monitor.ctx.DBDisconnect(monitor.context)
-	if err != nil {
-		monitor.log(logger.Debug, "failed to disconnect database:", err)
-	}
-	err = monitor.ctx.DBConnect(monitor.context, monitor.database)
+	err := monitor.ctx.DBConnect(monitor.context, monitor.database)
 	if err == nil {
 		return
 	}

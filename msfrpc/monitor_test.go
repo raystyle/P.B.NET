@@ -1268,8 +1268,9 @@ func TestMonitor_updateClientErrorCount(t *testing.T) {
 		require.True(t, monitor.ClientAlive())
 	})
 
-	t.Run("msfrpcd reconnect failed", func(t *testing.T) {
+	t.Run("failed to reconnect msfrpcd", func(t *testing.T) {
 		client.token = "TEMP"
+		defer func() { client.token = "" }()
 
 		monitor.clErrorCount = 2
 		monitor.updateClientErrorCount(true)
@@ -1277,6 +1278,12 @@ func TestMonitor_updateClientErrorCount(t *testing.T) {
 		testPatchClientSend(func() {
 			monitor.updateClientErrorCount(false)
 		})
+	})
+
+	t.Run("shutdown", func(t *testing.T) {
+		monitor.inShutdown = 1
+
+		monitor.updateClientErrorCount(true)
 	})
 
 	testsuite.IsDestroyed(t, monitor)
@@ -1334,13 +1341,19 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 		require.True(t, monitor.DatabaseAlive())
 	})
 
-	t.Run("database reconnect failed", func(t *testing.T) {
+	t.Run("failed to reconnect database", func(t *testing.T) {
 		monitor.dbErrorCount = 2
 		monitor.updateDBErrorCount(true)
 
 		testPatchClientSend(func() {
 			monitor.updateDBErrorCount(false)
 		})
+	})
+
+	t.Run("shutdown", func(t *testing.T) {
+		monitor.inShutdown = 1
+
+		monitor.updateDBErrorCount(true)
 	})
 
 	testsuite.IsDestroyed(t, monitor)
@@ -1364,8 +1377,17 @@ func TestMonitor_AutoReconnect(t *testing.T) {
 	monitor.Start()
 
 	t.Run("msfrpcd", func(t *testing.T) {
-		err := client.AuthLogout(client.GetToken())
+		token := client.GetToken()
+
+		err := client.AuthLogout(token)
 		require.NoError(t, err)
+
+		// set invalid token for prevent auto connect
+		client.SetToken("invalid")
+
+		time.Sleep(6 * minWatchInterval)
+
+		client.SetToken(token)
 
 		time.Sleep(6 * minWatchInterval)
 	})

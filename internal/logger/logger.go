@@ -313,8 +313,8 @@ func SetErrorLogger(name string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	mLogger := NewMultiLogger(Error, os.Stdout, file)
-	HijackLogWriter(Error, "init", mLogger)
+	mLogger := NewMultiLogger(Warning, os.Stdout, file)
+	HijackLogWriter(Fatal, "init", mLogger)
 	return file, nil
 }
 
