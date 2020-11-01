@@ -97,7 +97,10 @@ func main() {
 	}
 
 	// switch operation
-	svc := createService(config)
+	svc, err := createService(config)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	switch {
 	case install:
 		err := svc.Install()
@@ -112,7 +115,7 @@ func main() {
 		}
 		log.Println("uninstall service successfully")
 	default:
-		err := svc.Run()
+		err = svc.Run()
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -128,30 +131,26 @@ func generateWebPassword(password string) {
 	fmt.Println("password:", string(data))
 }
 
-func createService(cfg string) service.Service {
+func createService(cfg string) (service.Service, error) {
 	// load msfrpc configuration
 	data, err := ioutil.ReadFile(cfg) // #nosec
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
 	var config config
 	err = toml.Unmarshal(data, &config)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
 	// set logger about initialize error
-	logFile, err := logger.SetErrorLogger(config.Logger.Error)
+	initErr, err := logger.SetErrorLogger(config.Logger.Error)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
-	defer func() {
-		_ = logFile.Sync()
-		_ = logFile.Close()
-	}()
 	// initialize program
-	program, err := newProgram(&config)
+	program, err := newProgram(initErr, &config)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
 	// initialize service
 	svcConfig := service.Config{
@@ -161,13 +160,14 @@ func createService(cfg string) service.Service {
 	}
 	svc, err := service.New(program, &svcConfig)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
-	return svc
+	return svc, nil
 }
 
 type program struct {
 	logger  logger.Logger
+	initErr *os.File
 	logFile *os.File
 
 	msfrpc *msfrpc.MSFRPC
@@ -179,7 +179,7 @@ type program struct {
 	wg sync.WaitGroup
 }
 
-func newProgram(config *config) (*program, error) {
+func newProgram(initErr *os.File, config *config) (*program, error) {
 	// create logger
 	logCfg := config.Logger
 	var (
@@ -191,7 +191,7 @@ func newProgram(config *config) (*program, error) {
 		if err != nil {
 			return nil, err
 		}
-		logFile, err := system.OpenFile(logCfg.File, os.O_CREATE|os.O_APPEND, 0600)
+		logFile, err = system.OpenFile(logCfg.File, os.O_CREATE|os.O_APPEND, 0600)
 		if err != nil {
 			return nil, err
 		}
@@ -242,6 +242,7 @@ func newProgram(config *config) (*program, error) {
 	}
 	program := program{
 		logger:  mLogger,
+		initErr: initErr,
 		logFile: logFile,
 		msfrpc:  MSFRPC,
 	}
@@ -293,7 +294,6 @@ func (p *program) log(lv logger.Level, log ...interface{}) {
 func (p *program) Start(service.Service) error {
 	const title = "program.Start"
 
-	logger.HijackLogWriter(logger.Error, "pkg", p.logger)
 	errCh := make(chan error, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -311,7 +311,6 @@ func (p *program) Start(service.Service) error {
 	}()
 	_, err := nettool.WaitServerServe(ctx, errCh, p.msfrpc, 1)
 	if err != nil {
-		p.log(logger.Fatal, err)
 		return err
 	}
 	p.msfrpc.Wait()
@@ -332,10 +331,16 @@ func (p *program) Start(service.Service) error {
 	}()
 	_, err = nettool.WaitServerServe(ctx, errCh, p.pprof, 1)
 	if err != nil {
-		p.log(logger.Fatal, err)
 		return err
 	}
 	p.log(logger.Info, "pprof server is running")
+
+	// close initialize error log file
+	err = p.initErr.Close()
+	if err != nil {
+		return err
+	}
+	logger.HijackLogWriter(logger.Error, "pkg", p.logger)
 	return nil
 }
 
@@ -357,6 +362,7 @@ func (p *program) Stop(service.Service) error {
 		if err != nil {
 			p.log(logger.Error, "appear error when close log file:", err)
 		}
+		p.log(logger.Info, "log file is closed")
 	}
 	p.log(logger.Info, "msfrpc service is stopped")
 	return nil
