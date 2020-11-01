@@ -360,7 +360,7 @@ type webAPI struct {
 	maxReqBodySize      int64
 	maxLargeReqBodySize int64
 
-	users    map[string]string
+	users    map[string]*security.Bytes
 	usersRWM sync.RWMutex
 
 	encoderPool sync.Pool           // json encoder
@@ -389,8 +389,7 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	api.adminUsername = security.NewBytes([]byte(adminUsername))
 	// set administrator password
 	adminPassword := opts.AdminPassword
-	if adminPassword == "" {
-		// generate a random password
+	if adminPassword == "" { // generate a random password
 		adminPassword = random.NewRand().String(16)
 		defer security.CoverString(adminPassword)
 		const log = "admin password is not set, use the random password:"
@@ -403,16 +402,17 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		return nil, errors.Wrap(err, "failed to generate random admin password")
 	}
 	api.adminPassword = security.NewBytes(hashedPwd)
+	// set max body size
 	if api.maxReqBodySize < minRequestBodySize {
 		api.maxReqBodySize = minRequestBodySize
 	}
 	if api.maxLargeReqBodySize < minRequestLargeBodySize {
 		api.maxLargeReqBodySize = minRequestLargeBodySize
 	}
-	if len(opts.Users) != 0 {
-		api.users = opts.Users
-	} else {
-		api.users = make(map[string]string)
+	// set common user
+	api.users = make(map[string]*security.Bytes, len(opts.Users))
+	for username, password := range opts.Users {
+		api.users[username] = security.NewBytes([]byte(password))
 	}
 	api.encoderPool.New = func() interface{} {
 		return json.NewEncoder(64)

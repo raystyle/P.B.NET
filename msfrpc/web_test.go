@@ -112,6 +112,7 @@ func TestWebOptions(t *testing.T) {
 		{expected: "bcrypt", actual: opts.AdminPassword},
 		{expected: true, actual: opts.DisableTLS},
 		{expected: 1000, actual: opts.MaxConns},
+		{expected: time.Minute, actual: opts.Timeout},
 		{expected: int64(1024), actual: opts.MaxBodySize},
 		{expected: int64(10240), actual: opts.MaxLargeBodySize},
 		{expected: true, actual: opts.APIOnly},

@@ -28,9 +28,11 @@ func (client *Client) DBConnect(ctx context.Context, opts *DBConnectOptions) err
 		}
 		return errors.WithStack(&result.MSFError)
 	}
+	// msfrpcd only check database configuration is valid
 	if result.Result != "success" {
-		return errors.Errorf("failed to connect database: %s", result.Result)
+		return errors.New("invalid database configuration")
 	}
+	// test connect database
 	err = client.DBAddWorkspace(ctx, defaultWorkspace)
 	if err != nil {
 		return err

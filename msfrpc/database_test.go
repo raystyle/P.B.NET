@@ -61,7 +61,7 @@ func TestClient_DBConnect(t *testing.T) {
 		defer func() { testDBOptions.Driver = driver }()
 
 		err := client.DBConnect(ctx, testDBOptions)
-		require.EqualError(t, err, "failed to connect database: failed")
+		require.EqualError(t, err, "invalid database configuration")
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {

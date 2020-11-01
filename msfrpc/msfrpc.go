@@ -105,7 +105,7 @@ func (msfrpc *MSFRPC) Main() error {
 	if token == "" {
 		err := msfrpc.client.AuthLogin()
 		if err != nil {
-			return err
+			return errors.WithMessage(err, "failed to connect msfrpcd")
 		}
 	}
 	// connect database
@@ -114,7 +114,7 @@ func (msfrpc *MSFRPC) Main() error {
 		defer cancel()
 		err := msfrpc.client.DBConnect(ctx, msfrpc.database)
 		if err != nil {
-			return err
+			return errors.WithMessage(err, "failed to connect database")
 		}
 	}
 	// start web server
@@ -203,6 +203,16 @@ func (msfrpc *MSFRPC) exit() {
 	// close monitor
 	msfrpc.monitor.Close()
 	msfrpc.logger.Print(logger.Info, src, "monitor is closed")
+	// close database
+	if msfrpc.database.Driver != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		err = msfrpc.client.DBDisconnect(ctx)
+		if err != nil {
+			msfrpc.logger.Print(logger.Error, src, "appear error when disconnect database:", err)
+			msfrpc.sendError(err)
+		}
+	}
 	// close client
 	err = msfrpc.client.Close()
 	if err != nil {
@@ -218,7 +228,7 @@ func (msfrpc *MSFRPC) sendError(err error) {
 	select {
 	case msfrpc.errCh <- err:
 	default:
-		msfrpc.logger.Print(logger.Error, "exit", "exit error channel blocked\nerror: %s", err)
+		msfrpc.logger.Print(logger.Error, "exit", "error channel blocked\nerror to send: %s", err)
 	}
 }
 
