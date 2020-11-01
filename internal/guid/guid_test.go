@@ -327,6 +327,19 @@ func BenchmarkGenerator_Get(b *testing.B) {
 	testsuite.IsDestroyed(b, g)
 }
 
+func BenchmarkGUID_IsZero(b *testing.B) {
+	guid := GUID{}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if !guid.IsZero() {
+			b.Fatal("guid is not zero")
+		}
+	}
+}
+
 func BenchmarkGUIDWithMapKey(b *testing.B) {
 	gm := testsuite.MarkGoroutines(b)
 	defer gm.Compare()
