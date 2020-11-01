@@ -32,11 +32,15 @@ func (l *limitedReader) Read(p []byte) (n int, err error) {
 	return
 }
 
+// LimitReader is used to return a limit reader.
+func LimitReader(r io.Reader, size int64) io.Reader {
+	return &limitedReader{r: r, n: size}
+}
+
 // ReadAll is used to read all with limited size.
 // if read out of size, it will return an ErrHasRemainingData.
 func ReadAll(r io.Reader, size int64) ([]byte, error) {
-	lr := limitedReader{r: r, n: size}
-	return ioutil.ReadAll(&lr)
+	return ioutil.ReadAll(LimitReader(r, size))
 }
 
 // LimitReadAll is used to read all with limited size.

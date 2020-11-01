@@ -360,6 +360,7 @@ type webAPI struct {
 	maxReqBodySize      int64
 	maxLargeReqBodySize int64
 
+	// common users
 	users    map[string]*security.Bytes
 	usersRWM sync.RWMutex
 
@@ -390,18 +391,20 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	// set administrator password
 	adminPassword := opts.AdminPassword
 	if adminPassword == "" { // generate a random password
-		adminPassword = random.NewRand().String(16)
-		defer security.CoverString(adminPassword)
+		password := random.NewRand().String(16)
+		defer security.CoverString(password)
 		const log = "admin password is not set, use the random password:"
-		api.log(logger.Info, log, adminPassword)
+		api.log(logger.Info, log, password)
+		// generate bcrypt hash
+		passwordBytes := []byte(password)
+		defer security.CoverBytes(passwordBytes)
+		hash, err := bcrypt.GenerateFromPassword(passwordBytes, 12)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to generate random admin password")
+		}
+		adminPassword = string(hash)
 	}
-	passwordBytes := []byte(adminPassword)
-	defer security.CoverBytes(passwordBytes)
-	hashedPwd, err := bcrypt.GenerateFromPassword(passwordBytes, 12)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to generate random admin password")
-	}
-	api.adminPassword = security.NewBytes(hashedPwd)
+	api.adminPassword = security.NewBytes([]byte(adminPassword))
 	// set max body size
 	if api.maxReqBodySize < minRequestBodySize {
 		api.maxReqBodySize = minRequestBodySize
@@ -425,6 +428,7 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	// set handler
 	for path, handler := range map[string]http.HandlerFunc{
 		"/api/login": api.handleLogin,
+		"/api/ws":    api.handleWebsocket,
 
 		"/api/auth/logout":         api.handleAuthenticationLogout,
 		"/api/auth/token/list":     api.handleAuthenticationTokenList,
@@ -645,28 +649,32 @@ func (api *webAPI) Close() {
 }
 
 func (api *webAPI) readRequest(r *http.Request, req interface{}) error {
-	err := json.NewDecoder(io.LimitReader(r.Body, api.maxReqBodySize)).Decode(req)
-	if err != nil {
+	defer func() { _, _ = io.Copy(ioutil.Discard, r.Body) }()
+	err := json.NewDecoder(security.LimitReader(r.Body, api.maxReqBodySize)).Decode(req)
+	if err == nil {
+		return nil
+	}
+	if err != io.EOF {
 		name := xreflect.GetStructureName(req)
 		buf := httptool.PrintRequest(r)
 		api.logf(logger.Error, "failed to read request about %s\n%s", name, buf)
-		_, _ = io.Copy(ioutil.Discard, r.Body)
-		return err
 	}
-	return nil
+	return err
 }
 
 // readLargeRequest is used to request like upload file
 func (api *webAPI) readLargeRequest(r *http.Request, req interface{}) error {
-	err := json.NewDecoder(io.LimitReader(r.Body, api.maxLargeReqBodySize)).Decode(req)
-	if err != nil {
+	defer func() { _, _ = io.Copy(ioutil.Discard, r.Body) }()
+	err := json.NewDecoder(security.LimitReader(r.Body, api.maxLargeReqBodySize)).Decode(req)
+	if err == nil {
+		return nil
+	}
+	if err != io.EOF {
 		name := xreflect.GetStructureName(req)
 		buf := httptool.PrintRequest(r)
 		api.logf(logger.Error, "failed to read large request about %s\n%s", name, buf)
-		_, _ = io.Copy(ioutil.Discard, r.Body)
-		return err
 	}
-	return nil
+	return err
 }
 
 func (api *webAPI) writeResponse(w http.ResponseWriter, resp interface{}) {
@@ -682,13 +690,20 @@ func (api *webAPI) writeResponse(w http.ResponseWriter, resp interface{}) {
 }
 
 func (api *webAPI) writeError(w http.ResponseWriter, err error) {
+	var str string
+	if err != nil {
+		str = err.Error()
+	}
+	api.writeErrorString(w, str)
+}
+
+func (api *webAPI) writeErrorString(w http.ResponseWriter, str string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	e := struct {
 		Error string `json:"error"`
-	}{}
-	if err != nil {
-		e.Error = err.Error()
+	}{
+		Error: str,
 	}
 	encoder := api.encoderPool.Get().(*json.Encoder)
 	defer api.encoderPool.Put(encoder)
@@ -711,6 +726,8 @@ func (api *webAPI) handlePanic(w http.ResponseWriter, _ *http.Request, e interfa
 	sessions.NewCookieStore()
 }
 
+// ------------------------------------about web authentication------------------------------------
+
 func (api *webAPI) checkAdminPermissions(w http.ResponseWriter, r *http.Request) {
 	// websocket.IsWebSocketUpgrade()
 	fmt.Println(r.Header)
@@ -723,10 +740,56 @@ func (api *webAPI) checkUserPermissions(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(200)
 }
 
-func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
-	// httptool.FprintRequest(os.Stdout, r)
+type loginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
 
-	// fmt.Println(httptool.PrintRequest(r))
+func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
+	const errInvalidCred = "username or password is incorrect"
+
+	req := loginRequest{}
+	err := api.readRequest(r, &req)
+	if err != nil {
+		api.writeError(w, err)
+		return
+	}
+	defer security.CoverString(req.Password)
+
+	// get hash
+	var hash []byte
+	if req.Username == api.adminUsername.String() {
+		hash = api.adminPassword.Get()
+		defer api.adminPassword.Put(hash)
+	} else {
+		sb := api.getUserPasswordHash(req.Username)
+		if sb == nil {
+			api.writeErrorString(w, errInvalidCred)
+			return
+		}
+		hash = sb.Get()
+		defer sb.Put(hash)
+	}
+
+	// check password
+	pwd := []byte(req.Password)
+	defer security.CoverBytes(pwd)
+	err = bcrypt.CompareHashAndPassword(hash, pwd)
+	if err != nil {
+		api.writeErrorString(w, errInvalidCred)
+		return
+	}
+
+	fmt.Println("login successfully")
+}
+
+func (api *webAPI) getUserPasswordHash(username string) *security.Bytes {
+	api.usersRWM.RLock()
+	defer api.usersRWM.RUnlock()
+	return api.users[username]
+}
+
+func (api *webAPI) handleWebsocket(w http.ResponseWriter, r *http.Request) {
 	// upgrade to websocket connection, server can push message to client
 	conn, err := api.wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {

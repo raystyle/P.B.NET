@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"strconv"
 	"testing"
@@ -1372,9 +1373,20 @@ func TestMonitor_AutoReconnect(t *testing.T) {
 	client := testGenerateClientAndConnectDB(t)
 	ctx := context.Background()
 
-	callbacks := MonitorCallbacks{OnEvent: func(event string) {}}
+	callbacks := MonitorCallbacks{
+		OnToken: func(token string, add bool) {
+			fmt.Println("token:", token, add)
+		},
+
+		OnEvent: func(event string) {
+			fmt.Println("event:", event)
+		},
+	}
 	monitor := NewMonitor(client, &callbacks, testDBMonitorOpts)
 	monitor.Start()
+
+	// wait first watch
+	time.Sleep(6 * minWatchInterval)
 
 	t.Run("msfrpcd", func(t *testing.T) {
 		token := client.GetToken()

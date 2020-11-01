@@ -30,7 +30,7 @@
     port     = 5433
     username = "msf"
     password = "msf"
-    database = "msf"
+    database = "msftest"
 
     [monitor.database.options]
       # other options about database
