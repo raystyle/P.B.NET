@@ -1,5 +1,5 @@
 <template>
-  <v-main class="pa-1">
+  <v-main>
     <div class="d-flex">
       <v-btn class="v-btn" text disabled>MSFRPC</v-btn>
       <v-btn class="v-btn" text to="/session">

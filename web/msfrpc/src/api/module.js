@@ -1,4 +1,4 @@
-import fetch from "../config/fetch.js"
+import fetch from "../config/fetch"
 
 export function getModules(type = "") {
     return fetch("GET", `/module/${type}`)

@@ -1,6 +1,6 @@
 <template>
   <v-main class="v-main-mt">
-    <div class="d-flex flex-row" style="height: 100%">
+    <div class="d-flex" style="height: 100%">
       <!-- left part -->
       <v-card class="cs-npm" tile min-width="310px" :width="leftPartSize">
         <!-- control components-->
@@ -27,6 +27,7 @@
                       label="module full path" v-model="fullPath" @click="selectFullPath"
         ></v-text-field>
       </v-card>
+      <!-- divider between left and right-->
       <v-divider class="pl-1" vertical style="visibility: hidden"></v-divider>
       <!-- right part -->
       <!-- 5px = pl-1(4px) + v-divider(1px) -->
@@ -42,7 +43,7 @@
         <v-tabs-items v-model="tab_index">
           <v-tab-item v-for="(tab, i) in tab_items" :key="tab.key">
             <!-- module name and control tab -->
-            <div class="d-flex flex-row" style="height: 100%">
+            <div class="d-flex" style="height: 100%">
               <!-- module name -->
               <v-text-field readonly solo hide-details flat dense label="module name"
                             v-model="tab.name" style="font-size: 24px"
@@ -125,7 +126,7 @@
 
             </div>
             <!-- tab about task -->
-            <div v-if="i !== 0" class="d-flex flex-row" style="height: 100%">
+            <div v-if="i !== 0" class="d-flex" style="height: 100%">
               <!-- left part about module information -->
               <v-card class="operation-card" tile :width="infoPartSize">
                 <!-- description -->

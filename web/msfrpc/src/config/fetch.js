@@ -5,10 +5,10 @@ const client = Vue.axios.create({
     baseURL: window.location.origin+"/api",
     headers:{
         "Accept":       "application/json",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     },
-    timeout: 15000
-});
+    timeout: 15000,
+})
 
 export default function (method = "GET", path = "", data = {}) {
     return new Promise(function (resolve, reject) {
@@ -19,16 +19,16 @@ export default function (method = "GET", path = "", data = {}) {
                 } catch (err) {
                     reject(err)
                 }
-                break;
+                break
             case "POST":
                 try {
                     resolve(client.post(path, data))
                 } catch (err) {
                     reject(err)
                 }
-                break;
+                break
             default:
-                console.log()
+
         }
     })
 }
