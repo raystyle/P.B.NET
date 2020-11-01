@@ -1,7 +1,8 @@
 [logger]
-  level = "info"
-  file  = "msfrpc.log"
-  error = "msfrpc.err"
+  enable = true
+  level  = "info"
+  file   = "msfrpc.log"
+  error  = "msfrpc.err"
 
 [client]
   address  = "127.0.0.1:55553" # msfrpcd address
@@ -59,8 +60,8 @@
       # other options about HTTP Server
       # see option/common/http_server.toml
 
-    [web.options.users]
-      "user" = "$2a$12$hLBEWQL8uY3E9zuyBKQbleN35lvq2yiD0uirEGDIFjxevnayg/dQq"
+    [web.options.users] # use bcrypt, password = "123456"
+      "user" = "$2a$12$iDAOgQ6Ee0mlXZHGOmsMee5dk.dulp.EnfSrf4J3nyUnyVru1JxD."
 
 [pprof]
   enable    = true
@@ -70,8 +71,8 @@
   key_file  = "cert/server.key"
 
   [pprof.options]
-    username  = "pprof"
-    password  = "pprof"
+    username  = "pprof" # use bcrypt, password = "pprof"
+    password  = "$2a$12$xi5wRpNsrdXLJRYVdgOLQeOwAndVVPxTmlKFl6562DCuEMgBZDTRe"
     timeout   = "1m"
     max_conns = 1000
 

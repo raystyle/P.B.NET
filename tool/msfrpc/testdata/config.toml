@@ -1,7 +1,8 @@
 [logger]
-  level = "info"
-  file  = "msfrpc.log"
-  error = "msfrpc.err"
+  enable = true
+  level  = "info"
+  file   = "msfrpc.log"
+  error  = "msfrpc.err"
 
 [client]
   address  = "127.0.0.1:55553"
@@ -42,8 +43,8 @@
   directory = "web"
 
   [web.options]
-    admin_username      = "admin" # use bcrypt, password = "msfrpc"
-    admin_password      = "$2a$12$hLBEWQL8uY3E9zuyBKQbleN35lvq2yiD0uirEGDIFjxevnayg/dQq"
+    admin_username      = "admin"
+    admin_password      = "bcrypt"
     disable_tls         = true
     max_conns           = 1000
     timeout             = "1m"
@@ -52,7 +53,7 @@
     api_only            = true
 
     [web.options.users]
-      "user" = "$2a$12$hLBEWQL8uY3E9zuyBKQbleN35lvq2yiD0uirEGDIFjxevnayg/dQq"
+      "user" = "bcrypt"
 
 [pprof]
   enable    = true
@@ -63,7 +64,7 @@
 
   [pprof.options]
     username  = "pprof"
-    password  = "pprof"
+    password  = "bcrypt"
     timeout   = "1m"
     max_conns = 1000
 

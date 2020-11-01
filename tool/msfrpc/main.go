@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -9,11 +10,13 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/kardianos/service"
 	"golang.org/x/crypto/bcrypt"
 
 	"project/internal/logger"
+	"project/internal/nettool"
 	"project/internal/option"
 	"project/internal/patch/toml"
 	"project/internal/system"
@@ -25,9 +28,10 @@ import (
 
 type config struct {
 	Logger struct {
-		Level string `toml:"level"`
-		File  string `toml:"file"`
-		Error string `toml:"error"`
+		Enable bool   `toml:"enable"`
+		Level  string `toml:"level"`
+		File   string `toml:"file"`
+		Error  string `toml:"error"`
 	} `toml:"logger"`
 
 	Client struct {
@@ -178,15 +182,23 @@ type program struct {
 func newProgram(config *config) (*program, error) {
 	// create logger
 	logCfg := config.Logger
-	level, err := logger.Parse(logCfg.Level)
-	if err != nil {
-		return nil, err
+	var (
+		mLogger logger.Logger
+		logFile *os.File
+	)
+	if logCfg.Enable {
+		level, err := logger.Parse(logCfg.Level)
+		if err != nil {
+			return nil, err
+		}
+		logFile, err := system.OpenFile(logCfg.File, os.O_CREATE|os.O_APPEND, 0600)
+		if err != nil {
+			return nil, err
+		}
+		mLogger = logger.NewMultiLogger(level, os.Stdout, logFile)
+	} else {
+		mLogger = logger.Discard
 	}
-	logFile, err := system.OpenFile(logCfg.File, os.O_CREATE|os.O_APPEND, 0600)
-	if err != nil {
-		return nil, err
-	}
-	mLogger := logger.NewMultiLogger(level, os.Stdout, logFile)
 
 	// create MSFRPC configuration
 	msfrpcCfg := msfrpc.Config{Logger: mLogger}
@@ -220,10 +232,10 @@ func newProgram(config *config) (*program, error) {
 	}
 	certs = append([]option.X509KeyPair{kp}, certs...)
 	msfrpcCfg.Web.Options.Server.TLSConfig.Certificates = certs
-
 	// set web directory
 	msfrpcCfg.Web.Options.HFS = http.Dir(config.Web.Directory)
 
+	// create msfrpc
 	MSFRPC, err := msfrpc.NewMSFRPC(&msfrpcCfg)
 	if err != nil {
 		return nil, err
@@ -245,8 +257,8 @@ func newProgram(config *config) (*program, error) {
 	if err != nil {
 		return nil, err
 	}
-	program.listener = listener
 	program.pprof = pprof
+	program.listener = listener
 	return &program, nil
 }
 
@@ -280,6 +292,12 @@ func (p *program) log(lv logger.Level, log ...interface{}) {
 
 func (p *program) Start(service.Service) error {
 	const title = "program.Start"
+
+	logger.HijackLogWriter(logger.Error, "pkg", p.logger)
+	errCh := make(chan error, 2)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	// start msfrpc
 	p.wg.Add(1)
 	go func() {
@@ -289,13 +307,19 @@ func (p *program) Start(service.Service) error {
 				xpanic.Log(r, title)
 			}
 		}()
-		err := p.msfrpc.Main()
-		if err != nil {
-			p.log(logger.Fatal, err)
-			os.Exit(1)
-		}
+		errCh <- p.msfrpc.Main()
 	}()
-	// start pprof https server
+	_, err := nettool.WaitServerServe(ctx, errCh, p.msfrpc, 1)
+	if err != nil {
+		p.log(logger.Fatal, err)
+		return err
+	}
+	p.msfrpc.Wait()
+
+	// start pprof server
+	if p.pprof == nil {
+		return nil
+	}
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -304,26 +328,35 @@ func (p *program) Start(service.Service) error {
 				xpanic.Log(r, title)
 			}
 		}()
-		err := p.pprof.Serve(p.listener)
-		if err != nil {
-			p.log(logger.Fatal, err)
-			os.Exit(1)
-		}
+		errCh <- p.pprof.Serve(p.listener)
 	}()
+	_, err = nettool.WaitServerServe(ctx, errCh, p.pprof, 1)
+	if err != nil {
+		p.log(logger.Fatal, err)
+		return err
+	}
+	p.log(logger.Info, "pprof server is running")
 	return nil
 }
 
 func (p *program) Stop(service.Service) error {
-	err := p.pprof.Close()
-	if err != nil {
-		p.log(logger.Error, "appear error when close pprof server:", err)
-	}
-	p.log(logger.Info, "pprof server is closed")
+	// close msfrpc first
 	p.msfrpc.Exit()
+	// close pprof server
+	if p.pprof != nil {
+		err := p.pprof.Close()
+		if err != nil {
+			p.log(logger.Error, "appear error when close pprof server:", err)
+		}
+		p.log(logger.Info, "pprof server is closed")
+	}
 	p.wg.Wait()
-	err = p.logFile.Close()
-	if err != nil {
-		p.log(logger.Error, "appear error when close log file:", err)
+	// close log file
+	if p.logFile != nil {
+		err := p.logFile.Close()
+		if err != nil {
+			p.log(logger.Error, "appear error when close log file:", err)
+		}
 	}
 	p.log(logger.Info, "msfrpc service is stopped")
 	return nil
