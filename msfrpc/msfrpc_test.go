@@ -232,18 +232,24 @@ func init() {
 	testMSFRPCConfig.Web.Network = "tcp"
 	testMSFRPCConfig.Web.Address = "127.0.0.1:0"
 	testMSFRPCConfig.Web.Options = &WebOptions{
-		AdminUsername: "admin",
 		AdminPassword: "$2a$12$er.iGxcRPUZnmUP.E7JrSOMZsJtoBkqXVIvRQywVaplIplupj7X.G", // "admin"
 		DisableTLS:    true,
 		HFS:           http.Dir("testdata/web"),
 		Users: map[string]*WebUser{
-			"test": {
+			"manager": {
 				Password:    "$2a$12$ADJFbAyjZ5XkekEXewEOeu8UmKMXDkcmu.RPV/AkP.j7CMeGQKz5u", // "test"
-				DisplayName: "Test",
+				UserGroup:   UserGroupManagers,
+				DisplayName: "Manager",
 			},
-			"test2": {
+			"user": {
 				Password:    "$2a$12$ADJFbAyjZ5XkekEXewEOeu8UmKMXDkcmu.RPV/AkP.j7CMeGQKz5u", // "test"
-				DisplayName: "Test2",
+				UserGroup:   UserGroupUsers,
+				DisplayName: "User",
+			},
+			"guest": {
+				Password:    "$2a$12$ADJFbAyjZ5XkekEXewEOeu8UmKMXDkcmu.RPV/AkP.j7CMeGQKz5u", // "test"
+				UserGroup:   UserGroupGuests,
+				DisplayName: "Guest",
 			},
 		},
 	}
@@ -272,7 +278,7 @@ func TestMSFRPC(t *testing.T) {
 	defer cancel()
 	addrs, err := nettool.WaitServerServe(ctx, errCh, msfrpc, 2)
 	require.NoError(t, err)
-	fmt.Println("web server addresses:", addrs)
+	msfrpc.logger.Println(logger.Debug, "test", "web server addresses:", addrs)
 
 	// reload
 	err = msfrpc.Reload()

@@ -110,6 +110,7 @@ func TestWebOptions(t *testing.T) {
 	}{
 		{expected: "admin", actual: opts.AdminUsername},
 		{expected: "bcrypt", actual: opts.AdminPassword},
+		{expected: "Admin", actual: opts.AdminDisplayName},
 		{expected: true, actual: opts.DisableTLS},
 		{expected: 1000, actual: opts.MaxConns},
 		{expected: time.Minute, actual: opts.Timeout},
@@ -117,7 +118,6 @@ func TestWebOptions(t *testing.T) {
 		{expected: int64(10240), actual: opts.MaxLargeBodySize},
 		{expected: true, actual: opts.APIOnly},
 		{expected: 30 * time.Second, actual: opts.Server.ReadTimeout},
-		{expected: "bcrypt", actual: opts.Users["user"]},
 	} {
 		require.Equal(t, testdata.expected, testdata.actual)
 	}

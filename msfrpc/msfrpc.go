@@ -59,6 +59,7 @@ type MSFRPC struct {
 // NewMSFRPC is used to create a new msfrpc program.
 func NewMSFRPC(cfg *Config) (*MSFRPC, error) {
 	msfrpc := &MSFRPC{logger: cfg.Logger}
+	// initialize msfrpc client
 	address := cfg.Client.Address
 	username := cfg.Client.Username
 	password := cfg.Client.Password
@@ -68,10 +69,12 @@ func NewMSFRPC(cfg *Config) (*MSFRPC, error) {
 		return nil, errors.Wrap(err, "failed to create client")
 	}
 	msfrpc.client = client
+	msfrpc.logger.Print(logger.Info, "init", "create msfrpc client")
 	// copy database configuration
 	if cfg.Monitor.EnableDB && cfg.Monitor.Database != nil {
 		msfrpc.database = cfg.Monitor.Database
 	}
+	// initialize web server
 	web, err := NewWeb(msfrpc, cfg.Web.Options)
 	if err != nil {
 		return nil, err
@@ -88,6 +91,7 @@ func NewMSFRPC(cfg *Config) (*MSFRPC, error) {
 		msfrpc.listener = listener
 	}
 	msfrpc.web = web
+	// monitor and io manager
 	msfrpc.monitor = NewMonitor(client, web.MonitorCallbacks(), cfg.Monitor)
 	msfrpc.ioManager = NewIOManager(client, web.IOEventHandlers(), cfg.IOManager)
 	// wait and exit

@@ -43,6 +43,30 @@ const (
 	minRequestLargeBodySize = 64 * 1024 * 1024 // 64MB
 )
 
+// admin user > managers > users > guests
+const (
+	userGroupManagers = 3
+	userGroupUsers    = 2
+	userGroupGuests   = 1
+
+	UserGroupManagers = "managers" // can unlock IOObject force.
+	UserGroupUsers    = "users"    // common usage
+	UserGroupGuests   = "guests"   // read only
+)
+
+var userGroups = map[string]int{
+	UserGroupManagers: userGroupManagers,
+	UserGroupUsers:    userGroupUsers,
+	UserGroupGuests:   userGroupGuests,
+}
+
+// WebUser contains user information.
+type WebUser struct {
+	Password    string `toml:"password"`     // "bcrypt"
+	UserGroup   string `toml:"user_group"`   // "managers", "users", "guests"
+	DisplayName string `toml:"display_name"` // name displayed on UI.
+}
+
 // WebOptions contains options about web server.
 type WebOptions struct {
 	// AdminUsername is the administrator username,
@@ -82,13 +106,7 @@ type WebOptions struct {
 	Server option.HTTPServer `toml:"server" check:"-"`
 
 	// Users contains common users, key is the username.
-	Users map[string]*WebUser `toml:"users"`
-}
-
-// WebUser contains user information.
-type WebUser struct {
-	Password    string `toml:"password"` // "bcrypt"
-	DisplayName string `toml:"display_name"`
+	Users map[string]*WebUser `toml:"-" check:"-"`
 }
 
 // Web is provide a web UI and API server.
@@ -117,12 +135,14 @@ func NewWeb(msfrpc *MSFRPC, opts *WebOptions) (*Web, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create web api")
 	}
+	msfrpc.logger.Print(logger.Info, "init", "initialize web api successfully")
 	var webUI *webUI
 	if !opts.APIOnly {
 		webUI, err = newWebUI(opts.HFS, mux)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to create web ui")
 		}
+		msfrpc.logger.Print(logger.Info, "init", "initialize web ui successfully")
 	}
 	// set http server
 	server.Handler = mux
@@ -392,6 +412,7 @@ type webAPI struct {
 
 type webUser struct {
 	password    *security.Bytes
+	userGroup   int
 	displayName *security.Bytes
 }
 
@@ -408,7 +429,7 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	if adminUsername == "" {
 		adminUsername = defaultAdminUsername
 		const log = "admin username is not set, use the default username:"
-		api.log(logger.Info, log, defaultAdminUsername)
+		api.log(logger.Warning, log, defaultAdminUsername)
 	}
 	api.adminUsername = security.NewBytes([]byte(adminUsername))
 	// set administrator password
@@ -417,7 +438,7 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		password := random.NewRand().String(16)
 		defer security.CoverString(password)
 		const log = "admin password is not set, use the random password:"
-		api.log(logger.Info, log, password)
+		api.log(logger.Warning, log, password)
 		// generate bcrypt hash
 		passwordBytes := []byte(password)
 		defer security.CoverBytes(passwordBytes)
@@ -432,8 +453,8 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	adminDisplayName := opts.AdminDisplayName
 	if adminDisplayName == "" {
 		adminDisplayName = defaultAdminDisplayName
-		const log = "admin display name is not set, use the default name:"
-		api.log(logger.Info, log, defaultAdminDisplayName)
+		const log = "admin display name is not set, use the default display name:"
+		api.log(logger.Warning, log, defaultAdminDisplayName)
 	}
 	api.adminDisplayName = security.NewBytes([]byte(adminDisplayName))
 	// set max body size
@@ -446,11 +467,20 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	// set common user
 	api.users = make(map[string]*webUser, len(opts.Users))
 	for username, userInfo := range opts.Users {
-		api.users[username] = &webUser{
+		user := webUser{
 			password:    security.NewBytes([]byte(userInfo.Password)),
 			displayName: security.NewBytes([]byte(userInfo.DisplayName)),
 		}
+		userGroup, ok := userGroups[userInfo.UserGroup]
+		if !ok {
+			const format = "user: \"%s\" set invalid user group: \"%s\""
+			return nil, errors.Errorf(format, username, userInfo.UserGroup)
+		}
+		user.userGroup = userGroup
+		api.users[username] = &user
 	}
+	msfrpc.logger.Print(logger.Info, "init", "load user information successfully")
+	// json & guid generator
 	api.encoderPool.New = func() interface{} {
 		return json.NewEncoder(64)
 	}
@@ -466,7 +496,7 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		ReadBufferSize:   4096,
 		WriteBufferSize:  4096,
 	}
-	// set handler
+	// set web handler
 	for path, handler := range map[string]http.HandlerFunc{
 		"/api/login": api.handleLogin,
 		"/api/ws":    api.handleWebsocket,
@@ -592,6 +622,12 @@ func (api *webAPI) log(lv logger.Level, log ...interface{}) {
 	api.ctx.logger.Println(lv, "msfrpc-web api", log...)
 }
 
+func (api *webAPI) Close() {
+	api.counter.Wait()
+	api.guid.Close()
+	api.msfrpc = nil
+}
+
 // ----------------------------------------monitor callbacks---------------------------------------
 
 func (api *webAPI) onToken(token string, add bool) {
@@ -682,11 +718,6 @@ func (api *webAPI) onMeterpreterLocked(id uint64, token string) {
 
 func (api *webAPI) onMeterpreterUnlocked(id uint64, token string) {
 	fmt.Println("console id:", id, "token:", token)
-}
-
-func (api *webAPI) Close() {
-	api.counter.Wait()
-	api.msfrpc = nil
 }
 
 func (api *webAPI) readRequest(r *http.Request, req interface{}) error {

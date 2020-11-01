@@ -1,5 +1,6 @@
 admin_username      = "admin"
 admin_password      = "bcrypt"
+admin_display_name  = "Admin"
 disable_tls         = true
 max_conns           = 1000
 timeout             = "1m"
@@ -9,6 +10,3 @@ api_only            = true
 
 [server]
   read_timeout = "30s"
-
-[users]
-  "user" = "bcrypt"
