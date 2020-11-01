@@ -1,6 +1,7 @@
 package msfrpc
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -18,6 +19,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/netutil"
 
+	"project/internal/crypto/aes"
+	"project/internal/guid"
 	"project/internal/httptool"
 	"project/internal/logger"
 	"project/internal/nettool"
@@ -33,6 +36,7 @@ import (
 
 const (
 	defaultAdminUsername    = "admin"
+	defaultAdminDisplayName = "Admin"
 	defaultServerTimeout    = 2 * time.Minute
 	defaultServerMaxConns   = 1000
 	minRequestBodySize      = 4 * 1024 * 1024  // 4MB
@@ -42,41 +46,49 @@ const (
 // WebOptions contains options about web server.
 type WebOptions struct {
 	// AdminUsername is the administrator username,
-	// if it is empty, use the default admin username
+	// if it is empty, use the default admin username.
 	AdminUsername string `toml:"admin_username"`
 
 	// AdminPassword is the administrator hashed password(bcrypt),
-	// if it is empty, program will generate a random value
+	// if it is empty, program will generate a random value.
 	AdminPassword string `toml:"admin_password"`
+
+	// AdminDisplayName is the administrator name will be show.
+	AdminDisplayName string `toml:"admin_display_name"`
 
 	// DisableTLS is used to disable http server use TLS.
 	DisableTLS bool `toml:"disable_tls"`
 
-	// MaxConns is the web server maximum connections
+	// MaxConns is the web server maximum connections.
 	MaxConns int `toml:"max_conns"`
 
-	// Timeout is the web server timeout
+	// Timeout is the web server timeout.
 	Timeout time.Duration `toml:"timeout"`
 
-	// MaxBodySize is the incoming request maximum body size
+	// MaxBodySize is the incoming request maximum body size.
 	MaxBodySize int64 `toml:"max_body_size"`
 
 	// MaxLargeBodySize is the incoming large request maximum
 	// body size, like upload a file, or some else.
 	MaxLargeBodySize int64 `toml:"max_large_body_size"`
 
-	// HFS is used to use custom file system
+	// HFS is used to use custom file system.
 	HFS http.FileSystem `toml:"-" msgpack:"-"`
 
-	// APIOnly is used to disable Web UI
+	// APIOnly is used to disable Web UI.
 	APIOnly bool `toml:"api_only"`
 
 	// Server contains options about http server.
 	Server option.HTTPServer `toml:"server" check:"-"`
 
-	// Users contains common users, key is the username and
-	// value is the hashed password(bcrypt)
-	Users map[string]string `toml:"users"`
+	// Users contains common users, key is the username.
+	Users map[string]*WebUser `toml:"users"`
+}
+
+// WebUser contains user information.
+type WebUser struct {
+	Password    string `toml:"password"` // "bcrypt"
+	DisplayName string `toml:"display_name"`
 }
 
 // Web is provide a web UI and API server.
@@ -354,18 +366,23 @@ type webAPI struct {
 	msfrpc *MSFRPC
 	ctx    *Client
 
-	adminUsername *security.Bytes
-	adminPassword *security.Bytes
+	disableTLS bool
+
+	adminUsername    *security.Bytes
+	adminPassword    *security.Bytes
+	adminDisplayName *security.Bytes
 
 	maxReqBodySize      int64
 	maxLargeReqBodySize int64
 
-	// common users
-	users    map[string]*security.Bytes
+	// common users, web api can add temporary user.
+	users    map[string]*webUser
 	usersRWM sync.RWMutex
 
-	encoderPool sync.Pool           // json encoder
-	wsUpgrader  *websocket.Upgrader // notice event
+	encoderPool sync.Pool             // json encoder
+	guid        *guid.Generator       // guid generator
+	cookieStore *sessions.CookieStore // about cookie
+	wsUpgrader  *websocket.Upgrader   // notice event
 
 	inShutdown int32
 
@@ -373,10 +390,16 @@ type webAPI struct {
 	counter xsync.Counter
 }
 
+type webUser struct {
+	password    *security.Bytes
+	displayName *security.Bytes
+}
+
 func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, error) {
 	api := webAPI{
 		msfrpc:              msfrpc,
 		ctx:                 msfrpc.client,
+		disableTLS:          opts.DisableTLS,
 		maxReqBodySize:      opts.MaxBodySize,
 		maxLargeReqBodySize: opts.MaxLargeBodySize,
 	}
@@ -405,6 +428,14 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		adminPassword = string(hash)
 	}
 	api.adminPassword = security.NewBytes([]byte(adminPassword))
+	// set administrator display name
+	adminDisplayName := opts.AdminDisplayName
+	if adminDisplayName == "" {
+		adminDisplayName = defaultAdminDisplayName
+		const log = "admin display name is not set, use the default name:"
+		api.log(logger.Info, log, defaultAdminDisplayName)
+	}
+	api.adminDisplayName = security.NewBytes([]byte(adminDisplayName))
 	// set max body size
 	if api.maxReqBodySize < minRequestBodySize {
 		api.maxReqBodySize = minRequestBodySize
@@ -413,13 +444,23 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		api.maxLargeReqBodySize = minRequestLargeBodySize
 	}
 	// set common user
-	api.users = make(map[string]*security.Bytes, len(opts.Users))
-	for username, password := range opts.Users {
-		api.users[username] = security.NewBytes([]byte(password))
+	api.users = make(map[string]*webUser, len(opts.Users))
+	for username, userInfo := range opts.Users {
+		api.users[username] = &webUser{
+			password:    security.NewBytes([]byte(userInfo.Password)),
+			displayName: security.NewBytes([]byte(userInfo.DisplayName)),
+		}
 	}
 	api.encoderPool.New = func() interface{} {
 		return json.NewEncoder(64)
 	}
+	api.guid = guid.New(128, nil)
+	// set cookie store
+	rand := random.NewRand()
+	hashKey := rand.Bytes(sha256.Size)
+	blockKey := random.Bytes(aes.Key256Bit)
+	api.cookieStore = sessions.NewCookieStore(hashKey, blockKey)
+	// set websocket upgrader
 	api.wsUpgrader = &websocket.Upgrader{
 		HandshakeTimeout: time.Minute,
 		ReadBufferSize:   4096,
@@ -657,7 +698,8 @@ func (api *webAPI) readRequest(r *http.Request, req interface{}) error {
 	if err != io.EOF {
 		name := xreflect.GetStructureName(req)
 		buf := httptool.PrintRequest(r)
-		api.logf(logger.Error, "failed to read request about %s\n%s", name, buf)
+		const format = "failed to read request about %s\nerror: %s\n%s"
+		api.logf(logger.Error, format, name, err, buf)
 	}
 	return err
 }
@@ -672,7 +714,8 @@ func (api *webAPI) readLargeRequest(r *http.Request, req interface{}) error {
 	if err != io.EOF {
 		name := xreflect.GetStructureName(req)
 		buf := httptool.PrintRequest(r)
-		api.logf(logger.Error, "failed to read large request about %s\n%s", name, buf)
+		const format = "failed to read large request about %s\nerror: %s\n%s"
+		api.logf(logger.Error, format, name, err, buf)
 	}
 	return err
 }
@@ -746,7 +789,7 @@ type loginRequest struct {
 }
 
 func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
-	const errInvalidCred = "username or password is incorrect"
+	const errInvalidUser = "username or password is incorrect"
 
 	req := loginRequest{}
 	err := api.readRequest(r, &req)
@@ -756,15 +799,18 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	defer security.CoverString(req.Password)
 
+	var isAdmin bool
+
 	// get hash
 	var hash []byte
 	if req.Username == api.adminUsername.String() {
 		hash = api.adminPassword.Get()
 		defer api.adminPassword.Put(hash)
+		isAdmin = true
 	} else {
 		sb := api.getUserPasswordHash(req.Username)
 		if sb == nil {
-			api.writeErrorString(w, errInvalidCred)
+			api.writeErrorString(w, errInvalidUser)
 			return
 		}
 		hash = sb.Get()
@@ -776,17 +822,42 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	defer security.CoverBytes(pwd)
 	err = bcrypt.CompareHashAndPassword(hash, pwd)
 	if err != nil {
-		api.writeErrorString(w, errInvalidCred)
+		api.writeErrorString(w, errInvalidUser)
 		return
 	}
 
-	fmt.Println("login successfully")
+	// set session cookie
+	session := sessions.NewSession(api.cookieStore, "session")
+	// set cookie options
+	opts := session.Options
+	opts.Path = "/"
+	opts.Domain = ""
+	opts.MaxAge = 0
+	if !api.disableTLS {
+		opts.Secure = true
+	}
+	opts.HttpOnly = true
+	// set value
+	session.Values["username"] = req.Username
+	if isAdmin {
+		session.Values["permission"] = "admin"
+	} else {
+		session.Values["permission"] = "user"
+	}
+	session.Values["token"] = api.guid.Get().Hex()
+
+	// write session
+	err = session.Save(r, w)
+	if err != nil {
+		api.writeError(w, err)
+		return
+	}
 }
 
 func (api *webAPI) getUserPasswordHash(username string) *security.Bytes {
 	api.usersRWM.RLock()
 	defer api.usersRWM.RUnlock()
-	return api.users[username]
+	return api.users[username].password
 }
 
 func (api *webAPI) handleWebsocket(w http.ResponseWriter, r *http.Request) {
@@ -799,8 +870,6 @@ func (api *webAPI) handleWebsocket(w http.ResponseWriter, r *http.Request) {
 	_ = conn.WriteMessage(websocket.TextMessage, []byte("hello client"))
 	fmt.Println("send hello!")
 }
-
-// ---------------------------------------Metasploit RPC API---------------------------------------
 
 // --------------------------------------about authentication--------------------------------------
 

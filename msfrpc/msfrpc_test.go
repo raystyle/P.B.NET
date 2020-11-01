@@ -236,8 +236,15 @@ func init() {
 		AdminPassword: "$2a$12$er.iGxcRPUZnmUP.E7JrSOMZsJtoBkqXVIvRQywVaplIplupj7X.G", // "admin"
 		DisableTLS:    true,
 		HFS:           http.Dir("testdata/web"),
-		Users: map[string]string{
-			"test": "$2a$12$ADJFbAyjZ5XkekEXewEOeu8UmKMXDkcmu.RPV/AkP.j7CMeGQKz5u", // "test"
+		Users: map[string]*WebUser{
+			"test": {
+				Password:    "$2a$12$ADJFbAyjZ5XkekEXewEOeu8UmKMXDkcmu.RPV/AkP.j7CMeGQKz5u", // "test"
+				DisplayName: "Test",
+			},
+			"test2": {
+				Password:    "$2a$12$ADJFbAyjZ5XkekEXewEOeu8UmKMXDkcmu.RPV/AkP.j7CMeGQKz5u", // "test"
+				DisplayName: "Test2",
+			},
 		},
 	}
 }
