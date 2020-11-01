@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/nettool"
 	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
@@ -241,7 +242,7 @@ func init() {
 	}
 }
 
-func TestMSFRPC_HijackLogWriter(t *testing.T) {
+func TestMSFRPC(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -253,8 +254,22 @@ func TestMSFRPC_HijackLogWriter(t *testing.T) {
 	}()
 	msfrpc.Wait()
 
-	msfrpc.HijackLogWriter()
-	log.Print("hijacked log")
+	// serve a new listener
+	errCh := make(chan error, 1)
+	go func() {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		errCh <- msfrpc.Serve(listener)
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	addrs, err := nettool.WaitServerServe(ctx, errCh, msfrpc, 2)
+	require.NoError(t, err)
+	fmt.Println("web server addresses:", addrs)
+
+	// reload
+	err = msfrpc.Reload()
+	require.NoError(t, err)
 
 	msfrpc.Exit()
 

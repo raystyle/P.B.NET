@@ -222,11 +222,6 @@ func (msfrpc *MSFRPC) sendError(err error) {
 	}
 }
 
-// HijackLogWriter is used to hijack all packages that call functions like log.Println().
-func (msfrpc *MSFRPC) HijackLogWriter() {
-	logger.HijackLogWriter(logger.Error, "pkg", msfrpc.logger)
-}
-
 // Serve is used to serve listener to inner web.
 // external program can use internal/virtualconn.Listener for magical.
 func (msfrpc *MSFRPC) Serve(listener net.Listener) error {
