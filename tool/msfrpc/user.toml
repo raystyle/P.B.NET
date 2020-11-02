@@ -1,0 +1,16 @@
+# all passwords is "test"
+
+[manager]
+  password     = "$2a$12$ADJFbAyjZ5XkekEXewEOeu8UmKMXDkcmu.RPV/AkP.j7CMeGQKz5u"
+  user_group   = "managers"
+  display_name = "Manager"
+
+[user]
+  password     = "$2a$12$ADJFbAyjZ5XkekEXewEOeu8UmKMXDkcmu.RPV/AkP.j7CMeGQKz5u"
+  user_group   = "users"
+  display_name = "User"
+
+[guest]
+  password     = "$2a$12$ADJFbAyjZ5XkekEXewEOeu8UmKMXDkcmu.RPV/AkP.j7CMeGQKz5u"
+  user_group   = "guests"
+  display_name = "Guest"

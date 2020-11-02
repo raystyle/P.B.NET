@@ -50,6 +50,7 @@ type config struct {
 		Address   string            `toml:"address"`
 		CertFile  string            `toml:"cert_file"`
 		KeyFile   string            `toml:"key_file"`
+		UserFile  string            `toml:"user_file"`
 		Directory string            `toml:"directory"`
 		Options   msfrpc.WebOptions `toml:"options"`
 	} `toml:"web"`
@@ -232,6 +233,17 @@ func newProgram(initErr *os.File, config *config) (*program, error) {
 	}
 	certs = append([]option.X509KeyPair{kp}, certs...)
 	msfrpcCfg.Web.Options.Server.TLSConfig.Certificates = certs
+
+	// load web users
+	user, err := ioutil.ReadFile(config.Web.UserFile)
+	if err != nil {
+		return nil, err
+	}
+	err = toml.Unmarshal(user, &msfrpcCfg.Web.Options.Users)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load web user: %s", err)
+	}
+
 	// set web directory
 	msfrpcCfg.Web.Options.HFS = http.Dir(config.Web.Directory)
 
