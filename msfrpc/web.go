@@ -41,10 +41,12 @@ const (
 	defaultServerMaxConns   = 1000
 	minRequestBodySize      = 4 * 1024 * 1024  // 4MB
 	minRequestLargeBodySize = 64 * 1024 * 1024 // 64MB
+	sessionName             = "Session"
 )
 
 // admin user > managers > users > guests
 const (
+	userGroupAdmins   = 4 // internal group for admin user
 	userGroupManagers = 3
 	userGroupUsers    = 2
 	userGroupGuests   = 1
@@ -386,12 +388,7 @@ type webAPI struct {
 	msfrpc *MSFRPC
 	ctx    *Client
 
-	disableTLS bool
-
-	adminUsername    *security.Bytes
-	adminPassword    *security.Bytes
-	adminDisplayName *security.Bytes
-
+	disableTLS          bool
 	maxReqBodySize      int64
 	maxLargeReqBodySize int64
 
@@ -404,6 +401,10 @@ type webAPI struct {
 	cookieStore *sessions.CookieStore // about cookie
 	wsUpgrader  *websocket.Upgrader   // notice event
 
+	// user is online
+	tokens    map[string]*webUser
+	tokensRWM sync.RWMutex
+
 	inShutdown int32
 
 	// Web use it for prevent cycle reference
@@ -411,6 +412,7 @@ type webAPI struct {
 }
 
 type webUser struct {
+	username    *security.Bytes
 	password    *security.Bytes
 	userGroup   int
 	displayName *security.Bytes
@@ -424,6 +426,22 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		maxReqBodySize:      opts.MaxBodySize,
 		maxLargeReqBodySize: opts.MaxLargeBodySize,
 	}
+	// set common user
+	api.users = make(map[string]*webUser, len(opts.Users)+1) // admin
+	for username, userInfo := range opts.Users {
+		user := webUser{
+			username:    security.NewBytes([]byte(username)),
+			password:    security.NewBytes([]byte(userInfo.Password)),
+			displayName: security.NewBytes([]byte(userInfo.DisplayName)),
+		}
+		userGroup, ok := userGroups[userInfo.UserGroup]
+		if !ok {
+			const format = "user: \"%s\" set invalid user group: \"%s\""
+			return nil, errors.Errorf(format, username, userInfo.UserGroup)
+		}
+		user.userGroup = userGroup
+		api.users[username] = &user
+	}
 	// set administrator username
 	adminUsername := opts.AdminUsername
 	if adminUsername == "" {
@@ -431,7 +449,6 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		const log = "admin username is not set, use the default username:"
 		api.log(logger.Warning, log, defaultAdminUsername)
 	}
-	api.adminUsername = security.NewBytes([]byte(adminUsername))
 	// set administrator password
 	adminPassword := opts.AdminPassword
 	if adminPassword == "" { // generate a random password
@@ -448,7 +465,6 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		}
 		adminPassword = string(hash)
 	}
-	api.adminPassword = security.NewBytes([]byte(adminPassword))
 	// set administrator display name
 	adminDisplayName := opts.AdminDisplayName
 	if adminDisplayName == "" {
@@ -456,7 +472,13 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		const log = "admin display name is not set, use the default display name:"
 		api.log(logger.Warning, log, defaultAdminDisplayName)
 	}
-	api.adminDisplayName = security.NewBytes([]byte(adminDisplayName))
+	api.users[adminUsername] = &webUser{
+		username:    security.NewBytes([]byte(adminUsername)),
+		password:    security.NewBytes([]byte(adminPassword)),
+		userGroup:   userGroupAdmins,
+		displayName: security.NewBytes([]byte(adminDisplayName)),
+	}
+	msfrpc.logger.Print(logger.Info, "init", "load user information successfully")
 	// set max body size
 	if api.maxReqBodySize < minRequestBodySize {
 		api.maxReqBodySize = minRequestBodySize
@@ -464,22 +486,6 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	if api.maxLargeReqBodySize < minRequestLargeBodySize {
 		api.maxLargeReqBodySize = minRequestLargeBodySize
 	}
-	// set common user
-	api.users = make(map[string]*webUser, len(opts.Users))
-	for username, userInfo := range opts.Users {
-		user := webUser{
-			password:    security.NewBytes([]byte(userInfo.Password)),
-			displayName: security.NewBytes([]byte(userInfo.DisplayName)),
-		}
-		userGroup, ok := userGroups[userInfo.UserGroup]
-		if !ok {
-			const format = "user: \"%s\" set invalid user group: \"%s\""
-			return nil, errors.Errorf(format, username, userInfo.UserGroup)
-		}
-		user.userGroup = userGroup
-		api.users[username] = &user
-	}
-	msfrpc.logger.Print(logger.Info, "init", "load user information successfully")
 	// json & guid generator
 	api.encoderPool.New = func() interface{} {
 		return json.NewEncoder(64)
@@ -498,8 +504,8 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	}
 	// set web handler
 	for path, handler := range map[string]http.HandlerFunc{
-		"/api/login": api.handleLogin,
-		"/api/ws":    api.handleWebsocket,
+		"/api/login":     api.handleLogin,
+		"/api/websocket": api.handleWebsocket,
 
 		"/api/auth/logout":         api.handleAuthenticationLogout,
 		"/api/auth/token/list":     api.handleAuthenticationTokenList,
@@ -802,53 +808,34 @@ func (api *webAPI) handlePanic(w http.ResponseWriter, _ *http.Request, e interfa
 
 // ------------------------------------about web authentication------------------------------------
 
-func (api *webAPI) checkAdminPermissions(w http.ResponseWriter, r *http.Request) {
-	// websocket.IsWebSocketUpgrade()
-	fmt.Println(r.Header)
-	w.WriteHeader(200)
+func (api *webAPI) getUser(username string) *webUser {
+	api.usersRWM.RLock()
+	defer api.usersRWM.RUnlock()
+	return api.users[username]
 }
 
-func (api *webAPI) checkUserPermissions(w http.ResponseWriter, r *http.Request) {
-	// websocket.IsWebSocketUpgrade()
-	fmt.Println(r.Header)
-	w.WriteHeader(200)
-}
-
-type loginRequest struct {
+type webLoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
 func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	const errInvalidUser = "username or password is incorrect"
-
-	req := loginRequest{}
+	req := webLoginRequest{}
 	err := api.readRequest(r, &req)
 	if err != nil {
 		api.writeError(w, err)
 		return
 	}
 	defer security.CoverString(req.Password)
-
-	var isAdmin bool
-
-	// get hash
-	var hash []byte
-	if req.Username == api.adminUsername.String() {
-		hash = api.adminPassword.Get()
-		defer api.adminPassword.Put(hash)
-		isAdmin = true
-	} else {
-		sb := api.getUserPasswordHash(req.Username)
-		if sb == nil {
-			api.writeErrorString(w, errInvalidUser)
-			return
-		}
-		hash = sb.Get()
-		defer sb.Put(hash)
+	// get password hash
+	user := api.getUser(req.Username)
+	if user == nil {
+		api.writeErrorString(w, errInvalidUser)
+		return
 	}
-
-	// check password
+	hash := user.password.Get()
+	defer user.password.Put(hash)
 	pwd := []byte(req.Password)
 	defer security.CoverBytes(pwd)
 	err = bcrypt.CompareHashAndPassword(hash, pwd)
@@ -856,9 +843,11 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 		api.writeErrorString(w, errInvalidUser)
 		return
 	}
+	api.setSession(w, r, user)
+}
 
-	// set session cookie
-	session := sessions.NewSession(api.cookieStore, "session")
+func (api *webAPI) setSession(w http.ResponseWriter, r *http.Request, user *webUser) {
+	session := sessions.NewSession(api.cookieStore, sessionName)
 	// set cookie options
 	opts := session.Options
 	opts.Path = "/"
@@ -868,39 +857,63 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 		opts.Secure = true
 	}
 	opts.HttpOnly = true
-	// set value
-	session.Values["username"] = req.Username
-	if isAdmin {
-		session.Values["permission"] = "admin"
-	} else {
-		session.Values["permission"] = "user"
-	}
+	// set cookie value
+	username := user.username.String()
+	displayName := user.displayName.String()
+	session.Values["username"] = username
+	session.Values["user_group"] = user.userGroup
+	session.Values["display_name"] = displayName
 	session.Values["token"] = api.guid.Get().Hex()
-
 	// write session
-	err = session.Save(r, w)
+	err := session.Save(r, w)
 	if err != nil {
 		api.writeError(w, err)
 		return
 	}
+	resp := struct {
+		Result      string `json:"result"`
+		Username    string `json:"username"`
+		UserGroup   int    `json:"user_group"`
+		DisplayName string `json:"display_name"`
+	}{
+		Result:      "success",
+		Username:    username,
+		UserGroup:   user.userGroup,
+		DisplayName: displayName,
+	}
+	api.writeResponse(w, &resp)
 }
 
-func (api *webAPI) getUserPasswordHash(username string) *security.Bytes {
-	api.usersRWM.RLock()
-	defer api.usersRWM.RUnlock()
-	return api.users[username].password
+func (api *webAPI) checkUserPermission(r *http.Request, userGroup int) bool {
+	session, err := api.cookieStore.Get(r, sessionName)
+	if err != nil {
+		api.log(logger.Debug, "failed to get session:", err)
+		return false
+	}
+	username := session.Values["username"].(string)
+	// check user is exist
+	user := api.getUser(username)
+	if user == nil {
+		api.logf(logger.Debug, "user \"%s\" is not exist", username)
+		return false
+	}
+	return session.Values["user_group"].(int) >= userGroup
 }
 
 func (api *webAPI) handleWebsocket(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("ok:", api.checkUserPermission(r, userGroupGuests))
+
 	// upgrade to websocket connection, server can push message to client
 	conn, err := api.wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
-		api.log(logger.Error, "failed to upgrade", err)
+		api.log(logger.Debug, "failed to upgrade", err)
 		return
 	}
 	_ = conn.WriteMessage(websocket.TextMessage, []byte("hello client"))
 	fmt.Println("send hello!")
 }
+
+// ---------------------------------------Metasploit RPC API---------------------------------------
 
 // --------------------------------------about authentication--------------------------------------
 

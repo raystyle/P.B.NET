@@ -56,18 +56,18 @@ func installPatchFiles() bool {
 		latest := fmt.Sprintf("%s/src/%s", cfg.Common.GoRootLatest, item.dst)
 		err := copyFileToGoRoot(item.src, latest)
 		if err != nil {
-			const format = "failed to install patch file %s to go latest root path: %s"
+			const format = "failed to install patch file \"%s\" to go latest root path: %s"
 			log.Printf(logger.Error, format, item.note, err)
 			return false
 		}
 		go1108 := fmt.Sprintf("%s/src/%s", cfg.Common.GoRoot1108, item.dst)
 		err = copyFileToGoRoot(item.src, go1108)
 		if err != nil {
-			const format = "failed to install patch file %s to go 1.10.8 root path: %s"
+			const format = "failed to install patch file \"%s\" to go 1.10.8 root path: %s"
 			log.Printf(logger.Error, format, item.note, err)
 			return false
 		}
-		log.Printf(logger.Info, "install patch file %s", item.src)
+		log.Printf(logger.Info, "install patch file \"%s\"", item.src)
 	}
 	log.Println(logger.Info, "install all patch files to go root path")
 	return true

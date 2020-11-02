@@ -54,26 +54,11 @@ func downloadSourceCode() bool {
 		name string
 		url  string
 	}{
-		{
-			name: "golint",
-			url:  "https://github.com/golang/lint/archive/master.zip",
-		},
-		{
-			name: "gocyclo",
-			url:  "https://github.com/fzipp/gocyclo/archive/master.zip",
-		},
-		{
-			name: "gosec",
-			url:  "https://github.com/securego/gosec/archive/master.zip",
-		},
-		{
-			name: "golangci-lint",
-			url:  "https://github.com/golangci/golangci-lint/archive/master.zip",
-		},
-		{
-			name: "go-tools",
-			url:  "https://github.com/golang/tools/archive/master.zip",
-		},
+		{name: "golint", url: "https://github.com/golang/lint/archive/master.zip"},
+		{name: "gocyclo", url: "https://github.com/fzipp/gocyclo/archive/master.zip"},
+		{name: "gosec", url: "https://github.com/securego/gosec/archive/master.zip"},
+		{name: "golangci-lint", url: "https://github.com/golangci/golangci-lint/archive/master.zip"},
+		{name: "go-tools", url: "https://github.com/golang/tools/archive/master.zip"},
 	}
 	itemsLen := len(items)
 	errCh := make(chan error, itemsLen)
