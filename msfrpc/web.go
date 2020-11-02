@@ -46,21 +46,31 @@ const (
 
 // admin user > managers > users > guests
 const (
-	userGroupAdmins   = 4 // internal group for admin user
+	userGroupAdmins   = 4
 	userGroupManagers = 3
 	userGroupUsers    = 2
 	userGroupGuests   = 1
 
+	UserGroupAdmins   = "admins"   // only admin user
 	UserGroupManagers = "managers" // can unlock IOObject force.
 	UserGroupUsers    = "users"    // common usage
 	UserGroupGuests   = "guests"   // read only
 )
 
-var userGroups = map[string]int{
-	UserGroupManagers: userGroupManagers,
-	UserGroupUsers:    userGroupUsers,
-	UserGroupGuests:   userGroupGuests,
-}
+var (
+	userGroupStr = map[string]int{
+		UserGroupManagers: userGroupManagers,
+		UserGroupUsers:    userGroupUsers,
+		UserGroupGuests:   userGroupGuests,
+	}
+
+	userGroupInt = map[int]string{
+		userGroupAdmins:   UserGroupAdmins,
+		userGroupManagers: UserGroupManagers,
+		userGroupUsers:    UserGroupUsers,
+		userGroupGuests:   UserGroupGuests,
+	}
+)
 
 // WebUser contains user information.
 type WebUser struct {
@@ -401,9 +411,9 @@ type webAPI struct {
 	cookieStore *sessions.CookieStore // about cookie
 	wsUpgrader  *websocket.Upgrader   // notice event
 
-	// user is online
-	tokens    map[string]*webUser
-	tokensRWM sync.RWMutex
+	// record user is online, key is the token
+	online    map[string]*webUser
+	onlineRWM sync.RWMutex
 
 	inShutdown int32
 
@@ -426,57 +436,9 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		maxReqBodySize:      opts.MaxBodySize,
 		maxLargeReqBodySize: opts.MaxLargeBodySize,
 	}
-	// set common user
-	api.users = make(map[string]*webUser, len(opts.Users)+1) // admin
-	for username, userInfo := range opts.Users {
-		user := webUser{
-			username:    security.NewBytes([]byte(username)),
-			password:    security.NewBytes([]byte(userInfo.Password)),
-			displayName: security.NewBytes([]byte(userInfo.DisplayName)),
-		}
-		userGroup, ok := userGroups[userInfo.UserGroup]
-		if !ok {
-			const format = "user: \"%s\" set invalid user group: \"%s\""
-			return nil, errors.Errorf(format, username, userInfo.UserGroup)
-		}
-		user.userGroup = userGroup
-		api.users[username] = &user
-	}
-	// set administrator username
-	adminUsername := opts.AdminUsername
-	if adminUsername == "" {
-		adminUsername = defaultAdminUsername
-		const log = "admin username is not set, use the default username:"
-		api.log(logger.Warning, log, defaultAdminUsername)
-	}
-	// set administrator password
-	adminPassword := opts.AdminPassword
-	if adminPassword == "" { // generate a random password
-		password := random.NewRand().String(16)
-		defer security.CoverString(password)
-		const log = "admin password is not set, use the random password:"
-		api.log(logger.Warning, log, password)
-		// generate bcrypt hash
-		passwordBytes := []byte(password)
-		defer security.CoverBytes(passwordBytes)
-		hash, err := bcrypt.GenerateFromPassword(passwordBytes, 12)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to generate random admin password")
-		}
-		adminPassword = string(hash)
-	}
-	// set administrator display name
-	adminDisplayName := opts.AdminDisplayName
-	if adminDisplayName == "" {
-		adminDisplayName = defaultAdminDisplayName
-		const log = "admin display name is not set, use the default display name:"
-		api.log(logger.Warning, log, defaultAdminDisplayName)
-	}
-	api.users[adminUsername] = &webUser{
-		username:    security.NewBytes([]byte(adminUsername)),
-		password:    security.NewBytes([]byte(adminPassword)),
-		userGroup:   userGroupAdmins,
-		displayName: security.NewBytes([]byte(adminDisplayName)),
+	err := api.loadUserInfo(opts)
+	if err != nil {
+		return nil, err
 	}
 	msfrpc.logger.Print(logger.Info, "init", "load user information successfully")
 	// set max body size
@@ -502,9 +464,87 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		ReadBufferSize:   4096,
 		WriteBufferSize:  4096,
 	}
-	// set web handler
+	api.online = make(map[string]*webUser, len(api.users))
+	api.setHandlers(mux)
+	return &api, nil
+}
+
+func (api *webAPI) loadUserInfo(opts *WebOptions) error {
+	api.users = make(map[string]*webUser, len(opts.Users)+1) // admin
+	// set administrator username
+	adminUsername := opts.AdminUsername
+	if adminUsername == "" {
+		adminUsername = defaultAdminUsername
+		const log = "admin username is not set, use the default username:"
+		api.log(logger.Warning, log, defaultAdminUsername)
+	}
+	// set administrator password
+	adminPassword := opts.AdminPassword
+	if adminPassword == "" { // generate a random password
+		password := random.NewRand().String(16)
+		defer security.CoverString(password)
+		const log = "admin password is not set, use the random password:"
+		api.log(logger.Warning, log, password)
+		// generate bcrypt hash
+		passwordBytes := []byte(password)
+		defer security.CoverBytes(passwordBytes)
+		hash, err := bcrypt.GenerateFromPassword(passwordBytes, 12)
+		if err != nil {
+			return errors.Wrap(err, "failed to generate random admin password")
+		}
+		adminPassword = string(hash)
+	} else {
+		// validate bcrypt hash
+		err := bcrypt.CompareHashAndPassword([]byte(adminPassword), []byte("123456"))
+		if err != nil && err != bcrypt.ErrMismatchedHashAndPassword {
+			return errors.New("invalid bcrypt hash about password")
+		}
+	}
+	// set administrator display name
+	adminDisplayName := opts.AdminDisplayName
+	if adminDisplayName == "" {
+		adminDisplayName = defaultAdminDisplayName
+		const log = "admin display name is not set, use the default display name:"
+		api.log(logger.Warning, log, defaultAdminDisplayName)
+	}
+	api.users[adminUsername] = &webUser{
+		username:    security.NewBytes([]byte(adminUsername)),
+		password:    security.NewBytes([]byte(adminPassword)),
+		userGroup:   userGroupAdmins,
+		displayName: security.NewBytes([]byte(adminDisplayName)),
+	}
+	// set common user
+	for username, userInfo := range opts.Users {
+		// validate bcrypt hash
+		err := bcrypt.CompareHashAndPassword([]byte(userInfo.Password), []byte("123456"))
+		if err != nil && err != bcrypt.ErrMismatchedHashAndPassword {
+			return errors.New("invalid bcrypt hash about password")
+		}
+		// check user group
+		userGroup, ok := userGroupStr[userInfo.UserGroup]
+		if !ok {
+			const format = "user: \"%s\" set invalid user group: \"%s\""
+			return errors.Errorf(format, username, userInfo.UserGroup)
+		}
+		// check display name
+		if userInfo.DisplayName == "" {
+			const format = "user: \"%s\" set empty display name"
+			return errors.Errorf(format, username)
+		}
+		api.users[username] = &webUser{
+			username:    security.NewBytes([]byte(username)),
+			password:    security.NewBytes([]byte(userInfo.Password)),
+			userGroup:   userGroup,
+			displayName: security.NewBytes([]byte(userInfo.DisplayName)),
+		}
+	}
+	return nil
+}
+
+func (api *webAPI) setHandlers(mux *http.ServeMux) {
 	for path, handler := range map[string]http.HandlerFunc{
 		"/api/login":     api.handleLogin,
+		"/api/is_online": api.handleIsOnline,
 		"/api/websocket": api.handleWebsocket,
 
 		"/api/auth/logout":         api.handleAuthenticationLogout,
@@ -607,7 +647,6 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	} {
 		mux.HandleFunc(path, handler)
 	}
-	return &api, nil
 }
 
 func (api *webAPI) shuttingDown() bool {
@@ -625,6 +664,25 @@ func (api *webAPI) log(lv logger.Level, log ...interface{}) {
 	if api.shuttingDown() {
 		return
 	}
+	api.ctx.logger.Println(lv, "msfrpc-web api", log...)
+}
+
+func (api *webAPI) logfWithReq(lv logger.Level, r *http.Request, format string, log ...interface{}) {
+	if api.shuttingDown() {
+		return
+	}
+	buf := httptool.PrintRequest(r)
+	format += "\n%s"
+	log = append(log, buf)
+	api.ctx.logger.Printf(lv, "msfrpc-web api", format, log...)
+}
+
+func (api *webAPI) logWithReq(lv logger.Level, r *http.Request, log ...interface{}) {
+	if api.shuttingDown() {
+		return
+	}
+	buf := httptool.PrintRequest(r)
+	log = append(log, "\n", buf)
 	api.ctx.logger.Println(lv, "msfrpc-web api", log...)
 }
 
@@ -859,7 +917,9 @@ func (api *webAPI) setSession(w http.ResponseWriter, r *http.Request, user *webU
 	opts.HttpOnly = true
 	// set cookie value
 	username := user.username.String()
+	defer security.CoverString(username)
 	displayName := user.displayName.String()
+	defer security.CoverString(displayName)
 	session.Values["username"] = username
 	session.Values["user_group"] = user.userGroup
 	session.Values["display_name"] = displayName
@@ -873,35 +933,42 @@ func (api *webAPI) setSession(w http.ResponseWriter, r *http.Request, user *webU
 	resp := struct {
 		Result      string `json:"result"`
 		Username    string `json:"username"`
-		UserGroup   int    `json:"user_group"`
+		UserGroup   string `json:"user_group"`
 		DisplayName string `json:"display_name"`
 	}{
 		Result:      "success",
 		Username:    username,
-		UserGroup:   user.userGroup,
+		UserGroup:   userGroupInt[user.userGroup],
 		DisplayName: displayName,
 	}
 	api.writeResponse(w, &resp)
 }
 
-func (api *webAPI) checkUserPermission(r *http.Request, userGroup int) bool {
+func (api *webAPI) getUserSession(w http.ResponseWriter, r *http.Request) *sessions.Session {
 	session, err := api.cookieStore.Get(r, sessionName)
 	if err != nil {
 		api.log(logger.Debug, "failed to get session:", err)
-		return false
+		api.writeErrorString(w, "invalid session")
+		return nil
 	}
-	username := session.Values["username"].(string)
 	// check user is exist
+	username := session.Values["username"].(string)
 	user := api.getUser(username)
 	if user == nil {
-		api.logf(logger.Debug, "user \"%s\" is not exist", username)
-		return false
+		err := fmt.Errorf("user \"%s\" is not exist", username)
+		api.log(logger.Debug, err)
+		api.writeError(w, err)
+		return nil
 	}
-	return session.Values["user_group"].(int) >= userGroup
+	return session
+}
+
+// handleIsOnline is used to check current user is online.
+func (api *webAPI) handleIsOnline(w http.ResponseWriter, r *http.Request) {
+
 }
 
 func (api *webAPI) handleWebsocket(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("ok:", api.checkUserPermission(r, userGroupGuests))
 
 	// upgrade to websocket connection, server can push message to client
 	conn, err := api.wsUpgrader.Upgrade(w, r, nil)
