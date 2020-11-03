@@ -47,6 +47,7 @@ type MSFRPC struct {
 
 	// for database
 	database *DBConnectOptions
+
 	// for web server
 	listener net.Listener
 
@@ -232,7 +233,7 @@ func (msfrpc *MSFRPC) sendError(err error) {
 	select {
 	case msfrpc.errCh <- err:
 	default:
-		msfrpc.logger.Print(logger.Error, "exit", "error channel blocked\nerror to send: %s", err)
+		msfrpc.logger.Print(logger.Error, "exit", "error channel blocked\nerror: %s", err)
 	}
 }
 
@@ -249,9 +250,13 @@ func (msfrpc *MSFRPC) Addresses() []net.Addr {
 
 // Reload is used to reload resource about web.
 func (msfrpc *MSFRPC) Reload() error {
-	if msfrpc.web.ui != nil {
-		msfrpc.logger.Print(logger.Info, "msfrpc", "reload resource about web")
-		return msfrpc.web.ui.Reload()
+	if msfrpc.web.ui == nil {
+		return nil
 	}
+	err := msfrpc.web.ui.Reload()
+	if err != nil {
+		return err
+	}
+	msfrpc.logger.Print(logger.Info, "msfrpc", "reload resource about web")
 	return nil
 }

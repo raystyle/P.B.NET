@@ -1,6 +1,7 @@
 package msfrpc
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -393,6 +394,13 @@ func (ui *webUI) handleIndex(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write(data)
 }
 
+type webUser struct {
+	username    *security.Bytes
+	password    *security.Bytes
+	userGroup   int
+	displayName *security.Bytes
+}
+
 // webAPI contain the actual handler, login and handle event.
 type webAPI struct {
 	msfrpc *MSFRPC
@@ -402,30 +410,23 @@ type webAPI struct {
 	maxReqBodySize      int64
 	maxLargeReqBodySize int64
 
-	// common users, web api can add temporary user.
-	users    map[string]*webUser
-	usersRWM sync.RWMutex
-
 	encoderPool sync.Pool             // json encoder
 	guid        *guid.Generator       // guid generator
 	cookieStore *sessions.CookieStore // about cookie
 	wsUpgrader  *websocket.Upgrader   // notice event
 
-	// record user is online, key is the token
-	online    map[string]*webUser
-	onlineRWM sync.RWMutex
+	// common users, web api can add temporary user.
+	users    map[string]*webUser
+	usersRWM sync.RWMutex
+
+	// all user websocket connections, key = username
+	wsConnGroups    map[string]*wsConnGroup
+	wsConnGroupsRWM sync.RWMutex
 
 	inShutdown int32
 
 	// Web use it for prevent cycle reference
 	counter xsync.Counter
-}
-
-type webUser struct {
-	username    *security.Bytes
-	password    *security.Bytes
-	userGroup   int
-	displayName *security.Bytes
 }
 
 func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, error) {
@@ -464,7 +465,7 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		ReadBufferSize:   4096,
 		WriteBufferSize:  4096,
 	}
-	api.online = make(map[string]*webUser, len(api.users))
+	api.wsConnGroups = make(map[string]*wsConnGroup, 1)
 	api.setHandlers(mux)
 	return &api, nil
 }
@@ -546,6 +547,7 @@ func (api *webAPI) setHandlers(mux *http.ServeMux) {
 		"/api/login":     api.handleLogin,
 		"/api/is_online": api.handleIsOnline,
 		"/api/websocket": api.handleWebsocket,
+		"/api/logoff":    api.handleLogoff,
 
 		"/api/auth/logout":         api.handleAuthenticationLogout,
 		"/api/auth/token/list":     api.handleAuthenticationTokenList,
@@ -692,98 +694,6 @@ func (api *webAPI) Close() {
 	api.msfrpc = nil
 }
 
-// ----------------------------------------monitor callbacks---------------------------------------
-
-func (api *webAPI) onToken(token string, add bool) {
-	fmt.Println(token, add)
-}
-
-func (api *webAPI) onJob(id, name string, active bool) {
-	fmt.Println(id, name, active)
-}
-
-func (api *webAPI) onSession(id uint64, info *SessionInfo, opened bool) {
-	fmt.Println(id, spew.Sdump(info), opened)
-}
-
-func (api *webAPI) onHost(workspace string, host *DBHost, add bool) {
-	fmt.Println(workspace, spew.Sdump(host), add)
-}
-
-func (api *webAPI) onCredential(workspace string, cred *DBCred, add bool) {
-	fmt.Println(workspace, spew.Sdump(cred), add)
-}
-
-func (api *webAPI) onLoot(workspace string, loot *DBLoot) {
-	fmt.Println(workspace, spew.Sdump(loot))
-}
-
-func (api *webAPI) onEvent(event string) {
-	fmt.Println("event:", event)
-}
-
-// ----------------------------------------io event handlers---------------------------------------
-
-func (api *webAPI) onConsoleRead(id string) {
-	fmt.Println("console id:", id)
-}
-
-func (api *webAPI) onConsoleCleaned(id string) {
-	fmt.Println("console id:", id)
-}
-
-func (api *webAPI) onConsoleClosed(id string) {
-	fmt.Println("console id:", id)
-}
-
-func (api *webAPI) onConsoleLocked(id, token string) {
-	fmt.Println("console id:", id, "token:", token)
-}
-
-func (api *webAPI) onConsoleUnlocked(id, token string) {
-	fmt.Println("console id:", id, "token:", token)
-}
-
-func (api *webAPI) onShellRead(id uint64) {
-	fmt.Println("console id:", id)
-}
-
-func (api *webAPI) onShellCleaned(id uint64) {
-	fmt.Println("console id:", id)
-}
-
-func (api *webAPI) onShellClosed(id uint64) {
-	fmt.Println("console id:", id)
-}
-
-func (api *webAPI) onShellLocked(id uint64, token string) {
-	fmt.Println("console id:", id, "token:", token)
-}
-
-func (api *webAPI) onShellUnlocked(id uint64, token string) {
-	fmt.Println("console id:", id, "token:", token)
-}
-
-func (api *webAPI) onMeterpreterRead(id uint64) {
-	fmt.Println("console id:", id)
-}
-
-func (api *webAPI) onMeterpreterCleaned(id uint64) {
-	fmt.Println("console id:", id)
-}
-
-func (api *webAPI) onMeterpreterClosed(id uint64) {
-	fmt.Println("console id:", id)
-}
-
-func (api *webAPI) onMeterpreterLocked(id uint64, token string) {
-	fmt.Println("console id:", id, "token:", token)
-}
-
-func (api *webAPI) onMeterpreterUnlocked(id uint64, token string) {
-	fmt.Println("console id:", id, "token:", token)
-}
-
 func (api *webAPI) readRequest(r *http.Request, req interface{}) error {
 	defer func() { _, _ = io.Copy(ioutil.Discard, r.Body) }()
 	err := json.NewDecoder(security.LimitReader(r.Body, api.maxReqBodySize)).Decode(req)
@@ -859,9 +769,6 @@ func (api *webAPI) handlePanic(w http.ResponseWriter, _ *http.Request, e interfa
 	_, _ = xpanic.Print(e, "web").WriteTo(w)
 
 	csrf.Protect(nil, nil)
-	sessions.NewSession(nil, "")
-
-	sessions.NewCookieStore()
 }
 
 // ------------------------------------about web authentication------------------------------------
@@ -872,14 +779,12 @@ func (api *webAPI) getUser(username string) *webUser {
 	return api.users[username]
 }
 
-type webLoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
 func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	const errInvalidUser = "username or password is incorrect"
-	req := webLoginRequest{}
+	req := struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}{}
 	err := api.readRequest(r, &req)
 	if err != nil {
 		api.writeError(w, err)
@@ -896,15 +801,13 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	defer user.password.Put(hash)
 	pwd := []byte(req.Password)
 	defer security.CoverBytes(pwd)
+	// compare password
 	err = bcrypt.CompareHashAndPassword(hash, pwd)
 	if err != nil {
 		api.writeErrorString(w, errInvalidUser)
 		return
 	}
-	api.setSession(w, r, user)
-}
-
-func (api *webAPI) setSession(w http.ResponseWriter, r *http.Request, user *webUser) {
+	// set session cookie
 	session := sessions.NewSession(api.cookieStore, sessionName)
 	// set cookie options
 	opts := session.Options
@@ -924,8 +827,8 @@ func (api *webAPI) setSession(w http.ResponseWriter, r *http.Request, user *webU
 	session.Values["user_group"] = user.userGroup
 	session.Values["display_name"] = displayName
 	session.Values["token"] = api.guid.Get().Hex()
-	// write session
-	err := session.Save(r, w)
+	// write session and response
+	err = session.Save(r, w)
 	if err != nil {
 		api.writeError(w, err)
 		return
@@ -965,19 +868,292 @@ func (api *webAPI) getUserSession(w http.ResponseWriter, r *http.Request) *sessi
 
 // handleIsOnline is used to check current user is online.
 func (api *webAPI) handleIsOnline(w http.ResponseWriter, r *http.Request) {
+	session := api.getUserSession(w, r)
+	if session == nil {
+		return
+	}
+	username := session.Values["username"].(string)
 
+	api.wsConnGroupsRWM.RLock()
+	defer api.wsConnGroupsRWM.RUnlock()
+	_, ok := api.wsConnGroups[username]
+
+	resp := struct {
+		Online bool `json:"online"`
+	}{
+		Online: ok,
+	}
+	api.writeResponse(w, &resp)
 }
 
 func (api *webAPI) handleWebsocket(w http.ResponseWriter, r *http.Request) {
-
+	session := api.getUserSession(w, r)
+	if session == nil {
+		return
+	}
 	// upgrade to websocket connection, server can push message to client
 	conn, err := api.wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
-		api.log(logger.Debug, "failed to upgrade", err)
+		api.log(logger.Debug, "failed to upgrade connection", err)
 		return
 	}
-	_ = conn.WriteMessage(websocket.TextMessage, []byte("hello client"))
-	fmt.Println("send hello!")
+	username := session.Values["username"].(string)
+	token := session.Values["token"].(string)
+	wsConn := api.newWSConn(username, token, conn)
+	if wsConn == nil {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("already login"))
+	} else {
+		// wsConn.Write
+	}
+}
+
+// handleLogoff is used to logoff user force.
+func (api *webAPI) handleLogoff(w http.ResponseWriter, r *http.Request) {
+	session := api.getUserSession(w, r)
+	if session == nil {
+		return
+	}
+	// force close websocket connection
+
+	// check is closed
+}
+
+// ----------------------------------------about websocket-----------------------------------------
+
+// a user maybe with multi connections(but the same token).
+type wsConnGroup struct {
+	token string
+
+	conns      map[*wsConn]struct{}
+	inShutdown int32
+	rwm        sync.RWMutex
+
+	// for close all connection
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func (api *webAPI) getWSConnGroup(username, token string) *wsConnGroup {
+	api.wsConnGroupsRWM.Lock()
+	defer api.wsConnGroupsRWM.Unlock()
+	group, ok := api.wsConnGroups[username]
+	if ok {
+		if group.token != token {
+			return nil
+		}
+	} else {
+		group = &wsConnGroup{
+			token: token,
+			conns: make(map[*wsConn]struct{}, 1),
+		}
+		group.ctx, group.cancel = context.WithCancel(context.Background())
+		api.wsConnGroups[username] = group
+	}
+	return group
+}
+
+func (c *wsConnGroup) shuttingDown() bool {
+	return atomic.LoadInt32(&c.inShutdown) != 0
+}
+
+func (c *wsConnGroup) trackConn(conn *wsConn, add bool) bool {
+	c.rwm.Lock()
+	defer c.rwm.Unlock()
+	if add {
+		if c.shuttingDown() {
+			return false
+		}
+		c.conns[conn] = struct{}{}
+	} else {
+		delete(c.conns, conn)
+	}
+	return true
+}
+
+func (c *wsConnGroup) Close() error {
+	atomic.StoreInt32(&c.inShutdown, 1)
+	c.cancel()
+	var err error
+	c.rwm.Lock()
+	defer c.rwm.Unlock()
+	// close all connections
+	for conn := range c.conns {
+		e := conn.Close()
+		if e != nil && err == nil {
+			err = e
+		}
+	}
+	return err
+}
+
+type wsConn struct {
+	ctx   *webAPI
+	group *wsConnGroup
+
+	conn   *websocket.Conn
+	dataCh chan []byte
+
+	context context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
+}
+
+func (api *webAPI) newWSConn(username, token string, conn *websocket.Conn) *wsConn {
+	wsConnGroup := api.getWSConnGroup(username, token)
+	if wsConnGroup == nil {
+		return nil
+	}
+
+	conn.EnableWriteCompression(true)
+
+	wsConn := wsConn{
+		ctx:    api,
+		group:  wsConnGroup,
+		conn:   conn,
+		dataCh: make(chan []byte, 64),
+	}
+	wsConn.context, wsConn.cancel = context.WithCancel(wsConnGroup.ctx)
+	wsConn.wg.Add(1)
+	go wsConn.writeLoop()
+	wsConn.wg.Add(1)
+	go wsConn.readLoop()
+	return &wsConn
+}
+
+func (conn *wsConn) writeLoop() {
+	defer conn.ctx.counter.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			b := xpanic.Print(r, "wsConn.writeLoop")
+			conn.ctx.log(logger.Fatal, b)
+		}
+	}()
+	if !conn.group.trackConn(conn, true) {
+		return
+	}
+	defer conn.group.trackConn(conn, false)
+	var (
+		data []byte
+		err  error
+	)
+	for {
+		select {
+		case data = <-conn.dataCh:
+			err = conn.conn.WriteMessage(websocket.TextMessage, data)
+			if err != nil {
+				return
+			}
+		case <-conn.context.Done():
+			return
+		}
+	}
+}
+
+func (conn *wsConn) readLoop() {
+	defer conn.ctx.counter.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			b := xpanic.Print(r, "wsConn.readLoop")
+			conn.ctx.log(logger.Fatal, b)
+		}
+	}()
+}
+
+func (conn *wsConn) Close() error {
+	conn.cancel()
+	return conn.conn.Close()
+}
+
+// ----------------------------------------monitor callbacks---------------------------------------
+
+func (api *webAPI) onToken(token string, add bool) {
+	fmt.Println(token, add)
+}
+
+func (api *webAPI) onJob(id, name string, active bool) {
+	fmt.Println(id, name, active)
+}
+
+func (api *webAPI) onSession(id uint64, info *SessionInfo, opened bool) {
+	fmt.Println(id, spew.Sdump(info), opened)
+}
+
+func (api *webAPI) onHost(workspace string, host *DBHost, add bool) {
+	fmt.Println(workspace, spew.Sdump(host), add)
+}
+
+func (api *webAPI) onCredential(workspace string, cred *DBCred, add bool) {
+	fmt.Println(workspace, spew.Sdump(cred), add)
+}
+
+func (api *webAPI) onLoot(workspace string, loot *DBLoot) {
+	fmt.Println(workspace, spew.Sdump(loot))
+}
+
+func (api *webAPI) onEvent(event string) {
+	fmt.Println("event:", event)
+}
+
+// ----------------------------------------IO event handlers---------------------------------------
+
+func (api *webAPI) onConsoleRead(id string) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onConsoleCleaned(id string) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onConsoleClosed(id string) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onConsoleLocked(id, token string) {
+	fmt.Println("console id:", id, "token:", token)
+}
+
+func (api *webAPI) onConsoleUnlocked(id, token string) {
+	fmt.Println("console id:", id, "token:", token)
+}
+
+func (api *webAPI) onShellRead(id uint64) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onShellCleaned(id uint64) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onShellClosed(id uint64) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onShellLocked(id uint64, token string) {
+	fmt.Println("console id:", id, "token:", token)
+}
+
+func (api *webAPI) onShellUnlocked(id uint64, token string) {
+	fmt.Println("console id:", id, "token:", token)
+}
+
+func (api *webAPI) onMeterpreterRead(id uint64) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onMeterpreterCleaned(id uint64) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onMeterpreterClosed(id uint64) {
+	fmt.Println("console id:", id)
+}
+
+func (api *webAPI) onMeterpreterLocked(id uint64, token string) {
+	fmt.Println("console id:", id, "token:", token)
+}
+
+func (api *webAPI) onMeterpreterUnlocked(id uint64, token string) {
+	fmt.Println("console id:", id, "token:", token)
 }
 
 // ---------------------------------------Metasploit RPC API---------------------------------------
