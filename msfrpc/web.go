@@ -400,6 +400,10 @@ type webUser struct {
 	password    *security.Bytes
 	userGroup   int
 	displayName *security.Bytes
+
+	// if user change password, other
+	// session will lose efficacy at once
+	secret *security.Bytes
 }
 
 // webAPI contain the actual handler, login and handle event.
@@ -437,6 +441,7 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		disableTLS:          opts.DisableTLS,
 		maxReqBodySize:      opts.MaxBodySize,
 		maxLargeReqBodySize: opts.MaxLargeBodySize,
+		guid:                guid.New(128, nil),
 	}
 	err := api.loadUserInfo(opts)
 	if err != nil {
@@ -454,7 +459,6 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 	api.encoderPool.New = func() interface{} {
 		return json.NewEncoder(64)
 	}
-	api.guid = guid.New(128, nil)
 	// set cookie store
 	rand := random.NewRand()
 	hashKey := rand.Bytes(sha256.Size)
@@ -514,14 +518,13 @@ func (api *webAPI) loadUserInfo(opts *WebOptions) error {
 		password:    security.NewBytes([]byte(adminPassword)),
 		userGroup:   userGroupAdmins,
 		displayName: security.NewBytes([]byte(adminDisplayName)),
+		secret:      security.NewBytes([]byte(api.guid.Get().Hex())),
 	}
 	// set common user
 	for username, userInfo := range opts.Users {
-		// validate bcrypt hash
-		err := bcrypt.CompareHashAndPassword([]byte(userInfo.Password), []byte("123456"))
-		if err != nil && err != bcrypt.ErrMismatchedHashAndPassword {
-			return errors.New("invalid bcrypt hash about password")
-		}
+		// skip check user password bcrypt hash,
+		// if it is invalid, admin can change it.
+
 		// check user group
 		userGroup, ok := userGroupStr[userInfo.UserGroup]
 		if !ok {
@@ -538,6 +541,7 @@ func (api *webAPI) loadUserInfo(opts *WebOptions) error {
 			password:    security.NewBytes([]byte(userInfo.Password)),
 			userGroup:   userGroup,
 			displayName: security.NewBytes([]byte(userInfo.DisplayName)),
+			secret:      security.NewBytes([]byte(api.guid.Get().Hex())),
 		}
 	}
 	return nil
@@ -796,6 +800,13 @@ func (api *webAPI) getUserSession(w http.ResponseWriter, r *http.Request) *sessi
 		api.writeError(w, err)
 		return nil
 	}
+	// check user password is changed
+	secret := session.Values["secret"].(string)
+	if secret != user.secret.String() {
+		err := fmt.Errorf("user \"%s\" already change password", username)
+		api.log(logger.Debug, err)
+		api.writeError(w, err)
+	}
 	return session
 }
 
@@ -824,7 +835,11 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// compare password
 	err = bcrypt.CompareHashAndPassword(hash, pwd)
 	if err != nil {
-		api.writeErrorString(w, errInvalidUser)
+		if err == bcrypt.ErrMismatchedHashAndPassword {
+			api.writeErrorString(w, errInvalidUser)
+		} else {
+			api.writeError(w, err)
+		}
 		return
 	}
 	// set session cookie
@@ -843,9 +858,13 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	defer security.CoverString(username)
 	displayName := user.displayName.String()
 	defer security.CoverString(displayName)
+	secret := user.secret.String()
+	defer security.CoverString(secret)
 	session.Values["username"] = username
 	session.Values["user_group"] = user.userGroup
 	session.Values["display_name"] = displayName
+	session.Values["secret"] = secret
+	// token is used to prevent users from logging in at the same time
 	session.Values["token"] = api.guid.Get().Hex()
 	// write session and response
 	err = session.Save(r, w)
@@ -854,12 +873,10 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := struct {
-		Result      string `json:"result"`
 		Username    string `json:"username"`
 		UserGroup   string `json:"user_group"`
 		DisplayName string `json:"display_name"`
 	}{
-		Result:      "success",
 		Username:    username,
 		UserGroup:   userGroupInt[user.userGroup],
 		DisplayName: displayName,
@@ -973,6 +990,7 @@ func (group *wsConnGroup) trackConn(conn *wsConn, add bool) bool {
 		delete(group.conns, conn)
 		// delete conn group
 		if len(group.conns) == 0 {
+			group.close()
 			group.ctx.wsConnGroupsRWM.Lock()
 			defer group.ctx.wsConnGroupsRWM.Unlock()
 			delete(group.ctx.wsConnGroups, group.username)
@@ -981,9 +999,24 @@ func (group *wsConnGroup) trackConn(conn *wsConn, add bool) bool {
 	return true
 }
 
+func (group *wsConnGroup) getConns() []*wsConn {
+	group.rwm.RLock()
+	defer group.rwm.RUnlock()
+	conns := make([]*wsConn, 0, len(group.conns))
+	for conn := range group.conns {
+		conns = append(conns, conn)
+	}
+	return conns
+}
+
+func (group *wsConnGroup) Write(b []byte) {
+	for _, conn := range group.getConns() {
+		conn.Write(b)
+	}
+}
+
 func (group *wsConnGroup) Close() error {
-	atomic.StoreInt32(&group.inShutdown, 1)
-	group.cancel()
+	group.close()
 	var err error
 	group.rwm.Lock()
 	defer group.rwm.Unlock()
@@ -993,16 +1026,22 @@ func (group *wsConnGroup) Close() error {
 		if e != nil && err == nil {
 			err = e
 		}
+		delete(group.conns, conn)
 	}
 	return err
+}
+
+func (group *wsConnGroup) close() {
+	atomic.StoreInt32(&group.inShutdown, 1)
+	group.cancel()
 }
 
 type wsConn struct {
 	ctx   *webAPI
 	group *wsConnGroup
 
-	conn   *websocket.Conn
-	dataCh chan []byte
+	conn    *websocket.Conn
+	writeCh chan []byte
 
 	context context.Context
 	cancel  context.CancelFunc
@@ -1010,59 +1049,25 @@ type wsConn struct {
 }
 
 func (api *webAPI) newWSConn(username, token string, conn *websocket.Conn) *wsConn {
-	wsConnGroup := api.getWSConnGroup(username, token)
-	if wsConnGroup == nil {
+	group := api.getWSConnGroup(username, token)
+	if group == nil {
 		return nil
 	}
 	// enable compress
 	conn.EnableWriteCompression(true)
 	_ = conn.SetCompressionLevel(flate.BestCompression)
 	wsConn := wsConn{
-		ctx:    api,
-		group:  wsConnGroup,
-		conn:   conn,
-		dataCh: make(chan []byte, 64),
+		ctx:     api,
+		group:   group,
+		conn:    conn,
+		writeCh: make(chan []byte, 64),
 	}
-	wsConn.context, wsConn.cancel = context.WithCancel(wsConnGroup.context)
-	wsConn.wg.Add(1)
-	go wsConn.writeLoop()
+	wsConn.context, wsConn.cancel = context.WithCancel(group.context)
 	wsConn.wg.Add(1)
 	go wsConn.readLoop()
+	wsConn.wg.Add(1)
+	go wsConn.writeLoop()
 	return &wsConn
-}
-
-func (wsc *wsConn) writeLoop() {
-	defer wsc.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			b := xpanic.Print(r, "wsConn.writeLoop")
-			wsc.ctx.log(logger.Fatal, b)
-		}
-	}()
-
-	wsc.ctx.counter.Add(1)
-	defer wsc.ctx.counter.Done()
-
-	if !wsc.group.trackConn(wsc, true) {
-		return
-	}
-	defer wsc.group.trackConn(wsc, false)
-
-	var (
-		data []byte
-		err  error
-	)
-	for {
-		select {
-		case data = <-wsc.dataCh:
-			err = wsc.conn.WriteMessage(websocket.TextMessage, data)
-			if err != nil {
-				return
-			}
-		case <-wsc.context.Done():
-			return
-		}
-	}
 }
 
 func (wsc *wsConn) readLoop() {
@@ -1077,6 +1082,18 @@ func (wsc *wsConn) readLoop() {
 	wsc.ctx.counter.Add(1)
 	defer wsc.ctx.counter.Done()
 
+	defer func() {
+		err := wsc.conn.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			wsc.ctx.log(logger.Error, "failed to close websocket connection:", err)
+		}
+	}()
+
+	if !wsc.group.trackConn(wsc, true) {
+		return
+	}
+	defer wsc.group.trackConn(wsc, false)
+
 	for {
 		_, r, err := wsc.conn.NextReader()
 		if err != nil {
@@ -1086,16 +1103,47 @@ func (wsc *wsConn) readLoop() {
 	}
 }
 
+func (wsc *wsConn) writeLoop() {
+	defer wsc.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			b := xpanic.Print(r, "wsConn.writeLoop")
+			wsc.ctx.log(logger.Fatal, b)
+		}
+	}()
+
+	wsc.ctx.counter.Add(1)
+	defer wsc.ctx.counter.Done()
+
+	var (
+		data []byte
+		err  error
+	)
+	for {
+		select {
+		case data = <-wsc.writeCh:
+			err = wsc.conn.WriteMessage(websocket.TextMessage, data)
+			if err != nil {
+				return
+			}
+		case <-wsc.context.Done():
+			return
+		}
+	}
+}
+
 func (wsc *wsConn) Write(b []byte) {
 	select {
-	case wsc.dataCh <- b:
+	case wsc.writeCh <- b:
 	case <-wsc.context.Done():
 	}
 }
 
 func (wsc *wsConn) Close() error {
+	err := wsc.conn.Close()
 	wsc.cancel()
-	return wsc.conn.Close()
+	wsc.wg.Wait()
+	return err
 }
 
 // ----------------------------------------monitor callbacks---------------------------------------

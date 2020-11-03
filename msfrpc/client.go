@@ -104,13 +104,13 @@ func NewClient(address, username, password string, lg logger.Logger, opts *Clien
 		return nil, err
 	}
 	// cover options about max connection
-	if opts.Transport.MaxIdleConns < 1 {
+	if tr.MaxIdleConns < 1 {
 		tr.MaxIdleConns = 32
 	}
-	if opts.Transport.MaxIdleConnsPerHost < 1 {
+	if tr.MaxIdleConnsPerHost < 1 {
 		tr.MaxIdleConnsPerHost = 32
 	}
-	if opts.Transport.MaxConnsPerHost < 1 {
+	if tr.MaxConnsPerHost < 1 {
 		tr.MaxConnsPerHost = 32
 	}
 	// tls

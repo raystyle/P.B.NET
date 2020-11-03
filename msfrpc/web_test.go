@@ -92,6 +92,12 @@ func TestWebUI_Reload(t *testing.T) {
 	})
 }
 
+func TestWebAPI_Login(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+}
+
 func TestWebOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/web_opts.toml")
 	require.NoError(t, err)
