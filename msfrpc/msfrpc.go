@@ -226,12 +226,8 @@ func (msfrpc *MSFRPC) exit() {
 			msfrpc.sendError(err)
 		}
 	}
-	// close client
-	err = msfrpc.client.Close()
-	if err != nil {
-		msfrpc.logger.Print(logger.Error, src, "appear error when close client:", err)
-		msfrpc.sendError(err)
-	}
+	// close client, must use kill, otherwise maybe failed to close
+	msfrpc.client.Kill()
 	msfrpc.logger.Print(logger.Info, src, "client is closed")
 	msfrpc.logger.Print(logger.Info, src, "msfrpc is exit")
 	close(msfrpc.errCh)

@@ -130,9 +130,8 @@ func TestWebUI_Reload(t *testing.T) {
 	})
 }
 
-func TestWebAPI(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
+func TestWebAPI_loadUserInfo(t *testing.T) {
+
 }
 
 func TestWebOptions(t *testing.T) {

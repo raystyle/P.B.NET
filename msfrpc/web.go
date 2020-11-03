@@ -408,8 +408,8 @@ type webUser struct {
 
 // webAPI contain the actual handler, login and handle event.
 type webAPI struct {
-	msfrpc *MSFRPC
 	ctx    *Client
+	msfrpc *MSFRPC
 
 	disableTLS          bool
 	maxReqBodySize      int64
@@ -436,8 +436,8 @@ type webAPI struct {
 
 func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, error) {
 	api := webAPI{
-		msfrpc:              msfrpc,
 		ctx:                 msfrpc.client,
+		msfrpc:              msfrpc,
 		disableTLS:          opts.DisableTLS,
 		maxReqBodySize:      opts.MaxBodySize,
 		maxLargeReqBodySize: opts.MaxLargeBodySize,
@@ -664,14 +664,14 @@ func (api *webAPI) logf(lv logger.Level, format string, log ...interface{}) {
 	if api.shuttingDown() {
 		return
 	}
-	api.ctx.logger.Printf(lv, "msfrpc-web api", format, log...)
+	api.msfrpc.logger.Printf(lv, "msfrpc-web api", format, log...)
 }
 
 func (api *webAPI) log(lv logger.Level, log ...interface{}) {
 	if api.shuttingDown() {
 		return
 	}
-	api.ctx.logger.Println(lv, "msfrpc-web api", log...)
+	api.msfrpc.logger.Println(lv, "msfrpc-web api", log...)
 }
 
 func (api *webAPI) logfWithReq(lv logger.Level, r *http.Request, format string, log ...interface{}) {
@@ -681,7 +681,7 @@ func (api *webAPI) logfWithReq(lv logger.Level, r *http.Request, format string, 
 	buf := httptool.PrintRequest(r)
 	format += "\n%s"
 	log = append(log, buf)
-	api.ctx.logger.Printf(lv, "msfrpc-web api", format, log...)
+	api.msfrpc.logger.Printf(lv, "msfrpc-web api", format, log...)
 }
 
 func (api *webAPI) logWithReq(lv logger.Level, r *http.Request, log ...interface{}) {
@@ -690,7 +690,7 @@ func (api *webAPI) logWithReq(lv logger.Level, r *http.Request, log ...interface
 	}
 	buf := httptool.PrintRequest(r)
 	log = append(log, "\n", buf)
-	api.ctx.logger.Println(lv, "msfrpc-web api", log...)
+	api.msfrpc.logger.Println(lv, "msfrpc-web api", log...)
 }
 
 func (api *webAPI) Close() {

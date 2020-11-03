@@ -279,3 +279,84 @@ func TestMSFRPC(t *testing.T) {
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestNewMSFRPC(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("invalid client options", func(t *testing.T) {
+		cfg := testGenerateConfig()
+		cfg.Client.Options.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
+
+		msfrpc, err := NewMSFRPC(cfg)
+		require.Error(t, err)
+		require.Nil(t, msfrpc)
+	})
+
+	t.Run("invalid web options", func(t *testing.T) {
+		cfg := testGenerateConfig()
+		cfg.Web.Options.Server.TLSConfig.ClientCAs = []string{"foo ca"}
+
+		msfrpc, err := NewMSFRPC(cfg)
+		require.Error(t, err)
+		require.Nil(t, msfrpc)
+	})
+
+	t.Run("invalid web server network", func(t *testing.T) {
+		cfg := testGenerateConfig()
+		cfg.Web.Network = "foo"
+		cfg.Web.Address = "127.0.0.1:8080"
+
+		msfrpc, err := NewMSFRPC(cfg)
+		require.Error(t, err)
+		require.Nil(t, msfrpc)
+	})
+
+	t.Run("invalid web server address", func(t *testing.T) {
+		cfg := testGenerateConfig()
+		cfg.Web.Network = "tcp"
+		cfg.Web.Address = "127.0.0.1:65536"
+
+		msfrpc, err := NewMSFRPC(cfg)
+		require.Error(t, err)
+		require.Nil(t, msfrpc)
+	})
+}
+
+func TestMSFRPC_Main(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	cfg := testGenerateConfig()
+	msfrpc, err := NewMSFRPC(cfg)
+	require.NoError(t, err)
+
+	t.Run("failed to login", func(t *testing.T) {
+		testPatchClientSend(func() {
+			err := msfrpc.Main()
+			require.Error(t, err)
+		})
+
+		<-msfrpc.wait
+	})
+
+	t.Run("failed to connect database", func(t *testing.T) {
+
+	})
+
+	msfrpc.Exit()
+
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_ExitWithError(t *testing.T) {
+
+}
+
+func TestMSFRPC_sendError(t *testing.T) {
+
+}
+
+func TestMSFRPC_Reload(t *testing.T) {
+
+}
