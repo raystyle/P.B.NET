@@ -3,11 +3,9 @@ package msfrpc
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
-	"runtime"
 	"testing"
 	"time"
 
@@ -15,7 +13,6 @@ import (
 
 	"project/internal/logger"
 	"project/internal/nettool"
-	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -29,12 +26,31 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	exitCode := m.Run()
+	code := m.Run()
+	var (
+		msfrpcdLeaks   bool
+		msfrpcLeaks    bool
+		goroutineLeaks bool
+	)
+	if code == 0 {
+		msfrpcLeaks = testMainCheckMSFRPCLeaks()
+		msfrpcdLeaks = testMainCheckMSFRPCDLeaks()
+		goroutineLeaks = testsuite.TestMainGoroutineLeaks()
+	}
+	if msfrpcdLeaks || msfrpcLeaks || goroutineLeaks {
+		fmt.Println("[info] wait one minute for fetch pprof")
+		time.Sleep(time.Minute)
+		os.Exit(1)
+	}
+	os.Exit(code)
+}
+
+func testMainCheckMSFRPCDLeaks() bool {
 	// create msfrpc
 	client, err := NewClient(testAddress, testUsername, testPassword, logger.Discard, nil)
-	testsuite.CheckErrorInTestMain(err)
+	testsuite.TestMainCheckError(err)
 	err = client.AuthLogin()
-	testsuite.CheckErrorInTestMain(err)
+	testsuite.TestMainCheckError(err)
 	// check leaks
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -46,33 +62,16 @@ func TestMain(m *testing.M) {
 		testMainCheckThread,
 	} {
 		if !check(ctx, client) {
-			time.Sleep(time.Minute)
-			os.Exit(1)
+			return true
 		}
 	}
 	err = client.Close()
-	testsuite.CheckErrorInTestMain(err)
-	// one test main goroutine and two goroutine about
-	// pprof server in internal/testsuite.go
-	leaks := true
-	for i := 0; i < 300; i++ {
-		if runtime.NumGoroutine() == 3 {
-			leaks = false
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if leaks {
-		fmt.Println("[warning] goroutine leaks!")
-		time.Sleep(time.Minute)
-		os.Exit(1)
-	}
+	testsuite.TestMainCheckError(err)
 	if !testsuite.Destroyed(client) {
 		fmt.Println("[warning] msfrpc client is not destroyed!")
-		time.Sleep(time.Minute)
-		os.Exit(1)
+		return true
 	}
-	os.Exit(exitCode)
+	return false
 }
 
 func testMainCheckSession(ctx context.Context, client *Client) bool {
@@ -82,7 +81,7 @@ func testMainCheckSession(ctx context.Context, client *Client) bool {
 	)
 	for i := 0; i < 30; i++ {
 		sessions, err = client.SessionList(ctx)
-		testsuite.CheckErrorInTestMain(err)
+		testsuite.TestMainCheckError(err)
 		if len(sessions) == 0 {
 			return true
 		}
@@ -103,7 +102,7 @@ func testMainCheckJob(ctx context.Context, client *Client) bool {
 	)
 	for i := 0; i < 30; i++ {
 		list, err = client.JobList(ctx)
-		testsuite.CheckErrorInTestMain(err)
+		testsuite.TestMainCheckError(err)
 		if len(list) == 0 {
 			return true
 		}
@@ -124,7 +123,7 @@ func testMainCheckConsole(ctx context.Context, client *Client) bool {
 	)
 	for i := 0; i < 30; i++ {
 		consoles, err = client.ConsoleList(ctx)
-		testsuite.CheckErrorInTestMain(err)
+		testsuite.TestMainCheckError(err)
 		if len(consoles) == 0 {
 			return true
 		}
@@ -145,7 +144,7 @@ func testMainCheckToken(ctx context.Context, client *Client) bool {
 	)
 	for i := 0; i < 30; i++ {
 		tokens, err = client.AuthTokenList(ctx)
-		testsuite.CheckErrorInTestMain(err)
+		testsuite.TestMainCheckError(err)
 		// include self token
 		if len(tokens) == 1 {
 			return true
@@ -166,7 +165,7 @@ func testMainCheckThread(ctx context.Context, client *Client) bool {
 	)
 	for i := 0; i < 30; i++ {
 		threads, err = client.CoreThreadList(ctx)
-		testsuite.CheckErrorInTestMain(err)
+		testsuite.TestMainCheckError(err)
 		// TODO [external] msfrpcd thread leaks
 		// if you call SessionMeterpreterRead() or SessionMeterpreterWrite()
 		// when you exit meterpreter shell. this thread is always sleep.
@@ -193,45 +192,30 @@ func testMainCheckThread(ctx context.Context, client *Client) bool {
 	return false
 }
 
-func testGenerateClient(t *testing.T) *Client {
-	client, err := NewClient(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	return client
-}
+func testGenerateConfig() *Config {
+	cfg := Config{Logger: logger.Test}
 
-func testGenerateClientAndLogin(t *testing.T) *Client {
-	client := testGenerateClient(t)
-	err := client.AuthLogin()
-	require.NoError(t, err)
-	return client
-}
+	cfg.Client.Address = testAddress
+	cfg.Client.Username = testUsername
+	cfg.Client.Password = testPassword
 
-func testPatchClientSend(fn func()) {
-	patch := func(context.Context, string, string, io.Reader) (*http.Request, error) {
-		return nil, monkey.Error
-	}
-	pg := monkey.Patch(http.NewRequestWithContext, patch)
-	defer pg.Unpatch()
-	fn()
-}
+	// must set max connection, otherwise testsuite.MarkGoroutines()
+	// will not inaccurate, and testInitializeMSFRPC() must wait some time
+	cfg.Client.Options = new(ClientOptions)
+	clientOpts := cfg.Client.Options
+	clientOpts.Transport.MaxIdleConns = 1
+	clientOpts.Transport.MaxIdleConnsPerHost = 1
+	clientOpts.Transport.MaxConnsPerHost = 1
+	clientOpts.Transport.IdleConnTimeout = 3 * time.Minute
 
-var testMSFRPCConfig = new(Config)
-
-func init() {
-	testMSFRPCConfig.Logger = logger.Test
-
-	testMSFRPCConfig.Client.Address = testAddress
-	testMSFRPCConfig.Client.Username = testUsername
-	testMSFRPCConfig.Client.Password = testPassword
-
-	testMSFRPCConfig.Monitor = &MonitorOptions{
+	cfg.Monitor = &MonitorOptions{
 		EnableDB: true,
 		Database: testDBOptions,
 	}
 
-	testMSFRPCConfig.Web.Network = "tcp"
-	testMSFRPCConfig.Web.Address = "127.0.0.1:0"
-	testMSFRPCConfig.Web.Options = &WebOptions{
+	cfg.Web.Network = "tcp"
+	cfg.Web.Address = "127.0.0.1:0"
+	cfg.Web.Options = &WebOptions{
 		AdminPassword: "$2a$12$er.iGxcRPUZnmUP.E7JrSOMZsJtoBkqXVIvRQywVaplIplupj7X.G", // "admin"
 		DisableTLS:    true,
 		HFS:           http.Dir("testdata/web"),
@@ -253,19 +237,26 @@ func init() {
 			},
 		},
 	}
+	return &cfg
 }
 
-func TestMSFRPC(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	msfrpc, err := NewMSFRPC(testMSFRPCConfig)
+func testGenerateMSFRPC(t testing.TB, cfg *Config) *MSFRPC {
+	msfrpc, err := NewMSFRPC(cfg)
 	require.NoError(t, err)
 	go func() {
 		err := msfrpc.Main()
 		require.NoError(t, err)
 	}()
 	msfrpc.Wait()
+	return msfrpc
+}
+
+func TestMSFRPC(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	cfg := testGenerateConfig()
+	msfrpc := testGenerateMSFRPC(t, cfg)
 
 	// serve a new listener
 	errCh := make(chan error, 1)

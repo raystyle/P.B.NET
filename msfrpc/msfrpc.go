@@ -80,6 +80,13 @@ func NewMSFRPC(cfg *Config) (*MSFRPC, error) {
 	if err != nil {
 		return nil, err
 	}
+	// prevent cycle reference
+	var ok bool
+	defer func() {
+		if !ok {
+			web.api.Close()
+		}
+	}()
 	if cfg.Web.Address != "" {
 		err := nettool.IsTCPNetwork(cfg.Web.Network)
 		if err != nil {
@@ -98,6 +105,7 @@ func NewMSFRPC(cfg *Config) (*MSFRPC, error) {
 	// wait and exit
 	msfrpc.wait = make(chan struct{}, 2)
 	msfrpc.errCh = make(chan error, 64)
+	ok = true
 	return msfrpc, nil
 }
 

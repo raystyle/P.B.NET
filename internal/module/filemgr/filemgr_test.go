@@ -19,8 +19,8 @@ import (
 	"project/internal/testsuite"
 )
 
-// clean testdata directory before test
 func TestMain(m *testing.M) {
+	// clean testdata directory before test.
 	for _, path := range [...]string{
 		TaskNameCopy,
 		TaskNameMove,
@@ -29,9 +29,8 @@ func TestMain(m *testing.M) {
 		TaskNameUnZip,
 	} {
 		err := os.RemoveAll("testdata/" + path)
-		testsuite.CheckErrorInTestMain(err)
+		testsuite.TestMainCheckError(err)
 	}
-
 	os.Exit(m.Run())
 }
 

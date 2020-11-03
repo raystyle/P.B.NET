@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"context"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -16,6 +17,28 @@ import (
 	"project/internal/patch/toml"
 	"project/internal/testsuite"
 )
+
+func testGenerateClient(t *testing.T) *Client {
+	client, err := NewClient(testAddress, testUsername, testPassword, logger.Test, nil)
+	require.NoError(t, err)
+	return client
+}
+
+func testGenerateClientAndLogin(t *testing.T) *Client {
+	client := testGenerateClient(t)
+	err := client.AuthLogin()
+	require.NoError(t, err)
+	return client
+}
+
+func testPatchClientSend(fn func()) {
+	patch := func(context.Context, string, string, io.Reader) (*http.Request, error) {
+		return nil, monkey.Error
+	}
+	pg := monkey.Patch(http.NewRequestWithContext, patch)
+	defer pg.Unpatch()
+	fn()
+}
 
 func TestNewClient(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)

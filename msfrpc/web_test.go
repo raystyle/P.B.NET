@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +16,43 @@ import (
 	"project/internal/security"
 	"project/internal/testsuite"
 )
+
+var (
+	testMSFRPC   *MSFRPC
+	testInitOnce sync.Once
+)
+
+func testMainCheckMSFRPCLeaks() bool {
+	if testMSFRPC == nil {
+		return false
+	}
+	testMSFRPC.Exit()
+	// must copy, because it is a global variable
+	testMSFRPCCp := testMSFRPC
+	testMSFRPC = nil
+	if !testsuite.Destroyed(testMSFRPCCp) {
+		fmt.Println("[warning] msfrpc is not destroyed")
+		return true
+	}
+	return false
+}
+
+func testInitializeMSFRPC(t testing.TB) {
+	testInitOnce.Do(func() {
+		cfg := testGenerateConfig()
+		testMSFRPC = testGenerateMSFRPC(t, cfg)
+
+		// make http.Client.Transport contain persistConn
+		time.Sleep(minWatchInterval * 5)
+	})
+}
+
+func TestWeb_Login(t *testing.T) {
+	testInitializeMSFRPC(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+}
 
 func TestWebUI(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
@@ -92,10 +130,9 @@ func TestWebUI_Reload(t *testing.T) {
 	})
 }
 
-func TestWebAPI_Login(t *testing.T) {
+func TestWebAPI(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
-
 }
 
 func TestWebOptions(t *testing.T) {

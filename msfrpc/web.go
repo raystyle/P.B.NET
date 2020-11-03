@@ -803,7 +803,7 @@ func (api *webAPI) getUserSession(w http.ResponseWriter, r *http.Request) *sessi
 	// check user password is changed
 	secret := session.Values["secret"].(string)
 	if secret != user.secret.String() {
-		err := fmt.Errorf("user \"%s\" already change password", username)
+		err := fmt.Errorf("user \"%s\" changed password", username)
 		api.log(logger.Debug, err)
 		api.writeError(w, err)
 	}
