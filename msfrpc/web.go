@@ -1,6 +1,7 @@
 package msfrpc
 
 import (
+	"compress/flate"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -779,6 +780,25 @@ func (api *webAPI) getUser(username string) *webUser {
 	return api.users[username]
 }
 
+func (api *webAPI) getUserSession(w http.ResponseWriter, r *http.Request) *sessions.Session {
+	session, err := api.cookieStore.Get(r, sessionName)
+	if err != nil {
+		api.log(logger.Debug, "failed to get session:", err)
+		api.writeErrorString(w, "invalid session")
+		return nil
+	}
+	// check user is exist
+	username := session.Values["username"].(string)
+	user := api.getUser(username)
+	if user == nil {
+		err := fmt.Errorf("user \"%s\" is not exist", username)
+		api.log(logger.Debug, err)
+		api.writeError(w, err)
+		return nil
+	}
+	return session
+}
+
 func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	const errInvalidUser = "username or password is incorrect"
 	req := struct {
@@ -847,25 +867,6 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	api.writeResponse(w, &resp)
 }
 
-func (api *webAPI) getUserSession(w http.ResponseWriter, r *http.Request) *sessions.Session {
-	session, err := api.cookieStore.Get(r, sessionName)
-	if err != nil {
-		api.log(logger.Debug, "failed to get session:", err)
-		api.writeErrorString(w, "invalid session")
-		return nil
-	}
-	// check user is exist
-	username := session.Values["username"].(string)
-	user := api.getUser(username)
-	if user == nil {
-		err := fmt.Errorf("user \"%s\" is not exist", username)
-		api.log(logger.Debug, err)
-		api.writeError(w, err)
-		return nil
-	}
-	return session
-}
-
 // handleIsOnline is used to check current user is online.
 func (api *webAPI) handleIsOnline(w http.ResponseWriter, r *http.Request) {
 	session := api.getUserSession(w, r)
@@ -903,7 +904,7 @@ func (api *webAPI) handleWebsocket(w http.ResponseWriter, r *http.Request) {
 	if wsConn == nil {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("already login"))
 	} else {
-		// wsConn.Write
+		wsConn.Write([]byte("success"))
 	}
 }
 
@@ -922,15 +923,17 @@ func (api *webAPI) handleLogoff(w http.ResponseWriter, r *http.Request) {
 
 // a user maybe with multi connections(but the same token).
 type wsConnGroup struct {
-	token string
+	ctx      *webAPI
+	username string
+	token    string
 
 	conns      map[*wsConn]struct{}
 	inShutdown int32
 	rwm        sync.RWMutex
 
 	// for close all connection
-	ctx    context.Context
-	cancel context.CancelFunc
+	context context.Context
+	cancel  context.CancelFunc
 }
 
 func (api *webAPI) getWSConnGroup(username, token string) *wsConnGroup {
@@ -943,41 +946,49 @@ func (api *webAPI) getWSConnGroup(username, token string) *wsConnGroup {
 		}
 	} else {
 		group = &wsConnGroup{
-			token: token,
-			conns: make(map[*wsConn]struct{}, 1),
+			ctx:      api,
+			username: username,
+			token:    token,
+			conns:    make(map[*wsConn]struct{}, 1),
 		}
-		group.ctx, group.cancel = context.WithCancel(context.Background())
+		group.context, group.cancel = context.WithCancel(context.Background())
 		api.wsConnGroups[username] = group
 	}
 	return group
 }
 
-func (c *wsConnGroup) shuttingDown() bool {
-	return atomic.LoadInt32(&c.inShutdown) != 0
+func (group *wsConnGroup) shuttingDown() bool {
+	return atomic.LoadInt32(&group.inShutdown) != 0
 }
 
-func (c *wsConnGroup) trackConn(conn *wsConn, add bool) bool {
-	c.rwm.Lock()
-	defer c.rwm.Unlock()
+func (group *wsConnGroup) trackConn(conn *wsConn, add bool) bool {
+	group.rwm.Lock()
+	defer group.rwm.Unlock()
 	if add {
-		if c.shuttingDown() {
+		if group.shuttingDown() {
 			return false
 		}
-		c.conns[conn] = struct{}{}
+		group.conns[conn] = struct{}{}
 	} else {
-		delete(c.conns, conn)
+		delete(group.conns, conn)
+		// delete conn group
+		if len(group.conns) == 0 {
+			group.ctx.wsConnGroupsRWM.Lock()
+			defer group.ctx.wsConnGroupsRWM.Unlock()
+			delete(group.ctx.wsConnGroups, group.username)
+		}
 	}
 	return true
 }
 
-func (c *wsConnGroup) Close() error {
-	atomic.StoreInt32(&c.inShutdown, 1)
-	c.cancel()
+func (group *wsConnGroup) Close() error {
+	atomic.StoreInt32(&group.inShutdown, 1)
+	group.cancel()
 	var err error
-	c.rwm.Lock()
-	defer c.rwm.Unlock()
+	group.rwm.Lock()
+	defer group.rwm.Unlock()
 	// close all connections
-	for conn := range c.conns {
+	for conn := range group.conns {
 		e := conn.Close()
 		if e != nil && err == nil {
 			err = e
@@ -1003,16 +1014,16 @@ func (api *webAPI) newWSConn(username, token string, conn *websocket.Conn) *wsCo
 	if wsConnGroup == nil {
 		return nil
 	}
-
+	// enable compress
 	conn.EnableWriteCompression(true)
-
+	_ = conn.SetCompressionLevel(flate.BestCompression)
 	wsConn := wsConn{
 		ctx:    api,
 		group:  wsConnGroup,
 		conn:   conn,
 		dataCh: make(chan []byte, 64),
 	}
-	wsConn.context, wsConn.cancel = context.WithCancel(wsConnGroup.ctx)
+	wsConn.context, wsConn.cancel = context.WithCancel(wsConnGroup.context)
 	wsConn.wg.Add(1)
 	go wsConn.writeLoop()
 	wsConn.wg.Add(1)
@@ -1020,48 +1031,71 @@ func (api *webAPI) newWSConn(username, token string, conn *websocket.Conn) *wsCo
 	return &wsConn
 }
 
-func (conn *wsConn) writeLoop() {
-	defer conn.ctx.counter.Done()
+func (wsc *wsConn) writeLoop() {
+	defer wsc.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			b := xpanic.Print(r, "wsConn.writeLoop")
-			conn.ctx.log(logger.Fatal, b)
+			wsc.ctx.log(logger.Fatal, b)
 		}
 	}()
-	if !conn.group.trackConn(conn, true) {
+
+	wsc.ctx.counter.Add(1)
+	defer wsc.ctx.counter.Done()
+
+	if !wsc.group.trackConn(wsc, true) {
 		return
 	}
-	defer conn.group.trackConn(conn, false)
+	defer wsc.group.trackConn(wsc, false)
+
 	var (
 		data []byte
 		err  error
 	)
 	for {
 		select {
-		case data = <-conn.dataCh:
-			err = conn.conn.WriteMessage(websocket.TextMessage, data)
+		case data = <-wsc.dataCh:
+			err = wsc.conn.WriteMessage(websocket.TextMessage, data)
 			if err != nil {
 				return
 			}
-		case <-conn.context.Done():
+		case <-wsc.context.Done():
 			return
 		}
 	}
 }
 
-func (conn *wsConn) readLoop() {
-	defer conn.ctx.counter.Done()
+func (wsc *wsConn) readLoop() {
+	defer wsc.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			b := xpanic.Print(r, "wsConn.readLoop")
-			conn.ctx.log(logger.Fatal, b)
+			wsc.ctx.log(logger.Fatal, b)
 		}
 	}()
+
+	wsc.ctx.counter.Add(1)
+	defer wsc.ctx.counter.Done()
+
+	for {
+		_, r, err := wsc.conn.NextReader()
+		if err != nil {
+			return
+		}
+		_, _ = io.Copy(ioutil.Discard, r)
+	}
 }
 
-func (conn *wsConn) Close() error {
-	conn.cancel()
-	return conn.conn.Close()
+func (wsc *wsConn) Write(b []byte) {
+	select {
+	case wsc.dataCh <- b:
+	case <-wsc.context.Done():
+	}
+}
+
+func (wsc *wsConn) Close() error {
+	wsc.cancel()
+	return wsc.conn.Close()
 }
 
 // ----------------------------------------monitor callbacks---------------------------------------
