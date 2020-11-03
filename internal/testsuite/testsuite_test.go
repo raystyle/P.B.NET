@@ -1,7 +1,6 @@
 package testsuite
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -79,12 +78,6 @@ func TestDeferForPanic(t *testing.T) {
 	defer DeferForPanic(t)
 
 	panic("test panic")
-}
-
-func TestCheckErrorInTestMain(t *testing.T) {
-	defer DeferForPanic(t)
-
-	CheckErrorInTestMain(errors.New("foo error"))
 }
 
 type testOptions struct {

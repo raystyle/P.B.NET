@@ -20,7 +20,7 @@ import (
 	"project/internal/cert/certpool"
 )
 
-// for test proxy client
+// for test proxy client.
 type proxyClient interface {
 	Dial(network, address string) (net.Conn, error)
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)
@@ -32,7 +32,7 @@ type proxyClient interface {
 	Info() string
 }
 
-// for test proxy server
+// for test proxy server.
 type proxyServer interface {
 	ListenAndServe(network, address string) error
 	Serve(listener net.Listener) error
@@ -47,8 +47,8 @@ var (
 	HTTPSServerPort string
 )
 
-// TestHandlerData is the test http server handler returned data.
-var TestHandlerData = []byte("hello")
+// testHandlerData is the test http server handler returned data.
+var testHandlerData = []byte("hello")
 
 var (
 	httpServer  http.Server
@@ -74,7 +74,7 @@ func initHTTPServers(t testing.TB) {
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc("/t", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		_, _ = w.Write(TestHandlerData)
+		_, _ = w.Write(testHandlerData)
 	})
 
 	// initialize HTTP server
@@ -208,7 +208,7 @@ func HTTPClient(t *testing.T, transport *http.Transport, hostname string) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		data, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Equal(t, TestHandlerData, data)
+		require.Equal(t, testHandlerData, data)
 	}
 
 	t.Run("http target", func(t *testing.T) {
@@ -307,10 +307,10 @@ func ProxyConn(t testing.TB, conn net.Conn) {
 	}
 
 	// read body
-	body := make([]byte, len(TestHandlerData))
+	body := make([]byte, len(testHandlerData))
 	_, err := io.ReadFull(conn, body)
 	require.NoError(t, err)
-	require.Equal(t, TestHandlerData, body)
+	require.Equal(t, testHandlerData, body)
 }
 
 // ProxyClient is used to test proxy client.

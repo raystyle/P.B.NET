@@ -122,14 +122,6 @@ func DeferForPanic(t testing.TB) {
 	t.Logf("\npanic in %s:\n%s\n", t.Name(), r)
 }
 
-// CheckErrorInTestMain is used to check error in function TestMain(),
-// because no t *testing.T, so we need check it self.
-func CheckErrorInTestMain(err error) {
-	if err != nil {
-		panic(fmt.Sprintf("error occoured in TestMain:\n%s", err))
-	}
-}
-
 // CheckOptions is used to check unmarshal is apply value to each field,
 // it will check each field value is zero.
 func CheckOptions(t *testing.T, v interface{}) {

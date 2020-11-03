@@ -1,6 +1,7 @@
 package testsuite
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"testing"
@@ -12,24 +13,26 @@ func TestMarkGoroutine(t *testing.T) {
 	gm := MarkGoroutines(t)
 	defer gm.Compare()
 
-	c := make(chan struct{})
+	ch := make(chan struct{})
 	go func() {
-		c <- struct{}{}
+		<-ch
 	}()
-	<-c
+	close(ch)
 }
 
 func TestMarkGoroutine_Leak(t *testing.T) {
 	gm := MarkGoroutines(t)
-	defer func() {
-		delta := gm.compare()
-		require.Equal(t, 1, delta)
+	defer gm.Compare()
+
+	ch := make(chan struct{})
+	go func() {
+		<-ch
 	}()
 
-	c := make(chan struct{})
-	go func() {
-		c <- struct{}{}
-	}()
+	delta := gm.compare()
+	require.Equal(t, 1, delta)
+
+	close(ch)
 }
 
 func TestIsDestroyed(t *testing.T) {
@@ -76,4 +79,37 @@ func TestMarkMemory(t *testing.T) {
 func TestMarkMemory_Leak(t *testing.T) {
 	mm := MarkMemory(t)
 	defer mm.Compare()
+}
+
+func TestTestMainCheckError(t *testing.T) {
+	defer DeferForPanic(t)
+
+	TestMainCheckError(errors.New("foo error"))
+}
+
+func TestTestMainGoroutineLeaks(t *testing.T) {
+	gm := MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("ok", func(t *testing.T) {
+		leaks := testMainGoroutineLeaks(5)
+		require.False(t, leaks)
+	})
+
+	t.Run("leaks", func(t *testing.T) {
+		ch := make(chan struct{})
+		RunGoroutines(func() {
+			<-ch
+		})
+
+		leaks := testMainGoroutineLeaks(5)
+		require.True(t, leaks)
+
+		close(ch)
+		leaks = testMainGoroutineLeaks(5)
+		require.False(t, leaks)
+	})
+
+	// for code coverage
+	TestMainGoroutineLeaks()
 }

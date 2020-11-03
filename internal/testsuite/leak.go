@@ -132,3 +132,33 @@ func (m *MemoryMark) compare() bool {
 	runtime.ReadMemStats(m.now)
 	return true
 }
+
+// TestMainCheckError is used to check error in function TestMain(),
+// because no t *testing.T, so we need check it self.
+func TestMainCheckError(err error) {
+	if err != nil {
+		panic(fmt.Sprintf("error occoured in TestMain:\n%s", err))
+	}
+}
+
+// TestMainGoroutineLeaks is used to check goroutine leak in TestMain().
+// one test main goroutine and two goroutine in pprof server in testsuite.go.
+func TestMainGoroutineLeaks() bool {
+	return testMainGoroutineLeaks(3)
+}
+
+// in test n = 5, in TestMain() n = 3
+func testMainGoroutineLeaks(n int) bool {
+	leaks := true
+	for i := 0; i < 300; i++ {
+		if runtime.NumGoroutine() == n {
+			leaks = false
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if leaks {
+		fmt.Println("[warning] goroutine leaks!")
+	}
+	return leaks
+}
