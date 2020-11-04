@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/axgle/mahonia"
+	"github.com/mymmsc/encoding"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/testsuite"
@@ -65,7 +65,7 @@ func TestTerminal(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		reader := mahonia.NewDecoder("GBK").NewReader(terminal)
+		reader := encoding.NewDecoder("GBK").NewReader(terminal)
 		buf := make([]byte, 512)
 		for {
 			n, err := reader.Read(buf)

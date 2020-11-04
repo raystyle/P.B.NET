@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/axgle/mahonia"
+	"github.com/mymmsc/encoding"
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
@@ -496,7 +496,7 @@ func (ctrl *Ctrl) SingleShell(
 	decoder string,
 	timeout time.Duration,
 ) ([]byte, error) {
-	d := mahonia.NewDecoder(decoder)
+	d := encoding.NewDecoder(decoder)
 	if d == nil {
 		return nil, errors.New("invalid decoder: " + decoder)
 	}
