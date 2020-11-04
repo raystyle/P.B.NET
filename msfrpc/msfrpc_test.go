@@ -208,9 +208,9 @@ func testGenerateConfig() *Config {
 	// will not inaccurate, and testInitializeMSFRPC() must wait some time
 	cfg.Client.Options = new(ClientOptions)
 	clientOpts := cfg.Client.Options
-	clientOpts.Transport.MaxIdleConns = 1
-	clientOpts.Transport.MaxIdleConnsPerHost = 1
-	clientOpts.Transport.MaxConnsPerHost = 1
+	clientOpts.Transport.MaxIdleConns = 2
+	clientOpts.Transport.MaxIdleConnsPerHost = 2
+	clientOpts.Transport.MaxConnsPerHost = 2
 	clientOpts.Transport.IdleConnTimeout = 3 * time.Minute
 
 	db := *testDBOptions

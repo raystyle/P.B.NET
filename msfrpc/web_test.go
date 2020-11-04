@@ -1,14 +1,18 @@
 package msfrpc
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/cookiejar"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
@@ -18,8 +22,11 @@ import (
 )
 
 var (
-	testMSFRPC   *MSFRPC
-	testInitOnce sync.Once
+	testMSFRPC     *MSFRPC
+	testMSFRPCURL  string
+	testHTTPClient *http.Client
+	testWSClient   websocket.Dialer
+	testInitOnce   sync.Once
 )
 
 func testMainCheckMSFRPCLeaks() bool {
@@ -34,6 +41,8 @@ func testMainCheckMSFRPCLeaks() bool {
 		fmt.Println("[warning] msfrpc is not destroyed")
 		return true
 	}
+	// close http client
+	testHTTPClient.CloseIdleConnections()
 	return false
 }
 
@@ -42,9 +51,47 @@ func testInitializeMSFRPC(t testing.TB) {
 		cfg := testGenerateConfig()
 		testMSFRPC = testGenerateMSFRPC(t, cfg)
 
-		// make http.Client.Transport contain persistConn
+		// let http.Client.Transport contain persistConn
 		time.Sleep(minWatchInterval * 5)
+
+		testMSFRPCURL = fmt.Sprintf("http://%s/", testMSFRPC.Addresses()[0])
+
+		// create http client
+		jar, _ := cookiejar.New(nil)
+		testHTTPClient = &http.Client{
+			Transport: new(http.Transport),
+			Jar:       jar,
+			Timeout:   30 * time.Second,
+		}
+
+		// create websocket client
+		testWSClient.EnableCompression = true
+		testWSClient.Jar = jar
 	})
+}
+
+func testHTTPClientGET(t *testing.T, path string, resp interface{}) {
+	response, err := testHTTPClient.Get(testMSFRPCURL + path)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	err = json.NewDecoder(response.Body).Decode(resp)
+	require.NoError(t, err)
+}
+
+func testHTTPClientPOST(t *testing.T, path string, data, resp interface{}) {
+	buf := bytes.NewBuffer(make([]byte, 0, 128))
+	err := json.NewEncoder(buf).Encode(data)
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodPost, testMSFRPCURL+path, buf)
+	require.NoError(t, err)
+
+	response, err := testHTTPClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	err = json.NewDecoder(response.Body).Decode(resp)
+	require.NoError(t, err)
 }
 
 func TestWeb_Login(t *testing.T) {
@@ -52,6 +99,37 @@ func TestWeb_Login(t *testing.T) {
 
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
+
+	t.Run("success", func(t *testing.T) {
+		req := &struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}{}
+		resp := &struct {
+			Username    string `json:"username"`
+			UserGroup   string `json:"user_group"`
+			DisplayName string `json:"display_name"`
+		}{}
+		for _, item := range [...]*struct {
+			username    string
+			password    string
+			userGroup   string
+			displayName string
+		}{
+			{"admin", "admin", UserGroupAdmins, "Admin"},
+			{"manager", "test", UserGroupManagers, "Manager"},
+			{"user", "test", UserGroupUsers, "User"},
+			{"guest", "test", UserGroupGuests, "Guest"},
+		} {
+			req.Username = item.username
+			req.Password = item.password
+			testHTTPClientPOST(t, "api/login", req, resp)
+
+			require.Equal(t, item.username, resp.Username)
+			require.Equal(t, item.userGroup, resp.UserGroup)
+			require.Equal(t, item.displayName, resp.DisplayName)
+		}
+	})
 }
 
 func TestWebUI(t *testing.T) {
