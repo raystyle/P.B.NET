@@ -1,9 +1,12 @@
 package msfrpc
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -14,6 +17,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/nettool"
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -409,11 +413,28 @@ func TestMSFRPC_exit(t *testing.T) {
 
 	// error in close web server
 	msfrpc.listener = testsuite.NewMockListenerWithCloseError()
+
 	// error in close io manager
 	conn := testsuite.NewMockConnWithCloseError()
 	fakeIOObject := &IOObject{reader: &ioReader{rc: conn}}
 	msfrpc.ioManager.consoles["1"] = fakeIOObject
+
 	// error in disconnect database
+	var pg *monkey.PatchGuard
+	patch := func(_ context.Context, method, url string, buf io.Reader) (*http.Request, error) {
+		// check request is from Client.DBDisconnect()
+		b, err := ioutil.ReadAll(buf)
+		require.NoError(t, err)
+		if bytes.Contains(b, []byte(MethodDBDisconnect)) {
+			return nil, monkey.Error
+		}
+		// return common http request
+		pg.Unpatch()
+		defer pg.Restore()
+		return http.NewRequest(method, url, bytes.NewReader(b))
+	}
+	pg = monkey.Patch(http.NewRequestWithContext, patch)
+	defer pg.Unpatch()
 
 	go func() {
 		err := msfrpc.Main()
@@ -427,9 +448,46 @@ func TestMSFRPC_exit(t *testing.T) {
 }
 
 func TestMSFRPC_sendError(t *testing.T) {
-
+	// mock block
+	msfrpc := &MSFRPC{
+		logger: logger.Test,
+		errCh:  make(chan error),
+	}
+	msfrpc.sendError(errors.New("foo"))
 }
 
 func TestMSFRPC_Reload(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	t.Run("api only", func(t *testing.T) {
+		cfg := testGenerateConfig()
+		cfg.Web.Options.APIOnly = true
+
+		msfrpc, err := NewMSFRPC(cfg)
+		require.NoError(t, err)
+
+		err = msfrpc.Reload()
+		require.NoError(t, err)
+
+		msfrpc.Exit()
+
+		testsuite.IsDestroyed(t, msfrpc)
+	})
+
+	t.Run("failed to reload", func(t *testing.T) {
+		cfg := testGenerateConfig()
+
+		msfrpc, err := NewMSFRPC(cfg)
+		require.NoError(t, err)
+
+		msfrpc.web.ui.hfs = http.Dir("testdata")
+
+		err = msfrpc.Reload()
+		require.Error(t, err)
+
+		msfrpc.Exit()
+
+		testsuite.IsDestroyed(t, msfrpc)
+	})
 }
