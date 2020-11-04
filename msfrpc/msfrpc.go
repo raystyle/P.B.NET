@@ -12,7 +12,6 @@ import (
 
 	"project/internal/logger"
 	"project/internal/nettool"
-	"project/internal/xpanic"
 )
 
 // Config contains all configurations about MSFRPC.
@@ -134,12 +133,6 @@ func (msfrpc *MSFRPC) Main() error {
 	if msfrpc.listener != nil {
 		errCh := make(chan error, 1)
 		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					buf := xpanic.Print(r, "MSFRPC.Main")
-					msfrpc.logger.Print(logger.Fatal, src, buf)
-				}
-			}()
 			errCh <- msfrpc.web.Serve(msfrpc.listener)
 		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -216,7 +209,7 @@ func (msfrpc *MSFRPC) exit() {
 	// close monitor
 	msfrpc.monitor.Close()
 	msfrpc.logger.Print(logger.Info, src, "monitor is closed")
-	// close database
+	// disconnect database
 	if msfrpc.database.Driver != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()

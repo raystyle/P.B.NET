@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -208,9 +209,10 @@ func testGenerateConfig() *Config {
 	clientOpts.Transport.MaxConnsPerHost = 1
 	clientOpts.Transport.IdleConnTimeout = 3 * time.Minute
 
+	db := *testDBOptions
 	cfg.Monitor = &MonitorOptions{
 		EnableDB: true,
-		Database: testDBOptions,
+		Database: &db,
 	}
 
 	cfg.Web.Network = "tcp"
@@ -337,11 +339,59 @@ func TestMSFRPC_Main(t *testing.T) {
 			require.Error(t, err)
 		})
 
-		<-msfrpc.wait
+		msfrpc.Wait()
 	})
 
 	t.Run("failed to connect database", func(t *testing.T) {
+		driver := msfrpc.database.Driver
+		msfrpc.database.Driver = "foo"
+		defer func() { msfrpc.database.Driver = driver }()
 
+		err := msfrpc.Main()
+		require.Error(t, err)
+
+		msfrpc.Wait()
+	})
+
+	t.Run("failed to start web server", func(t *testing.T) {
+		listener := msfrpc.listener
+		msfrpc.listener = testsuite.NewMockListenerWithAcceptPanic()
+		defer func() { msfrpc.listener = listener }()
+
+		err := msfrpc.Main()
+		require.Error(t, err)
+
+		msfrpc.Wait()
+	})
+
+	t.Run("web server with tls", func(t *testing.T) {
+		msfrpc, err := NewMSFRPC(cfg)
+		require.NoError(t, err)
+
+		msfrpc.web.disableTLS = false
+		serverTLSCfg, _ := testsuite.TLSConfigPair(t, "127.0.0.1")
+		msfrpc.web.srv.TLSConfig = serverTLSCfg
+
+		go func() {
+			err := msfrpc.Main()
+			require.NoError(t, err)
+		}()
+		msfrpc.Wait()
+
+		msfrpc.Exit()
+	})
+
+	t.Run("exit with error", func(t *testing.T) {
+		msfrpc, err := NewMSFRPC(cfg)
+		require.NoError(t, err)
+
+		go func() {
+			err := msfrpc.Main()
+			require.Error(t, err)
+		}()
+		msfrpc.Wait()
+
+		msfrpc.ExitWithError(errors.New("test error"))
 	})
 
 	msfrpc.Exit()
@@ -349,8 +399,31 @@ func TestMSFRPC_Main(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ExitWithError(t *testing.T) {
+func TestMSFRPC_exit(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	cfg := testGenerateConfig()
+	msfrpc, err := NewMSFRPC(cfg)
+	require.NoError(t, err)
+
+	// error in close web server
+	msfrpc.listener = testsuite.NewMockListenerWithCloseError()
+	// error in close io manager
+	conn := testsuite.NewMockConnWithCloseError()
+	fakeIOObject := &IOObject{reader: &ioReader{rc: conn}}
+	msfrpc.ioManager.consoles["1"] = fakeIOObject
+	// error in disconnect database
+
+	go func() {
+		err := msfrpc.Main()
+		require.Error(t, err)
+	}()
+	msfrpc.Wait()
+
+	msfrpc.Exit()
+
+	testsuite.IsDestroyed(t, msfrpc)
 }
 
 func TestMSFRPC_sendError(t *testing.T) {
