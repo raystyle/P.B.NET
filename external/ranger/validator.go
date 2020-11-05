@@ -45,9 +45,9 @@ func (t TextErr) MarshalText() ([]byte, error) {
 
 var (
 	// ErrZeroValue is the error returned when variable has zero value
-	// and nonzero or nonnil was specified
+	// and nonZero or nonNil was specified
 	ErrZeroValue = TextErr{errors.New("zero value")}
-	// ErrMin is the error returned when variable is less than mininum
+	// ErrMin is the error returned when variable is less than minimum
 	// value specified
 	ErrMin = TextErr{errors.New("less than min")}
 	// ErrMax is the error returned when variable is more than
@@ -68,9 +68,6 @@ var (
 	ErrBadParameter = TextErr{errors.New("bad parameter")}
 	// ErrUnknownTag is the error returned when an unknown tag is found
 	ErrUnknownTag = TextErr{errors.New("unknown tag")}
-	// ErrInvalid is the error returned when variable is invalid
-	// (normally a nil pointer)
-	ErrInvalid = TextErr{errors.New("invalid value")}
 	// ErrCannotValidate is the error returned when a struct is unexported
 	ErrCannotValidate = TextErr{errors.New("cannot validate unexported struct")}
 )
@@ -95,8 +92,8 @@ func (err ErrorMap) Error() string {
 // ErrorArray is a slice of errors returned by the Validate function.
 type ErrorArray []error
 
-// ErrorArray implements the Error interface and returns all the errors comma seprated
-// if errors exist.
+// ErrorArray implements the Error interface and returns all the errors
+// comma separated if errors exist.
 func (err ErrorArray) Error() string {
 	var b bytes.Buffer
 
@@ -132,7 +129,7 @@ var defaultValidator = NewValidator()
 // NewValidator creates a new Validator
 func NewValidator() *Validator {
 	return &Validator{
-		tagName: "validate",
+		tagName: "range",
 		validationFuncs: map[string]ValidationFunc{
 			"nonzero": nonZero,
 			"len":     length,
@@ -260,8 +257,8 @@ func (mv *Validator) validateStruct(sv reflect.Value, m ErrorMap) error {
 	}
 
 	st := sv.Type()
-	nfields := st.NumField()
-	for i := 0; i < nfields; i++ {
+	nFields := st.NumField()
+	for i := 0; i < nFields; i++ {
 		if err := mv.validateField(st.Field(i), sv.Field(i), m); err != nil {
 			return err
 		}
@@ -296,8 +293,8 @@ func (mv *Validator) validateField(fieldDef reflect.StructField, fieldVal reflec
 		} else {
 			err = mv.validValue(fieldVal, tag)
 		}
-		if errarr, ok := err.(ErrorArray); ok {
-			errs = errarr
+		if errArray, ok := err.(ErrorArray); ok {
+			errs = errArray
 		} else if err != nil {
 			errs = ErrorArray{err}
 		}
@@ -321,21 +318,21 @@ func (mv *Validator) validateField(fieldDef reflect.StructField, fieldVal reflec
 	return nil
 }
 
-func (mv *Validator) deepValidateCollection(f reflect.Value, m ErrorMap, fnameFn func() string) {
+func (mv *Validator) deepValidateCollection(f reflect.Value, m ErrorMap, fieldName func() string) {
 	switch f.Kind() {
 	case reflect.Interface, reflect.Ptr:
 		if f.IsNil() {
 			return
 		}
-		mv.deepValidateCollection(f.Elem(), m, fnameFn)
+		mv.deepValidateCollection(f.Elem(), m, fieldName)
 	case reflect.Struct:
-		subm := make(ErrorMap)
-		err := mv.validateStruct(f, subm)
-		parentName := fnameFn()
+		subMap := make(ErrorMap)
+		err := mv.validateStruct(f, subMap)
+		parentName := fieldName()
 		if err != nil {
 			m[parentName] = ErrorArray{err}
 		}
-		for j, k := range subm {
+		for j, k := range subMap {
 			keyName := j
 			if parentName != "" {
 				keyName = parentName + "." + keyName
@@ -349,18 +346,18 @@ func (mv *Validator) deepValidateCollection(f reflect.Value, m ErrorMap, fnameFn
 		case reflect.Struct, reflect.Interface, reflect.Ptr, reflect.Map, reflect.Array, reflect.Slice:
 			for i := 0; i < f.Len(); i++ {
 				mv.deepValidateCollection(f.Index(i), m, func() string {
-					return fmt.Sprintf("%s[%d]", fnameFn(), i)
+					return fmt.Sprintf("%s[%d]", fieldName(), i)
 				})
 			}
 		}
 	case reflect.Map:
 		for _, key := range f.MapKeys() {
 			mv.deepValidateCollection(key, m, func() string {
-				return fmt.Sprintf("%s[%+v](key)", fnameFn(), key.Interface())
+				return fmt.Sprintf("%s[%+v](key)", fieldName(), key.Interface())
 			}) // validate the map key
 			value := f.MapIndex(key)
 			mv.deepValidateCollection(value, m, func() string {
-				return fmt.Sprintf("%s[%+v](value)", fnameFn(), key.Interface())
+				return fmt.Sprintf("%s[%+v](value)", fieldName(), key.Interface())
 			})
 		}
 	}
@@ -423,10 +420,10 @@ type tag struct {
 }
 
 // separate by no escaped commas
-var sepPattern *regexp.Regexp = regexp.MustCompile(`((?:^|[^\\])(?:\\\\)*),`)
+var sepPattern = regexp.MustCompile(`((?:^|[^\\])(?:\\\\)*),`)
 
 func splitUnescapedComma(str string) []string {
-	ret := []string{}
+	var ret []string
 	indexes := sepPattern.FindAllStringIndex(str, -1)
 	last := 0
 	for _, is := range indexes {

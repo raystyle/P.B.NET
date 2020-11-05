@@ -30,13 +30,13 @@ func ExampleValidate() {
 	// First create a struct to be validated
 	// according to the validator tags.
 	type ValidateExample struct {
-		Name        string `validate:"nonzero"`
+		Name        string `range:"nonzero"`
 		Description string
-		Age         int    `validate:"min=18"`
-		Email       string `validate:"regexp=^[0-9a-z]+@[0-9a-z]+(\\.[0-9a-z]+)+$"`
+		Age         int    `range:"min=18"`
+		Email       string `range:"regexp=^[0-9a-z]+@[0-9a-z]+(\\.[0-9a-z]+)+$"`
 		Address     struct {
-			Street string `validate:"nonzero"`
-			City   string `validate:"nonzero"`
+			Street string `range:"nonzero"`
+			City   string `range:"nonzero"`
 		}
 	}
 

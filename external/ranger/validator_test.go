@@ -37,7 +37,7 @@ type MySuite struct{}
 var _ = Suite(&MySuite{})
 
 type Simple struct {
-	A int `validate:"min=10"`
+	A int `range:"min=10"`
 }
 
 type I interface {
@@ -45,7 +45,7 @@ type I interface {
 }
 
 type Impl struct {
-	F string `validate:"len=3"`
+	F string `range:"len=3"`
 }
 
 func (i *Impl) Foo() string {
@@ -53,7 +53,7 @@ func (i *Impl) Foo() string {
 }
 
 type Impl2 struct {
-	F string `validate:"len=3"`
+	F string `range:"len=3"`
 }
 
 func (i Impl2) Foo() string {
@@ -61,16 +61,16 @@ func (i Impl2) Foo() string {
 }
 
 type TestStruct struct {
-	A   int    `validate:"nonzero" json:"a"`
-	B   string `validate:"len=8,min=6,max=4"`
+	A   int    `range:"nonzero" json:"a"`
+	B   string `range:"len=8,min=6,max=4"`
 	Sub struct {
-		A int `validate:"nonzero" json:"sub_a"`
+		A int `range:"nonzero" json:"sub_a"`
 		B string
-		C float64 `validate:"nonzero,min=1" json:"c_is_a_float"`
-		D *string `validate:"nonzero"`
+		C float64 `range:"nonzero,min=1" json:"c_is_a_float"`
+		D *string `range:"nonzero"`
 	}
-	D *Simple `validate:"nonzero"`
-	E I       `validate:nonzero`
+	D *Simple `range:"nonzero"`
+	E I       `range:"nonzero"`
 }
 
 func (ms *MySuite) TestValidate(c *C) {
@@ -226,32 +226,33 @@ func (ms *MySuite) TestValidString(c *C) {
 
 func (ms *MySuite) TestValidateStructVar(c *C) {
 	// just verifies that a the given val is a struct
-	ranger.SetValidationFunc("struct", func(val interface{}, _ string) error {
+	err := ranger.SetValidationFunc("struct", func(val interface{}, _ string) error {
 		v := reflect.ValueOf(val)
 		if v.Kind() == reflect.Struct {
 			return nil
 		}
 		return ranger.ErrUnsupported
 	})
+	c.Assert(err, IsNil)
 
 	type test struct {
 		A int
 	}
-	err := ranger.Valid(test{}, "struct")
+	err = ranger.Valid(test{}, "struct")
 	c.Assert(err, IsNil)
 
 	type test2 struct {
 		B int
 	}
 	type test1 struct {
-		A test2 `validate:"struct"`
+		A test2 `range:"struct"`
 	}
 
 	err = ranger.Validate(test1{})
 	c.Assert(err, IsNil)
 
 	type test4 struct {
-		B int `validate:"foo"`
+		B int `range:"foo"`
 	}
 	type test3 struct {
 		A test4
@@ -264,39 +265,42 @@ func (ms *MySuite) TestValidateStructVar(c *C) {
 
 func (ms *MySuite) TestValidatePointerVar(c *C) {
 	// just verifies that a the given val is a struct
-	ranger.SetValidationFunc("struct", func(val interface{}, _ string) error {
+	err := ranger.SetValidationFunc("struct", func(val interface{}, _ string) error {
 		v := reflect.ValueOf(val)
 		if v.Kind() == reflect.Struct {
 			return nil
 		}
 		return ranger.ErrUnsupported
 	})
-	ranger.SetValidationFunc("nil", func(val interface{}, _ string) error {
+	c.Assert(err, IsNil)
+
+	err = ranger.SetValidationFunc("nil", func(val interface{}, _ string) error {
 		v := reflect.ValueOf(val)
 		if v.IsNil() {
 			return nil
 		}
 		return ranger.ErrUnsupported
 	})
+	c.Assert(err, IsNil)
 
 	type test struct {
 		A int
 	}
-	err := ranger.Valid(&test{}, "struct")
+	err = ranger.Valid(&test{}, "struct")
 	c.Assert(err, IsNil)
 
 	type test2 struct {
 		B int
 	}
 	type test1 struct {
-		A *test2 `validate:"struct"`
+		A *test2 `range:"struct"`
 	}
 
 	err = ranger.Validate(&test1{&test2{}})
 	c.Assert(err, IsNil)
 
 	type test4 struct {
-		B int `validate:"foo"`
+		B int `range:"foo"`
 	}
 	type test3 struct {
 		A test4
@@ -310,13 +314,13 @@ func (ms *MySuite) TestValidatePointerVar(c *C) {
 	c.Assert(err, IsNil)
 
 	type test5 struct {
-		A *test2 `validate:"nil"`
+		A *test2 `range:"nil"`
 	}
 	err = ranger.Validate(&test5{})
 	c.Assert(err, IsNil)
 
 	type test6 struct {
-		A *test2 `validate:"nonzero"`
+		A *test2 `range:"nonzero"`
 	}
 	err = ranger.Validate(&test6{})
 	errs, ok = err.(ranger.ErrorMap)
@@ -327,13 +331,13 @@ func (ms *MySuite) TestValidatePointerVar(c *C) {
 	c.Assert(err, IsNil)
 
 	type test7 struct {
-		A *string `validate:"min=6"`
-		B *int    `validate:"len=7"`
-		C *int    `validate:"min=12"`
-		D *int    `validate:"nonzero"`
-		E *int    `validate:"nonzero"`
-		F *int    `validate:"nonnil"`
-		G *int    `validate:"nonnil"`
+		A *string `range:"min=6"`
+		B *int    `range:"len=7"`
+		C *int    `range:"min=12"`
+		D *int    `range:"nonzero"`
+		E *int    `range:"nonzero"`
+		F *int    `range:"nonnil"`
+		G *int    `range:"nonnil"`
 	}
 	s := "aaa"
 	b := 8
@@ -352,10 +356,10 @@ func (ms *MySuite) TestValidatePointerVar(c *C) {
 
 func (ms *MySuite) TestValidateOmittedStructVar(c *C) {
 	type test2 struct {
-		B int `validate:"min=1"`
+		B int `range:"min=1"`
 	}
 	type test1 struct {
-		A test2 `validate:"-"`
+		A test2 `range:"-"`
 	}
 
 	t := test1{}
@@ -368,7 +372,7 @@ func (ms *MySuite) TestValidateOmittedStructVar(c *C) {
 
 func (ms *MySuite) TestUnknownTag(c *C) {
 	type test struct {
-		A int `validate:"foo"`
+		A int `range:"foo"`
 	}
 	t := test{}
 	err := ranger.Validate(t)
@@ -381,12 +385,12 @@ func (ms *MySuite) TestUnknownTag(c *C) {
 
 func (ms *MySuite) TestValidateStructWithSlice(c *C) {
 	type test2 struct {
-		Num    int    `validate:"max=2"`
-		String string `validate:"nonzero"`
+		Num    int    `range:"max=2"`
+		String string `range:"nonzero"`
 	}
 
 	type test struct {
-		Slices []test2 `validate:"len=1"`
+		Slices []test2 `range:"len=1"`
 	}
 
 	t := test{
@@ -405,7 +409,7 @@ func (ms *MySuite) TestValidateStructWithSlice(c *C) {
 
 func (ms *MySuite) TestValidateStructWithNestedSlice(c *C) {
 	type test2 struct {
-		Num int `validate:"max=2"`
+		Num int `range:"max=2"`
 	}
 
 	type test struct {
@@ -424,7 +428,7 @@ func (ms *MySuite) TestValidateStructWithNestedSlice(c *C) {
 
 func (ms *MySuite) TestValidateStructWithMap(c *C) {
 	type test2 struct {
-		Num int `validate:"max=2"`
+		Num int `range:"max=2"`
 	}
 
 	type test struct {
@@ -451,8 +455,8 @@ func (ms *MySuite) TestValidateStructWithMap(c *C) {
 
 func (ms *MySuite) TestUnsupported(c *C) {
 	type test struct {
-		A int     `validate:"regexp=a.*b"`
-		B float64 `validate:"regexp=.*"`
+		A int     `range:"regexp=a.*b"`
+		B float64 `range:"regexp=.*"`
 	}
 	t := test{}
 	err := ranger.Validate(t)
@@ -466,9 +470,9 @@ func (ms *MySuite) TestUnsupported(c *C) {
 
 func (ms *MySuite) TestBadParameter(c *C) {
 	type test struct {
-		A string `validate:"min="`
-		B string `validate:"len=="`
-		C string `validate:"max=foo"`
+		A string `range:"min="`
+		B string `range:"len=="`
+		C string `range:"max=foo"`
 	}
 	t := test{}
 	err := ranger.Validate(t)
@@ -487,11 +491,13 @@ func (ms *MySuite) TestCopy(c *C) {
 	v2 := v.WithTag("validate")
 	// now we add a custom func only to the second one, it shouldn't get added
 	// to the first
-	v2.SetValidationFunc("custom", func(_ interface{}, _ string) error { return nil })
+	err := v2.SetValidationFunc("custom", func(_ interface{}, _ string) error { return nil })
+	c.Assert(err, IsNil)
+
 	type test struct {
-		A string `validate:"custom"`
+		A string `range:"custom"`
 	}
-	err := v2.Validate(test{})
+	err = v2.Validate(test{})
 	c.Assert(err, IsNil)
 
 	err = v.Validate(test{})
@@ -504,7 +510,7 @@ func (ms *MySuite) TestCopy(c *C) {
 
 func (ms *MySuite) TestTagEscape(c *C) {
 	type test struct {
-		A string `validate:"min=0,regexp=^a{3\\,10}"`
+		A string `range:"min=0,regexp=^a{3\\,10}"`
 	}
 	t := test{"aaaa"}
 	err := ranger.Validate(t)
@@ -520,11 +526,11 @@ func (ms *MySuite) TestTagEscape(c *C) {
 
 func (ms *MySuite) TestEmbeddedFields(c *C) {
 	type baseTest struct {
-		A string `validate:"min=1"`
+		A string `range:"min=1"`
 	}
 	type test struct {
 		baseTest
-		B string `validate:"min=1"`
+		B string `range:"min=1"`
 	}
 
 	err := ranger.Validate(test{})
@@ -536,7 +542,7 @@ func (ms *MySuite) TestEmbeddedFields(c *C) {
 	c.Assert(errs["B"], HasError, ranger.ErrMin)
 
 	type test2 struct {
-		baseTest `validate:"-"`
+		baseTest `range:"-"`
 	}
 	err = ranger.Validate(test2{})
 	c.Assert(err, IsNil)
@@ -544,11 +550,11 @@ func (ms *MySuite) TestEmbeddedFields(c *C) {
 
 func (ms *MySuite) TestEmbeddedPointerFields(c *C) {
 	type baseTest struct {
-		A string `validate:"min=1"`
+		A string `range:"min=1"`
 	}
 	type test struct {
 		*baseTest
-		B string `validate:"min=1"`
+		B string `range:"min=1"`
 	}
 
 	err := ranger.Validate(test{baseTest: &baseTest{}})
@@ -562,7 +568,7 @@ func (ms *MySuite) TestEmbeddedPointerFields(c *C) {
 
 func (ms *MySuite) TestEmbeddedNilPointerFields(c *C) {
 	type baseTest struct {
-		A string `validate:"min=1"`
+		A string `range:"min=1"`
 	}
 	type test struct {
 		*baseTest
@@ -574,19 +580,21 @@ func (ms *MySuite) TestEmbeddedNilPointerFields(c *C) {
 
 func (ms *MySuite) TestPrivateFields(c *C) {
 	type test struct {
-		b string `validate:"min=1"`
+		b string `range:"min=2"`
 	}
-
-	err := ranger.Validate(test{})
+	t := test{
+		b: "1",
+	}
+	err := ranger.Validate(t)
 	c.Assert(err, IsNil)
 }
 
 func (ms *MySuite) TestEmbeddedUnexported(c *C) {
 	type baseTest struct {
-		A string `validate:"min=1"`
+		A string `range:"min=1"`
 	}
 	type test struct {
-		baseTest `validate:"nonnil"`
+		baseTest `range:"nonnil"`
 	}
 
 	err := ranger.Validate(test{})
@@ -600,7 +608,7 @@ func (ms *MySuite) TestEmbeddedUnexported(c *C) {
 
 func (ms *MySuite) TestValidateStructWithByteSliceSlice(c *C) {
 	type test struct {
-		Slices [][]byte `validate:"len=1"`
+		Slices [][]byte `range:"len=1"`
 	}
 
 	t := test{
@@ -633,7 +641,7 @@ func (ms *MySuite) TestEmbeddedInterface(c *C) {
 	c.Assert(err, IsNil)
 
 	type test2 struct {
-		I `validate:"nonnil"`
+		I `range:"nonnil"`
 	}
 	err = ranger.Validate(test2{})
 	c.Assert(err, NotNil)
@@ -702,8 +710,8 @@ func (ms *MySuite) TestJSONPrintNoTag(c *C) {
 
 func (ms *MySuite) TestValidateSlice(c *C) {
 	type test2 struct {
-		Num    int    `validate:"max=2"`
-		String string `validate:"nonzero"`
+		Num    int    `range:"max=2"`
+		String string `range:"nonzero"`
 	}
 
 	err := ranger.Validate([]test2{
@@ -727,8 +735,8 @@ func (ms *MySuite) TestValidateSlice(c *C) {
 
 func (ms *MySuite) TestValidateMap(c *C) {
 	type test2 struct {
-		Num    int    `validate:"max=2"`
-		String string `validate:"nonzero"`
+		Num    int    `range:"max=2"`
+		String string `range:"nonzero"`
 	}
 
 	err := ranger.Validate(map[string]test2{
@@ -772,7 +780,7 @@ type hasErrorChecker struct {
 	*CheckerInfo
 }
 
-func (c *hasErrorChecker) Check(params []interface{}, names []string) (bool, string) {
+func (c *hasErrorChecker) Check(params []interface{}, _ []string) (bool, string) {
 	var (
 		ok    bool
 		slice []error
@@ -780,7 +788,7 @@ func (c *hasErrorChecker) Check(params []interface{}, names []string) (bool, str
 	)
 	slice, ok = params[0].(ranger.ErrorArray)
 	if !ok {
-		return false, "First parameter is not an Errorarray"
+		return false, "First parameter is not an ErrorArray"
 	}
 	value, ok = params[1].(error)
 	if !ok {
@@ -799,4 +807,16 @@ func (c *hasErrorChecker) Info() *CheckerInfo {
 	return c.CheckerInfo
 }
 
-var HasError = &hasErrorChecker{&CheckerInfo{Name: "HasError", Params: []string{"HasError", "expected to contain"}}}
+var HasError = &hasErrorChecker{
+	&CheckerInfo{
+		Name:   "HasError",
+		Params: []string{"HasError", "expected to contain"},
+	},
+}
+
+// padding functions
+func TestSet(t *testing.T) {
+	ranger.SetTag("validate")
+	ranger.SetTag("range")
+	ranger.SetPrintJSON(false)
+}

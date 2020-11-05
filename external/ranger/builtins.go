@@ -27,7 +27,7 @@ import (
 // as defined by the golang spec.
 func nonZero(v interface{}, _ string) error {
 	st := reflect.ValueOf(v)
-	valid := true
+	var valid bool
 	switch st.Kind() {
 	case reflect.String:
 		valid = utf8.RuneCountInString(st.String()) != 0
@@ -62,13 +62,13 @@ func nonZero(v interface{}, _ string) error {
 // for maps and slices it tests the number of items.
 func length(v interface{}, param string) error {
 	st := reflect.ValueOf(v)
-	valid := true
 	if st.Kind() == reflect.Ptr {
 		if st.IsNil() {
 			return nil
 		}
 		st = st.Elem()
 	}
+	var valid bool
 	switch st.Kind() {
 	case reflect.String:
 		p, err := asInt(param)
@@ -220,14 +220,14 @@ func max(v interface{}, param string) error {
 func regex(v interface{}, param string) error {
 	s, ok := v.(string)
 	if !ok {
-		sptr, ok := v.(*string)
+		ptr, ok := v.(*string)
 		if !ok {
 			return ErrUnsupported
 		}
-		if sptr == nil {
+		if ptr == nil {
 			return nil
 		}
-		s = *sptr
+		s = *ptr
 	}
 
 	re, err := regexp.Compile(param)
@@ -241,7 +241,7 @@ func regex(v interface{}, param string) error {
 	return nil
 }
 
-// asInt retuns the parameter as a int64
+// asInt returns the parameter as a int64
 // or panics if it can't convert
 func asInt(param string) (int64, error) {
 	i, err := strconv.ParseInt(param, 0, 64)
@@ -251,7 +251,7 @@ func asInt(param string) (int64, error) {
 	return i, nil
 }
 
-// asUint retuns the parameter as a uint64
+// asUint returns the parameter as a uint64
 // or panics if it can't convert
 func asUint(param string) (uint64, error) {
 	i, err := strconv.ParseUint(param, 0, 64)
