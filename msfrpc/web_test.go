@@ -12,8 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 
 	"project/internal/patch/monkey"
 	"project/internal/patch/toml"
@@ -49,6 +51,12 @@ func testMainCheckMSFRPCLeaks() bool {
 func testInitializeMSFRPC(t testing.TB) {
 	testInitOnce.Do(func() {
 		cfg := testGenerateConfig()
+		// add a user with invalid bcrypt hash for TestWebAPI_handleLogin
+		cfg.Web.Options.Users["invalid"] = &WebUser{
+			Password:    "foo hash",
+			UserGroup:   "users",
+			DisplayName: "invalid",
+		}
 		testMSFRPC = testGenerateMSFRPC(t, cfg)
 
 		// let http.Client.Transport contain persistConn
@@ -94,22 +102,26 @@ func testHTTPClientPOST(t *testing.T, path string, data, resp interface{}) {
 	require.NoError(t, err)
 }
 
-func TestWeb_Login(t *testing.T) {
+func TestWebAPI_handleLogin(t *testing.T) {
 	testInitializeMSFRPC(t)
 
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	const path = "api/login"
+
+	req := &struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}{}
+	resp := &struct {
+		Username    string `json:"username"`
+		UserGroup   string `json:"user_group"`
+		DisplayName string `json:"display_name"`
+		Error       string `json:"error"`
+	}{}
+
 	t.Run("success", func(t *testing.T) {
-		req := &struct {
-			Username string `json:"username"`
-			Password string `json:"password"`
-		}{}
-		resp := &struct {
-			Username    string `json:"username"`
-			UserGroup   string `json:"user_group"`
-			DisplayName string `json:"display_name"`
-		}{}
 		for _, item := range [...]*struct {
 			username    string
 			password    string
@@ -123,29 +135,62 @@ func TestWeb_Login(t *testing.T) {
 		} {
 			req.Username = item.username
 			req.Password = item.password
-			testHTTPClientPOST(t, "api/login", req, resp)
+			testHTTPClientPOST(t, path, req, resp)
 
 			require.Equal(t, item.username, resp.Username)
 			require.Equal(t, item.userGroup, resp.UserGroup)
 			require.Equal(t, item.displayName, resp.DisplayName)
 		}
 	})
+
+	t.Run("user is not exist", func(t *testing.T) {
+		username := req.Username
+		req.Username = "foo"
+		defer func() { req.Username = username }()
+
+		testHTTPClientPOST(t, path, req, resp)
+
+		require.Equal(t, "username or password is incorrect", resp.Error)
+	})
+
+	t.Run("incorrect password", func(t *testing.T) {
+		password := req.Password
+		req.Password = "foo"
+		defer func() { req.Password = password }()
+
+		testHTTPClientPOST(t, path, req, resp)
+
+		require.Equal(t, "username or password is incorrect", resp.Error)
+	})
+
+	t.Run("invalid password hash", func(t *testing.T) {
+		// see testInitializeMSFRPC()
+		username := req.Username
+		req.Username = "invalid"
+		defer func() { req.Username = username }()
+
+		testHTTPClientPOST(t, path, req, resp)
+
+		require.Equal(t, bcrypt.ErrHashTooShort.Error(), resp.Error)
+	})
+
+	testHTTPClient.CloseIdleConnections()
 }
 
 func TestWebUI(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	mux := http.NewServeMux()
+	router := mux.NewRouter()
 
 	hfs := http.Dir("testdata/web")
-	webUI, err := newWebUI(hfs, mux)
+	webUI, err := newWebUI(hfs, router)
 	require.NoError(t, err)
 	require.NotNil(t, webUI)
 
 	server := http.Server{
 		Addr:    "localhost:0",
-		Handler: mux,
+		Handler: router,
 	}
 	defer func() { _ = server.Close() }()
 	port := testsuite.RunHTTPServer(t, "tcp", &server)
@@ -206,10 +251,6 @@ func TestWebUI_Reload(t *testing.T) {
 		require.Error(t, err)
 		require.Nil(t, webUI)
 	})
-}
-
-func TestWebAPI_loadUserInfo(t *testing.T) {
-
 }
 
 func TestWebOptions(t *testing.T) {

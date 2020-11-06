@@ -883,6 +883,7 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 		DisplayName: displayName,
 	}
 	api.writeResponse(w, &resp)
+	api.logf(logger.Debug, "user: \"%s\" is login", username)
 }
 
 // handleIsOnline is used to check current user is online.

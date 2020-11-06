@@ -32,22 +32,18 @@ const (
 
 func TestMain(m *testing.M) {
 	code := m.Run()
-	var (
-		msfrpcdLeaks   bool
-		msfrpcLeaks    bool
-		goroutineLeaks bool
-	)
-	if code == 0 {
-		msfrpcLeaks = testMainCheckMSFRPCLeaks()
-		msfrpcdLeaks = testMainCheckMSFRPCDLeaks()
-		goroutineLeaks = testsuite.TestMainGoroutineLeaks()
+	if code != 0 {
+		os.Exit(code)
 	}
+	msfrpcLeaks := testMainCheckMSFRPCLeaks()
+	msfrpcdLeaks := testMainCheckMSFRPCDLeaks()
+	goroutineLeaks := testsuite.TestMainGoroutineLeaks()
 	if msfrpcdLeaks || msfrpcLeaks || goroutineLeaks {
 		fmt.Println("[info] wait one minute for fetch pprof")
 		time.Sleep(time.Minute)
 		os.Exit(1)
 	}
-	os.Exit(code)
+	os.Exit(0)
 }
 
 func testMainCheckMSFRPCDLeaks() bool {

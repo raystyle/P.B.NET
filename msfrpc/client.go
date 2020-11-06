@@ -196,57 +196,57 @@ func (client *Client) GetToken() string {
 	return client.token
 }
 
-func (client *Client) send(ctx context.Context, request, response interface{}) error {
-	return client.sendWithReplace(ctx, request, response, nil)
+func (client *Client) send(ctx context.Context, req, resp interface{}) error {
+	return client.sendWithReplace(ctx, req, resp, nil)
 }
 
-// sendWithReplace is used to replace response to another response like CoreThreadList
-// and MSFError if decode failed(return a MSFError).
-func (client *Client) sendWithReplace(ctx context.Context, request, response, replace interface{}) error {
+// sendWithReplace is used to replace response to another response like
+// CoreThreadList and MSFError if decode failed(return a MSFError).
+func (client *Client) sendWithReplace(ctx context.Context, req, resp, replace interface{}) error {
 	// pack request
 	be := client.encoderPool.Get().(*bufEncoder)
 	defer client.encoderPool.Put(be)
 	be.buf.Reset()
-	err := be.encoder.Encode(request)
+	err := be.encoder.Encode(req)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.url, be.buf)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, client.url, be.buf)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	header := req.Header
+	header := request.Header
 	header.Set("Content-Type", "binary/message-pack")
 	header.Set("Accept", "binary/message-pack")
 	header.Set("Accept-Charset", "utf-8")
 	header.Set("Connection", "keep-alive")
 	// send request
-	resp, err := client.client.Do(req)
+	response, err := client.client.Do(request)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	defer func() {
-		_, _ = io.Copy(ioutil.Discard, resp.Body)
-		_ = resp.Body.Close()
+		_, _ = io.Copy(ioutil.Discard, response.Body)
+		_ = response.Body.Close()
 	}()
 	// read response body
-	switch resp.StatusCode {
+	switch response.StatusCode {
 	case http.StatusOK:
 		bd := client.decoderPool.Get().(*bufDecoder)
 		defer client.decoderPool.Put(bd)
 		bd.buf.Reset()
-		_, err = bd.buf.ReadFrom(resp.Body)
+		_, err = bd.buf.ReadFrom(response.Body)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		if replace == nil {
-			return bd.decoder.Decode(response)
+			return bd.decoder.Decode(resp)
 		}
 		// first try to decode to response
 		rd := client.rdDecoderPool.Get().(*readerDecoder)
 		defer client.rdDecoderPool.Put(rd)
 		rd.reader.Reset(bd.buf.Bytes())
-		err = rd.decoder.Decode(response)
+		err = rd.decoder.Decode(resp)
 		if err == nil {
 			return nil
 		}
@@ -256,7 +256,7 @@ func (client *Client) sendWithReplace(ctx context.Context, request, response, re
 		bd := client.decoderPool.Get().(*bufDecoder)
 		defer client.decoderPool.Put(bd)
 		bd.buf.Reset()
-		_, err = bd.buf.ReadFrom(resp.Body)
+		_, err = bd.buf.ReadFrom(response.Body)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -273,7 +273,7 @@ func (client *Client) sendWithReplace(ctx context.Context, request, response, re
 	case http.StatusNotFound:
 		err = errors.New("the request was sent to an invalid URL")
 	default:
-		err = errors.Errorf("unexpected http status code: %d", resp.StatusCode)
+		err = errors.Errorf("unexpected http status code: %d", response.StatusCode)
 	}
 	return err
 }

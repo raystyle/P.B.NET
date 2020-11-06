@@ -34,7 +34,7 @@ type encLog struct {
 	log    []byte // encrypted
 }
 
-// gLogger is a global logger, all modules's log use it.
+// gLogger is a global logger, all module's log use it.
 // it will send log to Controller and write to writer.
 type gLogger struct {
 	ctx *Node
