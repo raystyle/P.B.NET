@@ -50,7 +50,7 @@ type MonitorOptions struct {
 	EnableDB bool `toml:"enable_db"`
 
 	// Database contains options about database
-	Database *DBConnectOptions `toml:"database" check:"-"`
+	Database *DBConnectOptions `toml:"database" testsuite:"-"`
 }
 
 // Monitor is used to monitor changes about token list(security),

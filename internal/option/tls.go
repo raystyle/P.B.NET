@@ -24,7 +24,7 @@ type TLSConfig struct {
 	CipherSuites []uint16           `toml:"cipher_suites"`
 
 	// add certificates from certificate pool manually
-	CertPool         *cert.Pool `toml:"-" msgpack:"-" check:"-"`
+	CertPool         *cert.Pool `toml:"-" msgpack:"-" testsuite:"-"`
 	LoadFromCertPool struct {
 		// public will be loaded automatically
 		SkipPublicRootCA   bool `toml:"skip_public_root_ca"`
@@ -38,7 +38,7 @@ type TLSConfig struct {
 	} `toml:"cert_pool"`
 
 	// listener need set true
-	ServerSide bool `toml:"-" msgpack:"-" check:"-"`
+	ServerSide bool `toml:"-" msgpack:"-" testsuite:"-"`
 }
 
 // X509KeyPair include certificate and private key.

@@ -154,7 +154,7 @@ func TestDirectOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	testsuite.CheckOptions(t, direct)
+	testsuite.ContainZeroValue(t, direct)
 
 	listeners := testGenerateListeners()
 	for i := 0; i < 10; i++ {

@@ -31,11 +31,11 @@ type HTTP struct {
 	dnsClient *dns.Client
 	rand      *random.Rand
 
-	Request   option.HTTPRequest   `toml:"request"   check:"-"`
-	Transport option.HTTPTransport `toml:"transport" check:"-"`
+	Request   option.HTTPRequest   `toml:"request"   testsuite:"-"`
+	Transport option.HTTPTransport `toml:"transport" testsuite:"-"`
 	Timeout   time.Duration        `toml:"timeout"`
 	ProxyTag  string               `toml:"proxy_tag"`
-	DNSOpts   dns.Options          `toml:"dns"       check:"-"`
+	DNSOpts   dns.Options          `toml:"dns"       testsuite:"-"`
 }
 
 // NewHTTP is used to create a HTTP client.

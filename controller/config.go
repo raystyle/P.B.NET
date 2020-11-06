@@ -80,7 +80,7 @@ type Config struct {
 	Test struct {
 		SkipTestClientDNS   bool
 		SkipSynchronizeTime bool
-	} `toml:"-" check:"-"`
+	} `toml:"-" testsuite:"-"`
 }
 
 // GenerateFirstBootstrap is used to generate the first bootstrap for role configuration.

@@ -180,7 +180,7 @@ func TestNTPOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	testsuite.CheckOptions(t, NTP)
+	testsuite.ContainZeroValue(t, NTP)
 
 	for _, testdata := range [...]*struct {
 		expected interface{}

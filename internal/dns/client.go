@@ -91,13 +91,13 @@ type Options struct {
 
 	// about DoT <warning> only DoT, if you want to set about DoH
 	// must use Transport.TLSClientConfig.
-	TLSConfig option.TLSConfig `toml:"tls_config" check:"-"`
+	TLSConfig option.TLSConfig `toml:"tls_config" testsuite:"-"`
 
 	// about DoH, set http.Request Header
 	Header http.Header `toml:"header"`
 
 	// about DoH, set http.Client Transport
-	Transport option.HTTPTransport `toml:"transport" check:"-"`
+	Transport option.HTTPTransport `toml:"transport" testsuite:"-"`
 
 	// MaxBodySize set the max response body that will read
 	// about DoH max message size

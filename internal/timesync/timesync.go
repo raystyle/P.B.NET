@@ -40,7 +40,7 @@ type Client struct {
 	Config   string `toml:"config"`
 	SkipTest bool   `toml:"skip_test"`
 
-	client `check:"-"`
+	client `testsuite:"-"`
 }
 
 type client interface {

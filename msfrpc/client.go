@@ -38,7 +38,7 @@ type ClientOptions struct {
 	Token string `toml:"token"`
 
 	// Transport contains options about http transport.
-	Transport option.HTTPTransport `toml:"transport" check:"-"`
+	Transport option.HTTPTransport `toml:"transport" testsuite:"-"`
 }
 
 // Client is used to connect metasploit-framework RPC service.

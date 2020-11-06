@@ -21,11 +21,11 @@ type DNS struct {
 	ctx       context.Context
 	dnsClient *dns.Client
 
-	Host    string      `toml:"host"`              // domain name
-	Mode    string      `toml:"mode"`              // listener mode (see xnet)
-	Network string      `toml:"network"`           // listener network
-	Port    string      `toml:"port"`              // listener port
-	Options dns.Options `toml:"options" check:"-"` // dns options
+	Host    string      `toml:"host"`                  // domain name
+	Mode    string      `toml:"mode"`                  // listener mode (see xnet)
+	Network string      `toml:"network"`               // listener network
+	Port    string      `toml:"port"`                  // listener port
+	Options dns.Options `toml:"options" testsuite:"-"` // dns options
 
 	// self encrypt all options
 	cbc *aes.CBC

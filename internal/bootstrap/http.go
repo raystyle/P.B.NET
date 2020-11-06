@@ -45,11 +45,11 @@ type HTTP struct {
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
 
-	Request   option.HTTPRequest   `toml:"request"    check:"-"`
-	Transport option.HTTPTransport `toml:"transport"  check:"-"`
+	Request   option.HTTPRequest   `toml:"request"    testsuite:"-"`
+	Transport option.HTTPTransport `toml:"transport"  testsuite:"-"`
 	Timeout   time.Duration        `toml:"timeout"`
 	ProxyTag  string               `toml:"proxy_tag"`
-	DNSOpts   dns.Options          `toml:"dns"        check:"-"`
+	DNSOpts   dns.Options          `toml:"dns"        testsuite:"-"`
 
 	MaxBodySize int64 `toml:"max_body_size"` // <security>
 
@@ -61,7 +61,7 @@ type HTTP struct {
 	PublicKey string `toml:"public_key"`
 
 	// for generate & marshal, controller set it
-	PrivateKey ed25519.PrivateKey `toml:"-" check:"-"`
+	PrivateKey ed25519.PrivateKey `toml:"-" testsuite:"-"`
 
 	// self encrypt all options
 	cbc *aes.CBC

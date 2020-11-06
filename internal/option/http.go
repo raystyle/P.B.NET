@@ -61,10 +61,10 @@ func (hr *HTTPRequest) Apply() (*http.Request, error) {
 
 // HTTPTransport include options about http.Transport.
 type HTTPTransport struct {
-	TLSClientConfig        TLSConfig     `toml:"tls_config" check:"-"`
+	TLSClientConfig        TLSConfig     `toml:"tls_config" testsuite:"-"`
 	MaxIdleConns           int           `toml:"max_idle_conns"`
 	MaxIdleConnsPerHost    int           `toml:"max_idle_conns_per_host"`
-	MaxConnsPerHost        int           `toml:"max_conns_per_host" check:"-"`
+	MaxConnsPerHost        int           `toml:"max_conns_per_host" testsuite:"-"`
 	TLSHandshakeTimeout    time.Duration `toml:"tls_handshake_timeout"`
 	IdleConnTimeout        time.Duration `toml:"idle_conn_timeout"`
 	ResponseHeaderTimeout  time.Duration `toml:"response_header_timeout"`
@@ -156,7 +156,7 @@ func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 
 // HTTPServer include options about http.Server.
 type HTTPServer struct {
-	TLSConfig         TLSConfig     `toml:"tls_config" check:"-"`
+	TLSConfig         TLSConfig     `toml:"tls_config" testsuite:"-"`
 	ReadTimeout       time.Duration `toml:"read_timeout"`  // warning
 	WriteTimeout      time.Duration `toml:"write_timeout"` // warning
 	ReadHeaderTimeout time.Duration `toml:"read_header_timeout"`

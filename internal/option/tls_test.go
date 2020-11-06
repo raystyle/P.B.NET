@@ -90,7 +90,7 @@ func TestTLSConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	testsuite.CheckOptions(t, tlsConfig)
+	testsuite.ContainZeroValue(t, tlsConfig)
 
 	t.Run("client side", func(t *testing.T) {
 		t.Run("without cert pool", func(t *testing.T) {

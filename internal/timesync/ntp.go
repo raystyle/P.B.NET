@@ -25,7 +25,7 @@ type NTP struct {
 	Address string        `toml:"address"`
 	Timeout time.Duration `toml:"timeout"`
 	Version int           `toml:"version"`
-	DNSOpts dns.Options   `toml:"dns" check:"-"`
+	DNSOpts dns.Options   `toml:"dns" testsuite:"-"`
 }
 
 // NewNTP is used to create a NTP client.

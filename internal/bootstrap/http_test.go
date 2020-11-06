@@ -1000,7 +1000,7 @@ func TestHTTPOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	testsuite.CheckOptions(t, HTTP)
+	testsuite.ContainZeroValue(t, HTTP)
 
 	for _, testdata := range [...]*struct {
 		expected interface{}

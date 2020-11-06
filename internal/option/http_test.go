@@ -40,7 +40,7 @@ func TestHTTPRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	testsuite.CheckOptions(t, req)
+	testsuite.ContainZeroValue(t, req)
 
 	request, err := req.Apply()
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestHTTPTransport(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	testsuite.CheckOptions(t, tr)
+	testsuite.ContainZeroValue(t, tr)
 
 	transport, err := tr.Apply()
 	require.NoError(t, err)
@@ -185,7 +185,7 @@ func TestHTTPServer(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	testsuite.CheckOptions(t, hs)
+	testsuite.ContainZeroValue(t, hs)
 
 	server, err := hs.Apply()
 	require.NoError(t, err)

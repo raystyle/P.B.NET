@@ -25,12 +25,12 @@ type Options struct {
 
 	// only client
 	Header    http.Header      `toml:"header"`
-	TLSConfig option.TLSConfig `toml:"tls_config" check:"-"` // only https
+	TLSConfig option.TLSConfig `toml:"tls_config" testsuite:"-"` // only https
 
 	// only server
 	MaxConns  int                  `toml:"max_conns"`
-	Server    option.HTTPServer    `toml:"server" check:"-"`
-	Transport option.HTTPTransport `toml:"transport" check:"-"`
+	Server    option.HTTPServer    `toml:"server" testsuite:"-"`
+	Transport option.HTTPTransport `toml:"transport" testsuite:"-"`
 
 	// secondary proxy
 	DialContext nettool.DialContext `toml:"-" msgpack:"-"`

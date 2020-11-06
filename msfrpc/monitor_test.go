@@ -1434,7 +1434,7 @@ func TestMonitorOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	testsuite.CheckOptions(t, opts)
+	testsuite.ContainZeroValue(t, opts)
 
 	for _, testdata := range [...]*struct {
 		expected interface{}

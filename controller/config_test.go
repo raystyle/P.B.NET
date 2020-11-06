@@ -87,7 +87,7 @@ func TestConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	testsuite.CheckOptions(t, cfg)
+	testsuite.ContainZeroValue(t, cfg)
 
 	for _, testdata := range [...]*struct {
 		expected interface{}

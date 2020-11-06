@@ -309,7 +309,7 @@ func TestDNSOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	testsuite.CheckOptions(t, DNS)
+	testsuite.ContainZeroValue(t, DNS)
 
 	for _, testdata := range [...]*struct {
 		expected interface{}

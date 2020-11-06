@@ -36,7 +36,7 @@ type Options struct {
 	Password string            `toml:"password"`
 	Timeout  time.Duration     `toml:"timeout"`
 	MaxConns int               `toml:"max_conns"`
-	Server   option.HTTPServer `toml:"server" check:"-"`
+	Server   option.HTTPServer `toml:"server" testsuite:"-"`
 }
 
 // Server is a pprof tool over http server.

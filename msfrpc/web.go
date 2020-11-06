@@ -15,6 +15,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/csrf"
+	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
@@ -117,10 +118,10 @@ type WebOptions struct {
 	APIOnly bool `toml:"api_only"`
 
 	// Server contains options about http server.
-	Server option.HTTPServer `toml:"server" check:"-"`
+	Server option.HTTPServer `toml:"server" testsuite:"-"`
 
 	// Users contains common users, key is the username.
-	Users map[string]*WebUser `toml:"-" check:"-"`
+	Users map[string]*WebUser `toml:"-" testsuite:"-"`
 }
 
 // Web is provide a web UI and API server.
@@ -144,22 +145,25 @@ func NewWeb(msfrpc *MSFRPC, opts *WebOptions) (*Web, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create web")
 	}
-	mux := http.NewServeMux()
-	webAPI, err := newWebAPI(msfrpc, opts, mux)
+
+	mux.NewRouter()
+
+	serveMux := http.NewServeMux()
+	webAPI, err := newWebAPI(msfrpc, opts, serveMux)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create web api")
 	}
 	msfrpc.logger.Print(logger.Info, "init", "initialize web api successfully")
 	var webUI *webUI
 	if !opts.APIOnly {
-		webUI, err = newWebUI(opts.HFS, mux)
+		webUI, err = newWebUI(opts.HFS, serveMux)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to create web ui")
 		}
 		msfrpc.logger.Print(logger.Info, "init", "initialize web ui successfully")
 	}
 	// set http server
-	server.Handler = mux
+	server.Handler = serveMux
 	timeout := opts.Timeout
 	if timeout < 1 {
 		timeout = defaultServerTimeout

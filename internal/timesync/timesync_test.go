@@ -1247,7 +1247,7 @@ func TestClientOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	testsuite.CheckOptions(t, client)
+	testsuite.ContainZeroValue(t, client)
 
 	for _, testdata := range [...]*struct {
 		expected interface{}

@@ -643,7 +643,7 @@ func TestOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	testsuite.CheckOptions(t, opts)
+	testsuite.ContainZeroValue(t, opts)
 
 	// check value is correct
 	notBefore := time.Date(2018, 11, 27, 0, 0, 0, 0, time.Local)
