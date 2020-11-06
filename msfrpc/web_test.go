@@ -3,6 +3,7 @@ package msfrpc
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -50,6 +52,8 @@ func testMainCheckMSFRPCLeaks() bool {
 
 func testInitializeMSFRPC(t testing.TB) {
 	testInitOnce.Do(func() {
+		testSkipVerifyAdminBcryptHash = true
+
 		cfg := testGenerateConfig()
 		// add a user with invalid bcrypt hash for TestWebAPI_handleLogin
 		cfg.Web.Options.Users["invalid"] = &WebUser{
@@ -143,6 +147,9 @@ func TestWebAPI_handleLogin(t *testing.T) {
 		}
 	})
 
+	req.Username = "admin"
+	req.Password = "admin"
+
 	t.Run("user is not exist", func(t *testing.T) {
 		username := req.Username
 		req.Username = "foo"
@@ -172,6 +179,25 @@ func TestWebAPI_handleLogin(t *testing.T) {
 		testHTTPClientPOST(t, path, req, resp)
 
 		require.Equal(t, bcrypt.ErrHashTooShort.Error(), resp.Error)
+	})
+
+	t.Run("failed to read request", func(t *testing.T) {
+		testHTTPClientPOST(t, path, "foo", resp)
+
+		require.NotEmpty(t, resp.Error)
+	})
+
+	t.Run("failed to save session", func(t *testing.T) {
+		var session *sessions.Session
+		patch := func(interface{}, *http.Request, http.ResponseWriter) error {
+			return monkey.Error
+		}
+		pg := monkey.PatchInstanceMethod(session, "Save", patch)
+		defer pg.Unpatch()
+
+		testHTTPClientPOST(t, path, req, resp)
+
+		monkey.IsMonkeyError(t, errors.New(resp.Error))
 	})
 
 	testHTTPClient.CloseIdleConnections()

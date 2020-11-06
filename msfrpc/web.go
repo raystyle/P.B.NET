@@ -343,7 +343,7 @@ func newWebUI(hfs http.FileSystem, router *mux.Router) (*webUI, error) {
 	for _, path := range [...]string{
 		"css", "js", "img", "fonts",
 	} {
-		router.Handle("/"+path+"/", http.FileServer(hfs))
+		router.NewRoute().PathPrefix("/" + path + "/").Handler(http.FileServer(hfs))
 	}
 	return &ui, nil
 }
@@ -476,6 +476,10 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, router *mux.Router) (*webAPI, e
 	return &api, nil
 }
 
+// when run test with -race, check bcrypt hash
+// will spend too much time, so we need skip it.
+var testSkipVerifyAdminBcryptHash bool
+
 func (api *webAPI) loadUserInfo(opts *WebOptions) error {
 	api.users = make(map[string]*webUser, len(opts.Users)+1) // admin
 	// set administrator username
@@ -500,7 +504,7 @@ func (api *webAPI) loadUserInfo(opts *WebOptions) error {
 			return errors.Wrap(err, "failed to generate random admin password")
 		}
 		adminPassword = string(hash)
-	} else {
+	} else if !testSkipVerifyAdminBcryptHash {
 		// validate bcrypt hash
 		err := bcrypt.CompareHashAndPassword([]byte(adminPassword), []byte("123456"))
 		if err != nil && err != bcrypt.ErrMismatchedHashAndPassword {
@@ -816,6 +820,7 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	req := struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		Insecure bool   `json:"insecure"` // for develop web ui
 	}{}
 	err := api.readRequest(r, &req)
 	if err != nil {
@@ -850,7 +855,7 @@ func (api *webAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 	opts.Path = "/"
 	opts.Domain = ""
 	opts.MaxAge = 0
-	if !api.disableTLS {
+	if !req.Insecure {
 		opts.Secure = true
 	}
 	opts.HttpOnly = true
