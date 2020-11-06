@@ -145,25 +145,22 @@ func NewWeb(msfrpc *MSFRPC, opts *WebOptions) (*Web, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create web")
 	}
-
-	mux.NewRouter()
-
-	serveMux := http.NewServeMux()
-	webAPI, err := newWebAPI(msfrpc, opts, serveMux)
+	router := mux.NewRouter()
+	webAPI, err := newWebAPI(msfrpc, opts, router)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create web api")
 	}
 	msfrpc.logger.Print(logger.Info, "init", "initialize web api successfully")
 	var webUI *webUI
 	if !opts.APIOnly {
-		webUI, err = newWebUI(opts.HFS, serveMux)
+		webUI, err = newWebUI(opts.HFS, router)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to create web ui")
 		}
 		msfrpc.logger.Print(logger.Info, "init", "initialize web ui successfully")
 	}
 	// set http server
-	server.Handler = serveMux
+	server.Handler = router
 	timeout := opts.Timeout
 	if timeout < 1 {
 		timeout = defaultServerTimeout
@@ -329,24 +326,24 @@ type webUI struct {
 	rwm     sync.RWMutex
 }
 
-func newWebUI(hfs http.FileSystem, mux *http.ServeMux) (*webUI, error) {
+func newWebUI(hfs http.FileSystem, router *mux.Router) (*webUI, error) {
 	ui := webUI{hfs: hfs}
 	err := ui.Reload()
 	if err != nil {
 		return nil, err
 	}
-	mux.HandleFunc("/favicon.ico", ui.handleFavicon)
+	router.HandleFunc("/favicon.ico", ui.handleFavicon)
 	// set index handler
 	for _, name := range [...]string{
 		"", "index.html", "index.htm", "index",
 	} {
-		mux.HandleFunc("/"+name, ui.handleIndex)
+		router.HandleFunc("/"+name, ui.handleIndex)
 	}
 	// set resource server
 	for _, path := range [...]string{
 		"css", "js", "img", "fonts",
 	} {
-		mux.Handle("/"+path+"/", http.FileServer(hfs))
+		router.Handle("/"+path+"/", http.FileServer(hfs))
 	}
 	return &ui, nil
 }
@@ -438,7 +435,7 @@ type webAPI struct {
 	counter xsync.Counter
 }
 
-func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, error) {
+func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, router *mux.Router) (*webAPI, error) {
 	api := webAPI{
 		ctx:                 msfrpc.client,
 		msfrpc:              msfrpc,
@@ -475,7 +472,7 @@ func newWebAPI(msfrpc *MSFRPC, opts *WebOptions, mux *http.ServeMux) (*webAPI, e
 		WriteBufferSize:  4096,
 	}
 	api.wsConnGroups = make(map[string]*wsConnGroup, 1)
-	api.setHandlers(mux)
+	api.setHandlers(router)
 	return &api, nil
 }
 
@@ -551,7 +548,7 @@ func (api *webAPI) loadUserInfo(opts *WebOptions) error {
 	return nil
 }
 
-func (api *webAPI) setHandlers(mux *http.ServeMux) {
+func (api *webAPI) setHandlers(router *mux.Router) {
 	for path, handler := range map[string]http.HandlerFunc{
 		"/api/login":     api.handleLogin,
 		"/api/is_online": api.handleIsOnline,
@@ -656,7 +653,7 @@ func (api *webAPI) setHandlers(mux *http.ServeMux) {
 		"/api/session/meterpreter/run_single":     api.handleSessionMeterpreterRunSingle,
 		"/api/session/compatible_modules":         api.handleSessionCompatibleModules,
 	} {
-		mux.HandleFunc(path, handler)
+		router.HandleFunc(path, handler)
 	}
 }
 
