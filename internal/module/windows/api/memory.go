@@ -43,14 +43,27 @@ func WriteProcessMemory(handle windows.Handle, address uintptr, data []byte) (in
 
 // VirtualAllocEx is used to reserves, commits, or changes the state of a region of memory
 // within the virtual address space of a specified process. The function initializes the
-// memory it allocates to zero.
+// memory it allocates to zero. // #nosec
 func VirtualAllocEx(handle windows.Handle, address uintptr, size uintptr, typ, protect uint32) (uintptr, error) {
 	const name = "VirtualAllocEx"
-	ret, _, err := procWriteProcessMemory.Call(
+	ret, _, err := procVirtualAllocEx.Call(
 		uintptr(handle), address, size, uintptr(typ), uintptr(protect),
 	)
 	if ret == 0 {
-		return 0, newErrorf(name, err, "failed to call VirtualAllocEx")
+		return 0, newErrorf(name, err, "failed to call alloc memory to remote process")
 	}
 	return ret, nil
+}
+
+// VirtualProtectEx is used to changes the protection on a region of committed pages in the
+// virtual address space of a specified process. // #nosec
+func VirtualProtectEx(handle windows.Handle, address uintptr, size uintptr, new uint32, old *uint32) error {
+	const name = "VirtualProtectEx"
+	ret, _, err := procVirtualProtectEx.Call(
+		uintptr(handle), address, size, uintptr(new), uintptr(unsafe.Pointer(old)),
+	)
+	if ret == 0 {
+		return newErrorf(name, err, "failed to change committed pages")
+	}
+	return nil
 }

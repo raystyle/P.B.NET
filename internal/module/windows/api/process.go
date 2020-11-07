@@ -118,8 +118,8 @@ func NTQueryInformationProcess(handle windows.Handle, class uint8, info *byte, s
 	const name = "NTQueryInformationProcess"
 	var returnLength uint32
 	ret, _, err := procNTQueryInformationProcess.Call(
-		uintptr(handle), uintptr(class), uintptr(unsafe.Pointer(info)),
-		size, uintptr(unsafe.Pointer(&returnLength)),
+		uintptr(handle), uintptr(class), uintptr(unsafe.Pointer(info)), size,
+		uintptr(unsafe.Pointer(&returnLength)),
 	)
 	if ret != windows.NO_ERROR {
 		err := err.(windows.Errno)
@@ -129,6 +129,25 @@ func NTQueryInformationProcess(handle windows.Handle, class uint8, info *byte, s
 		return 0, newError(name, err, "failed to query process information")
 	}
 	return returnLength, nil
+}
+
+// CreateRemoteThread is used to create a thread that runs in the
+// virtual address space of another process. // #nosec
+func CreateRemoteThread(
+	handle windows.Handle, attr *windows.SecurityAttributes, stackSize uint,
+	startAddress uintptr, parameters *byte, creationFlags uint32,
+) (windows.Handle, uint32, error) {
+	const name = "CreateRemoteThread"
+	var threadID uint32
+	ret, _, err := procCreateRemoteThread.Call(
+		uintptr(handle), uintptr(unsafe.Pointer(attr)), uintptr(stackSize),
+		startAddress, uintptr(unsafe.Pointer(&parameters)), uintptr(creationFlags),
+		uintptr(unsafe.Pointer(&threadID)),
+	)
+	if ret == 0 {
+		return 0, 0, newError(name, err, "failed to create remote thread")
+	}
+	return windows.Handle(ret), threadID, nil
 }
 
 // reference:
