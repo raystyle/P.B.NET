@@ -113,3 +113,8 @@ func (n *netStat) GetUDP6Conns() ([]*UDP6Conn, error) {
 func (n *netStat) Close() error {
 	return nil
 }
+
+// GetTCPConnState is used to convert state to string.
+func GetTCPConnState(state uint8) string {
+	return api.GetTCPConnState(state)
+}

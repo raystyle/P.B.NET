@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/module/windows/api"
 	"project/internal/testsuite"
 )
 
@@ -23,7 +22,7 @@ func TestNetStat(t *testing.T) {
 			fmt.Printf("%s:%d      %s:%d      %s      %d      %s\n",
 				conn.LocalAddr, conn.LocalPort,
 				conn.RemoteAddr, conn.RemotePort,
-				api.GetTCPConnState(conn.State), conn.PID, conn.Process,
+				GetTCPConnState(conn.State), conn.PID, conn.Process,
 			)
 		}
 		testsuite.IsDestroyed(t, &conns)
@@ -37,7 +36,7 @@ func TestNetStat(t *testing.T) {
 			fmt.Printf("[%s%%%d]:%d      [%s%%%d]:%d      %s      %d      %s\n",
 				conn.LocalAddr, conn.LocalScopeID, conn.LocalPort,
 				conn.RemoteAddr, conn.RemoteScopeID, conn.RemotePort,
-				api.GetTCPConnState(conn.State), conn.PID, conn.Process,
+				GetTCPConnState(conn.State), conn.PID, conn.Process,
 			)
 		}
 		testsuite.IsDestroyed(t, &conns)

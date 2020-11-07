@@ -7,16 +7,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/module/windows/privilege"
 	"project/internal/testsuite"
 )
 
 func TestTaskList_GetProcesses(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
-
-	err := privilege.EnableDebug()
-	require.NoError(t, err)
 
 	tasklist, err := NewTaskList(nil)
 	require.NoError(t, err)
