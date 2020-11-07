@@ -7,10 +7,13 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"project/internal/logger"
 	"project/internal/patch/json"
+	"project/internal/system"
 
 	"project/script/internal/log"
 )
@@ -62,8 +65,19 @@ func Load(path string, config *Config) bool {
 		return false
 	}
 	log.Println(logger.Info, "load configuration file successfully")
-	log.Println(logger.Info, "Go latest root path:", config.Common.GoRootLatest)
-	log.Println(logger.Info, "Go 1.10.8 root path:", config.Common.GoRoot1108)
+	// check go root path
+	goRootLatest := config.Common.GoRootLatest
+	if !checkGoRoot(goRootLatest) {
+		log.Println(logger.Error, "invalid Go latest root path:", goRootLatest)
+		return false
+	}
+	goRoot1108 := config.Common.GoRoot1108
+	if !checkGoRoot(goRoot1108) {
+		log.Println(logger.Error, "invalid Go 1.10.8 root path:", goRoot1108)
+		return false
+	}
+	log.Println(logger.Info, "Go latest root path:", goRootLatest)
+	log.Println(logger.Info, "Go 1.10.8 root path:", goRoot1108)
 	// set proxy and TLS configuration
 	tr := http.DefaultTransport.(*http.Transport)
 	proxyURL := config.Common.ProxyURL
@@ -87,6 +101,27 @@ func Load(path string, config *Config) bool {
 		log.Println(logger.Warning, "skip tls verify")
 	}
 	return true
+}
+
+// checkGoRoot is used to check go root path is valid.
+// it will check go.exe, gofmt.exe and src directory.
+func checkGoRoot(path string) bool {
+	var (
+		goFile    string
+		goFmtFile string
+	)
+	switch runtime.GOOS {
+	case "windows":
+		goFile = "go.exe"
+		goFmtFile = "gofmt.exe"
+	default:
+		goFile = "go"
+		goFmtFile = "gofmt"
+	}
+	goExist, _ := system.IsExist(filepath.Join(path, "bin/"+goFile))
+	goFmtExist, _ := system.IsExist(filepath.Join(path, "bin/"+goFmtFile))
+	srcExist, _ := system.IsExist(filepath.Join(path, "src"))
+	return goExist && goFmtExist && srcExist
 }
 
 // GoRoot is used to get the go root path.
