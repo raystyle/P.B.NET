@@ -9,10 +9,9 @@ import (
 	"os/exec"
 	"runtime"
 	"testing"
-	"time"
-	
+
 	"github.com/stretchr/testify/require"
-	
+
 	"project/internal/testsuite"
 )
 
@@ -50,8 +49,10 @@ func TestInjectShellcode(t *testing.T) {
 	err = InjectShellcode(pid, shellcode)
 	require.NoError(t, err)
 
-	time.Sleep(time.Minute)
-
-	err = cmd.Wait()
+	err = cmd.Process.Kill()
 	require.NoError(t, err)
+
+	// exit status 1
+	err = cmd.Wait()
+	require.Error(t, err)
 }
