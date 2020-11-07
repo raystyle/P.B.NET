@@ -55,7 +55,7 @@ func downloadSourceCode() bool {
 		url  string
 	}{
 		{name: "golint", url: "https://github.com/golang/lint/archive/master.zip"},
-		{name: "gocyclo", url: "https://github.com/fzipp/gocyclo/archive/master.zip"},
+		{name: "gocyclo", url: "https://github.com/fzipp/gocyclo/archive/main.zip"},
 		{name: "gosec", url: "https://github.com/securego/gosec/archive/master.zip"},
 		{name: "golangci-lint", url: "https://github.com/golangci/golangci-lint/archive/master.zip"},
 		{name: "go-tools", url: "https://github.com/golang/tools/archive/master.zip"},
@@ -109,7 +109,7 @@ func extractSourceCode() bool {
 		dir  string
 	}{
 		{name: "golint", dir: "lint-master"},
-		{name: "gocyclo", dir: "gocyclo-master"},
+		{name: "gocyclo", dir: "gocyclo-main"},
 		{name: "gosec", dir: "gosec-master"},
 		{name: "golangci-lint", dir: "golangci-lint-master"},
 		{name: "go-tools", dir: "tools-master"},
@@ -183,7 +183,7 @@ func buildSourceCode() bool {
 		build string
 	}{
 		{name: "golint", dir: "lint-master", build: "golint"},
-		{name: "gocyclo", dir: "gocyclo-master", build: "cmd/gocyclo"},
+		{name: "gocyclo", dir: "gocyclo-main", build: "cmd/gocyclo"},
 		{name: "gosec", dir: "gosec-master", build: "cmd/gosec"},
 		{name: "golangci-lint", dir: "golangci-lint-master", build: "cmd/golangci-lint"},
 		{name: "goyacc", dir: "tools-master", build: "cmd/goyacc"},
