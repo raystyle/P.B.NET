@@ -24,13 +24,6 @@ import (
 // https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedtcptable
 // https://docs.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getextendedudptable
 
-var (
-	modIphlpapi = windows.NewLazySystemDLL("iphlpapi.dll")
-
-	procGetExtendedTCPTable = modIphlpapi.NewProc("GetExtendedTcpTable")
-	procGetExtendedUDPTable = modIphlpapi.NewProc("GetExtendedUdpTable")
-)
-
 // about TCP connection state, reference MIB_TCP_STATE
 const (
 	_ uint8 = iota

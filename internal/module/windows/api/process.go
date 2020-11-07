@@ -8,14 +8,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-var (
-	modNTDLL    = windows.NewLazySystemDLL("ntdll.dll")
-	modKernel32 = windows.NewLazySystemDLL("kernel32.dll")
-
-	procNTQueryInformationProcess = modNTDLL.NewProc("NtQueryInformationProcess")
-	procReadProcessMemory         = modKernel32.NewProc("ReadProcessMemory")
-)
-
 // IsWow64Process is used to check x86 program is running in the x64 system.
 func IsWow64Process(handle windows.Handle) (bool, error) {
 	const name = "IsWow64Process"
@@ -137,21 +129,6 @@ func NTQueryInformationProcess(handle windows.Handle, class uint8, info *byte, s
 		return 0, newError(name, err, "failed to query process information")
 	}
 	return returnLength, nil
-}
-
-// ReadProcessMemory is used to read memory from process. // #nosec
-func ReadProcessMemory(handle windows.Handle, address uintptr, buffer *byte, size uintptr) (int, error) {
-	const name = "ReadProcessMemory"
-	var n uint
-	ret, _, err := procReadProcessMemory.Call(
-		uintptr(handle), address,
-		uintptr(unsafe.Pointer(buffer)), size,
-		uintptr(unsafe.Pointer(&n)),
-	)
-	if ret != 1 {
-		return 0, newErrorf(name, err, "failed to read process memory at 0x%X", address)
-	}
-	return int(n), nil
 }
 
 // reference:

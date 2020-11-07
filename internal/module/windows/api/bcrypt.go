@@ -12,18 +12,6 @@ import (
 // https://docs.microsoft.com/en-us/windows/win32/api/bcrypt
 // https://docs.microsoft.com/en-us/windows/win32/seccng/cng-algorithm-identifiers
 
-var (
-	modBcrypt = windows.NewLazySystemDLL("bcrypt.dll")
-
-	procBCryptOpenAlgorithmProvider  = modBcrypt.NewProc("BCryptOpenAlgorithmProvider")
-	procBCryptCloseAlgorithmProvider = modBcrypt.NewProc("BCryptCloseAlgorithmProvider")
-	procBCryptSetProperty            = modBcrypt.NewProc("BCryptSetProperty")
-	procBCryptGetProperty            = modBcrypt.NewProc("BCryptGetProperty")
-	procBCryptGenerateSymmetricKey   = modBcrypt.NewProc("BCryptGenerateSymmetricKey")
-	procBCryptDestroyKey             = modBcrypt.NewProc("BCryptDestroyKey")
-	procBCryptDecrypt                = modBcrypt.NewProc("BCryptDecrypt")
-)
-
 // BcryptHandle is a provider by call BCryptOpenAlgorithmProvider.
 type BcryptHandle uintptr
 

@@ -8,16 +8,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-var (
-	procGetSystemInfo       = modKernel32.NewProc("GetSystemInfo")
-	procGetNativeSystemInfo = modKernel32.NewProc("GetNativeSystemInfo")
-)
-
-// CloseHandle is used to close handle it will return error.
-func CloseHandle(handle windows.Handle) {
-	_ = windows.CloseHandle(handle)
-}
-
 // GetVersionNumber is used to get NT version number.
 func GetVersionNumber() (major, minor, build uint32) {
 	return windows.RtlGetNtVersionNumbers()
