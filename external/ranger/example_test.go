@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"sort"
 
-	validator "project/external/ranger"
+	"project/external/ranger"
 )
 
 // This example demonstrates a custom function to process template text.
@@ -51,13 +51,13 @@ func ExampleValidate() {
 	ve.Address.City = "Some City" // valid
 	ve.Address.Street = ""        // invalid
 
-	err := validator.Validate(ve)
+	err := ranger.Validate(ve)
 	if err == nil {
 		fmt.Println("Values are valid.")
 	} else {
-		errs := err.(validator.ErrorMap)
+		errs := err.(ranger.ErrorMap)
 		// See if Address was empty
-		if errs["Address.Street"][0] == validator.ErrZeroValue {
+		if errs["Address.Street"][0] == ranger.ErrZeroValue {
 			fmt.Println("Street cannot be empty.")
 		}
 
@@ -91,15 +91,15 @@ func ExampleValidate() {
 // This example shows how to use the Valid helper
 // function to validator any number of values
 func ExampleValid() {
-	err := validator.Valid(42, "min=10,max=100,nonzero")
+	err := ranger.Valid(42, "min=10,max=100,nonzero")
 	fmt.Printf("42: valid=%v, errs=%v\n", err == nil, err)
 
 	var ptr *int
-	if err := validator.Valid(ptr, "nonzero"); err != nil {
+	if err := ranger.Valid(ptr, "nonzero"); err != nil {
 		fmt.Println("ptr: Invalid nil pointer.")
 	}
 
-	err = validator.Valid("ABBA", "regexp=[ABC]*")
+	err = ranger.Valid("ABBA", "regexp=[ABC]*")
 	fmt.Printf("ABBA: valid=%v\n", err == nil)
 
 	// Output:
@@ -114,13 +114,13 @@ func ExampleSetTag() {
 		A int `foo:"nonzero" bar:"min=10"`
 	}
 	t := T{5}
-	v := validator.NewValidator()
+	v := ranger.NewValidator()
 	v.SetTag("foo")
 	err := v.Validate(t)
 	fmt.Printf("foo --> valid: %v, errs: %v\n", err == nil, err)
 	v.SetTag("bar")
 	err = v.Validate(t)
-	errs := err.(validator.ErrorMap)
+	errs := err.(ranger.ErrorMap)
 	fmt.Printf("bar --> valid: %v, errs: %v\n", err == nil, errs)
 
 	// Output:
@@ -134,9 +134,9 @@ func ExampleWithTag() {
 		A int `foo:"nonzero" bar:"min=10"`
 	}
 	t := T{5}
-	err := validator.WithTag("foo").Validate(t)
+	err := ranger.WithTag("foo").Validate(t)
 	fmt.Printf("foo --> valid: %v, errs: %v\n", err == nil, err)
-	err = validator.WithTag("bar").Validate(t)
+	err = ranger.WithTag("bar").Validate(t)
 	fmt.Printf("bar --> valid: %v, errs: %v\n", err == nil, err)
 
 	// Output:

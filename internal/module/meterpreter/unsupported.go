@@ -4,6 +4,7 @@ package meterpreter
 
 import (
 	"errors"
+	"net"
 )
 
 func reverseTCP(*net.TCPConn, []byte, string) error {
