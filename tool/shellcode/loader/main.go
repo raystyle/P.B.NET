@@ -46,8 +46,7 @@ func main() {
 
 	// load executable file
 	if input == "" {
-		fmt.Println("no input shellcode file path")
-		return
+		system.PrintError("no input shellcode file path")
 	}
 	scData, err := ioutil.ReadFile(input) // #nosec
 	system.CheckError(err)
