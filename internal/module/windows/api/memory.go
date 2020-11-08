@@ -41,6 +41,18 @@ func WriteProcessMemory(handle windows.Handle, address uintptr, data []byte) (in
 	return int(n), nil
 }
 
+// VirtualAlloc is used to reserves, commits, or changes the state of a region of pages
+// in the virtual address space of the calling process. Memory allocated by this function
+// is automatically initialized to zero.
+func VirtualAlloc(address uintptr, size uintptr, typ, protect uint32) (uintptr, error) {
+	const name = "VirtualAlloc"
+	ret, _, err := procVirtualAlloc.Call(address, size, uintptr(typ), uintptr(protect))
+	if ret == 0 {
+		return 0, newErrorf(name, err, "failed to alloc memory")
+	}
+	return ret, nil
+}
+
 // VirtualAllocEx is used to reserves, commits, or changes the state of a region of memory
 // within the virtual address space of a specified process. The function initializes the
 // memory it allocates to zero.
@@ -51,6 +63,17 @@ func VirtualAllocEx(handle windows.Handle, address uintptr, size uintptr, typ, p
 		return 0, newErrorf(name, err, "failed to alloc memory to remote process")
 	}
 	return ret, nil
+}
+
+// VirtualFree is used to releases, decommits, or releases and decommits a region of pages
+// within the virtual address space of the calling process.
+func VirtualFree(address uintptr, size uintptr, typ uint32) error {
+	const name = "VirtualFree"
+	ret, _, err := procVirtualFree.Call(address, size, uintptr(typ))
+	if ret == 0 {
+		return newErrorf(name, err, "failed to free memory")
+	}
+	return nil
 }
 
 // VirtualFreeEx is used to releases, decommits, or releases and decommits a region of memory
@@ -64,6 +87,19 @@ func VirtualFreeEx(handle windows.Handle, address uintptr, size uintptr, typ uin
 	return nil
 }
 
+// VirtualProtect is used to change the protection on a region of committed pages in the
+// virtual address space of the calling process. // #nosec
+func VirtualProtect(address uintptr, size uintptr, new uint32, old *uint32) error {
+	const name = "VirtualProtect"
+	ret, _, err := procVirtualProtect.Call(
+		address, size, uintptr(new), uintptr(unsafe.Pointer(old)),
+	)
+	if ret == 0 {
+		return newErrorf(name, err, "failed to change committed pages")
+	}
+	return nil
+}
+
 // VirtualProtectEx is used to changes the protection on a region of committed pages in the
 // virtual address space of a specified process. // #nosec
 func VirtualProtectEx(handle windows.Handle, address uintptr, size uintptr, new uint32, old *uint32) error {
@@ -72,7 +108,7 @@ func VirtualProtectEx(handle windows.Handle, address uintptr, size uintptr, new 
 		uintptr(handle), address, size, uintptr(new), uintptr(unsafe.Pointer(old)),
 	)
 	if ret == 0 {
-		return newErrorf(name, err, "failed to change committed pages")
+		return newErrorf(name, err, "failed to change committed pages about remote process")
 	}
 	return nil
 }

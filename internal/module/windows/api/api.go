@@ -16,8 +16,11 @@ var (
 
 	procReadProcessMemory   = modKernel32.NewProc("ReadProcessMemory")
 	procWriteProcessMemory  = modKernel32.NewProc("WriteProcessMemory")
+	procVirtualAlloc        = modKernel32.NewProc("VirtualAlloc")
 	procVirtualAllocEx      = modKernel32.NewProc("VirtualAllocEx")
+	procVirtualFree         = modKernel32.NewProc("VirtualFree")
 	procVirtualFreeEx       = modKernel32.NewProc("VirtualFreeEx")
+	procVirtualProtect      = modKernel32.NewProc("VirtualProtect")
 	procVirtualProtectEx    = modKernel32.NewProc("VirtualProtectEx")
 	procCreateThread        = modKernel32.NewProc("CreateThread")
 	procCreateRemoteThread  = modKernel32.NewProc("CreateRemoteThread")
