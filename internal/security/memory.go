@@ -62,20 +62,22 @@ func FlushMemory() {
 }
 
 // CoverBytes is used to cover byte slice if byte slice has secret.
-func CoverBytes(bytes []byte) {
-	for i := 0; i < len(bytes); i++ {
-		bytes[i] = 0
+func CoverBytes(b []byte) {
+	for i := 0; i < len(b); i++ {
+		b[i] = 0
 	}
 }
 
 // CoverString is used to cover string if string has secret.
 // Don't cover string about map key, or maybe trigger data race.
 func CoverString(str string) {
-	stringHeader := (*reflect.StringHeader)(unsafe.Pointer(&str)) // #nosec
-	slice := make([]byte, stringHeader.Len)
-	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&slice)) // #nosec
-	sliceHeader.Data = stringHeader.Data
-	CoverBytes(slice)
+	sh := (*reflect.StringHeader)(unsafe.Pointer(&str)) // #nosec
+	var bs []byte
+	bsh := (*reflect.SliceHeader)(unsafe.Pointer(&bs)) // #nosec
+	bsh.Data = sh.Data
+	bsh.Len = sh.Len
+	bsh.Cap = sh.Len
+	CoverBytes(bs)
 	runtime.KeepAlive(&str)
 }
 
@@ -104,7 +106,7 @@ func NewBytes(b []byte) *Bytes {
 		bytes.data[i] = b[i]
 	}
 	bytes.cache.New = func() interface{} {
-		b := make([]byte, bytes.len)
+		b := make([]byte, l)
 		return &b
 	}
 	return &bytes
