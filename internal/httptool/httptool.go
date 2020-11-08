@@ -9,11 +9,12 @@ import (
 )
 
 const (
-	// post data length in one line
-	bodyLineLength = 64
+	// BodyLineLength is the post data length in one line
+	BodyLineLength = 64
 
+	// MaxBodyLength is the maximum body length.
 	// <security> prevent too large resp.Body
-	maxBodyLength = 1024
+	MaxBodyLength = 1024
 )
 
 // FprintRequest is used to print *http.Request to a io.Writer.
@@ -68,7 +69,7 @@ func printBody(w io.Writer, r *http.Request) (int, error) {
 		err   error
 	)
 	// check body
-	buffer := make([]byte, bodyLineLength)
+	buffer := make([]byte, BodyLineLength)
 	n, err := io.ReadFull(r.Body, buffer)
 	if err != nil {
 		if n == 0 { // no body
@@ -90,7 +91,7 @@ func printBody(w io.Writer, r *http.Request) (int, error) {
 	total += n
 	rawBody.Write(buffer)
 	for {
-		if rawBody.Len() > maxBodyLength {
+		if rawBody.Len() > MaxBodyLength {
 			break
 		}
 		n, err = io.ReadFull(r.Body, buffer)

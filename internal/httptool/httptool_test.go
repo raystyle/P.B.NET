@@ -58,7 +58,7 @@ func TestFprintRequest(t *testing.T) {
 
 	t.Run("POST with data < bodyLineLength", func(t *testing.T) {
 		body.Reset()
-		body.WriteString(strings.Repeat("a", bodyLineLength-10))
+		body.WriteString(strings.Repeat("a", BodyLineLength-10))
 		rawBody.Reset(body.Bytes())
 		req.Body = ioutil.NopCloser(body)
 
@@ -71,7 +71,7 @@ func TestFprintRequest(t *testing.T) {
 
 	t.Run("POST with data = bodyLineLength", func(t *testing.T) {
 		body.Reset()
-		body.WriteString(strings.Repeat("a", bodyLineLength))
+		body.WriteString(strings.Repeat("a", BodyLineLength))
 		rawBody.Reset(body.Bytes())
 		req.Body = ioutil.NopCloser(body)
 
@@ -84,7 +84,7 @@ func TestFprintRequest(t *testing.T) {
 
 	t.Run("POST with data 3*bodyLineLength-1", func(t *testing.T) {
 		body.Reset()
-		body.WriteString(strings.Repeat("a", 3*bodyLineLength-1))
+		body.WriteString(strings.Repeat("a", 3*BodyLineLength-1))
 		rawBody = bytes.NewReader(body.Bytes())
 		req.Body = ioutil.NopCloser(body)
 
@@ -97,7 +97,7 @@ func TestFprintRequest(t *testing.T) {
 
 	t.Run("POST with data 100*bodyLineLength-1", func(t *testing.T) {
 		body.Reset()
-		body.WriteString(strings.Repeat("a", 100*bodyLineLength-1))
+		body.WriteString(strings.Repeat("a", 100*BodyLineLength-1))
 		rawBody = bytes.NewReader(body.Bytes())
 		req.Body = ioutil.NopCloser(body)
 
@@ -172,7 +172,7 @@ func TestPrintBody(t *testing.T) {
 		pg := monkey.Patch(fmt.Fprintf, patch)
 		defer pg.Unpatch()
 
-		testdata := "test" + strings.Repeat("a", bodyLineLength)
+		testdata := "test" + strings.Repeat("a", BodyLineLength)
 		req.Body = ioutil.NopCloser(strings.NewReader(testdata))
 
 		_, err := FprintRequest(os.Stdout, req)
@@ -192,7 +192,7 @@ func TestPrintBody(t *testing.T) {
 		pg := monkey.Patch(fmt.Fprintf, patch)
 		defer pg.Unpatch()
 
-		testdata := "test" + strings.Repeat("a", bodyLineLength)
+		testdata := "test" + strings.Repeat("a", BodyLineLength)
 		req.Body = ioutil.NopCloser(strings.NewReader(testdata))
 
 		_, err := FprintRequest(os.Stdout, req)
@@ -212,7 +212,7 @@ func TestPrintBody(t *testing.T) {
 		pg := monkey.Patch(fmt.Fprintf, patch)
 		defer pg.Unpatch()
 
-		testdata := "test" + strings.Repeat("a", 2*bodyLineLength)
+		testdata := "test" + strings.Repeat("a", 2*BodyLineLength)
 		req.Body = ioutil.NopCloser(strings.NewReader(testdata))
 
 		_, err := FprintRequest(os.Stdout, req)
