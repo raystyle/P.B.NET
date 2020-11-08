@@ -59,8 +59,7 @@ func BCryptSetProperty(handle BcryptHandle, prop string, input *byte, size, flag
 	}
 	ret, _, err := procBCryptSetProperty.Call(
 		uintptr(handle), uintptr(unsafe.Pointer(propPtr)),
-		uintptr(unsafe.Pointer(input)), uintptr(size),
-		uintptr(flags),
+		uintptr(unsafe.Pointer(input)), uintptr(size), uintptr(flags),
 	)
 	if ret != 0 {
 		return newErrorf(name, err, "failed to set property \"%s\"", prop)
@@ -78,8 +77,8 @@ func BCryptGetProperty(handle BcryptHandle, prop string, output *byte, size, fla
 	var result uint32
 	ret, _, err := procBCryptGetProperty.Call(
 		uintptr(handle), uintptr(unsafe.Pointer(propPtr)),
-		uintptr(unsafe.Pointer(output)), uintptr(size), uintptr(unsafe.Pointer(&result)),
-		uintptr(flags),
+		uintptr(unsafe.Pointer(output)), uintptr(size),
+		uintptr(unsafe.Pointer(&result)), uintptr(flags),
 	)
 	if ret != 0 {
 		return 0, newErrorf(name, err, "failed to get property \"%s\"", prop)

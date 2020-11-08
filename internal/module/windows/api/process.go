@@ -35,7 +35,7 @@ func GetProcessList() ([]*ProcessBasicInfo, error) {
 	if err != nil {
 		return nil, newError(name, err, "failed to create process snapshot")
 	}
-	defer func() { _ = windows.Close(snapshot) }()
+	defer CloseHandle(snapshot)
 	processes := make([]*ProcessBasicInfo, 0, 64)
 	processEntry := &windows.ProcessEntry32{
 		Size: uint32(unsafe.Sizeof(windows.ProcessEntry32{})),
@@ -129,6 +129,25 @@ func NTQueryInformationProcess(handle windows.Handle, class uint8, info *byte, s
 		return 0, newError(name, err, "failed to query process information")
 	}
 	return returnLength, nil
+}
+
+// CreateThread is used to create a thread to execute within the
+// virtual address space of the calling process. // #nosec
+func CreateThread(
+	attr *windows.SecurityAttributes, stackSize uint,
+	startAddress uintptr, parameters *byte, creationFlags uint32,
+) (windows.Handle, uint32, error) {
+	const name = "CreateThread"
+	var threadID uint32
+	ret, _, err := procCreateThread.Call(
+		uintptr(unsafe.Pointer(attr)), uintptr(stackSize),
+		startAddress, uintptr(unsafe.Pointer(&parameters)), uintptr(creationFlags),
+		uintptr(unsafe.Pointer(&threadID)),
+	)
+	if ret == 0 {
+		return 0, 0, newError(name, err, "failed to create thread")
+	}
+	return windows.Handle(ret), threadID, nil
 }
 
 // CreateRemoteThread is used to create a thread that runs in the

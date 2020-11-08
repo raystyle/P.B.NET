@@ -19,6 +19,7 @@ var (
 	procVirtualAllocEx      = modKernel32.NewProc("VirtualAllocEx")
 	procVirtualFreeEx       = modKernel32.NewProc("VirtualFreeEx")
 	procVirtualProtectEx    = modKernel32.NewProc("VirtualProtectEx")
+	procCreateThread        = modKernel32.NewProc("CreateThread")
 	procCreateRemoteThread  = modKernel32.NewProc("CreateRemoteThread")
 	procGetSystemInfo       = modKernel32.NewProc("GetSystemInfo")
 	procGetNativeSystemInfo = modKernel32.NewProc("GetNativeSystemInfo")
