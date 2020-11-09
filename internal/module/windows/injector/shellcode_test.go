@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -27,9 +28,10 @@ func TestSplitShellcode(t *testing.T) {
 
 	// first size must one byte for pass some AV
 	nextSize := 1
-	for i := 0; i < len(secondStage); {
-		if i+nextSize > len(secondStage) {
-			nextSize = len(secondStage) - i
+	l := len(secondStage)
+	for i := 0; i < l; {
+		if i+nextSize > l {
+			nextSize = l - i
 		}
 
 		t.Log("bytes:", secondStage[i:i+nextSize])
@@ -40,9 +42,10 @@ func TestSplitShellcode(t *testing.T) {
 	}
 
 	nextSize = 1
-	for i := 0; i < len(firstStage); {
-		if i+nextSize > len(firstStage) {
-			nextSize = len(firstStage) - i
+	l = len(firstStage)
+	for i := 0; i < l; {
+		if i+nextSize > l {
+			nextSize = l - i
 		}
 
 		t.Log("bytes:", firstStage[i:i+nextSize])
@@ -93,8 +96,31 @@ func TestInjectShellcode(t *testing.T) {
 	pid := uint32(cmd.Process.Pid)
 	t.Log("notepad.exe process id:", pid)
 
-	err = InjectShellcode(pid, shellcode)
-	require.NoError(t, err)
+	t.Run("wait and clean", func(t *testing.T) {
+		cp := make([]byte, len(shellcode))
+		copy(cp, shellcode)
+
+		err = InjectShellcode(pid, cp, 0, true, true)
+		require.NoError(t, err)
+	})
+
+	t.Run("wait", func(t *testing.T) {
+		cp := make([]byte, len(shellcode))
+		copy(cp, shellcode)
+
+		err = InjectShellcode(pid, cp, 8, true, false)
+		require.NoError(t, err)
+	})
+
+	t.Run("not wait", func(t *testing.T) {
+		cp := make([]byte, len(shellcode))
+		copy(cp, shellcode)
+
+		err = InjectShellcode(pid, cp, 16, false, false)
+		require.NoError(t, err)
+
+		time.Sleep(3 * time.Second)
+	})
 
 	err = cmd.Process.Kill()
 	require.NoError(t, err)
