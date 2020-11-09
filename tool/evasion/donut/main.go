@@ -26,6 +26,7 @@ func main() {
 		output  string
 		entropy uint64
 		params  string
+		thread  bool
 		noGUI   bool
 		method  string
 		scOnly  bool
@@ -36,6 +37,8 @@ func main() {
 	flag.StringVar(&output, "o", "output.exe", usage)
 	usage = "command line for exe"
 	flag.StringVar(&params, "p", "", usage)
+	usage = "create new thread, see document about donut"
+	flag.BoolVar(&thread, "thread", false, usage)
 	usage = "hide Windows GUI"
 	flag.BoolVar(&noGUI, "no-gui", false, usage)
 	usage = "entropy, see document about donut"
@@ -53,7 +56,13 @@ func main() {
 	}
 	exeData, err := ioutil.ReadFile(input) // #nosec
 	system.CheckError(err)
+
+	// set donut configuration
 	donutCfg := donut.DefaultConfig()
+	donutCfg.ExitOpt = 1 // exit thread
+	if thread {
+		donutCfg.Thread = 1 // create new thread
+	}
 
 	// read architecture
 	peFile, err := pe.NewFile(bytes.NewReader(exeData))

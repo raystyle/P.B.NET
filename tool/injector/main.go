@@ -16,10 +16,16 @@ func main() {
 		pid    int
 		format string
 		input  string
+		chunk  int
+		wait   bool
+		clean  bool
 	)
 	flag.IntVar(&pid, "p", 0, "target process id")
 	flag.StringVar(&format, "f", "raw", "shellcode format")
 	flag.StringVar(&input, "i", "", "input shellcode file path")
+	flag.IntVar(&chunk, "chunk", 32, "shellcode maximum random chunk size")
+	flag.BoolVar(&clean, "wait", true, "wait shellcode execute finish")
+	flag.BoolVar(&clean, "clean", true, "clean shellcode after execute finish")
 	flag.Parse()
 
 	if pid == 0 {
@@ -32,6 +38,6 @@ func main() {
 		system.CheckError(err)
 	}
 
-	err = injector.InjectShellcode(uint32(pid), scData)
+	err = injector.InjectShellcode(uint32(pid), scData, chunk, wait, clean)
 	system.CheckError(err)
 }
