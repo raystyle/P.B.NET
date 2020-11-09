@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/mymmsc/encoding"
+	"github.com/axgle/mahonia"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +15,7 @@ func TestShell(t *testing.T) {
 	output, err := Shell(context.Background(), "whoami")
 	require.NoError(t, err)
 
-	decoder := encoding.NewDecoder("GBK")
+	decoder := mahonia.NewDecoder("GBK")
 
 	fmt.Println(decoder.ConvertString(string(output)))
 

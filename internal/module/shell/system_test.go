@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mymmsc/encoding"
+	"github.com/axgle/mahonia"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/testsuite"
@@ -29,7 +29,7 @@ func TestSystem(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		reader := encoding.NewDecoder("GBK").NewReader(system)
+		reader := mahonia.NewDecoder("GBK").NewReader(system)
 		buf := make([]byte, 512)
 		for {
 			n, err := reader.Read(buf)
@@ -49,7 +49,7 @@ func TestSystem(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		reader := encoding.NewDecoder("GBK").NewReader(pingOnly)
+		reader := mahonia.NewDecoder("GBK").NewReader(pingOnly)
 		buf := make([]byte, 512)
 		for {
 			n, err := reader.Read(buf)
