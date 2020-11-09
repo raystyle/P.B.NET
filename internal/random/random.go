@@ -87,9 +87,9 @@ func (r *Rand) Bytes(n int) []byte {
 	if n < 1 {
 		return nil
 	}
+	result := make([]byte, n)
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	result := make([]byte, n)
 	for i := 0; i < n; i++ {
 		ri := r.rand.Intn(256)
 		result[i] = byte(ri)
