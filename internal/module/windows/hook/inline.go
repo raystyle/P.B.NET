@@ -3,8 +3,10 @@
 package hook
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
+	"runtime"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -12,13 +14,47 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Guard contain information about hooked function.
-type Guard struct {
+const (
+	shortJumperSize = 1 + 4
+	hookJumperSize
+)
+
+// PatchGuard contain information about hooked function.
+type PatchGuard struct {
 	Original *windows.Proc
 }
 
+// Patch is used to patch the target function.
+func (pg *PatchGuard) Patch() error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	return pg.patch()
+}
+
+func (pg *PatchGuard) patch() error {
+	return nil
+}
+
+func (pg *PatchGuard) UnPatch() error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	return pg.unPatch()
+}
+
+func (pg *PatchGuard) unPatch() error {
+	return nil
+}
+
+func (pg *PatchGuard) Close() error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	_ = pg.unPatch()
+	return nil
+}
+
 // NewInlineHookByName is used to create a hook about function by DLL name and Proc name.
-func NewInlineHookByName(dll, proc string, system bool, hookFn interface{}) (*Guard, error) {
+func NewInlineHookByName(dll, proc string, system bool, hookFn interface{}) (*PatchGuard, error) {
 	// load DLL
 	var lazyDLL *windows.LazyDLL
 	if system {
@@ -51,7 +87,7 @@ func NewInlineHookByName(dll, proc string, system bool, hookFn interface{}) (*Gu
 }
 
 // NewInlineHook is used to create a hook about function, usually hook a syscall.
-func NewInlineHook(target *windows.Proc, hookFn interface{}) (*Guard, error) {
+func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error) {
 	// select architecture
 	arch, err := newArch()
 	if err != nil {
@@ -60,6 +96,9 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*Guard, error) {
 	// read function address
 	targetAddr := target.Addr()
 	hookFnAddr := windows.NewCallback(hookFn)
+
+	fmt.Printf("0x%X,0x%X\n", targetAddr, hookFnAddr)
+
 	// inaccurate but sufficient
 	// Prefix = 4, OpCode = 3, ModRM = 1,
 	// sib = 1, displacement = 4, immediate = 4
@@ -70,9 +109,17 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*Guard, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to disassemble")
 	}
-	fmt.Println(insts)
+	// get patch size that need fix
+	patchSize, instNum, err := getASMPatchSizeAndInstNum(insts)
+	if err != nil {
+		return nil, err
+	}
 
-	fmt.Println(targetAddr, hookFnAddr)
+	createHookJumper(targetAddr)
+
+	fmt.Println(patchSize, instNum)
+
+	fmt.Println(insts)
 
 	return nil, nil
 }
@@ -88,4 +135,54 @@ func disassemble(src []byte, mode int) ([]*x86asm.Inst, error) {
 		src = src[inst.Len:]
 	}
 	return r, nil
+}
+
+// if appear too short function, we can improve it that add jumper to it,
+// and use behind address to storage old code.
+func getASMPatchSizeAndInstNum(insts []*x86asm.Inst) (int, int, error) {
+	var (
+		l int
+		n int
+	)
+	for i := 0; i < len(insts); i++ {
+		l += insts[i].Len
+		n += 1
+		if l >= shortJumperSize {
+			return l, n, nil
+		}
+	}
+	return 0, 0, errors.New("unable to insert jumper to this function")
+}
+
+// createHookJumper will create a far jumper to our hook function.
+// only x64 need it.
+func createHookJumper(target uintptr) (*memory, error) {
+	const maxRange = 1024 * 1024 // only 1 GB
+	begin := target - 14         // TODO: set random address
+	var addr uintptr
+	// first try to search low address
+	for i := uintptr(0); i < maxRange; i++ {
+		addr = begin - i
+
+		if isAllInt3(addr) {
+
+			fmt.Printf("0x%X\n", addr)
+
+			return nil, nil
+
+		}
+
+	}
+
+	// if not exist, search high address
+
+	//
+
+	return nil, nil
+}
+
+var allInt3 = bytes.Repeat([]byte{0xCC}, 14)
+
+func isAllInt3(addr uintptr) bool {
+	return bytes.Equal(unsafeReadMemory(addr, 14), allInt3)
 }

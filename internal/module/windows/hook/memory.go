@@ -21,3 +21,9 @@ func unsafeWriteMemory(addr uintptr, data []byte) {
 		*(*byte)(unsafe.Pointer(addr + uintptr(i))) = data[i]
 	}
 }
+
+type memory struct {
+	Addr       uintptr
+	Size       uint
+	oldProtect uintptr
+}

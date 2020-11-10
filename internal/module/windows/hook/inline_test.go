@@ -14,7 +14,7 @@ import (
 func TestNewInlineHookByName(t *testing.T) {
 	var err error
 	t.Run("MessageBoxW", func(t *testing.T) {
-		var guard *Guard
+		var guard *PatchGuard
 		hookFn := func(hwnd windows.Handle, text, caption *uint16, uType uint) int {
 			originText := windows.UTF16PtrToString(text)
 			originCaption := windows.UTF16PtrToString(text)
@@ -39,11 +39,12 @@ func TestNewInlineHookByName(t *testing.T) {
 
 	t.Run("CryptProtectMemory", func(t *testing.T) {
 		hookFn := func() uintptr {
-
 			return 1
 		}
 		guard, err := NewInlineHookByName("crypt32.dll", "CryptProtectMemory", true, hookFn)
 		require.NoError(t, err)
 		fmt.Println(guard)
 	})
+
+	select {}
 }
