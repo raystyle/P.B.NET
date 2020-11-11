@@ -22,6 +22,9 @@ var (
 	procVirtualFreeEx       = modKernel32.NewProc("VirtualFreeEx")
 	procVirtualProtect      = modKernel32.NewProc("VirtualProtect")
 	procVirtualProtectEx    = modKernel32.NewProc("VirtualProtectEx")
+	procVirtualLock         = modKernel32.NewProc("VirtualLock")
+	procVirtualUnlock       = modKernel32.NewProc("VirtualUnlock")
+	procVirtualQuery        = modKernel32.NewProc("VirtualQuery")
 	procCreateThread        = modKernel32.NewProc("CreateThread")
 	procCreateRemoteThread  = modKernel32.NewProc("CreateRemoteThread")
 	procGetSystemInfo       = modKernel32.NewProc("GetSystemInfo")
@@ -39,7 +42,7 @@ var (
 	procBCryptDecrypt                = modBcrypt.NewProc("BCryptDecrypt")
 )
 
-// CloseHandle is used to close handle it will return error.
+// CloseHandle is used to close handle, it will not return error.
 func CloseHandle(handle windows.Handle) {
 	_ = windows.CloseHandle(handle)
 }
