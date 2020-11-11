@@ -4,7 +4,9 @@ package hook
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/stretchr/testify/require"
@@ -13,13 +15,13 @@ import (
 
 func TestNewInlineHookByName(t *testing.T) {
 	var err error
-	t.Run("MessageBoxW", func(t *testing.T) {
-		var guard *PatchGuard
-		hookFn := func(hwnd windows.Handle, text, caption *uint16, uType uint) int {
+	t.Run("MessageBoxTimeoutW", func(t *testing.T) {
+		var pg *PatchGuard
+		hookFn := func(hwnd windows.Handle, text, caption *uint16, uType uint, id uint32, timeout uint) int {
 			originText := windows.UTF16PtrToString(text)
 			originCaption := windows.UTF16PtrToString(caption)
 
-			fmt.Println(originText, originCaption)
+			fmt.Println(originText, originCaption, id, timeout)
 
 			hookedText := fmt.Sprintf("origin: %s, hooked!", originText)
 			hookedCaption := fmt.Sprintf("origin: %s, hooked!", originCaption)
@@ -29,35 +31,62 @@ func TestNewInlineHookByName(t *testing.T) {
 			require.NoError(t, err)
 
 			// call original function
-			ret, _, _ := guard.Original.Call(
+			ret, _, _ := pg.Original.Call(
 				uintptr(hwnd),
 				uintptr(unsafe.Pointer(hookedTextPtr)),
 				uintptr(unsafe.Pointer(hookedCaptionPtr)),
-				uintptr(uType))
-			require.Equal(t, uintptr(1), ret)
+				uintptr(uType), 0, 1000,
+			)
+			require.Equal(t, uintptr(32000), ret)
 			return 1234
 		}
-		guard, err = NewInlineHookByName("user32.dll", "MessageBoxW", true, hookFn)
+		pg, err = NewInlineHookByName("user32.dll", "MessageBoxTimeoutW", true, hookFn)
 		require.NoError(t, err)
-
-		proc := windows.NewLazySystemDLL("user32.dll").NewProc("MessageBoxW")
 
 		textPtr, err := windows.UTF16PtrFromString("text")
 		require.NoError(t, err)
 		captionPtr, err := windows.UTF16PtrFromString("caption")
 		require.NoError(t, err)
 
-		ret, _, _ := proc.Call(0, uintptr(unsafe.Pointer(textPtr)), uintptr(unsafe.Pointer(captionPtr)), 1)
+		proc := windows.NewLazySystemDLL("user32.dll").NewProc("MessageBoxTimeoutW")
+		ret, _, _ := proc.Call(
+			0, uintptr(unsafe.Pointer(textPtr)),
+			uintptr(unsafe.Pointer(captionPtr)), 1,
+			0, 1000,
+		)
 		require.Equal(t, uintptr(1234), ret)
 	})
 
 	t.Run("CryptProtectMemory", func(t *testing.T) {
-		hookFn := func() uintptr {
-			return 1
+		data := make([]byte, 16)
+		for i := 0; i < len(data); i++ {
+			data[i] = byte(i)
 		}
-		guard, err := NewInlineHookByName("crypt32.dll", "CryptProtectMemory", true, hookFn)
-		require.NoError(t, err)
-		fmt.Println(guard)
-	})
 
+		var pg *PatchGuard
+		hookFn := func(address uintptr, size, flags uint) uintptr {
+			var d []byte
+			sh := (*reflect.SliceHeader)(unsafe.Pointer(&d))
+			sh.Data = address
+			sh.Len = 16
+			sh.Cap = 16
+			require.Equal(t, data, d)
+			require.Equal(t, uint(16), size)
+			require.Equal(t, uint(1), flags)
+
+			ret, _, err := pg.Original.Call(uintptr(unsafe.Pointer(&data[0])), 16, 1)
+			fmt.Println(ret, err)
+
+			return 1234
+		}
+		pg, err = NewInlineHookByName("crypt32.dll", "CryptProtectMemory", true, hookFn)
+		require.NoError(t, err)
+
+		proc := windows.NewLazySystemDLL("crypt32.dll").NewProc("CryptProtectMemory")
+
+		time.Sleep(time.Minute)
+
+		ret, _, _ := proc.Call(uintptr(unsafe.Pointer(&data[0])), 16, 1)
+		require.Equal(t, uintptr(1234), ret)
+	})
 }

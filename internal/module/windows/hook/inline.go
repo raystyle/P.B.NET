@@ -138,8 +138,10 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 	// create original function
 
 	originalFn := make([]byte, patchSize+14) // far jumper size
+	// relocate address about some instruction
+	relocatedCode := relocateInstruction(originFunc[:patchSize], insts[:instNum])
 	// copy part of instruction about original function
-	copy(originalFn, originFunc[:patchSize])
+	copy(originalFn, relocatedCode)
 	copy(originalFn[patchSize:], arch.NewJumpAsm(0, targetAddr+uintptr(patchSize)))
 
 	// //
@@ -238,4 +240,33 @@ func createShortJumper(from, to uintptr) []byte {
 	asm[0] = 0xE9 // jmp rel32
 	*(*int32)(unsafe.Pointer(&asm[1])) = int32(to) - int32(from) - int32(5)
 	return asm
+}
+
+// relocateInstruction is used to relocate instruction like jmp, call.
+func relocateInstruction(code []byte, insts []*x86asm.Inst) []byte {
+	codeCp := make([]byte, len(code))
+	copy(codeCp, code)
+	code = codeCp
+	relocated := make([]byte, 0, len(code))
+
+	for i := 0; i < len(insts); i++ {
+		switch insts[i].Op {
+		case x86asm.CALL:
+			switch code[0] {
+			case 0xFF:
+				switch code[1] {
+				case 0x15:
+					// change address
+
+					mem := insts[i].Args[0].(x86asm.Mem)
+					fmt.Println(mem.Disp)
+
+				}
+			}
+
+		}
+		relocated = append(relocated, code[:insts[i].Len]...)
+		code = code[insts[i].Len:]
+	}
+	return relocated
 }
