@@ -16,12 +16,14 @@ import (
 
 const (
 	shortJumperSize = 1 + 4
-	hookJumperSize
+	hookJumperSize  = 14
 )
 
 // PatchGuard contain information about hooked function.
 type PatchGuard struct {
 	Original *windows.Proc
+
+	fnData []byte
 }
 
 // Patch is used to patch the target function.
@@ -115,13 +117,60 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 		return nil, err
 	}
 
-	createHookJumper(targetAddr)
+	memory, err := createHookJumper(targetAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	err = memory.Write(arch.NewJumpAsm(0, hookFnAddr))
+	if err != nil {
+		return nil, err
+	}
+	// create jumper for hook jumper
+	shortJumper := createShortJumper(targetAddr, memory.Addr)
+
+	mem2 := newMemory(targetAddr, shortJumperSize)
+	err = mem2.Write(shortJumper)
+	if err != nil {
+		return nil, err
+	}
+
+	// create original function
+
+	originalFn := make([]byte, patchSize+14) // far jumper size
+	// copy part of instruction about original function
+	copy(originalFn, originFunc[:patchSize])
+	copy(originalFn[patchSize:], arch.NewJumpAsm(0, targetAddr+uintptr(patchSize)))
+
+	// //
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&originalFn))
+	old := new(uint32)
+
+	fmt.Printf("0x%X\n", sh.Data)
+	fmt.Println("sh", &originalFn[0])
+
+	err = windows.VirtualProtect(sh.Data, uintptr(sh.Len), windows.PAGE_EXECUTE_READWRITE, old)
+	if err != nil {
+		return nil, err
+	}
+	proc := &windows.Proc{
+		Dll:  target.Dll,
+		Name: target.Name,
+	}
+	*(*uintptr)(unsafe.Pointer(
+		reflect.ValueOf(proc).Elem().FieldByName("addr").UnsafeAddr()),
+	) = sh.Data
+
+	pg := PatchGuard{
+		Original: proc,
+		fnData:   originalFn,
+	}
 
 	fmt.Println(patchSize, instNum)
 
-	fmt.Println(insts)
+	// fmt.Println(insts)
 
-	return nil, nil
+	return &pg, nil
 }
 
 func disassemble(src []byte, mode int) ([]*x86asm.Inst, error) {
@@ -154,35 +203,39 @@ func getASMPatchSizeAndInstNum(insts []*x86asm.Inst) (int, int, error) {
 	return 0, 0, errors.New("unable to insert jumper to this function")
 }
 
-// createHookJumper will create a far jumper to our hook function.
-// only x64 need it.
-func createHookJumper(target uintptr) (*memory, error) {
-	const maxRange = 1024 * 1024 // only 1 GB
-	begin := target - 14         // TODO: set random address
-	var addr uintptr
-	// first try to search low address
-	for i := uintptr(0); i < maxRange; i++ {
-		addr = begin - i
-
-		if isAllInt3(addr) {
-
-			fmt.Printf("0x%X\n", addr)
-
-			return nil, nil
-
-		}
-
-	}
-
-	// if not exist, search high address
-
-	//
-
-	return nil, nil
-}
-
 var allInt3 = bytes.Repeat([]byte{0xCC}, 14)
 
-func isAllInt3(addr uintptr) bool {
-	return bytes.Equal(unsafeReadMemory(addr, 14), allInt3)
+// createHookJumper will create a far jumper to our hook function.
+func createHookJumper(target uintptr) (*memory, error) {
+	const maxRange = 1024 * 1024 // only 1 GB
+	var addr uintptr
+	// first try to search low address
+	begin := target - hookJumperSize - 0 // TODO: set random address
+	for i := uintptr(0); i < maxRange; i++ {
+		addr = begin - i
+		// check is all int3 code
+		if bytes.Equal(unsafeReadMemory(addr, hookJumperSize), allInt3) {
+			// find the address that can write hook jumper
+			return newMemory(addr, hookJumperSize), nil
+		}
+	}
+	// if not exist, search high address
+	begin = target + 1024 // TODO: set random address
+	for i := uintptr(0); i < maxRange; i++ {
+		addr = begin + i
+		// check is all int3 code
+		if bytes.Equal(unsafeReadMemory(addr, hookJumperSize), allInt3) {
+			// find the address that can write hook jumper
+			return newMemory(addr, hookJumperSize), nil
+		}
+	}
+	return nil, errors.New("no memory for create hook jumper")
+}
+
+// createShortJumper is used to create a jumper to the hook jumper.
+func createShortJumper(from, to uintptr) []byte {
+	asm := make([]byte, 5)
+	asm[0] = 0xE9 // jmp rel32
+	*(*int32)(unsafe.Pointer(&asm[1])) = int32(to) - int32(from) - int32(5)
+	return asm
 }

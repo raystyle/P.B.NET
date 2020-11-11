@@ -4,6 +4,10 @@ package hook
 
 import (
 	"unsafe"
+
+	"golang.org/x/sys/windows"
+
+	"project/internal/module/windows/api"
 )
 
 // #nosec
@@ -24,6 +28,27 @@ func unsafeWriteMemory(addr uintptr, data []byte) {
 
 type memory struct {
 	Addr       uintptr
-	Size       uint
-	oldProtect uintptr
+	Size       int
+	oldProtect *uint32
+}
+
+func newMemory(addr uintptr, size int) *memory {
+	return &memory{
+		Addr:       addr,
+		Size:       size,
+		oldProtect: new(uint32),
+	}
+}
+
+func (mem *memory) Write(data []byte) (err error) {
+	size := uintptr(len(data))
+	err = api.VirtualProtect(mem.Addr, size, windows.PAGE_READWRITE, mem.oldProtect)
+	if err != nil {
+		return
+	}
+	defer func() {
+		err = api.VirtualProtect(mem.Addr, size, *mem.oldProtect, mem.oldProtect)
+	}()
+	unsafeWriteMemory(mem.Addr, data)
+	return nil
 }
