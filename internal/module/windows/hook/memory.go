@@ -5,25 +5,35 @@ package hook
 import (
 	"unsafe"
 
+	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
 	"project/internal/module/windows/api"
 )
 
-// #nosec
-func unsafeReadMemory(addr uintptr, size int) []byte {
-	data := make([]byte, size)
+func unsafeReadMemory(addr uintptr, size int) (data []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("read at invalid memory address")
+		}
+	}()
+	data = make([]byte, size)
 	for i := 0; i < size; i++ {
-		data[i] = *(*byte)(unsafe.Pointer(addr + uintptr(i)))
+		data[i] = *(*byte)(unsafe.Pointer(addr + uintptr(i))) // #nosec
 	}
-	return data
+	return
 }
 
-// #nosec
-func unsafeWriteMemory(addr uintptr, data []byte) {
+func unsafeWriteMemory(addr uintptr, data []byte) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("read at invalid memory address")
+		}
+	}()
 	for i := 0; i < len(data); i++ {
-		*(*byte)(unsafe.Pointer(addr + uintptr(i))) = data[i]
+		*(*byte)(unsafe.Pointer(addr + uintptr(i))) = data[i] // #nosec
 	}
+	return
 }
 
 type memory struct {
@@ -47,8 +57,10 @@ func (mem *memory) Write(data []byte) (err error) {
 		return
 	}
 	defer func() {
-		err = api.VirtualProtect(mem.Addr, size, *mem.oldProtect, mem.oldProtect)
+		e := api.VirtualProtect(mem.Addr, size, *mem.oldProtect, mem.oldProtect)
+		if e != nil && err == nil {
+			err = e
+		}
 	}()
-	unsafeWriteMemory(mem.Addr, data)
-	return nil
+	return unsafeWriteMemory(mem.Addr, data)
 }

@@ -37,6 +37,7 @@ func (pg *PatchGuard) patch() error {
 	return nil
 }
 
+// UnPatch is used to unpatch the target function.
 func (pg *PatchGuard) UnPatch() error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -47,6 +48,7 @@ func (pg *PatchGuard) unPatch() error {
 	return nil
 }
 
+// Close is used to unpatch the target function and release memory.
 func (pg *PatchGuard) Close() error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -91,10 +93,7 @@ func NewInlineHookByName(dll, proc string, system bool, hookFn interface{}) (*Pa
 // NewInlineHook is used to create a hook about function, usually hook a syscall.
 func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error) {
 	// select architecture
-	arch, err := newArch()
-	if err != nil {
-		return nil, err
-	}
+	arch := newArch()
 	// read function address
 	targetAddr := target.Addr()
 	hookFnAddr := windows.NewCallback(hookFn)
@@ -105,9 +104,12 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 	// Prefix = 4, OpCode = 3, ModRM = 1,
 	// sib = 1, displacement = 4, immediate = 4
 	const maxCodeLen = 2 * (4 + 3 + 1 + 1 + 4 + 4)
-	originFunc := unsafeReadMemory(targetAddr, maxCodeLen)
+	originalFunc, err := unsafeReadMemory(targetAddr, maxCodeLen)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read memory about original function")
+	}
 	// get instructions
-	insts, err := disassemble(originFunc, arch.DisassembleMode())
+	insts, err := disassemble(originalFunc, arch.DisassembleMode())
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to disassemble")
 	}
@@ -122,7 +124,7 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 		return nil, err
 	}
 
-	err = memory.Write(arch.NewJumpAsm(0, hookFnAddr))
+	err = memory.Write(arch.NewFarJumpASM(0, hookFnAddr))
 	if err != nil {
 		return nil, err
 	}
@@ -139,10 +141,10 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 
 	originalFn := make([]byte, patchSize+14) // far jumper size
 	// relocate address about some instruction
-	relocatedCode := relocateInstruction(originFunc[:patchSize], insts[:instNum])
+	relocatedCode := relocateInstruction(originalFunc[:patchSize], insts[:instNum])
 	// copy part of instruction about original function
 	copy(originalFn, relocatedCode)
-	copy(originalFn[patchSize:], arch.NewJumpAsm(0, targetAddr+uintptr(patchSize)))
+	copy(originalFn[patchSize:], arch.NewFarJumpASM(0, targetAddr+uintptr(patchSize)))
 
 	// //
 	sh := (*reflect.SliceHeader)(unsafe.Pointer(&originalFn))
@@ -197,7 +199,7 @@ func getASMPatchSizeAndInstNum(insts []*x86asm.Inst) (int, int, error) {
 	)
 	for i := 0; i < len(insts); i++ {
 		l += insts[i].Len
-		n += 1
+		n++
 		if l >= shortJumperSize {
 			return l, n, nil
 		}
