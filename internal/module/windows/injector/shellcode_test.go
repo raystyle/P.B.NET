@@ -100,7 +100,15 @@ func TestInjectShellcode(t *testing.T) {
 		cp := make([]byte, len(shellcode))
 		copy(cp, shellcode)
 
-		err = InjectShellcode(pid, cp, 0, true, true)
+		err = InjectShellcode(pid, cp, 0, false, true, true)
+		require.NoError(t, err)
+	})
+
+	t.Run("bypass session isolation", func(t *testing.T) {
+		cp := make([]byte, len(shellcode))
+		copy(cp, shellcode)
+
+		err = InjectShellcode(pid, cp, 0, true, true, true)
 		require.NoError(t, err)
 	})
 
@@ -108,7 +116,7 @@ func TestInjectShellcode(t *testing.T) {
 		cp := make([]byte, len(shellcode))
 		copy(cp, shellcode)
 
-		err = InjectShellcode(pid, cp, 8, true, false)
+		err = InjectShellcode(pid, cp, 8, false, true, false)
 		require.NoError(t, err)
 	})
 
@@ -116,7 +124,7 @@ func TestInjectShellcode(t *testing.T) {
 		cp := make([]byte, len(shellcode))
 		copy(cp, shellcode)
 
-		err = InjectShellcode(pid, cp, 16, false, false)
+		err = InjectShellcode(pid, cp, 16, false, false, false)
 		require.NoError(t, err)
 
 		time.Sleep(3 * time.Second)

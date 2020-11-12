@@ -20,7 +20,7 @@ type memItem struct {
 
 type memWriter struct {
 	// input parameters
-	pHandle   windows.Handle
+	hProcess  windows.Handle
 	memAddr   uintptr
 	memory    []byte
 	size      uintptr
@@ -38,14 +38,14 @@ func (mw *memWriter) Write() error {
 	// set read write
 	doneVP := security.SwitchThreadAsync()
 	old := new(uint32)
-	err := api.VirtualProtectEx(mw.pHandle, mw.memAddr, mw.size, windows.PAGE_READWRITE, old)
+	err := api.VirtualProtectEx(mw.hProcess, mw.memAddr, mw.size, windows.PAGE_READWRITE, old)
 	if err != nil {
 		return err
 	}
 	doneWPM := security.SwitchThreadAsync()
 	// write random data
 	mw.rand = random.NewRand()
-	_, err = api.WriteProcessMemory(mw.pHandle, mw.memAddr, mw.rand.Bytes(int(mw.size)))
+	_, err = api.WriteProcessMemory(mw.hProcess, mw.memAddr, mw.rand.Bytes(int(mw.size)))
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (mw *memWriter) Write() error {
 	mw.wg.Wait()
 	// set shellcode page execute
 	doneVP2 := security.SwitchThreadAsync()
-	err = api.VirtualProtectEx(mw.pHandle, mw.memAddr, mw.size, windows.PAGE_EXECUTE, old)
+	err = api.VirtualProtectEx(mw.hProcess, mw.memAddr, mw.size, windows.PAGE_EXECUTE, old)
 	if err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func (mw *memWriter) writer() {
 			if item == nil {
 				return
 			}
-			_, err := api.WriteProcessMemory(mw.pHandle, item.addr, item.b)
+			_, err := api.WriteProcessMemory(mw.hProcess, item.addr, item.b)
 			if err != nil {
 				mw.cancel()
 				return

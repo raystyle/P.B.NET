@@ -15,7 +15,7 @@ package injector
 //	procZwCreateThreadEx     = modNTDLL.NewProc("ZwCreateThreadEx")
 // )
 
-// 	pHandle := windows.CurrentProcess()
+// 	hProcess := windows.CurrentProcess()
 // 	// patch 1: unhook CreateRemoteThreadEx in KernelBase.dll
 // 	err := procCreateRemoteThreadEx.Find()
 // 	if err != nil {
@@ -25,7 +25,7 @@ package injector
 // 	fmt.Printf("0x%X\n", crtAddress)
 //
 // 	patch := []byte{0x4C, 0x8B, 0xDC, 0x53, 0x56} // move r11,rsp
-// 	_, err = api.WriteProcessMemory(pHandle, crtAddress, patch)
+// 	_, err = api.WriteProcessMemory(hProcess, crtAddress, patch)
 // 	if err != nil {
 // 		return errors.WithMessage(err, "failed to unhook CreateRemoteThreadEx")
 // 	}
@@ -38,7 +38,7 @@ package injector
 // 	fmt.Printf("0x%X\n", wvmAddress)
 //
 // 	patch = []byte{0x4C, 0x8B, 0xD1, 0xB8, 0x3A} // mov eax,3A
-// 	_, err = api.WriteProcessMemory(pHandle, wvmAddress, patch)
+// 	_, err = api.WriteProcessMemory(hProcess, wvmAddress, patch)
 // 	if err != nil {
 // 		return errors.WithMessage(err, "failed to unhook NtWriteVirtualMemory")
 // 	}
@@ -51,7 +51,7 @@ package injector
 // 	fmt.Printf("0x%X\n", ctAddress)
 //
 // 	patch = []byte{0x4C, 0x8B, 0xD1, 0xB8, 0xBD} // mov eax,BD
-// 	_, err = api.WriteProcessMemory(pHandle, ctAddress, patch)
+// 	_, err = api.WriteProcessMemory(hProcess, ctAddress, patch)
 // 	if err != nil {
 // 		return errors.WithMessage(err, "failed to unhook ZwCreateThreadEx")
 // 	}

