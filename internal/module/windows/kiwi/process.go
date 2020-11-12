@@ -114,19 +114,17 @@ func (kiwi *Kiwi) getVeryBasicModuleInfo(pHandle windows.Handle) ([]*basicModule
 	// read PEB base address
 	donePEB := security.SwitchThreadAsync()
 	defer kiwi.waitSwitchThreadAsync(donePEB)
-	infoClass := api.InfoClassProcessBasicInformation
-	var pbi api.ProcessBasicInformation
-	size := unsafe.Sizeof(pbi)
-	_, err := api.NTQueryInformationProcess(pHandle, infoClass, (*byte)(unsafe.Pointer(&pbi)), size)
+	info, err := api.NTQueryInformationProcess(pHandle, api.InfoClassProcessBasicInformation)
 	if err != nil {
 		return nil, err
 	}
+	pbi := info.(*api.ProcessBasicInformation)
 	kiwi.logf(logger.Debug, "PEB base address is 0x%X", pbi.PEBBaseAddress)
 	// read and calculate PEB.LoaderData address
 	doneLoader := security.SwitchThreadAsync()
 	defer kiwi.waitSwitchThreadAsync(doneLoader)
 	randomOffset := uintptr(4 + kiwi.rand.Int(4))
-	size = uintptr(256 + kiwi.rand.Int(512))
+	size := uintptr(256 + kiwi.rand.Int(512))
 	buf := make([]byte, size)
 	_, err = api.ReadProcessMemory(pHandle, pbi.PEBBaseAddress+randomOffset, &buf[0], size)
 	if err != nil {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"unsafe"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
@@ -50,21 +49,20 @@ func TestGetProcessIDByName(t *testing.T) {
 
 func TestOpenProcess(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		handle, err := OpenProcess(windows.PROCESS_QUERY_INFORMATION, false, uint32(os.Getpid()))
+		hProcess, err := OpenProcess(windows.PROCESS_QUERY_INFORMATION, false, uint32(os.Getpid()))
 		require.NoError(t, err)
 
-		CloseHandle(handle)
+		CloseHandle(hProcess)
 	})
 }
 
 func TestNTQueryInformationProcess(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		handle := windows.CurrentProcess()
-		var pbi ProcessBasicInformation
-		ic := InfoClassProcessBasicInformation
+		hProcess := windows.CurrentProcess()
 
-		_, err := NTQueryInformationProcess(handle, ic, (*byte)(unsafe.Pointer(&pbi)), unsafe.Sizeof(pbi))
+		info, err := NTQueryInformationProcess(hProcess, InfoClassProcessBasicInformation)
 		require.NoError(t, err)
+		pbi := info.(*ProcessBasicInformation)
 
 		t.Logf("0x%X\n", pbi.PEBBaseAddress)
 	})

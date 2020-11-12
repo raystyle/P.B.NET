@@ -120,11 +120,31 @@ type ProcessBasicInformation struct {
 }
 
 // NTQueryInformationProcess is used to query process information. // #nosec
-func NTQueryInformationProcess(hProcess windows.Handle, class uint8, info *byte, size uintptr) (uint32, error) {
+func NTQueryInformationProcess(hProcess windows.Handle, class uint8) (interface{}, error) {
 	const name = "NTQueryInformationProcess"
+	var (
+		infoPtr unsafe.Pointer
+		size    uintptr
+		info    interface{}
+	)
+	switch class {
+	case InfoClassProcessBasicInformation:
+		var pbi ProcessBasicInformation
+		infoPtr = unsafe.Pointer(&pbi)
+		size = unsafe.Sizeof(pbi)
+		info = &pbi
+	case InfoClassProcessDebugPort,
+		InfoClassProcessWow64Information,
+		InfoClassProcessImageFileName,
+		InfoClassProcessBreakOnTermination,
+		InfoClassProcessSubsystemInformation:
+		return nil, newError(name, nil, "not implemented")
+	default:
+		return nil, newErrorf(name, nil, "invalid class: %d", class)
+	}
 	var returnLength uint32
 	ret, _, err := procNTQueryInformationProcess.Call(
-		uintptr(hProcess), uintptr(class), uintptr(unsafe.Pointer(info)), size,
+		uintptr(hProcess), uintptr(class), uintptr(infoPtr), size,
 		uintptr(unsafe.Pointer(&returnLength)),
 	)
 	if ret != windows.NO_ERROR {
@@ -134,7 +154,7 @@ func NTQueryInformationProcess(hProcess windows.Handle, class uint8, info *byte,
 		}
 		return 0, newError(name, errno, "failed to query process information")
 	}
-	return returnLength, nil
+	return info, nil
 }
 
 // CreateThread is used to create a thread to execute within the
@@ -175,7 +195,7 @@ func CreateRemoteThread(
 	return windows.Handle(ret), threadID, nil
 }
 
-// ZwCreateThreadEx is used to create remote thread for bypass "session 0".
+// ZwCreateThreadEx is used to create remote thread for bypass session isolation.
 // in x86 creationFlags can only be 0 "false" and 1 "true".
 func ZwCreateThreadEx(
 	hProcess windows.Handle, attr *windows.SecurityAttributes, stackSize uint,
