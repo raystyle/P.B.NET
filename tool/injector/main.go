@@ -13,18 +13,20 @@ import (
 
 func main() {
 	var (
-		pid    int
-		format string
-		input  string
-		chunk  int
-		wait   bool
-		clean  bool
+		pid      uint
+		format   string
+		input    string
+		chunk    int
+		session0 bool
+		wait     bool
+		clean    bool
 	)
-	flag.IntVar(&pid, "p", 0, "target process id")
+	flag.UintVar(&pid, "p", 0, "target process id")
 	flag.StringVar(&format, "f", "raw", "shellcode format")
 	flag.StringVar(&input, "i", "", "input shellcode file path")
 	flag.IntVar(&chunk, "chunk", 32, "shellcode maximum random chunk size")
-	flag.BoolVar(&clean, "wait", true, "wait shellcode execute finish")
+	flag.BoolVar(&session0, "session0", false, "bypass session isolation")
+	flag.BoolVar(&wait, "wait", true, "wait shellcode execute finish")
 	flag.BoolVar(&clean, "clean", true, "clean shellcode after execute finish")
 	flag.Parse()
 
@@ -38,6 +40,6 @@ func main() {
 		system.CheckError(err)
 	}
 
-	err = injector.InjectShellcode(uint32(pid), scData, chunk, wait, clean)
+	err = injector.InjectShellcode(uint32(pid), scData, chunk, session0, wait, clean)
 	system.CheckError(err)
 }

