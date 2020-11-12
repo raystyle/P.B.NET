@@ -11,11 +11,11 @@ import (
 // https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory
 
 // ReadProcessMemory is used to read memory from process. // #nosec
-func ReadProcessMemory(h windows.Handle, addr uintptr, buf *byte, size uintptr) (int, error) {
+func ReadProcessMemory(hProcess windows.Handle, addr uintptr, buf *byte, size uintptr) (int, error) {
 	const name = "ReadProcessMemory"
 	var n uint
 	ret, _, err := procReadProcessMemory.Call(
-		uintptr(h), addr,
+		uintptr(hProcess), addr,
 		uintptr(unsafe.Pointer(buf)), size,
 		uintptr(unsafe.Pointer(&n)),
 	)
@@ -26,11 +26,11 @@ func ReadProcessMemory(h windows.Handle, addr uintptr, buf *byte, size uintptr) 
 }
 
 // WriteProcessMemory is used to write data to memory in process. // #nosec
-func WriteProcessMemory(h windows.Handle, addr uintptr, data []byte) (int, error) {
+func WriteProcessMemory(hProcess windows.Handle, addr uintptr, data []byte) (int, error) {
 	const name = "WriteProcessMemory"
 	var n uint
 	ret, _, err := procWriteProcessMemory.Call(
-		uintptr(h), addr,
+		uintptr(hProcess), addr,
 		uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)),
 		uintptr(unsafe.Pointer(&n)),
 	)
@@ -55,9 +55,9 @@ func VirtualAlloc(addr, size uintptr, typ, protect uint32) (uintptr, error) {
 // VirtualAllocEx is used to reserves, commits, or changes the state of a region of memory
 // within the virtual address space of a specified process. The function initializes the
 // memory it allocates to zero.
-func VirtualAllocEx(h windows.Handle, addr, size uintptr, typ, protect uint32) (uintptr, error) {
+func VirtualAllocEx(hProcess windows.Handle, addr, size uintptr, typ, protect uint32) (uintptr, error) {
 	const name = "VirtualAllocEx"
-	ret, _, err := procVirtualAllocEx.Call(uintptr(h), addr, size, uintptr(typ), uintptr(protect))
+	ret, _, err := procVirtualAllocEx.Call(uintptr(hProcess), addr, size, uintptr(typ), uintptr(protect))
 	if ret == 0 {
 		return 0, newErrorf(name, err, "failed to alloc memory to remote process at 0x%X", addr)
 	}
@@ -77,9 +77,9 @@ func VirtualFree(addr, size uintptr, typ uint32) error {
 
 // VirtualFreeEx is used to releases, decommits, or releases and decommits a region of memory
 // within the virtual address space of a specified process.
-func VirtualFreeEx(h windows.Handle, addr, size uintptr, typ uint32) error {
+func VirtualFreeEx(hProcess windows.Handle, addr, size uintptr, typ uint32) error {
 	const name = "VirtualFreeEx"
-	ret, _, err := procVirtualFreeEx.Call(uintptr(h), addr, size, uintptr(typ))
+	ret, _, err := procVirtualFreeEx.Call(uintptr(hProcess), addr, size, uintptr(typ))
 	if ret == 0 {
 		return newErrorf(name, err, "failed to free memory about remote process at 0x%X", addr)
 	}
@@ -101,10 +101,10 @@ func VirtualProtect(addr, size uintptr, new uint32, old *uint32) error {
 
 // VirtualProtectEx is used to changes the protection on a region of committed pages in the
 // virtual address space of a specified process. // #nosec
-func VirtualProtectEx(h windows.Handle, addr, size uintptr, new uint32, old *uint32) error {
+func VirtualProtectEx(hProcess windows.Handle, addr, size uintptr, new uint32, old *uint32) error {
 	const name = "VirtualProtectEx"
 	ret, _, err := procVirtualProtectEx.Call(
-		uintptr(h), addr, size, uintptr(new), uintptr(unsafe.Pointer(old)),
+		uintptr(hProcess), addr, size, uintptr(new), uintptr(unsafe.Pointer(old)),
 	)
 	if ret == 0 {
 		return newErrorf(name, err, "failed to change committed pages about remote process at 0x%X", addr)

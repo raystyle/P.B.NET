@@ -19,13 +19,13 @@ type LSAUnicodeString struct {
 }
 
 // ReadLSAUnicodeString is used to read buffer and return a string. // #nosec
-func ReadLSAUnicodeString(pHandle windows.Handle, lus *LSAUnicodeString) (string, error) {
+func ReadLSAUnicodeString(hProcess windows.Handle, lus *LSAUnicodeString) (string, error) {
 	if lus.MaximumLength == 0 || lus.Length == 0 {
 		return "", nil
 	}
 	// read data
 	data := make([]byte, int(lus.MaximumLength))
-	_, err := ReadProcessMemory(pHandle, lus.Buffer, &data[0], uintptr(lus.MaximumLength))
+	_, err := ReadProcessMemory(hProcess, lus.Buffer, &data[0], uintptr(lus.MaximumLength))
 	if err != nil {
 		return "", err
 	}

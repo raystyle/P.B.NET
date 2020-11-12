@@ -13,6 +13,7 @@ var (
 	modBcrypt   = windows.NewLazySystemDLL("bcrypt.dll")
 
 	procNTQueryInformationProcess = modNTDLL.NewProc("NtQueryInformationProcess")
+	procZwCreateThreadEx          = modNTDLL.NewProc("ZwCreateThreadEx")
 
 	procReadProcessMemory   = modKernel32.NewProc("ReadProcessMemory")
 	procWriteProcessMemory  = modKernel32.NewProc("WriteProcessMemory")

@@ -8,11 +8,17 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// consts about process
+const (
+	// 0xFFF is for Windows Server 2003 or Windows XP.
+	ProcessAllAccess = windows.STANDARD_RIGHTS_REQUIRED | windows.SYNCHRONIZE | 0xFFF
+)
+
 // IsWow64Process is used to check x86 program is running in the x64 system.
-func IsWow64Process(handle windows.Handle) (bool, error) {
+func IsWow64Process(hProcess windows.Handle) (bool, error) {
 	const name = "IsWow64Process"
 	var isWow64 bool
-	err := windows.IsWow64Process(handle, &isWow64)
+	err := windows.IsWow64Process(hProcess, &isWow64)
 	if err != nil {
 		return false, newError(name, err, "failed to check is wow64 process")
 	}
@@ -85,11 +91,11 @@ func GetProcessIDByName(n string) ([]uint32, error) {
 // OpenProcess is used to open process by PID and return process handle.
 func OpenProcess(desiredAccess uint32, inheritHandle bool, pid uint32) (windows.Handle, error) {
 	const name = "OpenProcess"
-	handle, err := windows.OpenProcess(desiredAccess, inheritHandle, pid)
+	hProcess, err := windows.OpenProcess(desiredAccess, inheritHandle, pid)
 	if err != nil {
 		return 0, newErrorf(name, err, "failed to open process with PID %d", pid)
 	}
-	return handle, nil
+	return hProcess, nil
 }
 
 // information class about NTQueryInformationProcess.
@@ -114,19 +120,19 @@ type ProcessBasicInformation struct {
 }
 
 // NTQueryInformationProcess is used to query process information. // #nosec
-func NTQueryInformationProcess(handle windows.Handle, class uint8, info *byte, size uintptr) (uint32, error) {
+func NTQueryInformationProcess(hProcess windows.Handle, class uint8, info *byte, size uintptr) (uint32, error) {
 	const name = "NTQueryInformationProcess"
 	var returnLength uint32
 	ret, _, err := procNTQueryInformationProcess.Call(
-		uintptr(handle), uintptr(class), uintptr(unsafe.Pointer(info)), size,
+		uintptr(hProcess), uintptr(class), uintptr(unsafe.Pointer(info)), size,
 		uintptr(unsafe.Pointer(&returnLength)),
 	)
 	if ret != windows.NO_ERROR {
-		err := err.(windows.Errno)
-		if err == windows.ERROR_INSUFFICIENT_BUFFER {
-			return returnLength, err
+		errno := err.(windows.Errno)
+		if errno == windows.ERROR_INSUFFICIENT_BUFFER {
+			return returnLength, errno
 		}
-		return 0, newError(name, err, "failed to query process information")
+		return 0, newError(name, errno, "failed to query process information")
 	}
 	return returnLength, nil
 }
@@ -153,20 +159,40 @@ func CreateThread(
 // CreateRemoteThread is used to create a thread that runs in the
 // virtual address space of another process. // #nosec
 func CreateRemoteThread(
-	handle windows.Handle, attr *windows.SecurityAttributes, stackSize uint,
+	hProcess windows.Handle, attr *windows.SecurityAttributes, stackSize uint,
 	startAddress uintptr, parameters *byte, creationFlags uint32,
 ) (windows.Handle, uint32, error) {
 	const name = "CreateRemoteThread"
 	var threadID uint32
 	ret, _, err := procCreateRemoteThread.Call(
-		uintptr(handle), uintptr(unsafe.Pointer(attr)), uintptr(stackSize),
-		startAddress, uintptr(unsafe.Pointer(&parameters)), uintptr(creationFlags),
+		uintptr(hProcess), uintptr(unsafe.Pointer(attr)), uintptr(stackSize),
+		startAddress, uintptr(unsafe.Pointer(parameters)), uintptr(creationFlags),
 		uintptr(unsafe.Pointer(&threadID)),
 	)
 	if ret == 0 {
 		return 0, 0, newError(name, err, "failed to create remote thread")
 	}
 	return windows.Handle(ret), threadID, nil
+}
+
+// ZwCreateThreadEx is used to create remote thread for bypass "session 0".
+// in x86 creationFlags can only be 0 "false" and 1 "true".
+func ZwCreateThreadEx(
+	hProcess windows.Handle, attr *windows.SecurityAttributes, stackSize uint,
+	startAddress uintptr, parameters *byte, creationFlags uint32,
+) (windows.Handle, error) {
+	const name = "ZwCreateThreadEx"
+	var hThread windows.Handle
+	ret, _, err := procZwCreateThreadEx.Call(
+		uintptr(unsafe.Pointer(&hThread)), ProcessAllAccess,
+		uintptr(unsafe.Pointer(attr)), uintptr(hProcess),
+		startAddress, uintptr(unsafe.Pointer(parameters)),
+		uintptr(creationFlags), 0, uintptr(stackSize), 0, 0,
+	)
+	if ret != 0 {
+		return 0, newError(name, err, "failed to create remote thread")
+	}
+	return hThread, nil
 }
 
 // reference:
