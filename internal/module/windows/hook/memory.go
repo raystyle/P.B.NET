@@ -3,37 +3,23 @@
 package hook
 
 import (
-	"unsafe"
-
-	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
 	"project/internal/module/windows/api"
 )
 
-func unsafeReadMemory(addr uintptr, size int) (data []byte, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = errors.New("read at invalid memory address")
-		}
-	}()
-	data = make([]byte, size)
-	for i := 0; i < size; i++ {
-		data[i] = *(*byte)(unsafe.Pointer(addr + uintptr(i))) // #nosec
+func readMemory(addr uintptr, size int) ([]byte, error) {
+	data := make([]byte, size)
+	_, err := api.ReadProcessMemory(windows.CurrentProcess(), addr, &data[0], uintptr(size))
+	if err != nil {
+		return nil, err
 	}
-	return
+	return data, nil
 }
 
-func unsafeWriteMemory(addr uintptr, data []byte) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = errors.New("read at invalid memory address")
-		}
-	}()
-	for i := 0; i < len(data); i++ {
-		*(*byte)(unsafe.Pointer(addr + uintptr(i))) = data[i] // #nosec
-	}
-	return
+func writeMemory(addr uintptr, data []byte) error {
+	_, err := api.WriteProcessMemory(windows.CurrentProcess(), addr, data)
+	return err
 }
 
 type memory struct {
@@ -62,5 +48,5 @@ func (mem *memory) Write(data []byte) (err error) {
 			err = e
 		}
 	}()
-	return unsafeWriteMemory(mem.Addr, data)
+	return writeMemory(mem.Addr, data)
 }

@@ -4,6 +4,7 @@ package hook
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -14,6 +15,7 @@ import (
 	"golang.org/x/sys/windows"
 
 	"project/internal/module/windows/api"
+	"project/internal/random"
 )
 
 // [patch] is a near jump to [hook jumper].
@@ -21,9 +23,17 @@ import (
 // [trampoline] is a part of code about original function and
 // add a near jump to the remaining original function.
 
+// <security> not use FlushInstructionCache for bypass AV.
+
 // PatchGuard contain information about hooked function.
 type PatchGuard struct {
 	Original *windows.Proc
+
+	originalData []byte // contain origin data before hook
+	patchData    []byte
+
+	hookJumperMem  *memory
+	hookJumperData []byte
 
 	fnData []byte
 }
@@ -94,6 +104,7 @@ func NewInlineHookByName(dll, proc string, system bool, hookFn interface{}) (*Pa
 
 // NewInlineHook is used to create a hook about function, usually hook a syscall.
 func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error) {
+	// select architecture
 	arch := newArch()
 	// read function address
 	targetAddr := target.Addr()
@@ -102,10 +113,9 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 	fmt.Printf("0x%X,0x%X\n", targetAddr, hookFnAddr)
 
 	// inaccurate but sufficient
-	// Prefix = 4, OpCode = 3, ModRM = 1,
-	// sib = 1, displacement = 4, immediate = 4
+	// Prefix = 4, OpCode = 3, ModRM = 1, sib = 1, displacement = 4, immediate = 4
 	const maxInstLen = 2 * (4 + 3 + 1 + 1 + 4 + 4)
-	originalFunc, err := unsafeReadMemory(targetAddr, maxInstLen)
+	originalFunc, err := readMemory(targetAddr, maxInstLen)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read memory about original function")
 	}
@@ -119,33 +129,41 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 	if err != nil {
 		return nil, err
 	}
-
-	memory, err := createHookJumper(targetAddr)
+	// query memory information about target procedure address for
+	// search writeable memory about hook jumper and trampoline.
+	mbi, err := api.VirtualQuery(targetAddr)
 	if err != nil {
 		return nil, err
 	}
-	err = memory.Write(arch.NewFarJumpASM(0, hookFnAddr))
+	hookJumperMem, err := createHookJumper(arch, targetAddr, mbi)
 	if err != nil {
 		return nil, err
 	}
-	// create jumper for hook jumper
-	shortJumper := newNearJumpASM(targetAddr, memory.Addr)
+	hookJumperData := arch.NewFarJumpASM(0, hookFnAddr)
 
+	err = hookJumperMem.Write(hookJumperData)
+	if err != nil {
+		return nil, err
+	}
+	// create patch for jump to hook jumper
+	shortJumper := newNearJumpASM(targetAddr, hookJumperMem.Addr)
 	mem2 := newMemory(targetAddr, nearJumperSize)
 	err = mem2.Write(shortJumper)
 	if err != nil {
 		return nil, err
 	}
 
-	// create trampoline function for call original function
-	trampoline := relocateInstruction(originalFunc[:patchSize], insts[:instNum])
 	// copy part of instruction about original function
 
-	trampolineMem, err := searchWriteableMemory(targetAddr, len(trampoline)+nearJumperSize, false)
+	trampolineMem, err := searchMemory(targetAddr, patchSize+nearJumperSize, false, mbi)
 	if err != nil {
 		return nil, err
 	}
-	trampoline = append(trampoline, newNearJumpASM(trampolineMem.Addr+uintptr(len(trampoline)), targetAddr+uintptr(patchSize))...)
+	// create trampoline function for call original function
+	trampoline := relocateInstruction(
+		int(trampolineMem.Addr)-int(targetAddr), originalFunc[:patchSize], insts[:instNum])
+	trampoline = append(trampoline, newNearJumpASM(
+		trampolineMem.Addr+uintptr(len(trampoline)), targetAddr+uintptr(patchSize))...)
 
 	err = trampolineMem.Write(trampoline)
 	if err != nil {
@@ -186,16 +204,16 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 }
 
 func disassemble(src []byte, mode int) ([]*x86asm.Inst, error) {
-	var r []*x86asm.Inst
+	var insts []*x86asm.Inst
 	for len(src) > 0 {
 		inst, err := x86asm.Decode(src, mode)
 		if err != nil {
 			return nil, err
 		}
-		r = append(r, &inst)
+		insts = append(insts, &inst)
 		src = src[inst.Len:]
 	}
-	return r, nil
+	return insts, nil
 }
 
 // if appear too short function, we can improve it that add jumper to it,
@@ -215,24 +233,38 @@ func getASMPatchSizeAndInstNum(insts []*x86asm.Inst) (int, int, error) {
 	return 0, 0, errors.New("unable to insert near jmp to this function")
 }
 
-// searchWriteableMemory is used to search memory for write hook jumper and trampoline.
-func searchWriteableMemory(begin uintptr, size int, lowFirst bool) (*memory, error) {
-	mem, err := searchMemoryAt(begin, size, !lowFirst)
+// createHookJumper will create a far jumper to our hook function.
+func createHookJumper(arch arch, target uintptr, mbi *api.MemoryBasicInformation) (*memory, error) {
+	return searchMemory(target, arch.FarJumpSize(), true, mbi)
+}
+
+// searchMemory is used to search memory for write hook jumper and trampoline.
+// if low is true search low address first.
+func searchMemory(begin uintptr, size int, low bool, mbi *api.MemoryBasicInformation) (*memory, error) {
+	fmt.Printf("begin: 0x%X\n", begin)
+	mem, err := searchMemoryAt(begin, size, !low, mbi)
 	if err == nil {
 		return mem, nil
 	}
-	return searchMemoryAt(begin, size, lowFirst)
+	return searchMemoryAt(begin, size, low, mbi)
 }
 
-func searchMemoryAt(begin uintptr, size int, add bool) (*memory, error) {
-	const maxRange = 32 * 1024 * 1024 // only 32MB
+func searchMemoryAt(begin uintptr, size int, add bool, mbi *api.MemoryBasicInformation) (*memory, error) {
+	minBoundary := mbi.AllocationBase
+	maxBoundary := mbi.AllocationBase + mbi.RegionSize
+	fmt.Printf("min: 0x%X\n", minBoundary)
+	fmt.Printf("max: 0x%X\n", maxBoundary)
+	// set random begin address
+	var maxRange uintptr
+	rand := random.NewRand()
 	if add {
-		// TODO: set random address
-		// rand := random.NewRand()
-		// begin += 512 + uintptr(rand.Int(4096))
-		begin += 5
+		boundary := mbi.AllocationBase + mbi.RegionSize
+		begin += 16 + uintptr(rand.Int(int(boundary-begin)/10))
+		maxRange = boundary - begin - uintptr(size)
 	} else {
-		begin -= uintptr(size)
+		boundary := mbi.AllocationBase
+		begin -= uintptr(size) + uintptr(rand.Int(int(begin-boundary)/10))
+		maxRange = begin - boundary
 	}
 	var addr uintptr
 	for i := uintptr(0); i < maxRange; i++ {
@@ -241,9 +273,9 @@ func searchMemoryAt(begin uintptr, size int, add bool) (*memory, error) {
 		} else {
 			addr = begin - i
 		}
-		mem, err := unsafeReadMemory(addr, size)
+		mem, err := readMemory(addr, size)
 		if err != nil {
-			continue
+			return nil, err
 		}
 		// check memory is all int3 code
 		if bytes.Equal(mem, bytes.Repeat([]byte{0xCC}, size)) {
@@ -253,18 +285,13 @@ func searchMemoryAt(begin uintptr, size int, add bool) (*memory, error) {
 	return nil, errors.New("failed to search writeable memory")
 }
 
-// createHookJumper will create a far jumper to our hook function.
-func createHookJumper(target uintptr) (*memory, error) {
-	return searchWriteableMemory(target, 14, true)
-}
-
 // relocateInstruction is used to relocate instruction like jmp, call.
-func relocateInstruction(code []byte, insts []*x86asm.Inst) []byte {
+// [Warning]: it is only partially done.
+func relocateInstruction(offset int, code []byte, insts []*x86asm.Inst) []byte {
 	codeCp := make([]byte, len(code))
 	copy(codeCp, code)
 	code = codeCp
 	relocated := make([]byte, 0, len(code))
-
 	for i := 0; i < len(insts); i++ {
 		switch insts[i].Op {
 		case x86asm.CALL:
@@ -272,14 +299,10 @@ func relocateInstruction(code []byte, insts []*x86asm.Inst) []byte {
 			case 0xFF:
 				switch code[1] {
 				case 0x15:
-					// change address
-
 					mem := insts[i].Args[0].(x86asm.Mem)
-					fmt.Println(mem.Disp)
-
+					binary.LittleEndian.PutUint32(code[2:], uint32(mem.Disp)-uint32(offset))
 				}
 			}
-
 		}
 		relocated = append(relocated, code[:insts[i].Len]...)
 		code = code[insts[i].Len:]

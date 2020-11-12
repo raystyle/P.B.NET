@@ -152,10 +152,10 @@ type MemoryBasicInformation struct {
 // space of another process, use the VirtualQueryEx function.
 func VirtualQuery(addr uintptr) (*MemoryBasicInformation, error) {
 	const name = "VirtualQuery"
-	var info MemoryBasicInformation
-	ret, _, err := procVirtualQuery.Call(addr, uintptr(unsafe.Pointer(&info)), unsafe.Sizeof(info))
+	var mbi MemoryBasicInformation
+	ret, _, err := procVirtualQuery.Call(addr, uintptr(unsafe.Pointer(&mbi)), unsafe.Sizeof(mbi))
 	if ret == 0 {
 		return nil, newErrorf(name, err, "failed to query memory information at 0x%X", addr)
 	}
-	return &info, nil
+	return &mbi, nil
 }
