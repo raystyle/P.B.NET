@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"unsafe"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 	"golang.org/x/arch/x86/x86asm"
 	"golang.org/x/sys/windows"
@@ -71,7 +72,6 @@ func (pg *PatchGuard) Close() error {
 
 // NewInlineHookByName is used to create a hook about function by DLL name and Proc name.
 func NewInlineHookByName(dll, proc string, system bool, hookFn interface{}) (*PatchGuard, error) {
-	// load DLL
 	var lazyDLL *windows.LazyDLL
 	if system {
 		lazyDLL = windows.NewLazySystemDLL(dll)
@@ -122,13 +122,18 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 	// get instructions
 	insts, err := disassemble(originalFunc, arch.DisassembleMode())
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to disassemble")
+		return nil, errors.WithMessage(err, "failed to disassemble original function")
 	}
 	// get patch size that need fix for trampoline function
 	patchSize, instNum, err := getASMPatchSizeAndInstNum(insts)
 	if err != nil {
 		return nil, err
 	}
+	rebuilt, newInsts, err := rebuildInstruction(originalFunc[:patchSize], insts[:instNum])
+	if err != nil {
+		return nil, err
+	}
+
 	// query memory information about target procedure address for
 	// search writeable memory about hook jumper and trampoline.
 	mbi, err := api.VirtualQuery(targetAddr)
@@ -139,29 +144,30 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 	if err != nil {
 		return nil, err
 	}
-	hookJumperData := arch.NewFarJumpASM(0, hookFnAddr)
+	hookJumperData := arch.NewFarJumpASM(hookJumperMem.Addr, hookFnAddr)
 
 	err = hookJumperMem.Write(hookJumperData)
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("hook jumper: 0x%X\n", hookJumperMem.Addr)
+
 	// create patch for jump to hook jumper
-	shortJumper := newNearJumpASM(targetAddr, hookJumperMem.Addr)
-	mem2 := newMemory(targetAddr, nearJumperSize)
-	err = mem2.Write(shortJumper)
+	patchMem := newMemory(targetAddr, nearJumperSize)
+
+	patchData := newNearJumpASM(targetAddr, hookJumperMem.Addr)
+	err = patchMem.Write(patchData)
 	if err != nil {
 		return nil, err
 	}
-
-	// copy part of instruction about original function
 
 	trampolineMem, err := searchMemory(targetAddr, patchSize+nearJumperSize, false, mbi)
 	if err != nil {
 		return nil, err
 	}
 	// create trampoline function for call original function
-	trampoline := relocateInstruction(
-		int(trampolineMem.Addr)-int(targetAddr), originalFunc[:patchSize], insts[:instNum])
+	trampoline := relocateInstruction(int(trampolineMem.Addr)-int(targetAddr), rebuilt, newInsts)
 	trampoline = append(trampoline, newNearJumpASM(
 		trampolineMem.Addr+uintptr(len(trampoline)), targetAddr+uintptr(patchSize))...)
 
@@ -208,7 +214,7 @@ func disassemble(src []byte, mode int) ([]*x86asm.Inst, error) {
 	for len(src) > 0 {
 		inst, err := x86asm.Decode(src, mode)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		insts = append(insts, &inst)
 		src = src[inst.Len:]
@@ -241,7 +247,6 @@ func createHookJumper(arch arch, target uintptr, mbi *api.MemoryBasicInformation
 // searchMemory is used to search memory for write hook jumper and trampoline.
 // if low is true search low address first.
 func searchMemory(begin uintptr, size int, low bool, mbi *api.MemoryBasicInformation) (*memory, error) {
-	fmt.Printf("begin: 0x%X\n", begin)
 	mem, err := searchMemoryAt(begin, size, !low, mbi)
 	if err == nil {
 		return mem, nil
@@ -250,10 +255,6 @@ func searchMemory(begin uintptr, size int, low bool, mbi *api.MemoryBasicInforma
 }
 
 func searchMemoryAt(begin uintptr, size int, add bool, mbi *api.MemoryBasicInformation) (*memory, error) {
-	minBoundary := mbi.AllocationBase
-	maxBoundary := mbi.AllocationBase + mbi.RegionSize
-	fmt.Printf("min: 0x%X\n", minBoundary)
-	fmt.Printf("max: 0x%X\n", maxBoundary)
 	// set random begin address
 	var maxRange uintptr
 	rand := random.NewRand()
@@ -285,27 +286,60 @@ func searchMemoryAt(begin uintptr, size int, add bool, mbi *api.MemoryBasicInfor
 	return nil, errors.New("failed to search writeable memory")
 }
 
-// relocateInstruction is used to relocate instruction like jmp, call.
+// rebuildInstruction is used to rebuild instruction for replace jmp short to jmp ...
 // [Warning]: it is only partially done.
-func relocateInstruction(offset int, code []byte, insts []*x86asm.Inst) []byte {
-	codeCp := make([]byte, len(code))
-	copy(codeCp, code)
-	code = codeCp
-	relocated := make([]byte, 0, len(code))
+func rebuildInstruction(src []byte, insts []*x86asm.Inst) ([]byte, []*x86asm.Inst, error) {
+	rebuilt := make([]byte, 0, len(src))
 	for i := 0; i < len(insts); i++ {
 		switch insts[i].Op {
+		case x86asm.JMP:
+			switch src[0] {
+			case 0xEB: // replace to near jump
+				inst := make([]byte, 5)
+				inst[0] = 0xE9
+				inst[1] = src[1]
+				rebuilt = append(rebuilt, inst...)
+			default:
+				rebuilt = append(rebuilt, src[:insts[i].Len]...)
+			}
+		default:
+			rebuilt = append(rebuilt, src[:insts[i].Len]...)
+		}
+		src = src[insts[i].Len:]
+	}
+	newInsts, err := disassemble(rebuilt, insts[0].Mode)
+	if err != nil {
+		return nil, nil, errors.WithMessage(err, "failed to disassemble rebuilt instruction")
+	}
+	return rebuilt, newInsts, nil
+}
+
+// relocateInstruction is used to relocate instruction like jmp, call...
+// [Warning]: it is only partially done.
+func relocateInstruction(offset int, src []byte, insts []*x86asm.Inst) []byte {
+	codeCp := make([]byte, len(src))
+	copy(codeCp, src)
+	src = codeCp
+	relocated := make([]byte, 0, len(src))
+	for i := 0; i < len(insts); i++ {
+
+		switch insts[i].Op {
 		case x86asm.CALL:
-			switch code[0] {
+
+			spew.Config.DisableMethods = true
+			spew.Dump(insts[i])
+
+			switch src[0] {
 			case 0xFF:
-				switch code[1] {
+				switch src[1] {
 				case 0x15:
 					mem := insts[i].Args[0].(x86asm.Mem)
-					binary.LittleEndian.PutUint32(code[2:], uint32(mem.Disp)-uint32(offset))
+					binary.LittleEndian.PutUint32(src[2:], uint32(mem.Disp)-uint32(offset))
 				}
 			}
 		}
-		relocated = append(relocated, code[:insts[i].Len]...)
-		code = code[insts[i].Len:]
+		relocated = append(relocated, src[:insts[i].Len]...)
+		src = src[insts[i].Len:]
 	}
 	return relocated
 }

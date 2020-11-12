@@ -20,7 +20,10 @@ func TestNewInlineHookByName(t *testing.T) {
 		hookFn := func(hwnd windows.Handle, text, caption *uint16, uType uint, id uint32, timeout uint) int {
 			originText := windows.UTF16PtrToString(text)
 			originCaption := windows.UTF16PtrToString(caption)
-			fmt.Println(originText, originCaption, id, timeout)
+			require.Equal(t, "text", originText)
+			require.Equal(t, "caption", originCaption)
+			require.Equal(t, uint(1000), timeout)
+
 			// call original function
 			hookedText := fmt.Sprintf("origin: %s, hooked!", originText)
 			hookedCaption := fmt.Sprintf("origin: %s, hooked!", originCaption)
@@ -29,13 +32,11 @@ func TestNewInlineHookByName(t *testing.T) {
 			hookedCaptionPtr, err := windows.UTF16PtrFromString(hookedCaption)
 			require.NoError(t, err)
 			ret, _, _ := pg.Original.Call(
-				uintptr(hwnd),
-				uintptr(unsafe.Pointer(hookedTextPtr)),
-				uintptr(unsafe.Pointer(hookedCaptionPtr)),
-				uintptr(uType), 0, 1000,
+				uintptr(hwnd), uintptr(unsafe.Pointer(hookedTextPtr)),
+				uintptr(unsafe.Pointer(hookedCaptionPtr)), uintptr(uType), 0, 1000,
 			)
-			// return fake return value
 			require.Equal(t, uintptr(32000), ret)
+			// return fake return value
 			return 1234
 		}
 		pg, err = NewInlineHookByName("user32.dll", "MessageBoxTimeoutW", true, hookFn)
@@ -48,9 +49,7 @@ func TestNewInlineHookByName(t *testing.T) {
 
 		proc := windows.NewLazySystemDLL("user32.dll").NewProc("MessageBoxTimeoutW")
 		ret, _, _ := proc.Call(
-			0, uintptr(unsafe.Pointer(textPtr)),
-			uintptr(unsafe.Pointer(captionPtr)), 1,
-			0, 1000,
+			0, uintptr(unsafe.Pointer(textPtr)), uintptr(unsafe.Pointer(captionPtr)), 1, 0, 1000,
 		)
 		require.Equal(t, uintptr(1234), ret)
 	})
@@ -80,7 +79,6 @@ func TestNewInlineHookByName(t *testing.T) {
 		require.NoError(t, err)
 
 		proc := windows.NewLazySystemDLL("crypt32.dll").NewProc("CryptProtectMemory")
-
 		ret, _, _ := proc.Call(uintptr(unsafe.Pointer(&data[0])), 16, 1)
 		require.Equal(t, uintptr(1234), ret)
 
