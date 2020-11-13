@@ -112,7 +112,7 @@ func NewInlineHookByName(dll, proc string, system bool, hookFn interface{}) (*Pa
 	// set private structure field "addr"
 	*(*uintptr)(unsafe.Pointer(
 		reflect.ValueOf(target).Elem().FieldByName("addr").UnsafeAddr()),
-	) = lazyProc.Addr()
+	) = lazyProc.Addr() // #nosec
 	return NewInlineHook(target, hookFn)
 }
 
@@ -177,7 +177,7 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 	}
 	*(*uintptr)(unsafe.Pointer(
 		reflect.ValueOf(fakeOriginalProc).Elem().FieldByName("addr").UnsafeAddr()),
-	) = trampMem.Addr
+	) = trampMem.Addr // #nosec
 	// create patch guard
 	pg := PatchGuard{
 		Original:       fakeOriginalProc,
@@ -280,8 +280,9 @@ func rebuildInstruction(src []byte, insts []*x86asm.Inst) ([]byte, []*x86asm.Ins
 			case 0xEB: // replace to near jump
 				inst := make([]byte, 5)
 				inst[0] = 0xE9
+				// not think 1.
 				mem := insts[i].Args[0].(x86asm.Mem)
-				binary.LittleEndian.PutUint32(inst[1:], uint32(mem.Disp+3)) // not think 1.
+				binary.LittleEndian.PutUint32(inst[1:], uint32(mem.Disp+3))
 				rebuilt = append(rebuilt, inst...)
 			default:
 				rebuilt = append(rebuilt, src[:insts[i].Len]...)
@@ -315,8 +316,8 @@ func relocateInstruction(offset int, src []byte, insts []*x86asm.Inst) []byte {
 			}
 		case x86asm.JMP:
 			switch src[0] {
-			case 0xE9:
-				mem := insts[i].Args[0].(x86asm.Mem) // not think 1.
+			case 0xE9: // not think 1.
+				mem := insts[i].Args[0].(x86asm.Mem)
 				binary.LittleEndian.PutUint32(src[1:], uint32(int(mem.Disp)-offset))
 			}
 		}

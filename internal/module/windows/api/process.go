@@ -196,7 +196,7 @@ func CreateRemoteThread(
 }
 
 // ZwCreateThreadEx is used to create remote thread for bypass session isolation.
-// in x86 creationFlags can only be 0 "false" and 1 "true".
+// in x86 creationFlags can only be 0 "false" and 1 "true". // #nosec
 func ZwCreateThreadEx(
 	hProcess windows.Handle, attr *windows.SecurityAttributes, stackSize uint,
 	startAddress uintptr, parameters *byte, creationFlags uint32,

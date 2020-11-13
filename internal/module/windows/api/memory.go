@@ -149,7 +149,7 @@ type MemoryBasicInformation struct {
 
 // VirtualQuery is used to retrieve information about a range of pages in the virtual address
 // space of the calling process. To retrieve information about a range of pages in the address
-// space of another process, use the VirtualQueryEx function.
+// space of another process, use the VirtualQueryEx function. // #nosec
 func VirtualQuery(addr uintptr) (*MemoryBasicInformation, error) {
 	const name = "VirtualQuery"
 	var mbi MemoryBasicInformation
