@@ -5,12 +5,10 @@ package hook
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"reflect"
-	"runtime"
+	"sync"
 	"unsafe"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 	"golang.org/x/arch/x86/x86asm"
 	"golang.org/x/sys/windows"
@@ -30,43 +28,59 @@ import (
 type PatchGuard struct {
 	Original *windows.Proc
 
-	originalData []byte // contain origin data before hook
-	patchData    []byte
+	// contain origin data before hook
+	fnData    []byte
+	patchMem  *memory
+	patchData []byte
 
+	// about hook jumper
 	hookJumperMem  *memory
 	hookJumperData []byte
 
-	fnData []byte
+	// about trampoline function
+	trampolineMem  *memory
+	trampolineData []byte
+
+	mu sync.Mutex
 }
 
 // Patch is used to patch the target function.
 func (pg *PatchGuard) Patch() error {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	return pg.patch()
-}
-
-func (pg *PatchGuard) patch() error {
+	pg.mu.Lock()
+	defer pg.mu.Unlock()
+	// must create hook jumper before patch
+	err := pg.hookJumperMem.Write(pg.hookJumperData)
+	if err != nil {
+		return errors.WithMessage(err, "failed to create hook jumper")
+	}
+	err = pg.trampolineMem.Write(pg.trampolineData)
+	if err != nil {
+		return errors.WithMessage(err, "failed to create trampoline function")
+	}
+	err = pg.patchMem.Write(pg.patchData)
+	if err != nil {
+		return errors.WithMessage(err, "failed to create patch")
+	}
 	return nil
 }
 
 // UnPatch is used to unpatch the target function.
 func (pg *PatchGuard) UnPatch() error {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	return pg.unPatch()
-}
-
-func (pg *PatchGuard) unPatch() error {
-	return nil
-}
-
-// Close is used to unpatch the target function and release memory.
-func (pg *PatchGuard) Close() error {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	_ = pg.unPatch()
+	pg.mu.Lock()
+	defer pg.mu.Unlock()
+	// must unload patch before recover hook jumper
+	err := pg.patchMem.Write(pg.fnData)
+	if err != nil {
+		return errors.WithMessage(err, "failed to unload patch")
+	}
+	err = pg.hookJumperMem.Write(bytes.Repeat([]byte{0xCC}, len(pg.hookJumperData)))
+	if err != nil {
+		return errors.WithMessage(err, "failed to recover memory about hook jumper")
+	}
+	err = pg.trampolineMem.Write(bytes.Repeat([]byte{0xCC}, len(pg.trampolineData)))
+	if err != nil {
+		return errors.WithMessage(err, "failed to recover memory about trampoline function")
+	}
 	return nil
 }
 
@@ -88,18 +102,18 @@ func NewInlineHookByName(dll, proc string, system bool, hookFn interface{}) (*Pa
 	if err != nil {
 		return nil, err
 	}
-	p := &windows.Proc{
+	target := &windows.Proc{
 		Name: dll,
 	}
-	p.Dll = &windows.DLL{
+	target.Dll = &windows.DLL{
 		Name:   dll,
 		Handle: windows.Handle(lazyDLL.Handle()),
 	}
 	// set private structure field "addr"
 	*(*uintptr)(unsafe.Pointer(
-		reflect.ValueOf(p).Elem().FieldByName("addr").UnsafeAddr()),
+		reflect.ValueOf(target).Elem().FieldByName("addr").UnsafeAddr()),
 	) = lazyProc.Addr()
-	return NewInlineHook(p, hookFn)
+	return NewInlineHook(target, hookFn)
 }
 
 // NewInlineHook is used to create a hook about function, usually hook a syscall.
@@ -109,9 +123,7 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 	// read function address
 	targetAddr := target.Addr()
 	hookFnAddr := windows.NewCallback(hookFn)
-
-	fmt.Printf("0x%X,0x%X\n", targetAddr, hookFnAddr)
-
+	// fmt.Printf("0x%X,0x%X\n", targetAddr, hookFnAddr)
 	// inaccurate but sufficient
 	// Prefix = 4, OpCode = 3, ModRM = 1, sib = 1, displacement = 4, immediate = 4
 	const maxInstLen = 2 * (4 + 3 + 1 + 1 + 4 + 4)
@@ -129,83 +141,58 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 	if err != nil {
 		return nil, err
 	}
-	rebuilt, newInsts, err := rebuildInstruction(originalFunc[:patchSize], insts[:instNum])
+	// replace special instruction
+	rebuiltInsts, newInsts, err := rebuildInstruction(originalFunc[:patchSize], insts[:instNum])
 	if err != nil {
 		return nil, err
 	}
-
 	// query memory information about target procedure address for
 	// search writeable memory about hook jumper and trampoline.
 	mbi, err := api.VirtualQuery(targetAddr)
 	if err != nil {
 		return nil, err
 	}
-	hookJumperMem, err := createHookJumper(arch, targetAddr, mbi)
+	// create hook jumper
+	hookJumperMem, err := searchMemory(targetAddr, arch.FarJumpSize(), true, mbi)
 	if err != nil {
 		return nil, err
 	}
 	hookJumperData := arch.NewFarJumpASM(hookJumperMem.Addr, hookFnAddr)
-
-	err = hookJumperMem.Write(hookJumperData)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Printf("hook jumper: 0x%X\n", hookJumperMem.Addr)
-
+	// fmt.Printf("hook jumper: 0x%X\n", hookJumperMem.Addr)
 	// create patch for jump to hook jumper
 	patchMem := newMemory(targetAddr, nearJumperSize)
-
 	patchData := newNearJumpASM(targetAddr, hookJumperMem.Addr)
-	err = patchMem.Write(patchData)
-	if err != nil {
-		return nil, err
-	}
-
-	trampolineMem, err := searchMemory(targetAddr, patchSize+nearJumperSize, false, mbi)
-	if err != nil {
-		return nil, err
-	}
 	// create trampoline function for call original function
-	trampoline := relocateInstruction(int(trampolineMem.Addr)-int(targetAddr), rebuilt, newInsts)
-	trampoline = append(trampoline, newNearJumpASM(
-		trampolineMem.Addr+uintptr(len(trampoline)), targetAddr+uintptr(patchSize))...)
-
-	err = trampolineMem.Write(trampoline)
+	trampMem, err := searchMemory(targetAddr, len(rebuiltInsts)+nearJumperSize, false, mbi)
 	if err != nil {
 		return nil, err
 	}
-
-	// copy(trampoline[patchSize:], arch.NewFarJumpASM(0, targetAddr+uintptr(patchSize)))
-
-	// //
-	sh := (*reflect.SliceHeader)(unsafe.Pointer(&trampoline))
-	old := new(uint32)
-
-	fmt.Printf("0x%X\n", sh.Data)
-	fmt.Println("sh", &trampoline[0])
-
-	err = api.VirtualProtect(sh.Data, uintptr(sh.Len), windows.PAGE_EXECUTE_READWRITE, old)
-	if err != nil {
-		return nil, err
-	}
-	proc := &windows.Proc{
+	tramData := relocateInstruction(int(trampMem.Addr-targetAddr), rebuiltInsts, newInsts)
+	finalJump := newNearJumpASM(trampMem.Addr+uintptr(len(tramData)), targetAddr+uintptr(patchSize))
+	tramData = append(tramData, finalJump...)
+	// create proc for call original function
+	fakeOriginalProc := &windows.Proc{
 		Dll:  target.Dll,
 		Name: target.Name,
 	}
 	*(*uintptr)(unsafe.Pointer(
-		reflect.ValueOf(proc).Elem().FieldByName("addr").UnsafeAddr()),
-	) = trampolineMem.Addr
-
+		reflect.ValueOf(fakeOriginalProc).Elem().FieldByName("addr").UnsafeAddr()),
+	) = trampMem.Addr
+	// create patch guard
 	pg := PatchGuard{
-		Original: proc,
-		fnData:   trampoline,
+		Original:       fakeOriginalProc,
+		fnData:         originalFunc[:nearJumperSize],
+		patchMem:       patchMem,
+		patchData:      patchData,
+		hookJumperMem:  hookJumperMem,
+		hookJumperData: hookJumperData,
+		trampolineMem:  trampMem,
+		trampolineData: tramData,
 	}
-
-	fmt.Println(patchSize, instNum)
-
-	// fmt.Println(insts)
-
+	err = pg.Patch()
+	if err != nil {
+		return nil, err
+	}
 	return &pg, nil
 }
 
@@ -239,11 +226,6 @@ func getASMPatchSizeAndInstNum(insts []*x86asm.Inst) (int, int, error) {
 	return 0, 0, errors.New("unable to insert near jmp to this function")
 }
 
-// createHookJumper will create a far jumper to our hook function.
-func createHookJumper(arch arch, target uintptr, mbi *api.MemoryBasicInformation) (*memory, error) {
-	return searchMemory(target, arch.FarJumpSize(), true, mbi)
-}
-
 // searchMemory is used to search memory for write hook jumper and trampoline.
 // if low is true search low address first.
 func searchMemory(begin uintptr, size int, low bool, mbi *api.MemoryBasicInformation) (*memory, error) {
@@ -267,6 +249,7 @@ func searchMemoryAt(begin uintptr, size int, add bool, mbi *api.MemoryBasicInfor
 		begin -= uintptr(size) + uintptr(rand.Int(int(begin-boundary)/10))
 		maxRange = begin - boundary
 	}
+	// search memory address
 	var addr uintptr
 	for i := uintptr(0); i < maxRange; i++ {
 		if add {
@@ -297,7 +280,8 @@ func rebuildInstruction(src []byte, insts []*x86asm.Inst) ([]byte, []*x86asm.Ins
 			case 0xEB: // replace to near jump
 				inst := make([]byte, 5)
 				inst[0] = 0xE9
-				inst[1] = src[1]
+				mem := insts[i].Args[0].(x86asm.Mem)
+				binary.LittleEndian.PutUint32(inst[1:], uint32(mem.Disp+3)) // not think 1.
 				rebuilt = append(rebuilt, inst...)
 			default:
 				rebuilt = append(rebuilt, src[:insts[i].Len]...)
@@ -317,25 +301,23 @@ func rebuildInstruction(src []byte, insts []*x86asm.Inst) ([]byte, []*x86asm.Ins
 // relocateInstruction is used to relocate instruction like jmp, call...
 // [Warning]: it is only partially done.
 func relocateInstruction(offset int, src []byte, insts []*x86asm.Inst) []byte {
-	codeCp := make([]byte, len(src))
-	copy(codeCp, src)
-	src = codeCp
 	relocated := make([]byte, 0, len(src))
 	for i := 0; i < len(insts); i++ {
-
 		switch insts[i].Op {
 		case x86asm.CALL:
-
-			spew.Config.DisableMethods = true
-			spew.Dump(insts[i])
-
 			switch src[0] {
 			case 0xFF:
 				switch src[1] {
 				case 0x15:
 					mem := insts[i].Args[0].(x86asm.Mem)
-					binary.LittleEndian.PutUint32(src[2:], uint32(mem.Disp)-uint32(offset))
+					binary.LittleEndian.PutUint32(src[2:], uint32(int(mem.Disp)-offset))
 				}
+			}
+		case x86asm.JMP:
+			switch src[0] {
+			case 0xE9:
+				mem := insts[i].Args[0].(x86asm.Mem) // not think 1.
+				binary.LittleEndian.PutUint32(src[1:], uint32(int(mem.Disp)-offset))
 			}
 		}
 		relocated = append(relocated, src[:insts[i].Len]...)

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"time"
 	"unsafe"
 
 	"github.com/stretchr/testify/require"
@@ -18,6 +17,7 @@ func TestNewInlineHookByName(t *testing.T) {
 	t.Run("MessageBoxTimeoutW", func(t *testing.T) {
 		var pg *PatchGuard
 		hookFn := func(hwnd windows.Handle, text, caption *uint16, uType uint, id uint32, timeout uint) int {
+			// compare parameters
 			originText := windows.UTF16PtrToString(text)
 			originCaption := windows.UTF16PtrToString(caption)
 			require.Equal(t, "text", originText)
@@ -36,6 +36,7 @@ func TestNewInlineHookByName(t *testing.T) {
 				uintptr(unsafe.Pointer(hookedCaptionPtr)), uintptr(uType), 0, 1000,
 			)
 			require.Equal(t, uintptr(32000), ret)
+
 			// return fake return value
 			return 1234
 		}
@@ -52,6 +53,15 @@ func TestNewInlineHookByName(t *testing.T) {
 			0, uintptr(unsafe.Pointer(textPtr)), uintptr(unsafe.Pointer(captionPtr)), 1, 0, 1000,
 		)
 		require.Equal(t, uintptr(1234), ret)
+
+		// after unpatch
+		err = pg.UnPatch()
+		require.NoError(t, err)
+
+		ret, _, _ = proc.Call(
+			0, uintptr(unsafe.Pointer(textPtr)), uintptr(unsafe.Pointer(captionPtr)), 1, 0, 1000,
+		)
+		require.Equal(t, uintptr(32000), ret)
 	})
 
 	t.Run("CryptProtectMemory", func(t *testing.T) {
@@ -61,6 +71,7 @@ func TestNewInlineHookByName(t *testing.T) {
 		}
 		var pg *PatchGuard
 		hookFn := func(address uintptr, size, flags uint) uintptr {
+			// compare parameters
 			var d []byte
 			sh := (*reflect.SliceHeader)(unsafe.Pointer(&d))
 			sh.Data = address
@@ -69,9 +80,11 @@ func TestNewInlineHookByName(t *testing.T) {
 			require.Equal(t, data, d)
 			require.Equal(t, uint(16), size)
 			require.Equal(t, uint(1), flags)
+
 			// call original function
 			ret, _, _ := pg.Original.Call(uintptr(unsafe.Pointer(&data[0])), 16, 1)
 			require.Equal(t, uintptr(1), ret)
+
 			// return fake return value
 			return 1234
 		}
@@ -82,6 +95,11 @@ func TestNewInlineHookByName(t *testing.T) {
 		ret, _, _ := proc.Call(uintptr(unsafe.Pointer(&data[0])), 16, 1)
 		require.Equal(t, uintptr(1234), ret)
 
-		time.Sleep(time.Hour)
+		// after unpatch
+		err = pg.UnPatch()
+		require.NoError(t, err)
+
+		ret, _, _ = proc.Call(uintptr(unsafe.Pointer(&data[0])), 16, 1)
+		require.Equal(t, uintptr(1), ret)
 	})
 }
