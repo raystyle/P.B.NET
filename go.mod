@@ -18,6 +18,7 @@ require (
 	github.com/kardianos/service v1.2.0
 	github.com/looplab/fsm v0.2.0
 	github.com/lucas-clemente/quic-go v0.19.3
+	github.com/Microsoft/go-winio v0.4.16
 	github.com/pelletier/go-toml v1.8.1
 	github.com/pkg/errors v0.9.1
 	github.com/pmezard/go-difflib v1.0.0
@@ -26,8 +27,8 @@ require (
 	github.com/vmihailenco/msgpack/v5 v5.1.4
 
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
-	github.com/castaneai/hinako v0.0.0-20200226130425-39cd4b757cb1
 
+	golang.org/x/arch v0.0.0-20210127225635-455c95562d18
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
 	golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c
