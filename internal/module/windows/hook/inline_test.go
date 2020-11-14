@@ -22,6 +22,8 @@ func TestNewInlineHookByName(t *testing.T) {
 			originCaption := windows.UTF16PtrToString(caption)
 			require.Equal(t, "text", originText)
 			require.Equal(t, "caption", originCaption)
+			require.Equal(t, uint(1), uType)
+			require.Equal(t, uint32(0), id)
 			require.Equal(t, uint(1000), timeout)
 
 			// call original function
@@ -101,5 +103,9 @@ func TestNewInlineHookByName(t *testing.T) {
 
 		ret, _, _ = proc.Call(uintptr(unsafe.Pointer(&data[0])), 16, 1)
 		require.Equal(t, uintptr(1), ret)
+	})
+
+	t.Run("", func(t *testing.T) {
+
 	})
 }

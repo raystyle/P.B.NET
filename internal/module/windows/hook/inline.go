@@ -158,6 +158,11 @@ func NewInlineHook(target *windows.Proc, hookFn interface{}) (*PatchGuard, error
 		return nil, err
 	}
 	hookJumperData := arch.NewFarJumpASM(hookJumperMem.Addr, hookFnAddr)
+	// add padding data for prevent search the same memory
+	err = hookJumperMem.Write(bytes.Repeat([]byte{0x00}, len(hookJumperData)))
+	if err != nil {
+		return nil, err
+	}
 	// fmt.Printf("hook jumper: 0x%X\n", hookJumperMem.Addr)
 	// create patch for jump to hook jumper
 	patchMem := newMemory(targetAddr, nearJumperSize)
@@ -319,10 +324,22 @@ func relocateInstruction(offset int, src []byte, insts []*x86asm.Inst) []byte {
 			case 0xE9: // not think 1.
 				mem := insts[i].Args[0].(x86asm.Mem)
 				binary.LittleEndian.PutUint32(src[1:], uint32(int(mem.Disp)-offset))
+			case 0x48:
+				switch src[1] {
+				case 0xFF:
+					switch src[2] {
+					case 0x25:
+						mem := insts[i].Args[0].(x86asm.Mem)
+						binary.LittleEndian.PutUint32(src[3:], uint32(int(mem.Disp)-offset))
+					}
+				}
 			}
 		}
 		relocated = append(relocated, src[:insts[i].Len]...)
 		src = src[insts[i].Len:]
+
+		// spew.Config.DisableMethods = true
+		// spew.Dump(insts[i])
 	}
 	return relocated
 }
